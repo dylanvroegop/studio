@@ -2309,7 +2309,7 @@ export default function OverzichtPage() {
   --------------------------------------------- */
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="mobile-calm flex min-h-screen flex-col">
       {/* Delete klus dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -2975,8 +2975,8 @@ export default function OverzichtPage() {
       />
 
 
-      <div className="flex-1 px-4 py-6 md:py-10 pb-[280px]">
-        <div className="mx-auto max-w-5xl space-y-8">
+      <div className="flex-1 px-4 py-6 md:py-10 pb-52 sm:pb-40">
+        <div className="mx-auto max-w-5xl space-y-6 sm:space-y-8">
 
           {/* Klussen */}
           <TooltipProvider>
@@ -3004,7 +3004,7 @@ export default function OverzichtPage() {
 
             <div className="space-y-3">
               {jobs.length === 0 && (
-                <div className="rounded-xl bg-white/5 border border-white/5 py-12">
+                <div className="mobile-calm-card rounded-xl bg-white/5 border border-white/5 py-12">
                   <p className="text-sm text-muted-foreground italic text-center">
                     Er zijn nog geen klussen toegevoegd.
                   </p>
@@ -3086,7 +3086,7 @@ export default function OverzichtPage() {
                   <div
                     key={job.id}
                     className={cn(
-                      'group relative flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md',
+                      'mobile-calm-card group relative flex flex-col gap-4 rounded-xl border border-white/5 bg-card/40 px-4 py-4 transition-all duration-300 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:hover:bg-card/60 sm:hover:border-white/10 sm:hover:shadow-lg sm:hover:-translate-y-0.5',
                       isComplete
                         ? 'border-l-4 border-l-emerald-500'
                         : 'border-l-4 border-l-red-500/30'
@@ -3094,7 +3094,7 @@ export default function OverzichtPage() {
                   >
                     <Link href={bewerkenHref} className="absolute inset-0 z-0" />
                     <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2.5 min-w-0">
                         <h3 className="font-semibold text-sm text-foreground truncate group-hover:text-white transition-colors">
                           {title}
                         </h3>
@@ -3102,8 +3102,8 @@ export default function OverzichtPage() {
                           className={cn(
                             'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0',
                             isComplete
-                              ? 'bg-emerald-500/15 text-emerald-400'
-                              : 'bg-red-500/15 text-red-400'
+                              ? 'bg-emerald-500/15 text-emerald-400 mobile-calm-subtle'
+                              : 'bg-red-500/15 text-red-400 mobile-calm-subtle'
                           )}
                         >
                           {isComplete ? 'Ingesteld' : 'Onvolledig'}
@@ -3128,27 +3128,27 @@ export default function OverzichtPage() {
                         )}
                         {preset && (
                           <>
-                            <span className="opacity-20">•</span>
-                            <span className="text-zinc-400">{preset}</span>
+                            <span className="hidden sm:inline opacity-20">•</span>
+                            <span className="hidden sm:inline text-zinc-400">{preset}</span>
                           </>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 opacity-70 group-hover:opacity-100 md:opacity-70 transition-opacity shrink-0 z-10">
+                    <div className="z-10 flex w-full items-center justify-end gap-2 opacity-100 transition-opacity sm:w-auto sm:opacity-70 sm:group-hover:opacity-100">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
                             variant="secondary"
                             size="sm"
-                            className="gap-2 h-8 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                            className="mobile-calm-subtle h-8 flex-1 gap-2 bg-zinc-800/80 border border-white/5 shadow-sm sm:flex-none sm:hover:bg-zinc-700"
                             onClick={(e) => {
                               e.stopPropagation();
                               router.push(bewerkenHref);
                             }}
                           >
                             <Pencil className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">Bewerken</span>
+                            <span>Bewerken</span>
                           </Button>
                         </TooltipTrigger>
                           <TooltipContent>Bewerk deze klus</TooltipContent>
@@ -3158,7 +3158,7 @@ export default function OverzichtPage() {
                         role="button"
                         tabIndex={0}
                         aria-label="Verwijderen"
-                        className="ml-2 -mr-2 px-3 py-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 transition-all cursor-pointer"
+                        className="px-3 py-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 transition-all cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
                           openDeleteDialogForJob(job);
@@ -3694,17 +3694,17 @@ export default function OverzichtPage() {
           </section>
 
           {/* Sticky bottom bar - matching HSB editor footer */}
-          <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
-            <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-              <Button variant="outline" asChild>
+          <div className="mobile-calm-pane fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+            <div className="max-w-5xl mx-auto px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button variant="outline" asChild className="w-full sm:w-auto">
                 <Link href={`/offertes/${quoteId}/klus/nieuw`}>
                   Terug
                 </Link>
               </Button>
 
-              <div className="flex items-center gap-4">
+              <div className="w-full flex flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
                 {/* Status indicator */}
-                <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                   {stats.isReady ? (
                     <>
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
@@ -3713,7 +3713,7 @@ export default function OverzichtPage() {
                   ) : (
                     <>
                       <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-                      <span className="max-w-48 truncate">{primaryHint}</span>
+                      <span className="truncate sm:max-w-48">{primaryHint}</span>
                     </>
                   )}
                 </div>
@@ -3724,7 +3724,7 @@ export default function OverzichtPage() {
                     onClick={sendManualOperationalErrorTest}
                     disabled={isSendingTestError}
                     variant="outline"
-                    className="gap-2 border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200"
+                    className="w-full gap-2 border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200 sm:w-auto"
                   >
                     {isSendingTestError ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -3739,7 +3739,7 @@ export default function OverzichtPage() {
                   onClick={handleFinishQuote}
                   disabled={isSubmitting || !stats.isReady}
                   variant="success"
-                  className="gap-2"
+                  className="w-full gap-2 sm:w-auto"
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -3751,8 +3751,6 @@ export default function OverzichtPage() {
               </div>
             </div>
           </div>
-
-          <div className="h-20" />
         </div>
       </div>
     </main>

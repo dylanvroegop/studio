@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Quote {
     id: string;
@@ -44,6 +45,7 @@ function PlanningPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { toast } = useToast();
+    const isMobile = useIsMobile();
 
     // Extract URL parameters for scheduling mode
     const schedulingMode = searchParams?.get('mode') === 'schedule';
@@ -229,6 +231,37 @@ function PlanningPageContent() {
     const periodLabel = isWeekView || isMonthView
         ? format(currentDate, 'yyyy', { locale: nl })
         : getDateRangeLabel();
+
+    const employeeNameById = useMemo(
+        () => new Map(employees.map((employee) => [employee.id, employee.name])),
+        [employees]
+    );
+
+    const mobilePlanningEntries = useMemo(() => {
+        const toDate = (value: any): Date => {
+            if (!value) return new Date();
+            if (typeof value?.toDate === 'function') return value.toDate();
+            if (value instanceof Date) return value;
+            return new Date(value);
+        };
+
+        return entries
+            .map((entry) => {
+                const start = toDate(entry.startDate);
+                const end = toDate(entry.endDate);
+                return {
+                    entry,
+                    start,
+                    end,
+                    employeeName: employeeNameById.get(entry.employeeId) || 'Onbekend',
+                    clientName: entry.cache?.clientName || 'Onbekende klant',
+                    projectTitle: entry.cache?.projectTitle || '',
+                };
+            })
+            .sort((a, b) => a.start.getTime() - b.start.getTime());
+    }, [entries, employeeNameById]);
+
+    const showMobileList = isMobile && !schedulingMode;
 
     const handleEntryClick = (entry: PlanningEntry) => {
         setSelectedEntry(entry);
@@ -446,7 +479,7 @@ function PlanningPageContent() {
                 )}
 
                 {/* Controls */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                     <div className="flex items-center gap-2">
                         {/* View Toggle */}
                         <div className="flex bg-zinc-800 rounded-lg p-1">
@@ -467,9 +500,9 @@ function PlanningPageContent() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
                         {/* Date Navigation */}
-                        <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-1">
+                        <div className="flex min-w-0 items-center gap-1 rounded-lg bg-zinc-800 p-1">
                             <Button
                                 variant="ghost"
                                 size="icon"
@@ -480,10 +513,10 @@ function PlanningPageContent() {
                             </Button>
                             <Button
                                 variant="ghost"
-                                className="h-8 px-3 text-sm"
+                                className="h-8 max-w-[170px] px-3 text-sm sm:max-w-none"
                                 onClick={() => navigateDate('today')}
                             >
-                                {dateSwitchLabel}
+                                <span className="truncate">{dateSwitchLabel}</span>
                             </Button>
                             <Button
                                 variant="ghost"
@@ -510,7 +543,7 @@ function PlanningPageContent() {
 
                         <Button
                             variant="success"
-                            className="gap-2"
+                            className="gap-2 sm:ml-0"
                             onClick={() => {
                                 setSelectedEntry(null);
                                 setModalPreselectedDate(undefined);
@@ -529,10 +562,38 @@ function PlanningPageContent() {
                     {getDateRangeLabel()}
                 </div>
 
-                {/* Grid */}
+                {/* Planning Content */}
                 {isLoadingEmployees || isLoadingEntries ? (
                     <div className="flex-1 flex items-center justify-center">
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                ) : showMobileList ? (
+                    <div className="flex-1 space-y-3 overflow-y-auto pb-2">
+                        {mobilePlanningEntries.length === 0 ? (
+                            <div className="rounded-xl border border-border bg-card/60 p-5 text-sm text-muted-foreground">
+                                Geen planning in deze periode. Voeg een planning toe met de knop rechtsboven.
+                            </div>
+                        ) : (
+                            mobilePlanningEntries.map((item) => (
+                                <button
+                                    key={item.entry.id}
+                                    type="button"
+                                    onClick={() => handleEntryClick(item.entry)}
+                                    className="w-full rounded-xl border border-border/70 bg-card/70 p-4 text-left transition-colors hover:bg-card"
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="truncate font-semibold text-foreground">{item.clientName}</span>
+                                        <span className="shrink-0 text-xs text-muted-foreground">{item.employeeName}</span>
+                                    </div>
+                                    {item.projectTitle ? (
+                                        <div className="mt-1 truncate text-xs text-muted-foreground">{item.projectTitle}</div>
+                                    ) : null}
+                                    <div className="mt-2 text-xs text-muted-foreground">
+                                        {format(item.start, 'EEE d MMM HH:mm', { locale: nl })} - {format(item.end, 'HH:mm', { locale: nl })}
+                                    </div>
+                                </button>
+                            ))
+                        )}
                     </div>
                 ) : (
                     <PlanningGrid
@@ -568,13 +629,13 @@ function PlanningPageContent() {
             />
 
             <Dialog open={isPlanningSettingsOpen} onOpenChange={setIsPlanningSettingsOpen}>
-                <DialogContent className="sm:max-w-[560px]">
+                <DialogContent className="w-[95vw] sm:max-w-[560px]">
                     <DialogHeader>
                         <DialogTitle>Planning instellingen</DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-5 py-2">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <Label>Uren per dag</Label>
                                 <Input
@@ -597,7 +658,7 @@ function PlanningPageContent() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <Label>Start</Label>
                                 <Input

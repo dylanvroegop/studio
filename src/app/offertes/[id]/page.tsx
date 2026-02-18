@@ -2334,7 +2334,7 @@ export default function QuotePage() {
                 </div>
             </header>
 
-            <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
+            <main className="mobile-calm mx-auto max-w-7xl p-4 pb-10 sm:p-6">
                 {error ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
                         <div className="text-red-400 font-medium">Fout bij laden: {error}</div>
@@ -2788,7 +2788,7 @@ export default function QuotePage() {
                         </TabsContent>
 
                         {/* Materialen Tab */}
-                        <TabsContent value="materialen" className="mt-6 space-y-6 pb-32">
+                        <TabsContent value="materialen" className="mt-6 space-y-6 pb-44 sm:pb-32">
                             {loading ? (
                                 <LoadingPanel />
                             ) : !calculation?.data_json ? (
@@ -3290,10 +3290,10 @@ export default function QuotePage() {
                         </TabsContent>
 
                         {activeTab === 'materialen' && !!calculation?.data_json && (
-                            <div className="quote-materials-sticky-footer fixed bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur-sm">
-                                <div className="mx-auto max-w-7xl px-4 py-2 sm:px-6">
-                                    <div className="rounded-xl border border-border/70 bg-card/90 px-4 py-2 shadow-lg">
-                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="quote-materials-sticky-footer mobile-calm-pane fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur-sm">
+                                <div className="mx-auto max-w-7xl px-4 pt-2 pb-[max(env(safe-area-inset-bottom),0.75rem)] sm:px-6">
+                                    <div className="mobile-calm-card rounded-xl border border-border/70 bg-card/90 px-4 py-2 shadow-lg">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                                             <div className="flex items-center gap-2 min-w-0">
                                                 <div className="w-6 h-6 rounded-md bg-muted flex items-center justify-center text-muted-foreground shrink-0">
                                                     <Package size={14} />
@@ -3302,7 +3302,7 @@ export default function QuotePage() {
                                                     Totaal materialen
                                                 </h3>
                                             </div>
-                                            <div className="flex items-center gap-4 overflow-x-auto">
+                                            <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-4">
                                                 <div className="flex items-center gap-2 whitespace-nowrap">
                                                     <span className="text-[11px] uppercase text-zinc-400 font-medium">
                                                         Totaal (excl. btw)

@@ -228,7 +228,7 @@ export default function GenericSubCategoryPage() {
   if (!categoryConfig) return <div className="p-10 text-center">Categorie niet gevonden.</div>;
 
   return (
-    <main className="relative min-h-screen bg-background flex flex-col">
+    <main className="mobile-calm relative min-h-screen bg-background flex flex-col">
       {/* HEADER - DYNAMIC */}
       <WizardHeader
         title="Kies een klus"
@@ -245,7 +245,7 @@ export default function GenericSubCategoryPage() {
       />
 
       {/* STICKY SEARCH */}
-      <div className="bg-background pt-4 pb-3 px-4 sticky top-[73px] z-10 border-b shadow-sm max-w-5xl mx-auto w-full">
+      <div className="mobile-calm-pane bg-background pt-4 pb-3 px-4 sticky top-0 z-40 border-b shadow-sm max-w-5xl mx-auto w-full">
         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -319,9 +319,9 @@ export default function GenericSubCategoryPage() {
 
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-          <Button variant="outline" asChild>
+      <div className="mobile-calm-pane fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+        <div className="max-w-5xl mx-auto px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] flex items-center">
+          <Button variant="outline" asChild className="w-full sm:w-auto">
             <Link href={`/offertes/${quoteId}/klus/nieuw`}>Terug</Link>
           </Button>
         </div>
@@ -352,8 +352,8 @@ function KlusCard({
   return (
     <div
       className={cn(
-        'relative flex items-center justify-between h-full rounded-xl border bg-card transition-all duration-200 overflow-hidden',
-        'hover:border-emerald-600/50 hover:bg-secondary/20',
+        'mobile-calm-card relative flex items-center justify-between h-full rounded-xl border bg-card transition-all duration-200 overflow-hidden',
+        'sm:hover:border-emerald-600/50 sm:hover:bg-secondary/20',
         'active:scale-[0.98]',
         // Disabled state
         disabled && 'opacity-60 pointer-events-none',
@@ -371,7 +371,7 @@ function KlusCard({
         }}
         className={cn(
           'absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center',
-          'hover:bg-secondary/30 active:bg-secondary/40',
+          'sm:hover:bg-secondary/30 active:bg-secondary/40',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/25'
         )}
         style={{ width: STAR_ZONE_W }}

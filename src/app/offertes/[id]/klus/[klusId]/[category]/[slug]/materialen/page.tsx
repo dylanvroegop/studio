@@ -5764,7 +5764,7 @@ export default function GenericMaterialsPageRedesigned() {
 
   return (
     <>
-      <main className="relative min-h-screen bg-background">
+      <main className="mobile-calm relative min-h-screen bg-background">
         {/* HEADER - Consistent with other pages */}
         <WizardHeader
           title={JOB_TITEL}
@@ -5787,7 +5787,7 @@ export default function GenericMaterialsPageRedesigned() {
         />
 
         {/* CONTENT */}
-        <div className="px-4 py-4 max-w-5xl mx-auto w-full pb-[280px] space-y-6">
+        <div className="px-4 py-4 max-w-5xl mx-auto w-full pb-56 sm:pb-40 space-y-6">
           {foutMaterialen && (<div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{foutMaterialen}</div>)}
 
           {/* Helper: Main Job Measurements - REMOVED per user request */}
@@ -5795,14 +5795,11 @@ export default function GenericMaterialsPageRedesigned() {
           {/* Preset Selector - Compact */}
           <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
             <Label className="text-base font-semibold text-foreground/90">Kies Een Werkpakket</Label>
-            <div
-              className="grid w-full items-stretch"
-              style={{ gridTemplateColumns: '84% 15%', columnGap: '1%' }}
-            >
+            <div className="grid w-full items-stretch grid-cols-1 gap-2 sm:gap-0 sm:[grid-template-columns:84%_15%] sm:[column-gap:1%]">
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border justify-between px-3"
+                className="mobile-calm-subtle h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border justify-between px-3"
                 onClick={() => setPresetPickerOpen(true)}
               >
                 <div className="flex items-center gap-2 min-w-0">
@@ -5831,7 +5828,7 @@ export default function GenericMaterialsPageRedesigned() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border font-semibold"
+                className="mobile-calm-subtle h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border font-semibold"
                 onClick={resetToNieuwWithoutWarning}
               >
                 <Sparkles className="h-4 w-4 mr-2 text-muted-foreground" />
@@ -6548,7 +6545,7 @@ export default function GenericMaterialsPageRedesigned() {
                 Vermeld bij voorkeur aantal, maat en eventueel prijs - dan voegen wij het direct correct toe aan de calculatie.
               </p>
             </div>
-            <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
+            <div className="mobile-calm-card p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
               <Textarea
                 value={notities}
                 onChange={(e) => setNotities(e.target.value)}
@@ -6561,9 +6558,9 @@ export default function GenericMaterialsPageRedesigned() {
       </main >
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap sm:flex-nowrap justify-between items-center gap-2">
-          <Button variant="outline" disabled={isOpslaan || isPresetNotReadyForSave} onClick={handleBack}>
+      <div className="mobile-calm-pane fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+        <div className="max-w-5xl mx-auto px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <Button variant="outline" disabled={isOpslaan || isPresetNotReadyForSave} onClick={handleBack} className="w-full sm:w-auto">
             Terug
           </Button>
 
@@ -6571,7 +6568,7 @@ export default function GenericMaterialsPageRedesigned() {
             variant="outline"
             onClick={() => setIsMaterialExportOpen(true)}
             disabled={materialExportItems.length === 0}
-            className="gap-2"
+            className="w-full gap-2 sm:w-auto"
           >
             <Share2 className="h-4 w-4" />
             Materiaallijst delen
@@ -6581,7 +6578,7 @@ export default function GenericMaterialsPageRedesigned() {
             variant="outline"
             disabled={isPresetNotReadyForSave}
             onClick={() => setSavePresetModalOpen(true)}
-            className="gap-2"
+            className="w-full gap-2 sm:w-auto"
           >
             Opslaan als werkpakket
             <Save className="h-4 w-4" />
@@ -6592,6 +6589,7 @@ export default function GenericMaterialsPageRedesigned() {
             variant="success"
             disabled={isOpslaan || isPresetNotReadyForSave}
             onClick={handleNext}
+            className="w-full sm:w-auto"
           >
             {isOpslaan ? 'Opslaan...' : isPresetNotReadyForSave ? 'Werkpakket laden...' : 'Opslaan'}
           </Button>
@@ -7125,7 +7123,7 @@ export default function GenericMaterialsPageRedesigned() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-2">
                       <Label className="text-xs font-medium">Eenheid *</Label>
                       <Select

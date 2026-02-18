@@ -856,19 +856,19 @@ export default function MaterialenPage() {
       <AppNavigation />
       <DashboardHeader user={user} title="Materialen & Prijzen" />
 
-      <main className="flex-1 space-y-6 p-4 pb-10 md:p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+      <main className="flex-1 space-y-6 p-4 pb-16 md:p-6 md:pb-10">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-2">
             <Input
               placeholder="Zoek op materiaalnaam..."
-              className="w-full md:w-[240px] bg-card/50"
+              className="w-full bg-card/50 md:w-[240px]"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
 
-            <div className="flex gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
               <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                <SelectTrigger className="w-[160px] bg-card/50">
+                <SelectTrigger className="w-full bg-card/50">
                   <SelectValue placeholder="Leverancier" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[80vh]">
@@ -882,7 +882,7 @@ export default function MaterialenPage() {
               </Select>
 
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-[160px] bg-card/50">
+                <SelectTrigger className="w-full bg-card/50">
                   <SelectValue placeholder="Categorie" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[80vh]">
@@ -898,7 +898,7 @@ export default function MaterialenPage() {
               <Button
                 variant="outline"
                 size="icon"
-                className="bg-card/50"
+                className="w-full bg-card/50 sm:w-10"
                 onClick={() => setIsCompact(!isCompact)}
                 title={isCompact ? "Normale weergave" : "Compacte weergave"}
               >
@@ -907,15 +907,14 @@ export default function MaterialenPage() {
             </div>
           </div>
 
-
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" className="h-10 px-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Button asChild variant="outline" className="h-10 w-full px-4 sm:w-auto">
               <Link href="/prijs-import-aanvragen">Prijs import aanvragen</Link>
             </Button>
             <Button
               onClick={openCustomDialog}
               variant="success"
-              className="h-10 px-4 font-bold shadow-sm"
+              className="h-10 w-full px-4 font-bold shadow-sm sm:w-auto"
             >
               <Plus className="mr-2 h-4 w-4" />
               Nieuw materiaal
@@ -941,10 +940,11 @@ export default function MaterialenPage() {
                 <span>Materialen laden...</span>
               </div>
             ) : (
-              <Table>
+              <div className="w-full overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[40%] min-w-[200px] cursor-pointer hover:text-foreground" onClick={() => {
+                    <TableHead className="min-w-[160px] cursor-pointer hover:text-foreground" onClick={() => {
                       setSortConfig(current => ({
                         key: 'materiaalnaam',
                         direction: current?.key === 'materiaalnaam' && current.direction === 'asc' ? 'desc' : 'asc'
@@ -966,7 +966,7 @@ export default function MaterialenPage() {
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </TableHead>
-                    <TableHead className="w-[10%] min-w-[80px] cursor-pointer hover:text-foreground" onClick={() => {
+                    <TableHead className="hidden w-[10%] min-w-[80px] cursor-pointer hover:text-foreground md:table-cell" onClick={() => {
                       setSortConfig(current => ({
                         key: 'eenheid',
                         direction: current?.key === 'eenheid' && current.direction === 'asc' ? 'desc' : 'asc'
@@ -977,7 +977,7 @@ export default function MaterialenPage() {
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </TableHead>
-                    <TableHead className="w-[15%] min-w-[150px] cursor-pointer hover:text-foreground" onClick={() => {
+                    <TableHead className="hidden w-[15%] min-w-[150px] cursor-pointer hover:text-foreground md:table-cell" onClick={() => {
                       setSortConfig(current => ({
                         key: 'subsectie',
                         direction: current?.key === 'subsectie' && current.direction === 'asc' ? 'desc' : 'asc'
@@ -988,7 +988,7 @@ export default function MaterialenPage() {
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </TableHead>
-                    <TableHead className="w-[15%] min-w-[150px] cursor-pointer hover:text-foreground" onClick={() => {
+                    <TableHead className="hidden w-[15%] min-w-[150px] cursor-pointer hover:text-foreground md:table-cell" onClick={() => {
                       setSortConfig(current => ({
                         key: 'leverancier',
                         direction: current?.key === 'leverancier' && current.direction === 'asc' ? 'desc' : 'asc'
@@ -1009,11 +1009,18 @@ export default function MaterialenPage() {
                       const prijsNumber = parsePriceToNumber(material.prijs);
                       return (
                         <TableRow key={material.row_id}>
-                          <TableCell className={isCompact ? "py-1 font-medium" : "font-medium"}>{material.materiaalnaam ?? '—'}</TableCell>
+                          <TableCell className={cn(isCompact ? "py-1 font-medium" : "font-medium", "min-w-0")}>
+                            <div className="min-w-0">
+                              <div className="truncate">{material.materiaalnaam ?? '—'}</div>
+                              <div className="mt-1 text-xs text-muted-foreground md:hidden">
+                                {[material.eenheid, material.subsectie, material.leverancier].filter(Boolean).join(' • ') || '—'}
+                              </div>
+                            </div>
+                          </TableCell>
                           <TableCell className={isCompact ? "py-1 text-right" : "text-right"}>{formatEuro(prijsNumber)}</TableCell>
-                          <TableCell className={isCompact ? "py-1" : ""}>{material.eenheid ?? '—'}</TableCell>
-                          <TableCell className={isCompact ? "py-1" : ""}>{material.subsectie ?? '—'}</TableCell>
-                          <TableCell className={isCompact ? "py-1" : ""}>{material.leverancier ?? '—'}</TableCell>
+                          <TableCell className={cn(isCompact ? "py-1" : "", "hidden md:table-cell")}>{material.eenheid ?? '—'}</TableCell>
+                          <TableCell className={cn(isCompact ? "py-1" : "", "hidden md:table-cell")}>{material.subsectie ?? '—'}</TableCell>
+                          <TableCell className={cn(isCompact ? "py-1" : "", "hidden md:table-cell")}>{material.leverancier ?? '—'}</TableCell>
 
                           <TableCell className={isCompact ? "py-1 text-right" : "text-right"}>
                             <Button
@@ -1038,7 +1045,8 @@ export default function MaterialenPage() {
                     </TableRow>
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
 
@@ -1094,7 +1102,7 @@ export default function MaterialenPage() {
 
         {/* ✅ Add custom dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-[640px] overflow-hidden p-0">
+          <DialogContent className="w-[95vw] sm:max-w-[640px] overflow-hidden p-0">
             {step === 'choice' ? (
               /* STAP 1: DE KEUZEKAARTEN (Nu beide met emerald hover) */
               <div className="p-8">
@@ -1185,7 +1193,7 @@ export default function MaterialenPage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
                       <div className="text-sm font-medium">Eenheid *</div>
                       <Select value={customEenheid} onValueChange={setCustomEenheid}>
@@ -1239,7 +1247,7 @@ export default function MaterialenPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <div className="space-y-1">
                           <div className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Lengte</div>
                           <InputMetSuffix value={maatLengte} onChange={setMaatLengte} suffix={maatUnit} placeholder="0" />
@@ -1267,7 +1275,7 @@ export default function MaterialenPage() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
                       <div className="text-sm font-medium">Categorie (optioneel)</div>
                       <Input

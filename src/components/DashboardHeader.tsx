@@ -16,7 +16,6 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
-import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, User } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
@@ -48,7 +47,14 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
         const userSnap = await getDoc(doc(firestore, 'users', user.uid));
         if (!userSnap.exists() || isCancelled) return;
 
-        const data = userSnap.data() as any;
+        const data = userSnap.data() as {
+          settings?: {
+            logoUrl?: string;
+            contactNaam?: string;
+            bedrijfsnaam?: string;
+          };
+          logoUrl?: string;
+        };
         const settings = data?.settings || {};
         setProfileLogoUrl(settings.logoUrl || data.logoUrl || null);
         setProfileName(settings.contactNaam || settings.bedrijfsnaam || user.displayName || '');
@@ -70,8 +76,6 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
     const base = profileName || user?.displayName || user?.email || 'U';
     return base.trim().charAt(0).toUpperCase() || 'U';
   }, [profileName, user?.displayName, user?.email]);
-  const showBrandLogo = pathname === '/dashboard';
-
   const titleIconMeta = useMemo(() => {
     if (pathname.startsWith('/dashboard')) {
       return {
@@ -174,25 +178,18 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
   };
 
   return (
-    <header className="flex h-20 items-center justify-between border-b bg-background/95 px-4 backdrop-blur-xl md:h-24 sm:bg-transparent sm:px-6">
-      {/* Left: Logo */}
-      <div className="flex shrink-0 items-center gap-3">
-        {/* Logo removed and moved to sidebar */}
+    <header className="relative flex h-16 items-center justify-between border-b bg-background/95 px-3 pl-16 backdrop-blur-xl sm:h-20 sm:px-4 sm:pl-4 md:h-24 md:px-6">
+      <div className="min-w-0 flex-1">
+        {title && (
+          <div className="flex min-w-0 items-center gap-2 sm:absolute sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2">
+            {TitleIcon && titleIconMeta && (
+              <TitleIcon className={`h-4 w-4 shrink-0 sm:h-5 sm:w-5 ${titleIconMeta.iconClassName}`} />
+            )}
+            <h1 className="truncate text-base font-semibold tracking-tight sm:text-xl md:text-2xl">{title}</h1>
+          </div>
+        )}
       </div>
 
-      {/* Center: Title */}
-      {title && (
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="flex items-center gap-2">
-            {TitleIcon && titleIconMeta && (
-              <TitleIcon className={`h-5 w-5 ${titleIconMeta.iconClassName}`} />
-            )}
-            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{title}</h1>
-          </div>
-        </div>
-      )}
-
-      {/* Right: Logout */}
       <div className="flex shrink-0 items-center gap-2">
         {user && (
           <DropdownMenu>

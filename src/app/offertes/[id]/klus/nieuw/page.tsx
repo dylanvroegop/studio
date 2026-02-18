@@ -293,7 +293,7 @@ export default function NewJobPage() {
   if (!isMounted) return null;
 
   return (
-    <main className="relative min-h-screen bg-background flex flex-col">
+    <main className="mobile-calm relative min-h-screen bg-background flex flex-col">
       {/* HEADER */}
       <WizardHeader
         title="Kies een klus"
@@ -310,7 +310,7 @@ export default function NewJobPage() {
       />
 
       {/* STICKY SEARCH */}
-      <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-md pt-4 pb-4 px-4 border-b border-border/40">
+      <div className="mobile-calm-pane sticky top-0 z-40 bg-background/80 backdrop-blur-md pt-4 pb-4 px-4 border-b border-border/40">
         <div className="max-w-5xl mx-auto w-full relative">
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -388,9 +388,9 @@ export default function NewJobPage() {
 
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-          <Button variant="outline" asChild>
+      <div className="mobile-calm-pane fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+        <div className="max-w-5xl mx-auto px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] flex items-center">
+          <Button variant="outline" asChild className="w-full sm:w-auto">
             <Link href={`/offertes/${quoteId}/edit`}>Terug</Link>
           </Button>
         </div>
@@ -427,8 +427,8 @@ function KlusCard({
   return (
     <div
       className={cn(
-        'group relative flex items-center justify-between h-full rounded-2xl border border-white/5 bg-card/40 transition-all duration-300 overflow-hidden backdrop-blur-sm',
-        'hover:border-emerald-500/30 hover:bg-card/60 hover:shadow-lg hover:shadow-emerald-900/20 hover:-translate-y-1',
+        'mobile-calm-card group relative flex items-center justify-between h-full rounded-2xl border border-white/5 bg-card/40 transition-all duration-300 overflow-hidden backdrop-blur-sm',
+        'sm:hover:border-emerald-500/30 sm:hover:bg-card/60 sm:hover:shadow-lg sm:hover:shadow-emerald-900/20 sm:hover:-translate-y-1',
         'active:scale-[0.98] active:duration-100',
         disabled && 'opacity-60 pointer-events-none',
         'p-0', // Inner padding handled by children for precise star zone
@@ -445,7 +445,7 @@ function KlusCard({
         }}
         className={cn(
           'absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center border-r border-white/5 transition-colors',
-          'hover:bg-white/5 active:bg-white/10',
+          'sm:hover:bg-white/5 active:bg-white/10',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/25'
         )}
         style={{ width: STAR_ZONE_W }}
@@ -481,8 +481,8 @@ function KlusCard({
           </span>
         </div>
 
-        <div className="h-8 w-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/10 group-hover:text-emerald-400 transition-all">
-          <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-emerald-400 transition-colors shrink-0" />
+        <div className="mobile-calm-subtle h-8 w-8 rounded-full bg-white/5 flex items-center justify-center sm:group-hover:bg-emerald-500/10 sm:group-hover:text-emerald-400 transition-all">
+          <ChevronRight className="h-4 w-4 text-muted-foreground/50 sm:group-hover:text-emerald-400 transition-colors shrink-0" />
         </div>
       </div>
     </div>

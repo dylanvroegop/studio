@@ -170,7 +170,7 @@ function VakInputCard({
 
       {!isCollapsed && (
         <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-          <div className="pt-2 border-t border-white/5 grid grid-cols-2 gap-3">
+          <div className="pt-2 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Type Dropdown */}
             <div className="col-span-2">
               <Label className="text-xs mb-1.5 block">Type</Label>
@@ -2906,7 +2906,7 @@ export default function GenericMeasurementPage() {
             <div className="pt-2 border-t border-white/5 space-y-4">
               <div className="space-y-1.5">
                 <Label className="text-xs uppercase text-zinc-500 tracking-wider">Profiel type</Label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <button
                     type="button"
                     className={modeButtonClass(profielState.mode === 'hoek', 'hoek')}
@@ -4107,7 +4107,7 @@ export default function GenericMeasurementPage() {
   };
 
   return (
-    <main className="relative min-h-screen bg-background text-foreground">
+    <main className="mobile-calm relative min-h-screen bg-background text-foreground">
       <WizardHeader
         title={jobConfig.title}
         backLink={backUrl}
@@ -4116,7 +4116,7 @@ export default function GenericMeasurementPage() {
         rightContent={<PersonalNotes quoteId={quoteId} jobId={klusId} context={`Metingen: ${jobConfig.title}`} />}
       />
 
-      <div className="px-4 py-8 max-w-[1400px] mx-auto pb-[280px]">
+      <div className="px-4 py-8 max-w-[1400px] mx-auto pb-56 sm:pb-40">
         <form>
           <div className="space-y-8">
             {items.map((item, index) => (
@@ -4138,7 +4138,7 @@ export default function GenericMeasurementPage() {
 
                     {/* Item Header Card */}
                     {/* Item Header Card */}
-                    <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl space-y-4">
+                    <div className="mobile-calm-card p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl space-y-4">
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Vorm</Label>
@@ -4252,7 +4252,7 @@ export default function GenericMeasurementPage() {
                             <div className="space-y-4">
                               <Label className="text-xs uppercase text-white tracking-wider">Voorzijde</Label>
                               {fLengte && fHoogte ? (
-                                <div className="grid grid-cols-2 gap-3 items-end">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
                                   <DynamicInput
                                     field={fLengte}
                                     value={item.lengte}
@@ -4302,7 +4302,7 @@ export default function GenericMeasurementPage() {
                               <div className="pt-2 border-t border-white/5" />
                               <Label className="text-xs uppercase text-white tracking-wider">Onderzijde</Label>
                               {fLengteOnderzijde && fBreedte ? (
-                                <div className="grid grid-cols-2 gap-3 items-end">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
                                   <DynamicInput
                                     field={fLengteOnderzijde}
                                     value={item.lengte_onderzijde}
@@ -4434,7 +4434,7 @@ export default function GenericMeasurementPage() {
                                     <Switch checked={item.kopkanten || false} onCheckedChange={(c) => updateItem(index, 'kopkanten', c)} />
                                   </div>
                                   {item.kopkanten && (
-                                    <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in slide-in-from-top-2">
                                       {fields.find(f => f.key === 'kopkant_breedte') && (
                                         <DynamicInput field={fields.find(f => f.key === 'kopkant_breedte')!} value={item.kopkant_breedte} onChange={v => updateItem(index, 'kopkant_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                                       )}
@@ -4531,7 +4531,7 @@ export default function GenericMeasurementPage() {
                           <div className="space-y-4">
                             {/* Roof Tile Specific Fields */}
                             {useSideBySidePannenAfmetingen ? (
-                              <div className="grid grid-cols-2 gap-3 items-start">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
                                 {dakpanBreedteField}
                                 {dakpanHoogteField}
                               </div>
@@ -5611,7 +5611,7 @@ export default function GenericMeasurementPage() {
 
                                   <div className="space-y-3">
                                     <Label className="text-xs">Opties</Label>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       {isRoofCategory && (
                                         <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
                                           <Label className="text-[10px] text-zinc-400">Dbl. Beginlat</Label>
@@ -5709,7 +5709,7 @@ export default function GenericMeasurementPage() {
                               </p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="space-y-2">
                                 <Label htmlFor={`aantal-daken-${index}`} className="text-xs">Aantal daken / schuren</Label>
                                 <Input
@@ -5825,7 +5825,7 @@ export default function GenericMeasurementPage() {
 
                                   <div className="space-y-3">
                                     <Label className="text-xs">Opties</Label>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
                                         <Label className="text-[10px] text-zinc-400">Dbl. Eindlat</Label>
                                         <Switch checked={item.doubleEndTengels || false} onCheckedChange={(c) => updateItem(index, 'doubleEndTengels', c)} className="scale-75 origin-right" />
@@ -5915,7 +5915,7 @@ export default function GenericMeasurementPage() {
 
                                   <div className="space-y-3">
                                     <Label className="text-xs">Opties</Label>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       {isRoofCategory && (
                                         <div className="flex items-center justify-between bg-black/20 p-2 rounded border border-white/5">
                                           <Label className="text-[10px] text-zinc-400">Dbl. Beginlat</Label>
@@ -6148,7 +6148,7 @@ export default function GenericMeasurementPage() {
                                 {hasKoofHoekprofielMaterialFromPreviousPage && (
                                   <div className="space-y-2">
                                     <Label className="text-xs">Toepassen op</Label>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       <button
                                         type="button"
                                         onClick={() => toggleNadenStucwerkScopeTarget(index, 'wand')}
@@ -6267,7 +6267,7 @@ export default function GenericMeasurementPage() {
 
                         {item.kopkanten && (
                           <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
-                            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-white/5">
                               {fields.find(f => f.key === 'kopkant_breedte') && (
                                 <DynamicInput field={fields.find(f => f.key === 'kopkant_breedte')!} value={item.kopkant_breedte} onChange={v => updateItem(index, 'kopkant_breedte', v)} onKeyDown={handleKeyDown} disabled={disabledAll} />
                               )}
@@ -6443,13 +6443,13 @@ export default function GenericMeasurementPage() {
                   {isBoeiboord ? (
                     <div
                       ref={(el) => { visualizerRefs.current[index] = el; }}
-                      className="flex-1 w-full lg:min-w-0 sticky top-24 self-start bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative"
+                      className="mobile-calm-pane flex-1 w-full lg:min-w-0 sticky top-24 self-start bg-card border border-border rounded-2xl overflow-hidden shadow-sm relative lg:bg-[#09090b] lg:border-white/10 lg:shadow-2xl"
                     >
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="absolute right-3 top-3 z-20 bg-black/70 border-white/20 text-zinc-100 hover:bg-black/80"
+                        className="mobile-calm-subtle absolute right-3 top-3 z-20 border border-border bg-muted/90 text-foreground sm:border-white/20 sm:bg-black/70 sm:text-zinc-100 sm:hover:bg-black/80"
                         onClick={() => setExpandedDrawingIndex(index)}
                       >
                         <Maximize2 className="h-4 w-4 sm:mr-1.5" />
@@ -6482,12 +6482,12 @@ export default function GenericMeasurementPage() {
                       />
                     </div>
                   ) : (
-                    <div className="flex-1 w-full lg:min-w-0 bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative sticky top-24 self-start flex flex-col">
+                    <div className="mobile-calm-pane flex-1 w-full lg:min-w-0 bg-card border border-border rounded-2xl overflow-hidden shadow-sm relative sticky top-24 self-start flex flex-col lg:bg-[#09090b] lg:border-white/10 lg:shadow-2xl">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="absolute right-3 top-3 z-20 bg-black/70 border-white/20 text-zinc-100 hover:bg-black/80"
+                        className="mobile-calm-subtle absolute right-3 top-3 z-20 border border-border bg-muted/90 text-foreground sm:border-white/20 sm:bg-black/70 sm:text-zinc-100 sm:hover:bg-black/80"
                         onClick={() => setExpandedDrawingIndex(index)}
                       >
                         <Maximize2 className="h-4 w-4 sm:mr-1.5" />
@@ -6497,7 +6497,7 @@ export default function GenericMeasurementPage() {
                       {/* Canvas Container */}
                       <div
                         ref={(el) => { visualizerRefs.current[index] = el; }}
-                        className="relative w-full flex-1 flex items-center justify-center bg-[#09090b]"
+                        className="relative w-full flex-1 flex items-center justify-center bg-card lg:bg-[#09090b]"
                       >
                         {/* Dot Pattern Background */}
                         <div
@@ -6551,7 +6551,7 @@ export default function GenericMeasurementPage() {
                 <h3 className="text-lg font-medium text-amber-500">Slimme Notities</h3>
                 <p className="text-sm text-muted-foreground">Onze assistent begrijpt bouwinstructies. Type simpelweg afwijkingen of details door; wij verwerken deze direct in de technische uitslag en constructie.</p>
               </div>
-              <div className="p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
+              <div className="mobile-calm-card p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
                 <Textarea
                   value={notities}
                   onChange={(e) => setNotities(e.target.value)}
@@ -6587,7 +6587,7 @@ export default function GenericMeasurementPage() {
             <div className="relative z-10 h-full w-full flex items-center justify-center p-2 sm:p-6">
               {expandedDrawingItem ? (
                 isBoeiboord ? (
-                  <div className="h-full w-full rounded-xl border border-white/10 bg-[#09090b] overflow-hidden">
+                  <div className="mobile-calm-pane h-full w-full rounded-xl border border-border bg-card overflow-hidden lg:border-white/10 lg:bg-[#09090b]">
                     <VisualizerController
                       category={categorySlug}
                       slug={jobSlug}
@@ -6616,7 +6616,7 @@ export default function GenericMeasurementPage() {
                     />
                   </div>
                 ) : (
-                  <div className="h-full w-full rounded-xl border border-white/10 bg-[#09090b] overflow-hidden">
+                  <div className="mobile-calm-pane h-full w-full rounded-xl border border-border bg-card overflow-hidden lg:border-white/10 lg:bg-[#09090b]">
                     <VisualizerController
                       category={categorySlug}
                       slug={jobSlug}
@@ -6651,11 +6651,11 @@ export default function GenericMeasurementPage() {
         </DialogContent>
       </Dialog>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-          <Button variant="outline" asChild disabled={disabledAll}><Link href={backUrl}>Terug</Link></Button>
-          <Button type="button" variant="outline" onClick={addItem} disabled={disabledAll}><PlusCircle className="mr-2 h-4 w-4" />Extra {itemLabel} toevoegen</Button>
-          <Button type="submit" variant="success" disabled={disabledAll} onClick={handleSave}>{saving ? 'Opslaan...' : 'Opslaan'}</Button>
+      <div className="mobile-calm-pane fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
+        <div className="max-w-5xl mx-auto px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Button variant="outline" asChild disabled={disabledAll} className="w-full sm:w-auto"><Link href={backUrl}>Terug</Link></Button>
+          <Button type="button" variant="outline" onClick={addItem} disabled={disabledAll} className="w-full sm:w-auto"><PlusCircle className="mr-2 h-4 w-4" />Extra {itemLabel} toevoegen</Button>
+          <Button type="submit" variant="success" disabled={disabledAll} onClick={handleSave} className="w-full sm:w-auto">{saving ? 'Opslaan...' : 'Opslaan'}</Button>
         </div>
       </div>
 

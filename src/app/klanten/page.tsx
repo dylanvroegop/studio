@@ -289,11 +289,11 @@ export default function KlantenPage() {
   }
 
   return (
-    <main className="app-shell min-h-screen bg-background pb-10">
+    <main className="app-shell min-h-screen bg-background pb-16 md:pb-10">
       <AppNavigation />
       <DashboardHeader user={user} title="Klantenbeheer" />
       <div className="container mx-auto p-4 md:p-8 space-y-6">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -306,173 +306,249 @@ export default function KlantenPage() {
           <Button
             onClick={openNewClientModal}
             variant="success"
-            className="h-10 px-4 font-bold shadow-sm shrink-0"
+            className="h-10 w-full px-4 font-bold shadow-sm sm:w-auto sm:shrink-0"
           >
             <Plus className="mr-2 h-4 w-4" />
             Nieuwe Klant
           </Button>
         </div>
-        <div className="rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden">
-          <div className="relative w-full overflow-auto">
-            <table className="w-full caption-bottom text-sm text-left">
-              <thead className="[&_tr]:border-b bg-muted/30">
-                <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                  <th className="h-12 px-4 align-middle font-medium text-muted-foreground">
-                    Naam / Bedrijf
-                  </th>
-                  <th className="h-12 px-4 align-middle font-medium text-muted-foreground hidden md:table-cell">
-                    Contact
-                  </th>
-                  <th className="h-12 px-4 align-middle font-medium text-muted-foreground hidden md:table-cell">
-                    Locatie
-                  </th>
-                  <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">
-                    Acties
-                  </th>
-                </tr>
-              </thead>
 
-              <tbody className="[&_tr:last-child]:border-0">
-                {filteredClients.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="h-32 text-center text-muted-foreground align-middle"
-                    >
-                      Geen klanten gevonden.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredClients.map((client) => {
-                    const isZakelijk =
-                      client.klanttype === 'Zakelijk' || client.klanttype === 'zakelijk';
+        {filteredClients.length === 0 ? (
+          <div className="rounded-xl border bg-card p-10 text-center text-muted-foreground">
+            Geen klanten gevonden.
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3 md:hidden">
+              {filteredClients.map((client) => {
+                const isZakelijk =
+                  client.klanttype === 'Zakelijk' || client.klanttype === 'zakelijk';
+                const displayName = `${client.voornaam || ''} ${client.achternaam || ''}`.trim() || 'Onbekende klant';
+                const location = [client.straat, client.huisnummer, client.postcode, client.plaats].filter(Boolean).join(' ');
 
-                    return (
-                      <tr key={client.id} className="border-b transition-colors hover:bg-muted/30">
-                        {/* Name */}
-                        <td className="p-4 align-middle">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={cn(
-                                'h-9 w-9 rounded-full flex items-center justify-center shrink-0 border',
-                                isZakelijk
-                                  ? 'bg-blue-500/10 border-blue-500/20 text-blue-600'
-                                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
-                              )}
-                            >
-                              {isZakelijk ? (
-                                <Building2 className="h-4 w-4" />
-                              ) : (
-                                <User className="h-4 w-4" />
-                              )}
-                            </div>
-
-                            <div className="flex flex-col">
-                              <span className="font-medium text-foreground">
-                                {client.voornaam} {client.achternaam}
-                              </span>
-                              {isZakelijk && (
-                                <span className="text-xs text-muted-foreground">
-                                  {client.bedrijfsnaam}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Mobile contact */}
-                          <div className="md:hidden mt-2 space-y-1 text-xs text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <Mail className="h-3 w-3" /> {client.emailadres}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-3 w-3" /> {client.telefoonnummer}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Contact (desktop) */}
-                        <td className="p-4 align-middle hidden md:table-cell">
-                          <div className="flex flex-col gap-1 text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <Mail className="h-3.5 w-3.5 opacity-70" /> {client.emailadres}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-3.5 w-3.5 opacity-70" /> {client.telefoonnummer}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Location (desktop) */}
-                        <td className="p-4 align-middle hidden md:table-cell">
-                          <span className="text-muted-foreground">
-                            {client.straat} {client.huisnummer}
-                            <br />
-                            {client.postcode} {client.plaats}
-                          </span>
-                        </td>
-
-                        {/* Actions */}
-                        <td className="p-4 align-middle text-right">
-                          <div className="inline-flex items-center gap-2">
-                            {/* 1-click edit */}
+                return (
+                  <div key={client.id} className="rounded-xl border bg-card/70 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div
+                          className={cn(
+                            'h-9 w-9 rounded-full flex items-center justify-center shrink-0 border',
+                            isZakelijk
+                              ? 'bg-blue-500/10 border-blue-500/20 text-blue-600'
+                              : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                          )}
+                        >
+                          {isZakelijk ? (
+                            <Building2 className="h-4 w-4" />
+                          ) : (
+                            <User className="h-4 w-4" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-foreground">{displayName}</div>
+                          {isZakelijk && (
+                            <div className="truncate text-xs text-muted-foreground">{client.bedrijfsnaam}</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setEditingClient(client)}
+                          aria-label="Bewerken"
+                          title="Bewerken"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
-                              onClick={() => setEditingClient(client)}
-                              aria-label="Bewerken"
-                              title="Bewerken"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              aria-label="Verwijderen"
                             >
-                              <Pencil className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
-
-                            {/* 2-click delete inside menu */}
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                  aria-label="Verwijderen"
-                                >
-                                  <Trash2 className="h-4 w-4" />
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Weet u het zeker?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Dit verwijdert {client.voornaam} {client.achternaam} uit uw
+                                adresboek.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel asChild>
+                                <Button variant="ghost">Annuleren</Button>
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(client.id)}
+                                asChild
+                              >
+                                <Button variant="destructiveSoft">
+                                  Verwijderen
                                 </Button>
-                              </AlertDialogTrigger>
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
 
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Weet u het zeker?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Dit verwijdert {client.voornaam} {client.achternaam} uit uw
-                                    adresboek.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
+                    <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-3 w-3" /> {client.emailadres || '—'}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-3 w-3" /> {client.telefoonnummer || '—'}
+                      </div>
+                      <div>{location || 'Adres niet ingevuld'}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel asChild>
-                                    <Button variant="ghost">Annuleren</Button>
-                                  </AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDelete(client.id)}
-                                    asChild
+            <div className="hidden rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden md:block">
+              <div className="relative w-full overflow-auto">
+                <table className="w-full caption-bottom text-sm text-left">
+                  <thead className="[&_tr]:border-b bg-muted/30">
+                    <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                      <th className="h-12 px-4 align-middle font-medium text-muted-foreground">
+                        Naam / Bedrijf
+                      </th>
+                      <th className="h-12 px-4 align-middle font-medium text-muted-foreground">
+                        Contact
+                      </th>
+                      <th className="h-12 px-4 align-middle font-medium text-muted-foreground">
+                        Locatie
+                      </th>
+                      <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">
+                        Acties
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="[&_tr:last-child]:border-0">
+                    {filteredClients.map((client) => {
+                      const isZakelijk =
+                        client.klanttype === 'Zakelijk' || client.klanttype === 'zakelijk';
+
+                      return (
+                        <tr key={client.id} className="border-b transition-colors hover:bg-muted/30">
+                          <td className="p-4 align-middle">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={cn(
+                                  'h-9 w-9 rounded-full flex items-center justify-center shrink-0 border',
+                                  isZakelijk
+                                    ? 'bg-blue-500/10 border-blue-500/20 text-blue-600'
+                                    : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                                )}
+                              >
+                                {isZakelijk ? (
+                                  <Building2 className="h-4 w-4" />
+                                ) : (
+                                  <User className="h-4 w-4" />
+                                )}
+                              </div>
+
+                              <div className="flex flex-col">
+                                <span className="font-medium text-foreground">
+                                  {client.voornaam} {client.achternaam}
+                                </span>
+                                {isZakelijk && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {client.bedrijfsnaam}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-4 align-middle">
+                            <div className="flex flex-col gap-1 text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Mail className="h-3.5 w-3.5 opacity-70" /> {client.emailadres}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Phone className="h-3.5 w-3.5 opacity-70" /> {client.telefoonnummer}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-4 align-middle">
+                            <span className="text-muted-foreground">
+                              {client.straat} {client.huisnummer}
+                              <br />
+                              {client.postcode} {client.plaats}
+                            </span>
+                          </td>
+
+                          <td className="p-4 align-middle text-right">
+                            <div className="inline-flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => setEditingClient(client)}
+                                aria-label="Bewerken"
+                                title="Bewerken"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                    aria-label="Verwijderen"
                                   >
-                                    <Button variant="destructiveSoft">
-                                      Verwijderen
-                                    </Button>
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Weet u het zeker?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Dit verwijdert {client.voornaam} {client.achternaam} uit uw
+                                      adresboek.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel asChild>
+                                      <Button variant="ghost">Annuleren</Button>
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDelete(client.id)}
+                                      asChild
+                                    >
+                                      <Button variant="destructiveSoft">
+                                        Verwijderen
+                                      </Button>
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Edit/Create modal */}
@@ -485,7 +561,7 @@ export default function KlantenPage() {
           }
         }}
       >
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] flex flex-col overflow-hidden p-0">
           <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
             <DialogTitle>{isNewClient ? 'Nieuwe klant toevoegen' : 'Klant bewerken'}</DialogTitle>
           </DialogHeader>
@@ -559,8 +635,8 @@ export default function KlantenPage() {
                     <div className="flex-1 border-t" />
                   </div>
 
-                  <div className="grid grid-cols-4 gap-4">
-                    <div className="col-span-3 space-y-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+                    <div className="space-y-2 sm:col-span-3">
                       <Label>Straat</Label>
                       <Input
                         value={editingClient.straat || ''}
@@ -583,7 +659,7 @@ export default function KlantenPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div className="space-y-2">
                       <Label>Postcode</Label>
                       <Input
@@ -595,7 +671,7 @@ export default function KlantenPage() {
                       />
                     </div>
 
-                    <div className="col-span-2 space-y-2">
+                    <div className="space-y-2 sm:col-span-2">
                       <Label>Plaats</Label>
                       <Input
                         value={editingClient.plaats || ''}
@@ -615,8 +691,8 @@ export default function KlantenPage() {
                     <div className="flex-1 border-t" />
                   </div>
 
-                  <div className="grid grid-cols-4 gap-4">
-                    <div className="col-span-3 space-y-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+                    <div className="space-y-2 sm:col-span-3">
                       <Label>Projectstraat</Label>
                       <Input
                         value={editingClient.projectStraat || ''}
@@ -638,7 +714,7 @@ export default function KlantenPage() {
                       />
                     </div>
 
-                    <div className="col-span-1 space-y-2">
+                    <div className="space-y-2">
                       <Label>Postcode</Label>
                       <Input
                         value={editingClient.projectPostcode || ''}
@@ -649,7 +725,7 @@ export default function KlantenPage() {
                       />
                     </div>
 
-                    <div className="col-span-3 space-y-2">
+                    <div className="space-y-2 sm:col-span-3">
                       <Label>Plaats</Label>
                       <Input
                         value={editingClient.projectPlaats || ''}

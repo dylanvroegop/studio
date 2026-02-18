@@ -788,7 +788,7 @@ export default function OffertesPage() {
         <AppNavigation />
         <DashboardHeader user={user} title="Offertes" />
 
-        <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
+        <main className="flex flex-col items-center p-4 pb-16 md:px-6 md:pb-10 md:pt-6">
           <div className="w-full max-w-3xl space-y-6">
             <Card>
               <CardHeader className="pb-4">
@@ -804,8 +804,8 @@ export default function OffertesPage() {
                   </div>
                 )}
 
-                <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                  <div className="relative flex-1">
+                <div className="space-y-3">
+                  <div className="relative">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       value={search}
@@ -815,13 +815,13 @@ export default function OffertesPage() {
                     />
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                     <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                       <DialogTrigger asChild>
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-10 gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
+                          className="h-10 w-full gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100 sm:w-auto"
                         >
                           <Plus className="h-4 w-4" />
                           Nieuwe offerte
@@ -871,7 +871,7 @@ export default function OffertesPage() {
                             )}
                           </div>
 
-                          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-between">
+                          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
                             <Button
                               type="button"
                               variant="outline"
@@ -881,7 +881,7 @@ export default function OffertesPage() {
                               Nieuwe klant toevoegen
                             </Button>
 
-                            <div className="flex gap-2">
+                            <div className="flex flex-col gap-2 sm:flex-row">
                               <Button
                                 type="button"
                                 variant="outline"
@@ -907,63 +907,66 @@ export default function OffertesPage() {
                       </DialogContent>
                     </Dialog>
 
-                    <Button
-                      type="button"
-                      variant={filter === 'alle' ? 'outline' : 'ghost'}
-                      onClick={() => setFilter('alle')}
-                      className={cn('h-10', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
-                    >
-                      Alle
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={filter === 'concept' ? 'outline' : 'ghost'}
-                      onClick={() => setFilter('concept')}
-                      className={cn('h-10', filter === 'concept' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
-                    >
-                      Concept
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={filter === 'verzonden' ? 'outline' : 'ghost'}
-                      onClick={() => setFilter('verzonden')}
-                      className={cn('h-10', filter === 'verzonden' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
-                    >
-                      Verzonden
-                    </Button>
-                    {isDev ? (
-                      <div className="flex flex-col gap-2">
-                        <Button
-                          type="button"
-                          variant="destructiveSoft"
-                          className="h-10"
-                          onClick={handleDeleteAllConceptQuotes}
-                          disabled={deletingConcepts || deletingCalculatedQuotes || !quotes.some((q) => q.status === 'concept')}
-                        >
-                          {deletingConcepts ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
-                          Verwijder alle concepten
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="destructiveSoft"
-                          className="h-10"
-                          onClick={handleDeleteAllCalculatedQuotes}
-                          disabled={
-                            deletingCalculatedQuotes
-                            || deletingConcepts
-                            || !quotes.some((q) => q.status === 'in_behandeling' && hasCalculatedAmount(q.totaalbedrag || q.amount || 0))
-                          }
-                        >
-                          {deletingCalculatedQuotes ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4 mr-2" />
-                          )}
-                          Verwijder alle berekende
-                        </Button>
-                      </div>
-                    ) : null}
+                    <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+                      <Button
+                        type="button"
+                        variant={filter === 'alle' ? 'outline' : 'ghost'}
+                        onClick={() => setFilter('alle')}
+                        className={cn('h-10', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                      >
+                        Alle
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={filter === 'concept' ? 'outline' : 'ghost'}
+                        onClick={() => setFilter('concept')}
+                        className={cn('h-10', filter === 'concept' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                      >
+                        Concept
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={filter === 'verzonden' ? 'outline' : 'ghost'}
+                        onClick={() => setFilter('verzonden')}
+                        className={cn('h-10', filter === 'verzonden' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                      >
+                        Verzonden
+                      </Button>
+                    </div>
                   </div>
+
+                  {isDev ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Button
+                        type="button"
+                        variant="destructiveSoft"
+                        className="h-10"
+                        onClick={handleDeleteAllConceptQuotes}
+                        disabled={deletingConcepts || deletingCalculatedQuotes || !quotes.some((q) => q.status === 'concept')}
+                      >
+                        {deletingConcepts ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                        Verwijder alle concepten
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructiveSoft"
+                        className="h-10"
+                        onClick={handleDeleteAllCalculatedQuotes}
+                        disabled={
+                          deletingCalculatedQuotes
+                          || deletingConcepts
+                          || !quotes.some((q) => q.status === 'in_behandeling' && hasCalculatedAmount(q.totaalbedrag || q.amount || 0))
+                        }
+                      >
+                        {deletingCalculatedQuotes ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 mr-2" />
+                        )}
+                        Verwijder alle berekende
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -1007,7 +1010,7 @@ export default function OffertesPage() {
                     <div
                       key={q.id}
                       className={cn(
-                        'group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both',
+                        'group relative flex flex-col gap-3 rounded-xl border border-l-4 border-white/5 bg-card/40 px-4 py-4 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both hover:bg-card/60 hover:border-white/10 hover:shadow-lg sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:hover:-translate-y-0.5',
                         statusMeta.sideBorderClass
                       )}
                     >
@@ -1017,8 +1020,8 @@ export default function OffertesPage() {
                         className="absolute inset-0 z-0"
                       />
 
-                      <div className="flex-1 min-w-0 z-10 pointer-events-none space-y-1">
-                        <div className="flex items-center gap-3 min-w-0">
+                      <div className="z-10 min-w-0 flex-1 pointer-events-none space-y-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
                           <span className="font-bold text-zinc-100 truncate text-base group-hover:text-white transition-colors">
                             {klant}
                           </span>
@@ -1040,29 +1043,30 @@ export default function OffertesPage() {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-3 text-sm text-zinc-500">
-                          <span className="truncate max-w-[200px] text-zinc-400 font-medium">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 sm:gap-3 sm:text-sm">
+                          <span className="max-w-full truncate text-zinc-400 font-medium">
                             {getTitel(q)}
                           </span>
-                          <span className="opacity-20">•</span>
+                          <span className="hidden opacity-20 sm:inline">•</span>
                           <span className="flex items-center gap-1.5 group-hover:text-zinc-300 transition-colors">
                             <Calendar className="h-3.5 w-3.5 opacity-70" />
                             {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
                           </span>
-                          <span className="opacity-20">•</span>
+                          <span className="hidden opacity-20 sm:inline">•</span>
                           <span className={cn('font-semibold tracking-wide', totaal > 0 ? 'text-emerald-300' : 'text-zinc-600')}>
                             {formatCurrency(totaal)}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 z-20 opacity-70 group-hover:opacity-100 transition-opacity">
+                      <div className="z-20 flex w-full flex-wrap items-center gap-2 opacity-100 transition-opacity sm:w-auto sm:flex-nowrap sm:opacity-70 sm:group-hover:opacity-100">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
                               variant="outline"
                               size="sm"
-                              className="gap-2 h-9 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
+                              className="h-9 flex-1 gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100 sm:flex-none"
+                              aria-label="Open offerte"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
@@ -1070,7 +1074,7 @@ export default function OffertesPage() {
                               }}
                             >
                               <FileText className="h-3.5 w-3.5" />
-                              <span>Offerte</span>
+                              <span className="hidden sm:inline">Offerte</span>
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Open de offerte</TooltipContent>
@@ -1081,7 +1085,8 @@ export default function OffertesPage() {
                             <Button
                               variant="secondary"
                               size="sm"
-                              className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                              className="h-9 flex-1 gap-2 border border-white/5 bg-zinc-800/80 shadow-sm hover:bg-zinc-700 sm:flex-none"
+                              aria-label="Open calculatie"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
@@ -1089,7 +1094,7 @@ export default function OffertesPage() {
                               }}
                             >
                               <Pencil className="h-3.5 w-3.5" />
-                              <span>Calculatie</span>
+                              <span className="hidden sm:inline">Calculatie</span>
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Open de calculatie</TooltipContent>
@@ -1098,7 +1103,7 @@ export default function OffertesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-9 w-9 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 rounded-lg transition-all"
+                          className="h-9 w-9 shrink-0 rounded-lg text-zinc-500 transition-all hover:border hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-400"
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
