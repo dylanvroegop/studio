@@ -3809,14 +3809,14 @@ export default function OverzichtPage() {
 
                 {billingQuota && !billingQuota.isUnlimited && (
                   <div className="text-xs text-muted-foreground">
-                    {billingQuota.usedJobs} / {billingQuota.limit ?? 0} jobs gebruikt
+                    {billingQuota.usedJobs} / {billingQuota.limit ?? 0} klussen gebruikt
                     {billingQuota.currentCycleEnd ? ` · reset ${new Date(billingQuota.currentCycleEnd).toLocaleDateString('nl-NL')}` : ''}
                   </div>
                 )}
 
                 {quotaNearLimit && !quotaBlocked && (
                   <div className="text-xs text-amber-300">
-                    Bijna limiet bereikt ({billingQuota?.remainingJobs ?? 0} over)
+                    Bijna limiet bereikt ({billingQuota?.remainingJobs ?? 0} klussen over)
                   </div>
                 )}
 
