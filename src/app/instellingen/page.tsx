@@ -3,6 +3,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -34,7 +35,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { v4 as uuidv4 } from 'uuid'; // Ensure uuid is installed or use a simple random string generator if not available. I will use crypto.randomUUID for simplicity or a simple helper if uuid is not guaranteed. I'll use a simple Math.random fallback to avoid adding deps if I can't confirm. Actually, crypto.randomUUID() is widely supported in modern browsers.
 
 
-export default function InstellingenPage() {
+function InstellingenPageContent() {
     const showEmployeesInSettings = false;
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
@@ -1407,5 +1408,24 @@ export default function InstellingenPage() {
                 </Tabs>
             </div>
         </div>
+    );
+}
+
+function InstellingenPageFallback() {
+    return (
+        <div className="min-h-screen flex items-center justify-center p-4">
+            <div className="flex items-center gap-3 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Instellingen laden...
+            </div>
+        </div>
+    );
+}
+
+export default function InstellingenPage() {
+    return (
+        <Suspense fallback={<InstellingenPageFallback />}>
+            <InstellingenPageContent />
+        </Suspense>
     );
 }
