@@ -4,6 +4,13 @@ import { parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { JOB_REGISTRY } from '@/lib/job-registry';
 import { getMaterialRule } from '@/lib/klus-regels-static';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
+import {
+  commitCalculationQuotaReservation,
+  getPricingUrl,
+  releaseCalculationQuotaReservation,
+  reserveCalculationQuotaJobs,
+} from '@/lib/calculation-quota';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -341,6 +348,8 @@ function isCalculatorUnavailableError(error: unknown): boolean {
 export async function POST(req: Request) {
   let db: FirebaseFirestore.Firestore | null = null;
   let quoteIdForError: string | null = null;
+  let quotaReservationId: string | null = null;
+  let quotaReservationUid: string | null = null;
   try {
     const body = await leesBodyVeilig(req);
     if (!body) {
@@ -357,12 +366,45 @@ export async function POST(req: Request) {
     if (!process.env.N8N_HEADER_SECRET) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
 
     const uid = await bepaalUid(req);
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
     db = krijgFirestore();
 
     const quote = await haalQuoteOp(db, quoteId) as any;
     if (!quote?.userId || quote.userId !== uid) {
       return NextResponse.json({ ok: false, message: 'Geen toegang tot deze offerte' }, { status: 403 });
     }
+
+    const jobCount = Array.isArray(quote?.klussen)
+      ? quote.klussen.length
+      : Object.keys((quote?.klussen || {}) as Record<string, unknown>).length;
+    if (jobCount <= 0) {
+      return NextResponse.json({ ok: false, message: 'Geen klussen gevonden om te berekenen.' }, { status: 400 });
+    }
+
+    const reserveResult = await reserveCalculationQuotaJobs({
+      uid,
+      quoteId,
+      jobsCount: jobCount,
+    });
+    if (!reserveResult.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'calculation_limit_reached',
+          message: 'Je maandlimiet voor calculaties is bereikt.',
+          plan: reserveResult.status.plan,
+          usedJobs: reserveResult.status.usedJobs,
+          limit: reserveResult.status.limit,
+          remainingJobs: reserveResult.status.remainingJobs,
+          cycleEnd: reserveResult.status.currentCycleEnd.toISOString(),
+          pricingUrl: getPricingUrl(),
+        },
+        { status: 402 }
+      );
+    }
+    quotaReservationId = reserveResult.reservationId || null;
+    quotaReservationUid = uid;
 
     // Set status to in_behandeling while n8n is processing
     await db.collection('quotes').doc(quoteId).update({
@@ -1033,8 +1075,29 @@ export async function POST(req: Request) {
     // Best effort: sync totaal direct to Firestore so quotes list stays up-to-date.
     await syncQuoteTotalsFromSupabase(db, quoteId, uid);
 
+    if (quotaReservationId && quotaReservationUid) {
+      await commitCalculationQuotaReservation({
+        uid: quotaReservationUid,
+        reservationId: quotaReservationId,
+      });
+      quotaReservationId = null;
+      quotaReservationUid = null;
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e: any) {
+    if (quotaReservationId && quotaReservationUid) {
+      try {
+        await releaseCalculationQuotaReservation({
+          uid: quotaReservationUid,
+          reservationId: quotaReservationId,
+          reason: 'generate_failed',
+        });
+      } catch (releaseError) {
+        console.error('Kon quota-reservering niet vrijgeven:', releaseError);
+      }
+    }
+
     const rawMessage = String(e?.message || e || 'Onbekende fout');
 
     if (db && quoteIdForError) {

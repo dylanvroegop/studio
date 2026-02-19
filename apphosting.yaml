@@ -15,6 +15,17 @@ env:
   - variable: N8N_HEADER_SECRET
     secret: N8N_HEADER_SECRET
 
+  - variable: STRIPE_SECRET_KEY
+    secret: STRIPE_SECRET_KEY
+  - variable: STRIPE_WEBHOOK_SECRET
+    secret: STRIPE_WEBHOOK_SECRET
+  - variable: PRICE_ZZP_MONTHLY
+    secret: PRICE_ZZP_MONTHLY
+  - variable: PRICE_PRO_MONTHLY
+    secret: PRICE_PRO_MONTHLY
+  - variable: PRICE_ENTERPRISE_MONTHLY
+    secret: PRICE_ENTERPRISE_MONTHLY
+
   - variable: SUPABASE_SERVICE_ROLE_KEY
     secret: SUPABASE_SERVICE_ROLE_KEY
   - variable: NEXT_PUBLIC_SUPABASE_URL

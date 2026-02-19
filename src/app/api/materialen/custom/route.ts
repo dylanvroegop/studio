@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -89,6 +90,8 @@ export async function POST(req: Request) {
     if (!uid) {
       return jsonError('Token ongeldig.', 401);
     }
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
 
     // 3) Body lezen + normaliseren
     const body = (await req.json()) as Body;

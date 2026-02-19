@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server';
 import admin from 'firebase-admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -98,6 +99,8 @@ export async function POST(req: Request) {
 
     // 1) UID server-side bepalen
     const uid = await bepaalUid(req);
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
 
     // 2) row_id uit request body
     const row_id = normalizeString(body.row_id) || normalizeString(body.rowId);

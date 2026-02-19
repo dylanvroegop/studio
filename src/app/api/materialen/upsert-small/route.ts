@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { parsePriceToNumber } from '@/lib/utils';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,6 +42,8 @@ export async function POST(req: Request) {
     if (!uid) {
       return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
     }
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
 
     const body = (await req.json()) as Body;
     const naam = normalizeName(body.naam);

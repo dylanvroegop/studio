@@ -80,6 +80,16 @@ import { WizardHeader } from '@/components/WizardHeader';
 
 const WEBSITE_UPSELL_TOAST_LAST_SEEN_KEY = 'website_upsell_toast_last_seen';
 const WEBSITE_UPSELL_TOAST_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const PRICING_URL = 'https://calvora.nl/prijzen';
+
+interface BillingQuotaState {
+  plan: 'demo' | 'zzp' | 'pro' | 'enterprise';
+  limit: number | null;
+  usedJobs: number;
+  remainingJobs: number | null;
+  isUnlimited: boolean;
+  currentCycleEnd: string | null;
+}
 
 function shouldShowWebsiteUpsellToast(): boolean {
   if (typeof window === 'undefined') return false;
@@ -648,6 +658,7 @@ export default function OverzichtPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingTestError, setIsSendingTestError] = useState(false);
+  const [billingQuota, setBillingQuota] = useState<BillingQuotaState | null>(null);
 
   // Job delete
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -992,6 +1003,41 @@ export default function OverzichtPage() {
     fetchAlles();
   }, [quoteId, firestore, user, isUserLoading]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/billing/status', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: 'no-store',
+        });
+        if (!response.ok) return;
+        const payload = await response.json().catch(() => null);
+        if (!payload?.quota || cancelled) return;
+
+        setBillingQuota({
+          plan: payload.plan || 'zzp',
+          limit: payload.quota.limit ?? null,
+          usedJobs: Number(payload.quota.usedJobs || 0),
+          remainingJobs: payload.quota.remainingJobs == null ? null : Number(payload.quota.remainingJobs || 0),
+          isUnlimited: Boolean(payload.quota.isUnlimited),
+          currentCycleEnd: payload.quota.currentCycleEnd || null,
+        });
+      } catch {
+        // optional UI status
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   // Fetch Preset Names
   useEffect(() => {
     if (!jobs.length || !firestore || !user) return;
@@ -1065,6 +1111,18 @@ export default function OverzichtPage() {
     if (!stats.winstMargeIsValid) return 'Winstmarge is niet ingevuld. Kies "Geen" of vul een bedrag/percentage in.';
     return 'Je kunt de materialen laten berekenen.';
   }, [stats]);
+
+  const quotaBlocked = useMemo(() => {
+    if (!billingQuota || billingQuota.isUnlimited) return false;
+    if (billingQuota.remainingJobs == null) return false;
+    return billingQuota.remainingJobs < stats.totaal;
+  }, [billingQuota, stats.totaal]);
+
+  const quotaNearLimit = useMemo(() => {
+    if (!billingQuota || billingQuota.isUnlimited) return false;
+    const remaining = billingQuota.remainingJobs;
+    return typeof remaining === 'number' && remaining >= 0 && remaining <= 10;
+  }, [billingQuota]);
 
   const statusVariant = useMemo(() => {
     if (stats.totaal === 0) return 'warn';
@@ -2023,6 +2081,28 @@ export default function OverzichtPage() {
       }
 
       if (!res.ok) {
+        if (
+          res.status === 402
+          && data
+          && typeof data === 'object'
+          && data.code === 'calculation_limit_reached'
+        ) {
+          setBillingQuota((prev) => ({
+            plan: (data.plan || prev?.plan || 'zzp') as BillingQuotaState['plan'],
+            limit: typeof data.limit === 'number' ? data.limit : (prev?.limit ?? null),
+            usedJobs: typeof data.usedJobs === 'number' ? data.usedJobs : (prev?.usedJobs ?? 0),
+            remainingJobs: typeof data.remainingJobs === 'number' ? data.remainingJobs : (prev?.remainingJobs ?? null),
+            isUnlimited: data.limit == null,
+            currentCycleEnd: typeof data.cycleEnd === 'string' ? data.cycleEnd : (prev?.currentCycleEnd ?? null),
+          }));
+          toast({
+            variant: 'destructive',
+            title: 'Maandlimiet bereikt',
+            description: 'Alleen berekenen is geblokkeerd. Overige functies blijven beschikbaar.',
+          });
+          return;
+        }
+
         if (res.status === 503 && data && typeof data === 'object' && data.code === 'calculator_unavailable') {
           setCalculatorUnavailable(true);
           return;
@@ -2078,6 +2158,15 @@ export default function OverzichtPage() {
   const handleFinishQuote = async () => {
     if (!stats.isReady) {
       toast({ variant: 'destructive', title: 'Niet compleet', description: primaryHint });
+      return;
+    }
+
+    if (quotaBlocked) {
+      toast({
+        variant: 'destructive',
+        title: 'Maandlimiet bereikt',
+        description: 'Alleen berekenen is geblokkeerd. Overige functies blijven beschikbaar.',
+      });
       return;
     }
 
@@ -3718,6 +3807,33 @@ export default function OverzichtPage() {
                   )}
                 </div>
 
+                {billingQuota && !billingQuota.isUnlimited && (
+                  <div className="text-xs text-muted-foreground">
+                    {billingQuota.usedJobs} / {billingQuota.limit ?? 0} jobs gebruikt
+                    {billingQuota.currentCycleEnd ? ` · reset ${new Date(billingQuota.currentCycleEnd).toLocaleDateString('nl-NL')}` : ''}
+                  </div>
+                )}
+
+                {quotaNearLimit && !quotaBlocked && (
+                  <div className="text-xs text-amber-300">
+                    Bijna limiet bereikt ({billingQuota?.remainingJobs ?? 0} over)
+                  </div>
+                )}
+
+                {quotaBlocked && (
+                  <div className="flex items-center gap-2 text-xs text-amber-300">
+                    <span>Maandlimiet bereikt. Alleen berekenen is geblokkeerd.</span>
+                    <Link
+                      href={PRICING_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2"
+                    >
+                      Bekijk prijzen
+                    </Link>
+                  </div>
+                )}
+
                 {showErrorTestButton && (
                   <Button
                     type="button"
@@ -3737,7 +3853,7 @@ export default function OverzichtPage() {
 
                 <Button
                   onClick={handleFinishQuote}
-                  disabled={isSubmitting || !stats.isReady}
+                  disabled={isSubmitting || !stats.isReady || quotaBlocked}
                   variant="success"
                   className="w-full gap-2 sm:w-auto"
                 >

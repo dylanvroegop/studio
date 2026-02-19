@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,6 +30,8 @@ export async function POST(req: Request) {
         if (!decodedToken.uid) {
             return NextResponse.json({ ok: false, message: 'Invalid token' }, { status: 401 });
         }
+        const trialBlockedResponse = await ensureDemoTrialActiveByUid(decodedToken.uid);
+        if (trialBlockedResponse) return trialBlockedResponse;
 
         // 2. Parse Body
         const { calculation_id, data_json } = await req.json();

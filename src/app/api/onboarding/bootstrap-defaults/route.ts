@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { bootstrapDefaultCatalogForUser } from '@/lib/bootstrap-defaults';
+import { ensureDemoTrialActiveByUid, ensureDemoTrialInitializedByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,9 @@ export async function POST(req: Request) {
     if (!uid) {
       return NextResponse.json({ ok: false, message: 'Invalid token' }, { status: 401 });
     }
+    await ensureDemoTrialInitializedByUid(uid);
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
 
     const result = await bootstrapDefaultCatalogForUser(uid);
     return NextResponse.json({ ok: true, data: result });

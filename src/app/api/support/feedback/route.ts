@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import admin from 'firebase-admin';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -80,6 +81,8 @@ function toonOfStreep(value: string | null): string {
 export async function POST(req: Request) {
   try {
     const auth = await bepaalAuthContext(req);
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(auth.uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
     const body = await leesBodyVeilig(req);
     if (!body) {
       return NextResponse.json(

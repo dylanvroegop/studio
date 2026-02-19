@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -66,6 +67,8 @@ export async function POST(req: Request) {
     }
 
     if (!uid) return unauthorized();
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
 
     const rawBody = await req.json().catch(() => null);
     const parsed = parseBody(rawBody);

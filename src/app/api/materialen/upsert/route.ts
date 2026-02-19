@@ -5,6 +5,7 @@ import { initFirebaseAdmin } from '@/firebase/admin';
 import { getDefaultTemplateUidOrThrow } from '@/lib/bootstrap-defaults';
 import { parsePriceToNumber } from '@/lib/utils';
 import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -548,6 +549,8 @@ export async function POST(req: Request) {
     const decoded = await auth.verifyIdToken(token);
     const uid = decoded?.uid;
     if (!uid) return jsonFail('Token ongeldig.', 401);
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
 
     // 3) Body
     const body = (await req.json()) as Body;

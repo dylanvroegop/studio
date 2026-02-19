@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,7 +29,9 @@ export async function POST(request: Request) {
 
     const { auth } = initFirebaseAdmin();
     try {
-      await auth.verifyIdToken(token);
+      const decoded = await auth.verifyIdToken(token);
+      const trialBlockedResponse = await ensureDemoTrialActiveByUid(decoded.uid);
+      if (trialBlockedResponse) return trialBlockedResponse;
     } catch {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }

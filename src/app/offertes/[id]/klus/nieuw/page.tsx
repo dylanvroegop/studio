@@ -4,9 +4,10 @@
 import { useEffect, useMemo, useState, useCallback, useRef, useTransition } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Search, ArrowLeft, ChevronRight, Star } from 'lucide-react';
+import { Search, ChevronRight, Star } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { getQuoteById } from '@/lib/data';
 import type { JobCategory, Quote } from '@/lib/types';
@@ -14,6 +15,7 @@ import { PersonalNotes } from '@/components/PersonalNotes';
 import { useToast } from '@/hooks/use-toast';
 import { JOB_REGISTRY } from '@/lib/job-registry';
 import { WizardHeader } from '@/components/WizardHeader';
+import { CustomKlusRequestForm } from '@/components/CustomKlusRequestForm';
 
 // ✅ Firebase imports
 import { useUser, useFirestore } from '@/firebase';
@@ -80,6 +82,7 @@ export default function NewJobPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
+  const [customKlusDialogOpen, setCustomKlusDialogOpen] = useState(false);
 
   const [zoekterm, setZoekterm] = useState('');
   const [favorieten, setFavorieten] = useState<string[]>([]);
@@ -370,6 +373,10 @@ export default function NewJobPage() {
                 disabled={isPending || creatingJobRef.current}
               />
             ))}
+            <CustomKlusCard
+              onClick={() => setCustomKlusDialogOpen(true)}
+              disabled={isPending || creatingJobRef.current}
+            />
           </div>
 
           {filteredCategories.length === 0 && (
@@ -395,6 +402,24 @@ export default function NewJobPage() {
           </Button>
         </div>
       </div>
+
+      <Dialog open={customKlusDialogOpen} onOpenChange={setCustomKlusDialogOpen}>
+        <DialogContent className="w-[96vw] max-w-6xl max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="px-6 pt-6 pb-0">
+            <DialogTitle>Custom klus aanvragen</DialogTitle>
+            <DialogDescription>
+              Dien je aanvraag direct in vanuit de klusselectie.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-6 pt-4">
+            <CustomKlusRequestForm
+              className="border-0 bg-transparent p-0"
+              quoteId={quoteId}
+              onSuccess={() => setCustomKlusDialogOpen(false)}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </main >
   );
 }
@@ -478,6 +503,63 @@ function KlusCard({
           </span>
           <span className="text-xs text-zinc-500 mt-1 line-clamp-1 leading-snug group-hover:text-zinc-400 transition-colors">
             {category.description}
+          </span>
+        </div>
+
+        <div className="mobile-calm-subtle h-8 w-8 rounded-full bg-white/5 flex items-center justify-center sm:group-hover:bg-emerald-500/10 sm:group-hover:text-emerald-400 transition-all">
+          <ChevronRight className="h-4 w-4 text-muted-foreground/50 sm:group-hover:text-emerald-400 transition-colors shrink-0" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomKlusCard({
+  onClick,
+  disabled,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+}) {
+  const STAR_ZONE_W = 44;
+
+  return (
+    <div
+      className={cn(
+        'mobile-calm-card group relative flex items-center justify-between h-full rounded-2xl border border-white/5 bg-card/40 transition-all duration-300 overflow-hidden backdrop-blur-sm',
+        'sm:hover:border-emerald-500/30 sm:hover:bg-card/60 sm:hover:shadow-lg sm:hover:shadow-emerald-900/20 sm:hover:-translate-y-1',
+        'active:scale-[0.98] active:duration-100',
+        disabled && 'opacity-60 pointer-events-none',
+        'p-0',
+        'min-h-[80px]'
+      )}
+    >
+      <div
+        className="absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center border-r border-white/5 text-muted-foreground/30"
+        style={{ width: STAR_ZONE_W }}
+      >
+        <Star className="h-4 w-4" />
+      </div>
+
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className="absolute inset-0 z-10 cursor-pointer"
+        style={{ left: STAR_ZONE_W, width: `calc(100% - ${STAR_ZONE_W}px)` }}
+        aria-label="Custom klus aanvragen"
+      />
+
+      <div
+        className="relative z-0 flex items-center justify-between w-full pointer-events-none pl-4 pr-4 py-4"
+        style={{ paddingLeft: STAR_ZONE_W + 16 }}
+      >
+        <div className="flex flex-col min-w-0 pr-2">
+          <span className="text-[15px] font-semibold text-zinc-100 leading-tight group-hover:text-white transition-colors">
+            Custom klus
+          </span>
+          <span className="text-xs text-zinc-500 mt-1 line-clamp-1 leading-snug group-hover:text-zinc-400 transition-colors">
+            Mis je een klus? Vraag hem direct aan.
           </span>
         </div>
 

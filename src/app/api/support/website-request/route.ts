@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import admin from 'firebase-admin';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -120,6 +121,8 @@ function getOptionalEnv(key: string): string | null {
 export async function POST(req: Request) {
   try {
     const auth = await determineAuth(req);
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(auth.uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
     const rawBody = await readJson(req);
     if (!rawBody) {
       return NextResponse.json(

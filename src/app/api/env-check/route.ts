@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,8 @@ export async function GET(req: Request) {
   if (!decoded) {
     return NextResponse.json({ ok: false, message: 'Invalid token' }, { status: 401 });
   }
+  const trialBlockedResponse = await ensureDemoTrialActiveByUid(decoded.uid);
+  if (trialBlockedResponse) return trialBlockedResponse;
 
   const isAllowed = decoded.dev === true || decoded.admin === true;
   if (!isAllowed) {

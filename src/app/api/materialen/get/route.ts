@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { bootstrapDefaultCatalogForUser } from '@/lib/bootstrap-defaults';
 import { parsePriceToNumber } from '@/lib/utils';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,6 +31,8 @@ export async function GET(req: Request) {
     if (!uid) {
       return NextResponse.json({ ok: false, error: 'Invalid token' }, { status: 401 });
     }
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
 
     // 2. Fetch only user-owned materials.
     const { data: ownData, error: ownError } = await supabaseAdmin

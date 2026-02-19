@@ -49,6 +49,8 @@ export interface UserSettings {
     email: string;
     telefoon: string;
     website: string;
+    rol: string;
+    offertesPerMaand: string;
     logoUrl?: string;
     signatureUrl?: string;
     logoScale: number;
@@ -111,6 +113,8 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     email: '',
     telefoon: '',
     website: '',
+    rol: '',
+    offertesPerMaand: '',
     logoUrl: '',
     signatureUrl: '',
     logoScale: 1.0,

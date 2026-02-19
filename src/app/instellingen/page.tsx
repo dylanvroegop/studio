@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -40,6 +40,8 @@ export default function InstellingenPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const isOnboardingFlow = searchParams.get('onboarding') === '1';
 
     const [settings, setSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
     const [isLoading, setIsLoading] = useState(true);
@@ -161,10 +163,13 @@ export default function InstellingenPage() {
                     ...DEFAULT_USER_SETTINGS,
                     // Prefill from registration data if available
                     bedrijfsnaam: businessData.bedrijfsnaam || DEFAULT_USER_SETTINGS.bedrijfsnaam,
+                    contactNaam: businessData.contactNaam || DEFAULT_USER_SETTINGS.contactNaam,
                     kvkNummer: businessData.kvkNummer || DEFAULT_USER_SETTINGS.kvkNummer,
                     btwNummer: businessData.btwNummer || DEFAULT_USER_SETTINGS.btwNummer,
                     email: businessData.email || DEFAULT_USER_SETTINGS.email,
                     telefoon: businessData.telefoon || DEFAULT_USER_SETTINGS.telefoon,
+                    rol: businessData.rol || DEFAULT_USER_SETTINGS.rol,
+                    offertesPerMaand: businessData.offertesPerMaand || DEFAULT_USER_SETTINGS.offertesPerMaand,
 
                     // Allow saved settings to override everything
                     ...userSettings
@@ -212,6 +217,25 @@ export default function InstellingenPage() {
                     huisnummer: settings.huisnummer || '',
                     postcode: settings.postcode || '',
                     plaats: settings.plaats || ''
+                }
+            }, { merge: true });
+
+            const businessDocRef = doc(firestore, 'businesses', user.uid);
+            await setDoc(businessDocRef, {
+                bedrijfsnaam: settings.bedrijfsnaam || '',
+                contactNaam: settings.contactNaam || '',
+                kvkNummer: settings.kvkNummer || '',
+                btwNummer: settings.btwNummer || '',
+                email: settings.email || '',
+                telefoon: settings.telefoon || '',
+                rol: settings.rol || '',
+                offertesPerMaand: settings.offertesPerMaand || '',
+                bedrijfsgegevens: {
+                    adress: composeAddress(settings.adres, settings.huisnummer),
+                    straat: settings.adres || '',
+                    huisnummer: settings.huisnummer || '',
+                    postcode: settings.postcode || '',
+                    plaats: settings.plaats || '',
                 }
             }, { merge: true });
 
@@ -291,6 +315,12 @@ export default function InstellingenPage() {
             defaultLeverancierId: id,
         }));
     };
+
+    useEffect(() => {
+        if (isOnboardingFlow) {
+            setActiveTab('bedrijf');
+        }
+    }, [isOnboardingFlow]);
 
     // Handle logo change with auto-save
     const handleLogoChange = async (url: string | null) => {
@@ -427,6 +457,17 @@ export default function InstellingenPage() {
 
                     {/* --- BEDRIJFSGEGEVENS --- */}
                     <TabsContent value="bedrijf" className="space-y-4">
+                        {isOnboardingFlow && (
+                            <Card className="border-amber-500/50">
+                                <CardHeader>
+                                    <CardTitle>Vul eerst uw bedrijfsprofiel in</CardTitle>
+                                    <CardDescription>
+                                        Vul onderstaande velden in en klik op Opslaan om verder te gaan.
+                                    </CardDescription>
+                                </CardHeader>
+                            </Card>
+                        )}
+
                         <Card>
                             <CardHeader>
                                 <CardTitle>Bedrijfsprofiel</CardTitle>
@@ -464,6 +505,59 @@ export default function InstellingenPage() {
                                 <div className="space-y-2">
                                     <Label>BTW Nummer</Label>
                                     <Input value={settings.btwNummer} onChange={e => update('btwNummer', e.target.value)} placeholder="NL123456789B01" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>E-mailadres</Label>
+                                    <Input type="email" value={settings.email} onChange={e => update('email', e.target.value)} placeholder="bijv. info@bedrijf.nl" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Telefoonnummer</Label>
+                                    <Input type="tel" value={settings.telefoon} onChange={e => update('telefoon', e.target.value)} placeholder="06-12345678" />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label>Website</Label>
+                                    <Input value={settings.website} onChange={e => update('website', e.target.value)} placeholder="https://..." />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Rol / type bedrijf</Label>
+                                    <Select value={settings.rol || ''} onValueChange={(value) => update('rol', value)}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Kies uw rol" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="aannemer">Aannemer</SelectItem>
+                                            <SelectItem value="timmerman">Timmerman</SelectItem>
+                                            <SelectItem value="bouwbedrijf">Bouwbedrijf</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Verwacht aantal offertes per maand</Label>
+                                    <Select value={settings.offertesPerMaand || ''} onValueChange={(value) => update('offertesPerMaand', value)}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Kies een aantal" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="0-10">0–10</SelectItem>
+                                            <SelectItem value="10-30">10–30</SelectItem>
+                                            <SelectItem value="30+">30+</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2 md:col-span-2 border-t pt-4 mt-2">
+                                    <h4 className="text-sm font-semibold mb-2">Bankgegevens</h4>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>IBAN</Label>
+                                    <Input value={settings.iban} onChange={e => update('iban', e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Banknaam</Label>
+                                    <Input value={settings.bankNaam} onChange={e => update('bankNaam', e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>BIC / Swift</Label>
+                                    <Input value={settings.bic} onChange={e => update('bic', e.target.value)} />
                                 </div>
                             </CardContent>
                         </Card>
@@ -524,41 +618,6 @@ export default function InstellingenPage() {
                                             recommendedText="Aanbevolen: transparante PNG met brede verhouding (bijv. 600x200px)"
                                         />
                                     )}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Contact & Bank</CardTitle>
-                            </CardHeader>
-                            <CardContent className="grid gap-6 md:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label>E-mailadres</Label>
-                                    <Input type="email" value={settings.email} onChange={e => update('email', e.target.value)} placeholder="bijv. info@bedrijf.nl" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Telefoonnummer</Label>
-                                    <Input type="tel" value={settings.telefoon} onChange={e => update('telefoon', e.target.value)} placeholder="06-12345678" />
-                                </div>
-                                <div className="space-y-2 md:col-span-2">
-                                    <Label>Website</Label>
-                                    <Input value={settings.website} onChange={e => update('website', e.target.value)} placeholder="https://..." />
-                                </div>
-                                <div className="space-y-2 md:col-span-2 border-t pt-4 mt-2">
-                                    <h4 className="text-sm font-semibold mb-2">Bankgegevens</h4>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>IBAN</Label>
-                                    <Input value={settings.iban} onChange={e => update('iban', e.target.value)} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Banknaam</Label>
-                                    <Input value={settings.bankNaam} onChange={e => update('bankNaam', e.target.value)} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>BIC / Swift</Label>
-                                    <Input value={settings.bic} onChange={e => update('bic', e.target.value)} />
                                 </div>
                             </CardContent>
                         </Card>

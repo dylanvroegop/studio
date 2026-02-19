@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -176,6 +177,8 @@ export async function POST(req: Request) {
       console.error('Token verification failed:', error);
       return NextResponse.json({ ok: false, message: 'Invalid token' }, { status: 401 });
     }
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(decodedTokenUid);
+    if (trialBlockedResponse) return trialBlockedResponse;
 
     const { quoteId } = await req.json();
     if (!quoteId || typeof quoteId !== 'string') {

@@ -3,14 +3,14 @@
 'use client';
 import Image from 'next/image';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   AuthError,
+  User,
 } from 'firebase/auth';
-import Link from 'next/link';
 import { useAuth, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,14 +29,76 @@ export default function LoginPage() {
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
+  const { toast } = useToast();
+  const claimAttemptedRef = useRef<string | null>(null);
+
+  const checkoutSessionId =
+    (searchParams.get('session_id') || searchParams.get('stripe_session_id') || searchParams.get('checkout_session_id') || '').trim();
+
+  const claimStripeSessionIfPresent = async (firebaseUser: User): Promise<boolean> => {
+    if (!checkoutSessionId) return true;
+    try {
+      const token = await firebaseUser.getIdToken(true);
+      const response = await fetch('/api/billing/stripe/claim-session', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionId: checkoutSessionId }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        toast({
+          variant: 'destructive',
+          title: 'Betaling koppelen mislukt',
+          description: payload?.message || 'Kon betaalreferentie niet koppelen aan uw account.',
+        });
+        return false;
+      }
+
+      toast({
+        title: 'Betaling gekoppeld',
+        description: 'Uw betaling is gekoppeld aan dit account.',
+      });
+      return true;
+    } catch (error) {
+      console.warn('Stripe session claim failed on login:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Betaling koppelen mislukt',
+        description: 'Probeer opnieuw. Bij een geslaagde betaling koppelen we automatisch.',
+      });
+      return false;
+    }
+  };
 
   useEffect(() => {
     if (!isUserLoading && user) {
-      router.push('/dashboard');
+      const key = `${user.uid}:${checkoutSessionId}`;
+      if (claimAttemptedRef.current === key) {
+        router.push('/dashboard');
+        return;
+      }
+      claimAttemptedRef.current = key;
+
+      let cancelled = false;
+      (async () => {
+        await claimStripeSessionIfPresent(user);
+        if (!cancelled) {
+          router.push('/dashboard');
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, checkoutSessionId]);
 
   const handleLogin = async () => {
     setIsLoading(true);
@@ -47,7 +109,9 @@ export default function LoginPage() {
         return;
       }
 
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      claimAttemptedRef.current = `${userCredential.user.uid}:${checkoutSessionId}`;
+      await claimStripeSessionIfPresent(userCredential.user);
       router.push('/dashboard');
     } catch (e) {
       const authError = e as AuthError;
@@ -143,6 +207,11 @@ export default function LoginPage() {
               ? 'Vul uw e-mailadres in om een reset-link te ontvangen.'
               : 'Log in om toegang te krijgen tot uw dashboard'}
           </CardDescription>
+          {!isResetMode && checkoutSessionId && (
+            <p className="text-xs text-emerald-500 mt-2">
+              Betaling gedetecteerd. Na inloggen koppelen we uw betaalreferentie automatisch.
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {resetEmailSent ? (
@@ -239,14 +308,7 @@ export default function LoginPage() {
                   >
                     Terug naar inloggen
                   </button>
-                ) : (
-                  <p className="text-center text-sm text-muted-foreground">
-                    Nog geen account?{' '}
-                    <Link href="/register" className="underline text-primary hover:text-primary/80">
-                      Account aanmaken
-                    </Link>
-                  </p>
-                )}
+                ) : null}
               </div>
             </>
           )}

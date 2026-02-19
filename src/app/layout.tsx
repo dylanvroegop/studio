@@ -4,6 +4,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
 import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
+import { BusinessProfileGate } from '@/components/BusinessProfileGate';
 
 export const metadata: Metadata = {
   title: 'Calvora',
@@ -20,6 +21,7 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <FirebaseClientProvider>
           <MeasurementUnitProvider>
+            <BusinessProfileGate />
             {children}
             <Toaster />
           </MeasurementUnitProvider>

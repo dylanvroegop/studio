@@ -94,6 +94,15 @@ interface PaymentPoint {
   date: Date;
 }
 
+interface QuotaSummary {
+  plan: 'demo' | 'zzp' | 'pro' | 'enterprise';
+  limit: number | null;
+  usedJobs: number;
+  remainingJobs: number | null;
+  currentCycleEnd: string | null;
+  isUnlimited: boolean;
+}
+
 const WEBSITE_PROMO_DISMISS_KEY = 'website_promo_dismissed_until';
 const WEBSITE_PROMO_HIDE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -175,6 +184,7 @@ export default function DashboardPage() {
   const [invoicesReady, setInvoicesReady] = useState(false);
   const [planningReady, setPlanningReady] = useState(false);
   const [showWebsitePromo, setShowWebsitePromo] = useState(false);
+  const [quotaSummary, setQuotaSummary] = useState<QuotaSummary | null>(null);
   const bootstrapAttemptedForUidRef = useRef<string | null>(null);
 
   const loading = !quotesReady || !invoicesReady || !planningReady;
@@ -283,6 +293,41 @@ export default function DashboardPage() {
       unsubPlanning();
     };
   }, [user, firestore]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/billing/status', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: 'no-store',
+        });
+        if (!response.ok) return;
+        const payload = await response.json().catch(() => null);
+        if (cancelled || !payload?.quota) return;
+
+        setQuotaSummary({
+          plan: payload.plan || 'zzp',
+          limit: payload.quota.limit ?? null,
+          usedJobs: Number(payload.quota.usedJobs || 0),
+          remainingJobs: payload.quota.remainingJobs == null ? null : Number(payload.quota.remainingJobs || 0),
+          currentCycleEnd: payload.quota.currentCycleEnd || null,
+          isUnlimited: Boolean(payload.quota.isUnlimited),
+        });
+      } catch {
+        // silent; quota card is optional
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!firestore) return;
@@ -520,6 +565,26 @@ export default function DashboardPage() {
           <div className="px-1">
             <div className="text-3xl font-light tracking-tight">{greeting}</div>
           </div>
+
+          {quotaSummary && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Calculaties deze maand</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                <div className="font-medium">
+                  {quotaSummary.isUnlimited
+                    ? 'Onbeperkt'
+                    : `${quotaSummary.usedJobs} van ${quotaSummary.limit ?? 0} jobs gebruikt`}
+                </div>
+                {!quotaSummary.isUnlimited && quotaSummary.currentCycleEnd && (
+                  <div className="text-xs text-muted-foreground">
+                    Reset op {new Date(quotaSummary.currentCycleEnd).toLocaleDateString('nl-NL')}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {showWebsitePromo && (
             <Card className="relative border-cyan-500/30 bg-cyan-500/5">
