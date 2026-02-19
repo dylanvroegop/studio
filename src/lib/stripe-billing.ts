@@ -1,6 +1,7 @@
 import type Stripe from 'stripe';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { resolvePlanFromPriceId } from '@/lib/calculation-quota';
+import { getStripeServerClient } from '@/lib/stripe-server';
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing', 'past_due']);
 
@@ -386,4 +387,142 @@ export async function claimPendingStripeSubscriptionForUid(params: {
   );
 
   return { claimed: true, docId: candidate.id };
+}
+
+function pickBestSubscription(subscriptions: Stripe.Subscription[]): Stripe.Subscription | null {
+  if (!Array.isArray(subscriptions) || subscriptions.length === 0) return null;
+  const score = (status: string): number => {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'active') return 100;
+    if (normalized === 'trialing') return 90;
+    if (normalized === 'past_due') return 80;
+    if (normalized === 'incomplete') return 50;
+    if (normalized === 'incomplete_expired') return 20;
+    if (normalized === 'canceled' || normalized === 'cancelled') return 10;
+    return 0;
+  };
+
+  return [...subscriptions]
+    .sort((a, b) => {
+      const scoreDiff = score(b.status) - score(a.status);
+      if (scoreDiff !== 0) return scoreDiff;
+      return (b.created || 0) - (a.created || 0);
+    })[0];
+}
+
+export async function reconcileStripeBillingForUid(params: {
+  uid: string;
+  email?: string | null;
+}): Promise<{ updated: boolean; reason?: string }> {
+  const { firestore } = initFirebaseAdmin();
+  const businessRef = firestore.collection('businesses').doc(params.uid);
+  const businessSnap = await businessRef.get();
+  if (!businessSnap.exists) {
+    return { updated: false, reason: 'business_not_found' };
+  }
+
+  const business = (businessSnap.data() || {}) as Record<string, unknown>;
+  const stripeSubscriptionId = normalizeString(business.stripeSubscriptionId)
+    || normalizeString((business.billing as Record<string, unknown> | undefined)?.stripeSubscriptionId);
+  const stripeCustomerId = normalizeString(business.stripeCustomerId)
+    || normalizeString((business.billing as Record<string, unknown> | undefined)?.stripeCustomerId);
+  const customerEmail = normalizeEmail(
+    params.email
+    || normalizeString(business.email)
+    || normalizeString((business.billing as Record<string, unknown> | undefined)?.customerEmail)
+  );
+
+  const stripe = getStripeServerClient();
+
+  if (stripeSubscriptionId) {
+    const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+    await upsertStripeBillingForUid({
+      uid: params.uid,
+      subscription,
+      customerId: stripeCustomerId,
+      customerEmail,
+    });
+    return { updated: true };
+  }
+
+  if (stripeCustomerId) {
+    const list = await stripe.subscriptions.list({
+      customer: stripeCustomerId,
+      status: 'all',
+      limit: 10,
+    });
+    const best = pickBestSubscription(list.data || []);
+    if (!best) {
+      return { updated: false, reason: 'no_subscriptions_for_customer' };
+    }
+
+    await upsertStripeBillingForUid({
+      uid: params.uid,
+      subscription: best,
+      customerId: stripeCustomerId,
+      customerEmail,
+    });
+    return { updated: true };
+  }
+
+  // Fallback for accounts that paid on website but were not linked yet:
+  // try to find Stripe customer + subscription by email.
+  if (customerEmail) {
+    const customers = await stripe.customers.list({
+      email: customerEmail,
+      limit: 10,
+    });
+
+    let bestMatch:
+      | { customerId: string; subscription: Stripe.Subscription }
+      | null = null;
+
+    for (const customer of customers.data || []) {
+      if (!customer) continue;
+      const customerId = normalizeString(customer.id);
+      if (!customerId) continue;
+
+      const list = await stripe.subscriptions.list({
+        customer: customerId,
+        status: 'all',
+        limit: 10,
+      });
+      const bestForCustomer = pickBestSubscription(list.data || []);
+      if (!bestForCustomer) continue;
+
+      if (!bestMatch) {
+        bestMatch = { customerId, subscription: bestForCustomer };
+        continue;
+      }
+
+      const currentBest = pickBestSubscription([
+        bestMatch.subscription,
+        bestForCustomer,
+      ]);
+      if (currentBest && currentBest.id === bestForCustomer.id) {
+        bestMatch = { customerId, subscription: bestForCustomer };
+      }
+    }
+
+    if (bestMatch) {
+      await upsertStripeCustomerMappingForUid({
+        uid: params.uid,
+        customerId: bestMatch.customerId,
+        email: customerEmail,
+      });
+      await upsertStripeBillingForUid({
+        uid: params.uid,
+        subscription: bestMatch.subscription,
+        customerId: bestMatch.customerId,
+        customerEmail,
+      });
+      return { updated: true };
+    }
+  }
+
+  if (!stripeSubscriptionId && !stripeCustomerId) {
+    return { updated: false, reason: 'no_stripe_ids' };
+  }
+
+  return { updated: false, reason: 'no_reconcile_path' };
 }

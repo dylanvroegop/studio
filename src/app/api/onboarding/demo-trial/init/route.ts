@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { getDemoTrialState } from '@/lib/demo-trial';
-import { claimPendingStripeSubscriptionForUid } from '@/lib/stripe-billing';
+import { claimPendingStripeSubscriptionForUid, reconcileStripeBillingForUid } from '@/lib/stripe-billing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,6 +34,15 @@ export async function POST(req: Request) {
       });
     } catch (error) {
       console.warn('claimPendingStripeSubscriptionForUid failed in demo-trial init:', error);
+    }
+
+    try {
+      await reconcileStripeBillingForUid({
+        uid,
+        email: decoded.email || null,
+      });
+    } catch (error) {
+      console.warn('reconcileStripeBillingForUid failed in demo-trial init:', error);
     }
 
     const blocked = await ensureDemoTrialActiveByUid(uid);

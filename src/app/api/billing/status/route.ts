@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { getDemoTrialState } from '@/lib/demo-trial';
 import { ensureDemoTrialInitializedByUid } from '@/lib/demo-trial-server';
-import { claimPendingStripeSubscriptionForUid } from '@/lib/stripe-billing';
+import { claimPendingStripeSubscriptionForUid, reconcileStripeBillingForUid } from '@/lib/stripe-billing';
 import { ensureCalculationQuotaByUid } from '@/lib/calculation-quota';
 
 export const runtime = 'nodejs';
@@ -34,6 +34,14 @@ export async function GET(req: Request) {
       });
     } catch (error) {
       console.warn('claimPendingStripeSubscriptionForUid failed in billing status:', error);
+    }
+    try {
+      await reconcileStripeBillingForUid({
+        uid: decoded.uid,
+        email: decoded.email || null,
+      });
+    } catch (error) {
+      console.warn('reconcileStripeBillingForUid failed in billing status:', error);
     }
     await ensureDemoTrialInitializedByUid(decoded.uid);
     const quota = await ensureCalculationQuotaByUid(decoded.uid);
