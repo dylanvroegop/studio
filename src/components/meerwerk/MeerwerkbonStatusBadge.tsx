@@ -13,12 +13,12 @@ const LABELS: Record<MeerwerkbonStatus, string> = {
 };
 
 const STYLES: Record<MeerwerkbonStatus, string> = {
-  concept: 'bg-zinc-800 text-zinc-200 border border-zinc-700',
-  verzonden: 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20',
-  akkoord: 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20',
-  afgekeurd: 'bg-red-500/10 text-red-300 border border-red-500/20',
-  gefactureerd: 'bg-amber-500/10 text-amber-300 border border-amber-500/20',
-  geannuleerd: 'bg-zinc-700/20 text-zinc-300 border border-zinc-600',
+  concept: 'bg-muted text-foreground border border-border',
+  verzonden: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20',
+  akkoord: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20',
+  afgekeurd: 'bg-red-500/10 text-red-700 dark:text-red-300 border border-red-500/20',
+  gefactureerd: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20',
+  geannuleerd: 'bg-muted text-muted-foreground border border-border',
 };
 
 export function MeerwerkbonStatusBadge({

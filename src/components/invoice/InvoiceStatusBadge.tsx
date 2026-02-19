@@ -12,11 +12,11 @@ const LABELS: Record<InvoiceStatus, string> = {
 };
 
 const STYLES: Record<InvoiceStatus, string> = {
-  concept: 'bg-zinc-800 text-zinc-200 border border-zinc-700',
-  verzonden: 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20',
-  gedeeltelijk_betaald: 'bg-amber-500/10 text-amber-300 border border-amber-500/20',
-  betaald: 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/25',
-  geannuleerd: 'bg-red-500/10 text-red-300 border border-red-500/20',
+  concept: 'bg-muted text-foreground border border-border',
+  verzonden: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20',
+  gedeeltelijk_betaald: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20',
+  betaald: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-200 border border-emerald-500/25',
+  geannuleerd: 'bg-red-500/10 text-red-700 dark:text-red-300 border border-red-500/20',
 };
 
 export function InvoiceStatusBadge({ status, className }: { status: InvoiceStatus; className?: string }) {
@@ -32,4 +32,3 @@ export function InvoiceStatusBadge({ status, className }: { status: InvoiceStatu
     </span>
   );
 }
-

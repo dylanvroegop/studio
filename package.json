@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:theme": "node scripts/lint-theme.js",
     "typecheck": "tsc --noEmit",
     "sync": "python3 -u sync.py",
     "sync:dry": "python3 -u sync.py --dry-run",

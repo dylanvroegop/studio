@@ -162,14 +162,77 @@
     transition: left 200ms ease-out;
   }
 
+  .settings-sticky-footer {
+    left: 0;
+    right: 0;
+    transition: left 200ms ease-out;
+  }
+
   .app-nav-open .quote-materials-sticky-footer {
+    left: 15.84rem;
+  }
+
+  .app-nav-open .settings-sticky-footer {
     left: 15.84rem;
   }
 }
 
+/* TEMP theme-compat: keep legacy dark-hardcoded screens readable in white mode. */
+html[data-theme='light'] .bg-zinc-900,
+html[data-theme='light'] .bg-zinc-900\/50,
+html[data-theme='light'] .bg-zinc-900\/70,
+html[data-theme='light'] .bg-zinc-900\/80,
+html[data-theme='light'] .bg-zinc-900\/85,
+html[data-theme='light'] .bg-zinc-900\/40,
+html[data-theme='light'] .bg-zinc-900\/30,
+html[data-theme='light'] .bg-zinc-800,
+html[data-theme='light'] .bg-zinc-800\/50,
+html[data-theme='light'] .bg-zinc-800\/30,
+html[data-theme='light'] .bg-black\/20,
+html[data-theme='light'] .bg-black\/30,
+html[data-theme='light'] .bg-black\/40,
+html[data-theme='light'] .bg-black\/50,
+html[data-theme='light'] .bg-black\/60,
+html[data-theme='light'] .bg-black\/70 {
+  background-color: hsl(var(--card)) !important;
+}
+
+html[data-theme='light'] .text-zinc-100,
+html[data-theme='light'] .text-zinc-200 {
+  color: hsl(var(--foreground)) !important;
+}
+
+html[data-theme='light'] .text-zinc-300,
+html[data-theme='light'] .text-zinc-400,
+html[data-theme='light'] .text-zinc-500,
+html[data-theme='light'] .text-white\/90,
+html[data-theme='light'] .text-white\/80,
+html[data-theme='light'] .text-white\/70,
+html[data-theme='light'] .text-white\/60 {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+html[data-theme='light'] .border-zinc-800,
+html[data-theme='light'] .border-zinc-800\/50,
+html[data-theme='light'] .border-zinc-700,
+html[data-theme='light'] .border-zinc-700\/50,
+html[data-theme='light'] .border-white\/5,
+html[data-theme='light'] .border-white\/10,
+html[data-theme='light'] .border-white\/15,
+html[data-theme='light'] .border-white\/20 {
+  border-color: hsl(var(--border)) !important;
+}
+
+html[data-theme='light'] .hover\:bg-zinc-800\/30:hover,
+html[data-theme='light'] .hover\:bg-zinc-800\/50:hover,
+html[data-theme='light'] .hover\:bg-zinc-800:hover,
+html[data-theme='light'] .hover\:bg-black\/20:hover {
+  background-color: hsl(var(--muted)) !important;
+}
+
 @layer utilities {
   .glass {
-    @apply bg-background/60 backdrop-blur-xl border border-white/10 shadow-lg;
+    @apply bg-background/60 backdrop-blur-xl border border-border shadow-lg;
   }
 
   .text-balance {

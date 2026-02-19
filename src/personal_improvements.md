@@ -49,11 +49,11 @@
 - [WAIT] Set new option in automatische berekening on material page for “schatting prijzen” toggle on off
 - [WAIT] Route “materiaal berekenen” on overzicht to the quote itself on the quotes page. Even if it’s empty, if not done yet. Show a spinning of “wordt berekend. Maximaal 5 minuten” with a progressbar of 5 minutes
 - [DONE] Verbruikt and groot into one option.
-- Leverancier transport kosten
-- Duplicate job on overzicht possible.
-- Boei delen Firestore “schuine punt dak boeideel” VS “voorzijde recht dak boeideel”
-- Add own signature in pdf instellingen
-- Fix issue on auto update name indeed quotes.materialen tab. 
+- [DONE] Leverancier transport kosten
+- [SKIP] Duplicate job on overzicht possible.
+- [DONE] Boei delen Firestore “schuine punt dak boeideel” VS “voorzijde recht dak boeideel”
+- [DONE] Add own signature in pdf instellingen
+- [DONE] Fix issue on auto update name indeed quotes.materialen tab. 
 In case they change the name to fit a different product and it updates the wrong name. 
 For example, user chose;
 Gipsplaat ak4 2400x1200x12,5mm
@@ -62,13 +62,11 @@ Gipsplaat ak2 2600x1200x12,5mm
 Since it was more convenient if the ceiling is 2540 in width, that means the product of Gipsplaat ak4 2400x1200x12,5mm now gets updated in their material list to;
 Gipsplaat ak2 2600x1200x12,5mm 
 In a sense overwriting their originalGipsplaat ak4 2400x1200x12,5mm making that disappear from their list
-
-
-
-## 2026-02-13
-- Max character in material name input field as well as number/ any input field (to prevent people from putting in pdf file into a material name to troll and blow up tokens)
-- Export pdf materiaal lijst of mail. Optie; met of zonder prijzen. Altijd zonder "hoe berekend"
-
-## 2026-02-16
-- Limit 5 quotes with 5 jobs max.
-- Multiklussen true
+- [DONE] Max character in material name input field as well as number/ any input field (to prevent people from putting in pdf file into a material name to troll and blow up tokens)
+- [DONE] Export pdf materiaal lijst of mail. Optie; met of zonder prijzen. Altijd zonder "hoe berekend"
+- [DONE] Limit 5 quotes with 5 jobs max.
+- [SKIP] Multiklussen true
+- [DONE] Remove the toasts overload.
+- Wand toevoegen must drop the page down to that, so it shouldn’t stay on wand 1 but move down to wand 2 to prevent scrolling.
+- Custom “add job” button on the job type page fill in form that they want and I’ll call them
+- Make sure they are able to choose to send pdf quote and drawing and werkneschrijving separately.

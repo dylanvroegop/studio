@@ -2020,10 +2020,12 @@ export default function GenericMaterialsPageRedesigned() {
 
   const handleUpdateMaterialSupplierContact = useCallback(async ({
     supplierId,
+    contactId,
     contactNaam,
     email,
   }: {
     supplierId: string;
+    contactId?: string;
     contactNaam: string;
     email: string;
   }): Promise<void> => {
@@ -2043,6 +2045,23 @@ export default function GenericMaterialsPageRedesigned() {
       supplier.id === resolvedSupplierId
         ? {
           ...supplier,
+          contacten: (() => {
+            const existing = Array.isArray(supplier.contacten) ? supplier.contacten : [];
+            if (contactId) {
+              const hasTarget = existing.some((contact) => contact.id === contactId);
+              if (hasTarget) {
+                return existing.map((contact) => (
+                  contact.id === contactId
+                    ? { ...contact, naam: trimmedContactNaam, email: trimmedEmail }
+                    : contact
+                ));
+              }
+            }
+            if (existing.length === 0) {
+              return [{ id: crypto.randomUUID(), naam: trimmedContactNaam, email: trimmedEmail }];
+            }
+            return [{ ...existing[0], naam: trimmedContactNaam, email: trimmedEmail }, ...existing.slice(1)];
+          })(),
           contactNaam: trimmedContactNaam,
           email: trimmedEmail,
         }
@@ -2077,6 +2096,11 @@ export default function GenericMaterialsPageRedesigned() {
       naam: trimmedNaam,
       contactNaam: trimmedContactNaam,
       email: trimmedEmail,
+      contacten: [{
+        id: crypto.randomUUID(),
+        naam: trimmedContactNaam,
+        email: trimmedEmail,
+      }],
     };
 
     const nextSuppliers = [...(materialSuppliers || []), newSupplier];
@@ -2638,8 +2662,28 @@ export default function GenericMaterialsPageRedesigned() {
   const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
   const [presetConfirmOpen, setPresetConfirmOpen] = useState(false);
   const [isAutosaving, setIsAutosaving] = useState(false);
+  const [footerSaveMessage, setFooterSaveMessage] = useState<string>('');
+  const footerSaveMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => setIsMounted(true), []);
+
+  const showFooterSaveMessage = useCallback((message: string) => {
+    setFooterSaveMessage(message);
+    if (footerSaveMessageTimerRef.current) {
+      clearTimeout(footerSaveMessageTimerRef.current);
+    }
+    footerSaveMessageTimerRef.current = setTimeout(() => {
+      setFooterSaveMessage('');
+    }, 2600);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (footerSaveMessageTimerRef.current) {
+        clearTimeout(footerSaveMessageTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleApplyComponentPreset = useCallback((presetId: string, componentType: string, compId: string) => {
     const preset = (componentPresets[componentType] || []).find((p: any) => p.id === presetId);
@@ -4967,7 +5011,7 @@ export default function GenericMaterialsPageRedesigned() {
     try {
       await batch.commit();
       const action = existingId ? 'bijgewerkt' : 'opgeslagen';
-      toast({ title: `Werkpakket ${action}`, description: `Werkpakket "${presetName}" is succesvol ${action}.` });
+      showFooterSaveMessage(`Werkpakket "${presetName}" ${action}.`);
       const newPreset = { id: docRef.id, ...newPresetData };
       setPresets((prev) => {
         const filtered = prev.filter((p) => p.id !== docRef.id);
@@ -4986,7 +5030,7 @@ export default function GenericMaterialsPageRedesigned() {
     batch.update(doc(firestore, 'presets', presetToSet.id), { isDefault: true });
     try {
       await batch.commit();
-      toast({ title: 'Standaard ingesteld', description: `"${presetToSet.name}" is nu het standaard werkpakket.` });
+      showFooterSaveMessage(`"${presetToSet.name}" is standaard ingesteld.`);
       setPresets((prev) => prev.map((p) => ({ ...p, isDefault: p.id === presetToSet.id })));
     } catch (error) { console.error('Fout bij instellen standaard werkwijze:', error); toast({ variant: 'destructive', title: 'Fout', description: 'Kon het standaard werkpakket niet instellen.' }); }
   };
@@ -4996,7 +5040,7 @@ export default function GenericMaterialsPageRedesigned() {
     const docRef = doc(firestore, 'presets', presetToDelete.id);
     try {
       await deleteDoc(docRef);
-      toast({ title: 'Werkpakket verwijderd', description: `Het werkpakket "${presetToDelete.name}" is verwijderd.` });
+      showFooterSaveMessage(`Werkpakket "${presetToDelete.name}" verwijderd.`);
       setPresets((prev) => prev.filter((p) => p.id !== presetToDelete.id));
       if (gekozenPresetId === presetToDelete.id) setGekozenPresetId('default');
     } catch (error) { console.error('Fout bij verwijderen werkwijze:', error); toast({ variant: 'destructive', title: 'Fout', description: 'Kon werkpakket niet verwijderen.' }); }
@@ -5570,6 +5614,10 @@ export default function GenericMaterialsPageRedesigned() {
       }
 
       await updateDoc(doc(firestore, 'quotes', quoteId), updatePayload);
+
+      if (!options.silent) {
+        showFooterSaveMessage(`Opgeslagen om ${new Date().toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}.`);
+      }
 
       if (options.navigateTo) {
         router.push(options.navigateTo);
@@ -6560,6 +6608,9 @@ export default function GenericMaterialsPageRedesigned() {
       {/* Sticky Footer */}
       <div className="mobile-calm-pane fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
         <div className="max-w-5xl mx-auto px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          {footerSaveMessage && (
+            <div className="w-full text-xs text-emerald-600 sm:text-sm">{footerSaveMessage}</div>
+          )}
           <Button variant="outline" disabled={isOpslaan || isPresetNotReadyForSave} onClick={handleBack} className="w-full sm:w-auto">
             Terug
           </Button>
@@ -6650,7 +6701,7 @@ export default function GenericMaterialsPageRedesigned() {
           if (!saveComponentPresetType || !saveComponentPresetCompId) return;
           const saved = await handleSaveComponentPreset(name, saveComponentPresetType, saveComponentPresetCompId);
           if (saved) {
-            toast({ title: 'Werkpakket opgeslagen', description: `"${name}" is opgeslagen voor ${COMPONENT_REGISTRY[saveComponentPresetType]?.title || saveComponentPresetType}.` });
+            showFooterSaveMessage(`"${name}" opgeslagen voor ${COMPONENT_REGISTRY[saveComponentPresetType]?.title || saveComponentPresetType}.`);
           }
         }}
       />

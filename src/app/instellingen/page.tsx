@@ -17,12 +17,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users } from 'lucide-react';
+import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users, Palette, MoonStar, Sun } from 'lucide-react';
 import {
     UserSettings,
     DEFAULT_USER_SETTINGS,
     BouwplaatsItem,
     LeverancierContact,
+    LeverancierPersoon,
+    LeverancierTransportKostenRegel,
     normalizeLeverancierContactList,
     pickDefaultLeverancierId,
 } from '@/lib/types-settings';
@@ -33,6 +35,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { v4 as uuidv4 } from 'uuid'; // Ensure uuid is installed or use a simple random string generator if not available. I will use crypto.randomUUID for simplicity or a simple helper if uuid is not guaranteed. I'll use a simple Math.random fallback to avoid adding deps if I can't confirm. Actually, crypto.randomUUID() is widely supported in modern browsers.
+import { useThemeMode } from '@/context/ThemeModeContext';
 
 
 function InstellingenPageContent() {
@@ -50,6 +53,7 @@ function InstellingenPageContent() {
     const [activeTab, setActiveTab] = useState('bedrijf');
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
     const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+    const { mode: currentThemeMode, setMode: setThemeMode, isThemeReady } = useThemeMode();
 
     const composeAddress = (straat: string, huisnummer: string): string =>
         `${straat || ''} ${huisnummer || ''}`.trim();
@@ -69,6 +73,18 @@ function InstellingenPageContent() {
         // JSON roundtrip strips undefined while keeping strings/numbers/booleans.
         return JSON.parse(JSON.stringify(value));
     };
+
+    const createTransportRegel = (): LeverancierTransportKostenRegel => ({
+        id: crypto.randomUUID(),
+        label: '',
+        bedrag: null,
+        gratisVerzendingVanafBedrag: null,
+    });
+    const createSupplierContact = (): LeverancierPersoon => ({
+        id: crypto.randomUUID(),
+        naam: '',
+        email: '',
+    });
 
     // Bouwplaats CRUD State
     const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
@@ -180,6 +196,26 @@ function InstellingenPageContent() {
                 const defaultLeverancierId = pickDefaultLeverancierId((merged as any).defaultLeverancierId, normalizedLeveranciers);
                 merged.leveranciers = normalizedLeveranciers;
                 merged.defaultLeverancierId = defaultLeverancierId;
+                const hasGlobalTransportRegels = Array.isArray((merged as any).leverancierTransportKostenRegels)
+                    && (merged as any).leverancierTransportKostenRegels.length > 0;
+                if (!hasGlobalTransportRegels) {
+                    const migratedRegels = normalizedLeveranciers.flatMap((leverancier) => leverancier.transportKostenRegels || []);
+                    if (migratedRegels.length > 0) {
+                        (merged as any).leverancierTransportKostenRegels = migratedRegels;
+                    }
+                }
+                const globalGratisVanaf = typeof (merged as any).gratisVerzendingVanafBedrag === 'number'
+                    ? (merged as any).gratisVerzendingVanafBedrag
+                    : null;
+                if (globalGratisVanaf !== null && Array.isArray((merged as any).leverancierTransportKostenRegels) && (merged as any).leverancierTransportKostenRegels.length > 0) {
+                    const first = (merged as any).leverancierTransportKostenRegels[0];
+                    if (typeof first?.gratisVerzendingVanafBedrag !== 'number') {
+                        (merged as any).leverancierTransportKostenRegels = [
+                            { ...first, gratisVerzendingVanafBedrag: globalGratisVanaf },
+                            ...(merged as any).leverancierTransportKostenRegels.slice(1),
+                        ];
+                    }
+                }
 
                 if (!merged.huisnummer && merged.adres) {
                     const split = splitAddress(merged.adres);
@@ -188,6 +224,11 @@ function InstellingenPageContent() {
                 }
 
                 setSettings(merged);
+                if (merged.appearanceMode === 'dark' || merged.appearanceMode === 'light') {
+                    await setThemeMode(merged.appearanceMode, { persist: false });
+                } else {
+                    await setThemeMode('dark', { persist: false });
+                }
                 setLogoUrl(merged.logoUrl || null);
                 setSignatureUrl(merged.signatureUrl || null);
             } catch (error) {
@@ -274,6 +315,7 @@ function InstellingenPageContent() {
                 naam: '',
                 contactNaam: '',
                 email: '',
+                contacten: [createSupplierContact()],
             }];
             const defaultLeverancierId = prev.defaultLeverancierId || newId;
             return {
@@ -292,6 +334,62 @@ function InstellingenPageContent() {
                     ? { ...leverancier, [field]: value }
                     : leverancier
             ),
+        }));
+    };
+
+    const syncSupplierPrimaryContact = (leverancier: LeverancierContact): LeverancierContact => {
+        const contacten = leverancier.contacten || [];
+        const first = contacten[0] || null;
+        return {
+            ...leverancier,
+            contactNaam: String(first?.naam || '').trim(),
+            email: String(first?.email || '').trim(),
+        };
+    };
+
+    const addLeverancierContact = (leverancierId: string) => {
+        setSettings((prev) => ({
+            ...prev,
+            leveranciers: (prev.leveranciers || []).map((leverancier) => {
+                if (leverancier.id !== leverancierId) return leverancier;
+                return syncSupplierPrimaryContact({
+                    ...leverancier,
+                    contacten: [...(leverancier.contacten || []), createSupplierContact()],
+                });
+            }),
+        }));
+    };
+
+    const updateLeverancierContact = (leverancierId: string, contactId: string, field: 'naam' | 'email', value: string) => {
+        setSettings((prev) => ({
+            ...prev,
+            leveranciers: (prev.leveranciers || []).map((leverancier) => {
+                if (leverancier.id !== leverancierId) return leverancier;
+                const contacten = (leverancier.contacten || []).map((contact) =>
+                    contact.id === contactId
+                        ? { ...contact, [field]: value }
+                        : contact
+                );
+                return syncSupplierPrimaryContact({
+                    ...leverancier,
+                    contacten,
+                });
+            }),
+        }));
+    };
+
+    const removeLeverancierContact = (leverancierId: string, contactId: string) => {
+        setSettings((prev) => ({
+            ...prev,
+            leveranciers: (prev.leveranciers || []).map((leverancier) => {
+                if (leverancier.id !== leverancierId) return leverancier;
+                const filtered = (leverancier.contacten || []).filter((contact) => contact.id !== contactId);
+                const contacten = filtered.length > 0 ? filtered : [createSupplierContact()];
+                return syncSupplierPrimaryContact({
+                    ...leverancier,
+                    contacten,
+                });
+            }),
         }));
     };
 
@@ -315,6 +413,63 @@ function InstellingenPageContent() {
             ...prev,
             defaultLeverancierId: id,
         }));
+    };
+
+    const addLeverancierTransportRegel = () => {
+        setSettings((prev) => ({
+            ...prev,
+            leverancierTransportKostenRegels: [...(prev.leverancierTransportKostenRegels || []), createTransportRegel()],
+        }));
+    };
+
+    const updateLeverancierTransportRegel = (
+        regelId: string,
+        field: keyof Pick<LeverancierTransportKostenRegel, 'label' | 'bedrag' | 'gratisVerzendingVanafBedrag'>,
+        value: string
+    ) => {
+        setSettings((prev) => ({
+            ...prev,
+            leverancierTransportKostenRegels: (prev.leverancierTransportKostenRegels || []).map((regel) => {
+                if (regel.id !== regelId) return regel;
+                if (field === 'bedrag' || field === 'gratisVerzendingVanafBedrag') {
+                    const parsed = value.trim() === '' ? null : Number(value);
+                    return {
+                        ...regel,
+                        [field]: Number.isFinite(parsed) ? parsed : null,
+                    };
+                }
+                return {
+                    ...regel,
+                    label: value,
+                };
+            }),
+        }));
+    };
+
+    const removeLeverancierTransportRegel = (regelId: string) => {
+        setSettings((prev) => ({
+            ...prev,
+            leverancierTransportKostenRegels: (prev.leverancierTransportKostenRegels || []).filter((regel) => regel.id !== regelId),
+        }));
+    };
+
+    const handleAppearanceModeChange = async (nextMode: 'dark' | 'light') => {
+        setSettings((prev) => ({ ...prev, appearanceMode: nextMode }));
+
+        try {
+            await setThemeMode(nextMode, { persist: true });
+            toast({
+                title: nextMode === 'light' ? 'Witte modus actief' : 'Donkere modus actief',
+                description: 'Uiterlijk is direct toegepast en opgeslagen.',
+            });
+        } catch (error) {
+            console.error('Error saving appearance mode:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Fout',
+                description: 'Kon uiterlijk voorkeur niet opslaan. Lokale weergave blijft actief.',
+            });
+        }
     };
 
     useEffect(() => {
@@ -408,28 +563,17 @@ function InstellingenPageContent() {
     }
 
     return (
-        <div className="app-shell min-h-screen bg-background pb-10">
+        <div className="app-shell min-h-screen bg-background pb-32">
             <AppNavigation />
             <DashboardHeader user={user} title="Instellingen" />
 
             <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-
-
-
-                <div className="flex items-center justify-end mb-4">
-                    <Button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        variant="success"
-                        className="h-10 px-4 font-bold shadow-sm"
-                    >
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Opslaan
-                    </Button>
-                </div>
-
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                    <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 h-auto p-1">
+                    <TabsList className="grid w-full grid-cols-2 lg:grid-cols-7 h-auto p-1">
+                        <TabsTrigger value="uiterlijk" className="py-2.5">
+                            <Palette className="mr-2 h-4 w-4" />
+                            Uiterlijk
+                        </TabsTrigger>
                         <TabsTrigger value="bedrijf" className="py-2.5">
                             <Building2 className="mr-2 h-4 w-4" />
                             Bedrijfsgegevens
@@ -455,6 +599,50 @@ function InstellingenPageContent() {
                             Planning
                         </TabsTrigger>
                     </TabsList>
+
+                    <TabsContent value="uiterlijk" className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Weergave modus</CardTitle>
+                                <CardDescription>
+                                    Kies tussen donkere en witte modus. De wijziging wordt direct toegepast.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <Button
+                                        type="button"
+                                        variant={currentThemeMode === 'dark' ? 'default' : 'outline'}
+                                        className="h-auto justify-start gap-3 py-4"
+                                        onClick={() => handleAppearanceModeChange('dark')}
+                                        disabled={!isThemeReady}
+                                    >
+                                        <MoonStar className="h-4 w-4 shrink-0" />
+                                        <div className="text-left">
+                                            <p className="font-semibold">Donkere modus</p>
+                                            <p className="text-xs text-muted-foreground">Standaard en rustiger in donkere omgevingen.</p>
+                                        </div>
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={currentThemeMode === 'light' ? 'default' : 'outline'}
+                                        className="h-auto justify-start gap-3 py-4"
+                                        onClick={() => handleAppearanceModeChange('light')}
+                                        disabled={!isThemeReady}
+                                    >
+                                        <Sun className="h-4 w-4 shrink-0" />
+                                        <div className="text-left">
+                                            <p className="font-semibold">Witte modus</p>
+                                            <p className="text-xs text-muted-foreground">Helder thema voor daglicht en hoge leesbaarheid.</p>
+                                        </div>
+                                    </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Voorkeur wordt opgeslagen in uw account en blijft actief op login- en landingspagina's.
+                                </p>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
 
                     {/* --- BEDRIJFSGEGEVENS --- */}
                     <TabsContent value="bedrijf" className="space-y-4">
@@ -643,9 +831,14 @@ function InstellingenPageContent() {
                                     <div className="space-y-3">
                                         {(settings.leveranciers || []).map((leverancier) => {
                                             const isDefault = settings.defaultLeverancierId === leverancier.id;
+                                            const hasValidContact = (leverancier.contacten || []).some(
+                                                (contact) =>
+                                                    String(contact.naam || '').trim().length > 0
+                                                    && String(contact.email || '').trim().length > 0
+                                            );
                                             const hasMissingFields =
                                                 !String(leverancier.naam || '').trim()
-                                                || !String(leverancier.email || '').trim();
+                                                || !hasValidContact;
 
                                             return (
                                                 <div key={leverancier.id} className="rounded-lg border border-border p-3 space-y-3">
@@ -683,23 +876,64 @@ function InstellingenPageContent() {
                                                                 placeholder="Bijv. Bouwmaat Amsterdam"
                                                             />
                                                         </div>
-                                                        <div className="space-y-2">
-                                                            <Label>Contactpersoon</Label>
-                                                            <Input
-                                                                value={leverancier.contactNaam}
-                                                                onChange={(event) => updateLeverancier(leverancier.id, 'contactNaam', event.target.value)}
-                                                                placeholder="Bijv. J. Jansen"
-                                                            />
+                                                    </div>
+
+                                                    <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div>
+                                                                <p className="text-sm font-semibold">Supplier material list upload (mail contacten)</p>
+                                                                <p className="text-xs text-muted-foreground">Meerdere contactpersonen voor materiaallijst delen.</p>
+                                                            </div>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="gap-1"
+                                                                onClick={() => addLeverancierContact(leverancier.id)}
+                                                            >
+                                                                <Plus className="h-3.5 w-3.5" />
+                                                                Contact
+                                                            </Button>
                                                         </div>
-                                                        <div className="space-y-2">
-                                                            <Label>E-mailadres</Label>
-                                                            <Input
-                                                                type="email"
-                                                                value={leverancier.email}
-                                                                onChange={(event) => updateLeverancier(leverancier.id, 'email', event.target.value)}
-                                                                placeholder="inkoop@leverancier.nl"
-                                                            />
-                                                        </div>
+
+                                                        {(leverancier.contacten || []).map((contact) => (
+                                                            <div key={contact.id} className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+                                                                <Input
+                                                                    value={contact.naam}
+                                                                    onChange={(event) =>
+                                                                        updateLeverancierContact(
+                                                                            leverancier.id,
+                                                                            contact.id,
+                                                                            'naam',
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    placeholder="Contactpersoon"
+                                                                />
+                                                                <Input
+                                                                    type="email"
+                                                                    value={contact.email}
+                                                                    onChange={(event) =>
+                                                                        updateLeverancierContact(
+                                                                            leverancier.id,
+                                                                            contact.id,
+                                                                            'email',
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    placeholder="inkoop@leverancier.nl"
+                                                                />
+                                                                <Button
+                                                                    type="button"
+                                                                    size="icon"
+                                                                    variant="ghost"
+                                                                    className="text-destructive hover:text-destructive"
+                                                                    onClick={() => removeLeverancierContact(leverancier.id, contact.id)}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
                                                     </div>
 
                                                     {hasMissingFields && (
@@ -717,6 +951,104 @@ function InstellingenPageContent() {
                                     <Plus className="h-4 w-4" />
                                     Leverancier toevoegen
                                 </Button>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Leverancier transport kosten</CardTitle>
+                                <CardDescription>
+                                    Deze kosten staan los van leverancierscontacten. Je kunt hier regels toevoegen zonder leverancier aan te maken.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-xs text-muted-foreground">Bijv. Bouwcenter - € 150</p>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-1"
+                                        onClick={addLeverancierTransportRegel}
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Rij
+                                    </Button>
+                                </div>
+
+                                {(settings.leverancierTransportKostenRegels || []).length === 0 ? (
+                                    <div className="rounded-lg border border-dashed border-muted-foreground/30 p-4 text-sm text-muted-foreground">
+                                        Nog geen transportkosten regels.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {(settings.leverancierTransportKostenRegels || []).map((regel) => (
+                                            <div key={regel.id} className="rounded-md border border-border/70 bg-background p-3 space-y-3">
+                                                <div className="grid gap-2 md:grid-cols-[1fr_180px_auto]">
+                                                    <Input
+                                                        value={regel.label || ''}
+                                                        onChange={(event) =>
+                                                            updateLeverancierTransportRegel(
+                                                                regel.id,
+                                                                'label',
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        placeholder="Bijv. Bouwcenter"
+                                                    />
+                                                    <div className="relative">
+                                                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
+                                                        <Input
+                                                            type="number"
+                                                            min={0}
+                                                            step="0.01"
+                                                            className="pl-7"
+                                                            value={regel.bedrag ?? ''}
+                                                            onChange={(event) =>
+                                                                updateLeverancierTransportRegel(
+                                                                    regel.id,
+                                                                    'bedrag',
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            placeholder="0.00"
+                                                        />
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="text-destructive hover:text-destructive"
+                                                        onClick={() => removeLeverancierTransportRegel(regel.id)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    <span className="text-sm text-foreground">Gratis verzending boven:</span>
+                                                    <div className="relative w-[180px]">
+                                                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
+                                                        <Input
+                                                            type="number"
+                                                            min={0}
+                                                            step="0.01"
+                                                            className="pl-7"
+                                                            value={regel.gratisVerzendingVanafBedrag ?? ''}
+                                                            onChange={(event) =>
+                                                                updateLeverancierTransportRegel(
+                                                                    regel.id,
+                                                                    'gratisVerzendingVanafBedrag',
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            placeholder="Leeg = geen gratis verzending"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -1406,6 +1738,24 @@ function InstellingenPageContent() {
                     </Dialog>
 
                 </Tabs>
+            </div>
+
+            <div className="settings-sticky-footer fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur-sm">
+                <div className="mx-auto max-w-5xl px-4 py-2">
+                    <div className="rounded-xl border border-border/70 bg-card/90 px-4 py-2 shadow-lg">
+                        <div className="flex items-center justify-end">
+                            <Button
+                                onClick={handleSave}
+                                disabled={isSaving}
+                                variant="success"
+                                className="h-10 px-4 font-bold shadow-sm"
+                            >
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                Opslaan
+                            </Button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

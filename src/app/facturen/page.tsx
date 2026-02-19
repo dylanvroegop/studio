@@ -296,7 +296,7 @@ export default function FacturenPage() {
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-10 gap-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-100"
+                        className="h-10 gap-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200 dark:hover:text-emerald-100"
                       >
                         <Plus className="h-4 w-4" />
                         Nieuwe factuur
@@ -380,7 +380,7 @@ export default function FacturenPage() {
                     type="button"
                     variant={filter === 'alle' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('alle')}
-                    className={cn('h-10', filter === 'alle' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
+                    className={cn('h-10', filter === 'alle' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
                   >
                     Alle
                   </Button>
@@ -388,7 +388,7 @@ export default function FacturenPage() {
                     type="button"
                     variant={filter === 'openstaand' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('openstaand')}
-                    className={cn('h-10', filter === 'openstaand' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
+                    className={cn('h-10', filter === 'openstaand' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
                   >
                     Openstaand
                   </Button>
@@ -396,7 +396,7 @@ export default function FacturenPage() {
                     type="button"
                     variant={filter === 'betaald' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('betaald')}
-                    className={cn('h-10', filter === 'betaald' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
+                    className={cn('h-10', filter === 'betaald' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
                   >
                     Betaald
                   </Button>
@@ -415,7 +415,7 @@ export default function FacturenPage() {
                 <Button
                   asChild
                   variant="outline"
-                  className="mt-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-100"
+                  className="mt-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200 dark:hover:text-emerald-100"
                 >
                   <Link href="/offertes">Ga naar offertes</Link>
                 </Button>
@@ -441,7 +441,7 @@ export default function FacturenPage() {
                   <div
                     key={inv.id}
                     className={cn(
-                      "group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both",
+                      "group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-border bg-card/60 px-5 py-4 hover:bg-card hover:border-border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both",
                       sideBorderClass
                     )}
                   >
@@ -449,12 +449,12 @@ export default function FacturenPage() {
 
                     <div className="flex-1 min-w-0 z-10 pointer-events-none space-y-1">
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="font-bold text-zinc-100 truncate text-base group-hover:text-white transition-colors">
+                        <span className="font-bold text-foreground truncate text-base transition-colors">
                           {klant}
                         </span>
 
                         {nrLabel && (
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/5 bg-white/5 text-zinc-400 shrink-0">
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground shrink-0">
                             {nrLabel}
                           </span>
                         )}
@@ -462,12 +462,12 @@ export default function FacturenPage() {
                         <InvoiceStatusBadge status={inv.status} />
                       </div>
 
-                      <div className="flex items-center gap-3 text-sm text-zinc-500">
-                        <span className="truncate max-w-[200px] text-zinc-400 font-medium">
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <span className="truncate max-w-[200px] text-muted-foreground font-medium">
                           {titel.toString()}
                         </span>
                         <span className="opacity-20">•</span>
-                        <span className="flex items-center gap-1.5 group-hover:text-zinc-300 transition-colors">
+                        <span className="flex items-center gap-1.5 transition-colors">
                           <Calendar className="h-3.5 w-3.5 opacity-70" />
                           {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
                         </span>
@@ -475,7 +475,7 @@ export default function FacturenPage() {
                         <span
                           className={cn(
                             "font-semibold tracking-wide",
-                            inv.status === 'betaald' || amountToShow > 0 ? "text-emerald-400" : "text-zinc-600"
+                            inv.status === 'betaald' || amountToShow > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
                           )}
                         >
                           {formatCurrency(amountToShow)}
@@ -483,7 +483,7 @@ export default function FacturenPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 z-20 opacity-70 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-2 z-20 opacity-100 sm:opacity-70 sm:group-hover:opacity-100 transition-opacity">
                       <Button
                         type="button"
                         size="sm"
@@ -491,8 +491,8 @@ export default function FacturenPage() {
                         className={cn(
                           'gap-2 h-9 shadow-sm',
                           inv.status === 'betaald'
-                            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/20'
-                            : 'bg-zinc-900/70 hover:bg-zinc-800 border border-white/5'
+                            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300'
+                            : 'bg-muted/60 hover:bg-muted border border-border'
                         )}
                         disabled={inv.status === 'betaald' || markingPaidId === inv.id}
                         onClick={(e) => {
@@ -517,7 +517,7 @@ export default function FacturenPage() {
                             asChild
                             variant="secondary"
                             size="sm"
-                            className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                            className="gap-2 h-9 bg-muted/60 hover:bg-muted border border-border shadow-sm"
                           >
                             <Link href={`/facturen/${inv.id}`}>
                               <Pencil className="h-3.5 w-3.5" />
@@ -531,7 +531,7 @@ export default function FacturenPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-9 w-9 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 rounded-lg transition-all"
+                        className="h-9 w-9 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 rounded-lg transition-all"
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
@@ -558,7 +558,7 @@ export default function FacturenPage() {
                 Deze factuur wordt verplaatst naar het archief. Je kunt dit later ongedaan maken via het archief.
                 {archiveTarget ? (
                   <div className="mt-3 text-xs text-muted-foreground">
-                    <span className="font-mono text-zinc-300">
+                    <span className="font-mono text-foreground">
                       {archiveTarget.invoiceNumberLabel ? `Factuur #${archiveTarget.invoiceNumberLabel}` : 'Factuur'}
                     </span>
                     <span className="opacity-30 mx-2">•</span>

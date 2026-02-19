@@ -482,7 +482,7 @@ function PlanningPageContent() {
                 <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                     <div className="flex items-center gap-2">
                         {/* View Toggle */}
-                        <div className="flex bg-zinc-800 rounded-lg p-1">
+                        <div className="flex bg-muted rounded-lg p-1">
                             {(['day', 'week'] as TimelineView[]).map((v) => (
                                 <button
                                     key={v}
@@ -490,8 +490,8 @@ function PlanningPageContent() {
                                     className={cn(
                                         "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
                                         view === v
-                                            ? "bg-zinc-700 text-white"
-                                            : "text-zinc-400 hover:text-zinc-200"
+                                            ? "bg-background text-foreground"
+                                            : "text-muted-foreground hover:text-foreground"
                                     )}
                                 >
                                     {v === 'day' ? 'Week' : 'Maand'}
@@ -502,7 +502,7 @@ function PlanningPageContent() {
 
                     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
                         {/* Date Navigation */}
-                        <div className="flex min-w-0 items-center gap-1 rounded-lg bg-zinc-800 p-1">
+                        <div className="flex min-w-0 items-center gap-1 rounded-lg bg-muted p-1">
                             <Button
                                 variant="ghost"
                                 size="icon"
@@ -528,7 +528,7 @@ function PlanningPageContent() {
                             </Button>
                         </div>
 
-                        <span className="text-sm font-medium text-zinc-300 min-w-[180px] text-center hidden sm:block">
+                        <span className="text-sm font-medium text-foreground min-w-[180px] text-center hidden sm:block">
                             {periodLabel}
                         </span>
 
@@ -558,7 +558,7 @@ function PlanningPageContent() {
                 </div>
 
                 {/* Mobile Date Label */}
-                <div className="sm:hidden text-center text-sm font-medium text-zinc-300">
+                <div className="sm:hidden text-center text-sm font-medium text-foreground">
                     {getDateRangeLabel()}
                 </div>
 

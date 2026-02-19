@@ -274,7 +274,7 @@ export default function WinstPage() {
                 <CardTitle className="text-sm text-muted-foreground">Geprognotiseerde winst</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-semibold text-amber-300">{formatCurrency(metrics.kpis.forecastProfit)}</div>
+                <div className="text-2xl font-semibold text-amber-700 dark:text-amber-300">{formatCurrency(metrics.kpis.forecastProfit)}</div>
               </CardContent>
             </Card>
             <Card className="border-emerald-500/20 bg-emerald-500/5">
@@ -282,7 +282,7 @@ export default function WinstPage() {
                 <CardTitle className="text-sm text-muted-foreground">Ontvangen betalingen</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-semibold text-emerald-300">{formatCurrency(metrics.kpis.receivedPayments)}</div>
+                <div className="text-2xl font-semibold text-emerald-700 dark:text-emerald-300">{formatCurrency(metrics.kpis.receivedPayments)}</div>
               </CardContent>
             </Card>
             <Card>
@@ -298,7 +298,7 @@ export default function WinstPage() {
                 <CardTitle className="text-sm text-muted-foreground">Te laat risico</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-semibold text-red-300">{formatCurrency(metrics.kpis.overdueAmount)}</div>
+                <div className="text-2xl font-semibold text-red-700 dark:text-red-300">{formatCurrency(metrics.kpis.overdueAmount)}</div>
                 <p className="text-xs text-muted-foreground mt-1">{metrics.kpis.overdueCount} facturen</p>
               </CardContent>
             </Card>
@@ -321,7 +321,7 @@ export default function WinstPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className={cn('border-amber-500/30 text-amber-200', !showForecast && 'opacity-60')}
+                    className={cn('border-amber-500/30 text-amber-700 dark:text-amber-200', !showForecast && 'opacity-60')}
                     onClick={() => setShowForecast((previous) => !previous)}
                   >
                     Forecast
@@ -330,7 +330,7 @@ export default function WinstPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className={cn('border-emerald-500/30 text-emerald-200', !showReceived && 'opacity-60')}
+                    className={cn('border-emerald-500/30 text-emerald-700 dark:text-emerald-200', !showReceived && 'opacity-60')}
                     onClick={() => setShowReceived((previous) => !previous)}
                   >
                     Ontvangen
@@ -430,7 +430,7 @@ export default function WinstPage() {
                 <div className="flex items-center justify-between"><span>Openstaand</span><span>{metrics.statusDistribution.openstaand}</span></div>
                 <div className="flex items-center justify-between"><span>Gedeeltelijk betaald</span><span>{metrics.statusDistribution.gedeeltelijkBetaald}</span></div>
                 <div className="flex items-center justify-between"><span>Betaald</span><span>{metrics.statusDistribution.betaald}</span></div>
-                <div className="pt-2 mt-2 border-t border-border flex items-center justify-between font-semibold text-red-300">
+                <div className="pt-2 mt-2 border-t border-border flex items-center justify-between font-semibold text-red-700 dark:text-red-300">
                   <span>Te laat</span><span>{metrics.statusDistribution.teLaat}</span>
                 </div>
                 <div className="pt-2 mt-2 border-t border-border grid grid-cols-1 gap-2 text-xs text-muted-foreground">
@@ -445,7 +445,7 @@ export default function WinstPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base text-amber-300">Top 5 winstgevende offertes</CardTitle>
+                <CardTitle className="text-base text-amber-700 dark:text-amber-300">Top 5 winstgevende offertes</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {metrics.topOffers.length === 0 ? (
@@ -454,7 +454,7 @@ export default function WinstPage() {
                   metrics.topOffers.map((item, index) => (
                     <div key={item.id} className="flex items-center justify-between rounded-md border border-border/60 p-2">
                       <span className="text-sm truncate pr-3">{index + 1}. {item.label}</span>
-                      <span className="text-sm font-semibold text-amber-200">{formatCurrency(item.value)}</span>
+                      <span className="text-sm font-semibold text-amber-700 dark:text-amber-200">{formatCurrency(item.value)}</span>
                     </div>
                   ))
                 )}
@@ -463,7 +463,7 @@ export default function WinstPage() {
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base text-emerald-300">Top 5 hoogste openstaand</CardTitle>
+                <CardTitle className="text-base text-emerald-700 dark:text-emerald-300">Top 5 hoogste openstaand</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {metrics.topOpenInvoices.length === 0 ? (
@@ -472,7 +472,7 @@ export default function WinstPage() {
                   metrics.topOpenInvoices.map((item, index) => (
                     <div key={item.id} className="flex items-center justify-between rounded-md border border-border/60 p-2">
                       <span className="text-sm truncate pr-3">{index + 1}. {item.label}</span>
-                      <span className="text-sm font-semibold text-emerald-200">{formatCurrency(item.value)}</span>
+                      <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-200">{formatCurrency(item.value)}</span>
                     </div>
                   ))
                 )}

@@ -797,7 +797,8 @@ export default function UrenRegistratiePage() {
                                 )}
 
                                 <Button
-                                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-12"
+                                    variant="success"
+                                    className="w-full h-12"
                                     onClick={handleManualSave}
                                 >
                                     <Save className="mr-2 h-4 w-4" />
@@ -835,30 +836,30 @@ export default function UrenRegistratiePage() {
                                             </div>
 
                                             {entry.quoteId ? (
-                                                <div className="text-sm text-zinc-300 font-medium truncate max-w-[200px] mb-1">
+                                                <div className="text-sm text-foreground font-medium truncate max-w-[200px] mb-1">
                                                     {entry.quoteTitle || 'Offerte'}
                                                 </div>
                                             ) : (
-                                                <div className="text-sm text-zinc-500 italic">Geen klus</div>
+                                                <div className="text-sm text-muted-foreground italic">Geen klus</div>
                                             )}
 
                                             <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                                {entry.source === 'timer_rounded' && <span className="text-zinc-500">Afgerond</span>}
-                                                {entry.source === 'timer_exact' && <span className="text-zinc-500">Exact</span>}
+                                                {entry.source === 'timer_rounded' && <span className="text-muted-foreground">Afgerond</span>}
+                                                {entry.source === 'timer_exact' && <span className="text-muted-foreground">Exact</span>}
                                                 {entry.startTime && <span>{entry.startTime} - {entry.endTime}</span>}
                                             </div>
                                         </div>
 
                                         <div className="flex items-center gap-4">
                                             <div className="text-right">
-                                                <div className="text-lg font-bold tabular-nums text-white">
+                                                <div className="text-lg font-bold tabular-nums text-foreground">
                                                     {formatHours(entry.totalHours)}
                                                 </div>
                                             </div>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-opacity"
+                                                className="h-8 w-8 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 transition-opacity"
                                                 onClick={() => setEntryToDelete(entry)}
                                             >
                                                 <Trash2 className="h-4 w-4" />
@@ -923,7 +924,7 @@ export default function UrenRegistratiePage() {
                         />
                     </div>
                     <DialogFooter>
-                        <Button onClick={handleCustomSave} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Opslaan</Button>
+                        <Button onClick={handleCustomSave} variant="success" className="w-full">Opslaan</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

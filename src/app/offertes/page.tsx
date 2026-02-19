@@ -133,38 +133,38 @@ function getStatusMeta(
   const map: Record<string, { label: string; className: string; sideBorderClass: string }> = {
     concept: {
       label: 'Concept',
-      className: 'bg-zinc-800 text-zinc-200 border-zinc-700',
+      className: 'bg-muted text-foreground border-border',
       sideBorderClass: 'border-l-zinc-500/70',
     },
     in_behandeling: isCalculated
       ? {
         label: 'Berekend',
-        className: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+        className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
         sideBorderClass: 'border-l-emerald-500',
       }
       : {
         label: 'Berekenen',
-        className: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+        className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30',
         sideBorderClass: 'border-l-amber-500',
       },
     verzonden: {
       label: 'Verstuurd',
-      className: 'bg-blue-500/10 text-blue-300 border-blue-500/30',
+      className: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30',
       sideBorderClass: 'border-l-blue-500',
     },
     geaccepteerd: {
       label: 'Geaccepteerd',
-      className: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+      className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
       sideBorderClass: 'border-l-emerald-500',
     },
     afgewezen: {
       label: 'Afgewezen',
-      className: 'bg-red-500/10 text-red-300 border-red-500/30',
+      className: 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30',
       sideBorderClass: 'border-l-red-500',
     },
     verlopen: {
       label: 'Verlopen',
-      className: 'bg-zinc-800 text-zinc-400 border-zinc-700',
+      className: 'bg-muted text-muted-foreground border-border',
       sideBorderClass: 'border-l-zinc-700',
     },
   };
@@ -821,7 +821,7 @@ export default function OffertesPage() {
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-10 w-full gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100 sm:w-auto"
+                          className="h-10 w-full gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-200 dark:hover:text-cyan-100 sm:w-auto"
                         >
                           <Plus className="h-4 w-4" />
                           Nieuwe offerte
@@ -894,7 +894,7 @@ export default function OffertesPage() {
                               </Button>
                               <Button
                                 type="button"
-                                className="h-10 border-cyan-500/50 bg-cyan-500/20 text-cyan-100 hover:bg-cyan-500/30"
+                                className="h-10 border-cyan-500/50 bg-cyan-500/20 text-cyan-700 hover:bg-cyan-500/30 dark:text-cyan-100"
                                 onClick={() => handleCreateEmptyQuote({ withSelectedClient: true })}
                                 disabled={creatingQuote || !selectedClientId}
                               >
@@ -912,7 +912,7 @@ export default function OffertesPage() {
                         type="button"
                         variant={filter === 'alle' ? 'outline' : 'ghost'}
                         onClick={() => setFilter('alle')}
-                        className={cn('h-10', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                        className={cn('h-10', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
                       >
                         Alle
                       </Button>
@@ -920,7 +920,7 @@ export default function OffertesPage() {
                         type="button"
                         variant={filter === 'concept' ? 'outline' : 'ghost'}
                         onClick={() => setFilter('concept')}
-                        className={cn('h-10', filter === 'concept' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                        className={cn('h-10', filter === 'concept' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
                       >
                         Concept
                       </Button>
@@ -928,7 +928,7 @@ export default function OffertesPage() {
                         type="button"
                         variant={filter === 'verzonden' ? 'outline' : 'ghost'}
                         onClick={() => setFilter('verzonden')}
-                        className={cn('h-10', filter === 'verzonden' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200')}
+                        className={cn('h-10', filter === 'verzonden' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
                       >
                         Verzonden
                       </Button>
@@ -987,7 +987,7 @@ export default function OffertesPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="mt-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20"
+                    className="mt-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-200"
                     onClick={() => setCreateOpen(true)}
                   >
                     Nieuwe offerte
@@ -1010,7 +1010,7 @@ export default function OffertesPage() {
                     <div
                       key={q.id}
                       className={cn(
-                        'group relative flex flex-col gap-3 rounded-xl border border-l-4 border-white/5 bg-card/40 px-4 py-4 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both hover:bg-card/60 hover:border-white/10 hover:shadow-lg sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:hover:-translate-y-0.5',
+                        'group relative flex flex-col gap-3 rounded-xl border border-l-4 border-border bg-card/60 px-4 py-4 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both hover:bg-card hover:border-border hover:shadow-lg sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:hover:-translate-y-0.5',
                         statusMeta.sideBorderClass
                       )}
                     >
@@ -1022,12 +1022,12 @@ export default function OffertesPage() {
 
                       <div className="z-10 min-w-0 flex-1 pointer-events-none space-y-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
-                          <span className="font-bold text-zinc-100 truncate text-base group-hover:text-white transition-colors">
+                          <span className="font-bold text-foreground truncate text-base transition-colors">
                             {klant}
                           </span>
 
                           {nrLabel && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/5 bg-white/5 text-zinc-400 shrink-0">
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground shrink-0">
                               {nrLabel}
                             </span>
                           )}
@@ -1043,17 +1043,17 @@ export default function OffertesPage() {
                           </span>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 sm:gap-3 sm:text-sm">
-                          <span className="max-w-full truncate text-zinc-400 font-medium">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground sm:gap-3 sm:text-sm">
+                          <span className="max-w-full truncate text-muted-foreground font-medium">
                             {getTitel(q)}
                           </span>
                           <span className="hidden opacity-20 sm:inline">•</span>
-                          <span className="flex items-center gap-1.5 group-hover:text-zinc-300 transition-colors">
+                          <span className="flex items-center gap-1.5 transition-colors">
                             <Calendar className="h-3.5 w-3.5 opacity-70" />
                             {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
                           </span>
                           <span className="hidden opacity-20 sm:inline">•</span>
-                          <span className={cn('font-semibold tracking-wide', totaal > 0 ? 'text-emerald-300' : 'text-zinc-600')}>
+                          <span className={cn('font-semibold tracking-wide', totaal > 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-muted-foreground')}>
                             {formatCurrency(totaal)}
                           </span>
                         </div>
@@ -1065,7 +1065,7 @@ export default function OffertesPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-9 flex-1 gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100 sm:flex-none"
+                              className="h-9 flex-1 gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-200 dark:hover:text-cyan-100 sm:flex-none"
                               aria-label="Open offerte"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1085,7 +1085,7 @@ export default function OffertesPage() {
                             <Button
                               variant="secondary"
                               size="sm"
-                              className="h-9 flex-1 gap-2 border border-white/5 bg-zinc-800/80 shadow-sm hover:bg-zinc-700 sm:flex-none"
+                              className="h-9 flex-1 gap-2 border border-border bg-muted/60 shadow-sm hover:bg-muted sm:flex-none"
                               aria-label="Open calculatie"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1103,7 +1103,7 @@ export default function OffertesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-9 w-9 shrink-0 rounded-lg text-zinc-500 transition-all hover:border hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-400"
+                          className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground transition-all hover:border hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400"
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
@@ -1130,7 +1130,7 @@ export default function OffertesPage() {
                 Deze offerte wordt verplaatst naar het archief. Je kunt dit later ongedaan maken via het archief.
                 {archiveTarget ? (
                   <div className="mt-3 text-xs text-muted-foreground">
-                    <span className="font-mono text-zinc-300">
+                    <span className="font-mono text-foreground">
                       {archiveTarget.offerteNummer ? `Offerte #${archiveTarget.offerteNummer}` : 'Offerte'}
                     </span>
                     <span className="opacity-30 mx-2">•</span>

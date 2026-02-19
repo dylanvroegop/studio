@@ -75,7 +75,7 @@ export function WorkStatusBadge({ quote }: { quote: any }) {
         return (
             <Badge
                 variant="outline"
-                className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-zinc-800/50 text-zinc-400 border-zinc-700/50"
+                className="font-semibold px-2 py-0.5 text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-muted text-muted-foreground border-border"
             >
                 <Circle className="h-3 w-3" />
                 Geen klussen
@@ -133,12 +133,12 @@ export function WorkStatusBadge({ quote }: { quote: any }) {
 
     // workStatus.type === 'sent'
     const sentStatusMap: Record<Status, { text: string; className: string; icon: React.ReactNode }> = {
-        concept: { text: 'Concept', className: 'bg-zinc-700/50 text-zinc-300 border-zinc-600/30', icon: <Circle className="h-3 w-3" /> },
+        concept: { text: 'Concept', className: 'bg-muted text-foreground border-border', icon: <Circle className="h-3 w-3" /> },
         in_behandeling: { text: 'In bewerking', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20', icon: <Clock className="h-3 w-3" /> },
         verzonden: { text: 'Verzonden', className: 'bg-sky-500/10 text-sky-400 border-sky-500/20', icon: <Send className="h-3 w-3" /> },
         geaccepteerd: { text: 'Geaccepteerd', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: <CheckCircle2 className="h-3 w-3" /> },
         afgewezen: { text: 'Afgewezen', className: 'bg-red-500/10 text-red-400 border-red-500/20', icon: <XCircle className="h-3 w-3" /> },
-        verlopen: { text: 'Verlopen', className: 'bg-zinc-800 text-zinc-500 border-zinc-700', icon: <AlertCircle className="h-3 w-3" /> },
+        verlopen: { text: 'Verlopen', className: 'bg-muted text-muted-foreground border-border', icon: <AlertCircle className="h-3 w-3" /> },
     };
 
     const { text, className, icon } = sentStatusMap[workStatus.status] || sentStatusMap.concept;

@@ -41,6 +41,7 @@ interface MaterialListExportDialogProps {
   defaultSupplierId?: string;
   onUpdateSupplierContact?: (payload: {
     supplierId: string;
+    contactId?: string;
     contactNaam: string;
     email: string;
   }) => Promise<void>;
@@ -103,7 +104,7 @@ export function MaterialListExportDialog({
 }: MaterialListExportDialogProps) {
   const { toast } = useToast();
   const [includePrices, setIncludePrices] = useState(false);
-  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  const [selectedSupplierOptionId, setSelectedSupplierOptionId] = useState('');
   const [email, setEmail] = useState('');
   const [contactName, setContactName] = useState('');
   const [newSupplierName, setNewSupplierName] = useState('');
@@ -124,9 +125,37 @@ export function MaterialListExportDialog({
   const templateTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const hasSuppliers = suppliers.length > 0;
+  const supplierOptions = useMemo(() => (
+    suppliers.flatMap((supplier) => {
+      const supplierName = String(supplier.naam || '').trim();
+      const contacts = Array.isArray(supplier.contacten) ? supplier.contacten : [];
+      if (contacts.length > 0) {
+        return contacts.map((contact) => ({
+          optionId: `${supplier.id}::${contact.id}`,
+          supplierId: supplier.id,
+          contactId: contact.id,
+          supplierName,
+          contactName: String(contact.naam || '').trim(),
+          email: String(contact.email || '').trim(),
+        }));
+      }
+      return [{
+        optionId: `${supplier.id}::primary`,
+        supplierId: supplier.id,
+        contactId: undefined as string | undefined,
+        supplierName,
+        contactName: String(supplier.contactNaam || '').trim(),
+        email: String(supplier.email || '').trim(),
+      }];
+    })
+  ), [suppliers]);
+  const selectedSupplierOption = useMemo(
+    () => supplierOptions.find((option) => option.optionId === selectedSupplierOptionId) || null,
+    [supplierOptions, selectedSupplierOptionId],
+  );
   const selectedSupplier = useMemo(
-    () => suppliers.find((supplier) => supplier.id === selectedSupplierId) || null,
-    [suppliers, selectedSupplierId],
+    () => suppliers.find((supplier) => supplier.id === selectedSupplierOption?.supplierId) || null,
+    [suppliers, selectedSupplierOption?.supplierId],
   );
 
   const selectedSupplierDisplayName = useMemo(() => {
@@ -192,15 +221,16 @@ export function MaterialListExportDialog({
   useEffect(() => {
     if (!isOpen) return;
 
-    const resolvedDefaultSupplierId = defaultSupplierId && suppliers.some((supplier) => supplier.id === defaultSupplierId)
-      ? defaultSupplierId
-      : suppliers[0]?.id || '';
-    const initialSupplier = suppliers.find((supplier) => supplier.id === resolvedDefaultSupplierId) || null;
+    const defaultSupplierOptions = defaultSupplierId
+      ? supplierOptions.filter((option) => option.supplierId === defaultSupplierId)
+      : [];
+    const initialOption = defaultSupplierOptions[0] || supplierOptions[0] || null;
+    const initialSupplier = suppliers.find((supplier) => supplier.id === initialOption?.supplierId) || null;
 
     setIncludePrices(false);
-    setSelectedSupplierId(resolvedDefaultSupplierId);
-    setEmail(String(initialSupplier?.email || '').trim());
-    setContactName(String(initialSupplier?.contactNaam || '').trim());
+    setSelectedSupplierOptionId(initialOption?.optionId || '');
+    setEmail(String(initialOption?.email || '').trim());
+    setContactName(String(initialOption?.contactName || initialSupplier?.contactNaam || '').trim());
     setNewSupplierName('');
     setNewSupplierContactName('');
     setNewSupplierEmail('');
@@ -210,7 +240,7 @@ export function MaterialListExportDialog({
     setBody(buildMaterialListEmailBody(items, {
       includePrices: false,
       meta,
-      greetingName: String(initialSupplier?.contactNaam || initialSupplier?.naam || '').trim(),
+      greetingName: String(initialOption?.contactName || initialSupplier?.contactNaam || initialSupplier?.naam || '').trim(),
       emailTemplate: savedEmailTemplate,
     }));
     setSubjectTouched(false);
@@ -223,7 +253,7 @@ export function MaterialListExportDialog({
         description: 'Voeg hieronder direct een leverancier toe om e-mail te gebruiken.',
       });
     }
-  }, [isOpen, defaultSupplierId, suppliers, defaultSubject, items, meta, toast, savedEmailTemplate]);
+  }, [isOpen, defaultSupplierId, supplierOptions, suppliers, defaultSubject, items, meta, toast, savedEmailTemplate]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -236,20 +266,21 @@ export function MaterialListExportDialog({
   }, [isOpen, subjectTouched, bodyTouched, defaultSubject, generatedBody]);
 
   useEffect(() => {
-    if (!isOpen || !selectedSupplier) return;
-    setEmail(String(selectedSupplier.email || '').trim());
-    setContactName(String(selectedSupplier.contactNaam || '').trim());
-  }, [isOpen, selectedSupplier]);
+    if (!isOpen || !selectedSupplierOption) return;
+    setEmail(String(selectedSupplierOption.email || '').trim());
+    setContactName(String(selectedSupplierOption.contactName || '').trim());
+  }, [isOpen, selectedSupplierOption]);
 
   useEffect(() => {
-    if (!isOpen || selectedSupplierId || !suppliers.length) return;
-    const resolvedDefaultSupplierId = defaultSupplierId && suppliers.some((supplier) => supplier.id === defaultSupplierId)
-      ? defaultSupplierId
-      : suppliers[0]?.id || '';
-    if (resolvedDefaultSupplierId) {
-      setSelectedSupplierId(resolvedDefaultSupplierId);
+    if (!isOpen || selectedSupplierOptionId || !supplierOptions.length) return;
+    const defaultOption = defaultSupplierId
+      ? supplierOptions.find((option) => option.supplierId === defaultSupplierId)
+      : null;
+    const resolvedOptionId = defaultOption?.optionId || supplierOptions[0]?.optionId || '';
+    if (resolvedOptionId) {
+      setSelectedSupplierOptionId(resolvedOptionId);
     }
-  }, [isOpen, selectedSupplierId, suppliers, defaultSupplierId]);
+  }, [isOpen, selectedSupplierOptionId, supplierOptions, defaultSupplierId]);
 
   const handleToggleMaterial = (key: string): void => {
     setSelectedMaterialKeys((current) => (
@@ -533,6 +564,7 @@ export function MaterialListExportDialog({
     try {
       await onUpdateSupplierContact({
         supplierId: selectedSupplier.id,
+        contactId: selectedSupplierOption?.contactId,
         contactNaam: String(contactName || '').trim(),
         email: trimmedEmail,
       });
@@ -595,7 +627,10 @@ export function MaterialListExportDialog({
       setNewSupplierContactName('');
       setNewSupplierEmail('');
       if (createdSupplierId) {
-        setSelectedSupplierId(createdSupplierId);
+        const firstForSupplier = supplierOptions.find((option) => option.supplierId === createdSupplierId);
+        if (firstForSupplier?.optionId) {
+          setSelectedSupplierOptionId(firstForSupplier.optionId);
+        }
       }
 
       toast({
@@ -838,20 +873,20 @@ export function MaterialListExportDialog({
           {hasSuppliers && (
             <div className="space-y-2">
               <Label htmlFor="supplier-select">Leverancier</Label>
-              <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>
+              <Select value={selectedSupplierOptionId} onValueChange={setSelectedSupplierOptionId}>
                 <SelectTrigger id="supplier-select">
                   <SelectValue placeholder="Kies leverancier" />
                 </SelectTrigger>
                 <SelectContent>
-                  {suppliers.map((supplier) => {
-                    const supplierName = String(supplier.naam || '').trim() || 'Naam ontbreekt';
-                    const contactName = String(supplier.contactNaam || '').trim();
-                    const emailValue = String(supplier.email || '').trim();
+                  {supplierOptions.map((option) => {
+                    const supplierName = option.supplierName || 'Naam ontbreekt';
+                    const contactName = option.contactName;
+                    const emailValue = option.email;
                     const label = contactName
                       ? `${supplierName} - ${contactName}`
                       : supplierName;
                     return (
-                      <SelectItem key={supplier.id} value={supplier.id}>
+                      <SelectItem key={option.optionId} value={option.optionId}>
                         {emailValue ? `${label} (${emailValue})` : label}
                       </SelectItem>
                     );

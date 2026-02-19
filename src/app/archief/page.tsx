@@ -214,7 +214,7 @@ function ArchiefPageContent() {
           </Card>
 
           {error ? (
-            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-200">
               {error}
             </div>
           ) : null}
@@ -271,52 +271,52 @@ function ArchiefPageContent() {
                       key={inv.id}
                       style={{ animationDelay: `${index * 50}ms` }}
                       className={cn(
-                        "group relative flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                        "group relative flex items-center justify-between gap-4 rounded-xl border border-border bg-card/60 px-5 py-4 hover:bg-card hover:border-border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
                       )}
                     >
                       <Link href={`/facturen/${inv.id}`} className="absolute inset-0 z-0" />
 
                       <div className="flex-1 min-w-0 z-10 pointer-events-none space-y-1">
                         <div className="flex items-center gap-3 min-w-0">
-                          <span className="font-bold text-zinc-100 truncate text-base group-hover:text-white transition-colors">
+                          <span className="font-bold text-foreground truncate text-base transition-colors">
                             {klant}
                           </span>
 
                           {nrLabel && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/5 bg-white/5 text-zinc-400 shrink-0">
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground shrink-0">
                               {nrLabel}
                             </span>
                           )}
 
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-200 shrink-0">
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200 shrink-0">
                             Gearchiveerd
                           </span>
 
                           <InvoiceStatusBadge status={inv.status} />
                         </div>
 
-                        <div className="flex items-center gap-3 text-sm text-zinc-500">
-                          <span className="truncate max-w-[200px] text-zinc-400 font-medium">
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                          <span className="truncate max-w-[200px] text-muted-foreground font-medium">
                             {titel.toString()}
                           </span>
                           <span className="opacity-20">•</span>
-                          <span className="flex items-center gap-1.5 group-hover:text-zinc-300 transition-colors">
+                          <span className="flex items-center gap-1.5 transition-colors">
                             <Calendar className="h-3.5 w-3.5 opacity-70" />
                             {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
                           </span>
                           <span className="opacity-20">•</span>
-                          <span className={cn("font-semibold tracking-wide", open > 0 ? "text-emerald-400" : "text-zinc-600")}>
+                          <span className={cn("font-semibold tracking-wide", open > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
                             {formatCurrency(open)}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 z-20 opacity-70 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-2 z-20 opacity-100 sm:opacity-70 sm:group-hover:opacity-100 transition-opacity">
                         <Button
                           asChild
                           variant="secondary"
                           size="sm"
-                          className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                          className="gap-2 h-9 bg-muted/60 hover:bg-muted border border-border shadow-sm"
                         >
                           <Link href={`/facturen/${inv.id}`}>
                             <Pencil className="h-3.5 w-3.5" />
@@ -328,7 +328,7 @@ function ArchiefPageContent() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-9 w-9 text-zinc-500 hover:text-emerald-300 hover:bg-emerald-500/10 hover:border hover:border-emerald-500/20 rounded-lg transition-all"
+                          className="h-9 w-9 text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-300 hover:bg-emerald-500/10 hover:border hover:border-emerald-500/20 rounded-lg transition-all"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -366,50 +366,50 @@ function ArchiefPageContent() {
                       key={q.id}
                       style={{ animationDelay: `${index * 50}ms` }}
                       className={cn(
-                        "group relative flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                        "group relative flex items-center justify-between gap-4 rounded-xl border border-border bg-card/60 px-5 py-4 hover:bg-card hover:border-border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
                       )}
                     >
                       <Link href={`/offertes/${q.id}`} className="absolute inset-0 z-0" />
 
                       <div className="flex-1 min-w-0 z-10 pointer-events-none space-y-1">
                         <div className="flex items-center gap-3 min-w-0">
-                          <span className="font-bold text-zinc-100 truncate text-base group-hover:text-white transition-colors">
+                          <span className="font-bold text-foreground truncate text-base transition-colors">
                             {klant}
                           </span>
 
                           {nrLabel && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/5 bg-white/5 text-zinc-400 shrink-0">
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground shrink-0">
                               {nrLabel}
                             </span>
                           )}
 
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-200 shrink-0">
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200 shrink-0">
                             Gearchiveerd
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-3 text-sm text-zinc-500">
-                          <span className="truncate max-w-[200px] text-zinc-400 font-medium">
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                          <span className="truncate max-w-[200px] text-muted-foreground font-medium">
                             {titel.toString()}
                           </span>
                           <span className="opacity-20">•</span>
-                          <span className="flex items-center gap-1.5 group-hover:text-zinc-300 transition-colors">
+                          <span className="flex items-center gap-1.5 transition-colors">
                             <Calendar className="h-3.5 w-3.5 opacity-70" />
                             {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
                           </span>
                           <span className="opacity-20">•</span>
-                          <span className={cn("font-semibold tracking-wide", totaal > 0 ? "text-emerald-400" : "text-zinc-600")}>
+                          <span className={cn("font-semibold tracking-wide", totaal > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
                             {formatCurrency(totaal)}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 z-20 opacity-70 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-2 z-20 opacity-100 sm:opacity-70 sm:group-hover:opacity-100 transition-opacity">
                         <Button
                           asChild
                           variant="secondary"
                           size="sm"
-                          className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                          className="gap-2 h-9 bg-muted/60 hover:bg-muted border border-border shadow-sm"
                         >
                           <Link href={`/offertes/${q.id}`}>
                             <Pencil className="h-3.5 w-3.5" />
@@ -421,7 +421,7 @@ function ArchiefPageContent() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-9 w-9 text-zinc-500 hover:text-emerald-300 hover:bg-emerald-500/10 hover:border hover:border-emerald-500/20 rounded-lg transition-all"
+                          className="h-9 w-9 text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-300 hover:bg-emerald-500/10 hover:border hover:border-emerald-500/20 rounded-lg transition-all"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();

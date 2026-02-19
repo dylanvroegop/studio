@@ -26,16 +26,16 @@ export function MaterialsTab({ grootmaterialen, verbruiksartikelen }: MaterialsT
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             {/* Header / Search */}
-            <div className="flex justify-between items-center bg-zinc-900/50 p-4 rounded-lg border border-zinc-800">
-                <h3 className="font-semibold text-zinc-300 flex items-center gap-2">
+            <div className="flex justify-between items-center bg-card p-4 rounded-lg border border-border">
+                <h3 className="font-semibold text-foreground flex items-center gap-2">
                     <Package className="text-emerald-500" size={18} />
                     Materiaal Specificatie
                 </h3>
                 <div className="relative w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={14} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
                     <Input
                         placeholder="Materialen zoeken..."
-                        className="pl-9 bg-zinc-900 border-zinc-800 h-9 text-sm focus:ring-emerald-500/50"
+                        className="pl-9 bg-background border-border h-9 text-sm focus:ring-emerald-500/50"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
@@ -43,13 +43,13 @@ export function MaterialsTab({ grootmaterialen, verbruiksartikelen }: MaterialsT
             </div>
 
             {/* Grootmaterialen Table */}
-            <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
-                <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-900/50">
-                    <h4 className="font-medium text-zinc-300 text-sm">Grootmaterialen</h4>
+            <div className="bg-card rounded-lg border border-border overflow-hidden">
+                <div className="px-6 py-4 border-b border-border bg-muted/30">
+                    <h4 className="font-medium text-foreground text-sm">Grootmaterialen</h4>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-zinc-900/80 text-zinc-500 font-medium">
+                        <thead className="bg-muted/40 text-muted-foreground font-medium">
                             <tr>
                                 <th className="px-6 py-3">Omschrijving</th>
                                 <th className="px-6 py-3 w-32 text-right">Aantal</th>
@@ -57,22 +57,22 @@ export function MaterialsTab({ grootmaterialen, verbruiksartikelen }: MaterialsT
                                 <th className="px-6 py-3 w-32 text-right">Totaal</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-800/50">
+                        <tbody className="divide-y divide-border">
                             {filteredGroot.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-8 text-center text-zinc-500 italic">
+                                    <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground italic">
                                         Geen grootmaterialen gevonden
                                     </td>
                                 </tr>
                             ) : (
                                 filteredGroot.map((item, index) => (
-                                    <tr key={index} className="hover:bg-zinc-800/30 transition-colors">
-                                        <td className="px-6 py-3 text-zinc-300 font-medium">{item.product}</td>
-                                        <td className="px-6 py-3 text-zinc-400 text-right font-mono">{item.aantal}</td>
-                                        <td className="px-6 py-3 text-zinc-400 text-right font-mono">
+                                    <tr key={index} className="hover:bg-muted/40 transition-colors">
+                                        <td className="px-6 py-3 text-foreground font-medium">{item.product}</td>
+                                        <td className="px-6 py-3 text-muted-foreground text-right font-mono">{item.aantal}</td>
+                                        <td className="px-6 py-3 text-muted-foreground text-right font-mono">
                                             {item.prijs_per_stuk ? formatCurrency(item.prijs_per_stuk) : '-'}
                                         </td>
-                                        <td className="px-6 py-3 text-zinc-300 text-right font-mono">
+                                        <td className="px-6 py-3 text-foreground text-right font-mono">
                                             {formatCurrency(item.totaal_prijs ?? (item.prijs_per_stuk || 0) * item.aantal)}
                                         </td>
                                     </tr>
@@ -80,7 +80,7 @@ export function MaterialsTab({ grootmaterialen, verbruiksartikelen }: MaterialsT
                             )}
                         </tbody>
                         {filteredGroot.length > 0 && (
-                            <tfoot className="bg-zinc-900/30 border-t border-zinc-800 font-medium text-zinc-300">
+                            <tfoot className="bg-muted/30 border-t border-border font-medium text-foreground">
                                 <tr>
                                     <td colSpan={3} className="px-6 py-3 text-right">Subtotaal</td>
                                     <td className="px-6 py-3 text-right font-mono text-emerald-400">
@@ -94,13 +94,13 @@ export function MaterialsTab({ grootmaterialen, verbruiksartikelen }: MaterialsT
             </div>
 
             {/* Verbruiksartikelen Table */}
-            <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
-                <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-900/50">
-                    <h4 className="font-medium text-zinc-300 text-sm">Verbruiksartikelen</h4>
+            <div className="bg-card rounded-lg border border-border overflow-hidden">
+                <div className="px-6 py-4 border-b border-border bg-muted/30">
+                    <h4 className="font-medium text-foreground text-sm">Verbruiksartikelen</h4>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-zinc-900/80 text-zinc-500 font-medium">
+                        <thead className="bg-muted/40 text-muted-foreground font-medium">
                             <tr>
                                 <th className="px-6 py-3">Omschrijving</th>
                                 <th className="px-6 py-3 w-32 text-right">Aantal</th>
@@ -108,22 +108,22 @@ export function MaterialsTab({ grootmaterialen, verbruiksartikelen }: MaterialsT
                                 <th className="px-6 py-3 w-32 text-right">Totaal</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-800/50">
+                        <tbody className="divide-y divide-border">
                             {filteredVerbruik.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-8 text-center text-zinc-500 italic">
+                                    <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground italic">
                                         Geen verbruiksartikelen gevonden
                                     </td>
                                 </tr>
                             ) : (
                                 filteredVerbruik.map((item, index) => (
-                                    <tr key={index} className="hover:bg-zinc-800/30 transition-colors">
-                                        <td className="px-6 py-3 text-zinc-300">{item.product}</td>
-                                        <td className="px-6 py-3 text-zinc-400 text-right font-mono">{item.aantal}</td>
-                                        <td className="px-6 py-3 text-zinc-400 text-right font-mono">
+                                    <tr key={index} className="hover:bg-muted/40 transition-colors">
+                                        <td className="px-6 py-3 text-foreground">{item.product}</td>
+                                        <td className="px-6 py-3 text-muted-foreground text-right font-mono">{item.aantal}</td>
+                                        <td className="px-6 py-3 text-muted-foreground text-right font-mono">
                                             {item.prijs_per_stuk ? formatCurrency(item.prijs_per_stuk) : '-'}
                                         </td>
-                                        <td className="px-6 py-3 text-zinc-300 text-right font-mono">
+                                        <td className="px-6 py-3 text-foreground text-right font-mono">
                                             {formatCurrency(item.totaal_prijs ?? (item.prijs_per_stuk || 0) * item.aantal)}
                                         </td>
                                     </tr>
@@ -131,7 +131,7 @@ export function MaterialsTab({ grootmaterialen, verbruiksartikelen }: MaterialsT
                             )}
                         </tbody>
                         {filteredVerbruik.length > 0 && (
-                            <tfoot className="bg-zinc-900/30 border-t border-zinc-800 font-medium text-zinc-300">
+                            <tfoot className="bg-muted/30 border-t border-border font-medium text-foreground">
                                 <tr>
                                     <td colSpan={3} className="px-6 py-3 text-right">Subtotaal</td>
                                     <td className="px-6 py-3 text-right font-mono text-emerald-400">

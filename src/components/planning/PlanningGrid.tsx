@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { TimelineView, PlanningEntry, Employee } from '@/lib/types-planning';
-import { getDaysInRange, getHoursInDay, formatDateHeader, isWorkDay } from '@/lib/planning-utils';
+import { getDaysInRange, getHoursInDay, isWorkDay } from '@/lib/planning-utils';
 import { useDragResize } from './useDragResize';
 import { ScheduleBlock } from './ScheduleBlock';
 import { format, isSameDay, isToday, startOfMonth, addMonths, isSameMonth } from 'date-fns';
@@ -41,7 +41,7 @@ export function PlanningGrid({
     const hours = useMemo(() => getHoursInDay(6, 20), []);
     const employeeMap = useMemo(() => new Map(employees.map(employee => [employee.id, employee])), [employees]);
 
-    const { onDragStart, dragState, isDragging, suppressClick } = useDragResize({
+    const { onDragStart, isDragging, suppressClick } = useDragResize({
         entries,
         view,
         onEntryDrop,
@@ -84,26 +84,26 @@ export function PlanningGrid({
         // Each row is a timeline of hours for that day
 
         return (
-            <div className="flex-1 bg-zinc-900 rounded-lg border border-zinc-800 overflow-auto">
+            <div className="flex-1 bg-card rounded-lg border border-border overflow-auto">
                 <div className="min-w-[800px]">
                     {/* Hour Headers - Sticky Top */}
-                    <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 grid"
+                    <div className="sticky top-0 z-10 bg-card border-b border-border grid"
                         style={{ gridTemplateColumns: `150px repeat(${hours.length}, 1fr)` }}>
-                        <div className="p-3 border-r border-zinc-800">
-                            <span className="text-sm font-medium text-zinc-400"></span>
+                        <div className="p-3 border-r border-border">
+                            <span className="text-sm font-medium text-muted-foreground"></span>
                         </div>
                         {hours.map(hour => (
-                            <div key={hour} className="p-2 text-center border-r border-zinc-800 last:border-r-0">
-                                <span className="text-xs text-zinc-500">{hour}:00</span>
+                            <div key={hour} className="p-2 text-center border-r border-border last:border-r-0">
+                                <span className="text-xs text-muted-foreground">{hour}:00</span>
                             </div>
                         ))}
                     </div>
 
                     {/* Employee Rows */}
                     {employees.map(employee => (
-                        <div key={employee.id} className="border-b border-zinc-800 last:border-b-0">
+                        <div key={employee.id} className="border-b border-border last:border-b-0">
                             {/* Employee Header - Sticky Left (Optional, but good for context if scrolling horizontally) */}
-                            <div className="bg-zinc-900/50 p-2 border-b border-zinc-800/50 sticky left-0 z-[5]">
+                            <div className="bg-card/50 p-2 border-b border-border sticky left-0 z-[5]">
                                 <div className="flex items-center gap-2">
                                     <div
                                         className="w-3 h-3 rounded-full shrink-0"
@@ -120,16 +120,16 @@ export function PlanningGrid({
                                 return (
                                     <div
                                         key={day.toISOString()}
-                                        className="grid border-b border-zinc-800/50 last:border-b-0 min-h-[60px]"
+                                        className="grid border-b border-border last:border-b-0 min-h-[60px]"
                                         style={{ gridTemplateColumns: `150px repeat(${hours.length}, 1fr)` }}
                                     >
                                         {/* Day Label */}
                                         <div className={cn(
-                                            "p-3 border-r border-zinc-800 flex flex-col justify-center sticky left-0 z-[4] bg-zinc-900"
+                                            "p-3 border-r border-border flex flex-col justify-center sticky left-0 z-[4] bg-card"
                                         )}>
                                             <span className={cn(
                                                 "text-sm font-medium",
-                                                "text-zinc-300"
+                                                "text-foreground"
                                             )}>
                                                 {format(day, 'EEE d MMM', { locale: nl })}
                                             </span>
@@ -139,7 +139,7 @@ export function PlanningGrid({
                                         <div
                                             className={cn(
                                                 "relative col-span-full col-start-2",
-                                                !isWorkDay(day, employee.workDays) && "bg-zinc-800/30",
+                                                !isWorkDay(day, employee.workDays) && "bg-muted/30",
                                                 schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
                                                 !schedulingMode && "cursor-default"
                                             )}
@@ -152,7 +152,7 @@ export function PlanningGrid({
                                             <div className="absolute inset-0 grid pointer-events-none"
                                                 style={{ gridTemplateColumns: `repeat(${hours.length}, 1fr)` }}>
                                                 {hours.map(h => (
-                                                    <div key={h} className="border-r border-zinc-800 last:border-r-0 h-full" />
+                                                    <div key={h} className="border-r border-border last:border-r-0 h-full" />
                                                 ))}
                                             </div>
                                             {/* 15-minute Grid Lines */}
@@ -195,21 +195,21 @@ export function PlanningGrid({
         const dayNumbers = Array.from({ length: 31 }, (_, idx) => idx + 1);
 
         return (
-            <div className="flex-1 bg-zinc-900 rounded-lg border border-zinc-800 overflow-auto">
+            <div className="flex-1 bg-card rounded-lg border border-border overflow-auto">
                 <div className="min-w-[900px]">
                     <div
-                        className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 grid"
+                        className="sticky top-0 z-10 bg-card border-b border-border grid"
                         style={{ gridTemplateColumns: `150px repeat(${dayNumbers.length}, 1fr)` }}
                     >
-                        <div className="p-3 border-r border-zinc-800">
-                            <span className="text-sm font-medium text-zinc-400"></span>
+                        <div className="p-3 border-r border-border">
+                            <span className="text-sm font-medium text-muted-foreground"></span>
                         </div>
                         {dayNumbers.map(dayNum => (
                             <div
                                 key={dayNum}
-                                className="p-2 text-center border-r border-zinc-800 last:border-r-0"
+                                className="p-2 text-center border-r border-border last:border-r-0"
                             >
-                                <div className="text-sm font-medium text-zinc-300">
+                                <div className="text-sm font-medium text-foreground">
                                     {dayNum}
                                 </div>
                             </div>
@@ -222,10 +222,10 @@ export function PlanningGrid({
                         return (
                             <div
                                 key={monthDate.toISOString()}
-                                className="grid border-b border-zinc-800 last:border-b-0"
+                                className="grid border-b border-border last:border-b-0"
                                 style={{ gridTemplateColumns: `150px repeat(${dayNumbers.length}, 1fr)` }}
                             >
-                                <div className="p-3 border-r border-zinc-800 flex items-center gap-2 bg-zinc-900/50 sticky left-0 z-[5]">
+                                <div className="p-3 border-r border-border flex items-center gap-2 bg-card/50 sticky left-0 z-[5]">
                                     <span className="text-sm font-medium truncate">{monthLabel}</span>
                                 </div>
                                 {dayNumbers.map(dayNum => {
@@ -238,9 +238,9 @@ export function PlanningGrid({
                                         <div
                                             key={`${monthDate.toISOString()}-${dayNum}`}
                                             className={cn(
-                                                "relative min-h-[60px] border-r border-zinc-800 last:border-r-0 p-0",
-                                                isValidDay ? "" : "bg-zinc-800/30",
-                                                isValidDay && isWeekend && "bg-zinc-800/20",
+                                                "relative min-h-[60px] border-r border-border last:border-r-0 p-0",
+                                                isValidDay ? "" : "bg-muted/30",
+                                                isValidDay && isWeekend && "bg-muted/20",
                                                 schedulingMode && isValidDay && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
                                                 !schedulingMode && "cursor-default"
                                             )}
@@ -292,20 +292,20 @@ export function PlanningGrid({
         const headerDays = weeks[0] || [];
 
         return (
-            <div className="flex-1 bg-zinc-900 rounded-lg border border-zinc-800 overflow-auto">
+            <div className="flex-1 bg-card rounded-lg border border-border overflow-auto">
                 <div className="min-w-[800px]">
                     {/* Header: Month + Mon - Sun */}
                     <div
-                        className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 grid"
+                        className="sticky top-0 z-10 bg-card border-b border-border grid"
                         style={{ gridTemplateColumns: `60px repeat(7, 1fr)` }}
                     >
-                        <div className="p-2 border-r border-zinc-800"></div>
+                        <div className="p-2 border-r border-border"></div>
                         {headerDays.map(day => (
                             <div
                                 key={format(day, 'EEE')}
-                                className="p-2 text-center border-r border-zinc-800 last:border-r-0"
+                                className="p-2 text-center border-r border-border last:border-r-0"
                             >
-                                <span className="text-xs text-zinc-500 font-medium">
+                                <span className="text-xs text-muted-foreground font-medium">
                                     {format(day, 'EEEE', { locale: nl })}
                                 </span>
                             </div>
@@ -314,7 +314,7 @@ export function PlanningGrid({
 
                     {/* Employee Rows */}
                     {employees.map(employee => (
-                        <div key={employee.id} className="border-b border-zinc-800 last:border-b-0">
+                        <div key={employee.id} className="border-b border-border last:border-b-0">
                             <div
                                 className="grid"
                                 style={{ gridTemplateColumns: `60px repeat(7, 1fr)` }}
@@ -323,8 +323,8 @@ export function PlanningGrid({
                                 {weeks.map((weekDays, weekIdx) => (
                                     <React.Fragment key={weekIdx}>
                                         {/* Month label for this week */}
-                                        <div className="p-2 border-r border-zinc-800 border-b border-zinc-800/50 flex items-start justify-center bg-zinc-900/50">
-                                            <span className="text-xs font-medium text-zinc-400">
+                                        <div className="p-2 border-r border-border border-b border-border flex items-start justify-center bg-card/50">
+                                            <span className="text-xs font-medium text-muted-foreground">
                                                 {format(weekDays[0], 'MMM', { locale: nl })}
                                             </span>
                                         </div>
@@ -337,9 +337,9 @@ export function PlanningGrid({
                                                 <div
                                                     key={day.toISOString()}
                                                     className={cn(
-                                                        "relative min-h-[100px] border-r border-zinc-800 border-b border-zinc-800/50 p-1",
+                                                        "relative min-h-[100px] border-r border-border border-b border-border p-1",
                                                         "last:border-r-0",
-                                                        isWeekend && "bg-zinc-800/30",
+                                                        isWeekend && "bg-muted/30",
                                                         schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
                                                         !schedulingMode && "cursor-default"
                                                     )}
@@ -350,7 +350,7 @@ export function PlanningGrid({
                                                 >
                                                     <div className={cn(
                                                         "text-xs mb-1 text-right px-1",
-                                                        isCurrentMonth ? "text-white" : "text-zinc-500"
+                                                        isCurrentMonth ? "text-foreground" : "text-muted-foreground"
                                                     )}>
                                                         {format(day, 'd', { locale: nl })}
                                                     </div>
@@ -386,30 +386,30 @@ export function PlanningGrid({
 
     // Week / Month view
     return (
-        <div className="flex-1 bg-zinc-900 rounded-lg border border-zinc-800 overflow-auto">
+        <div className="flex-1 bg-card rounded-lg border border-border overflow-auto">
             <div className="min-w-[800px]">
                 {/* Day Headers */}
                 <div
-                    className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 grid"
+                    className="sticky top-0 z-10 bg-card border-b border-border grid"
                     style={{ gridTemplateColumns: `150px repeat(${days.length}, 1fr)` }}
                 >
-                    <div className="p-3 border-r border-zinc-800">
-                        <span className="text-sm font-medium text-zinc-400"></span>
+                    <div className="p-3 border-r border-border">
+                        <span className="text-sm font-medium text-muted-foreground"></span>
                     </div>
                     {days.map(day => (
                         <div
                             key={day.toISOString()}
                             className={cn(
-                                "p-2 text-center border-r border-zinc-800 last:border-r-0",
+                                "p-2 text-center border-r border-border last:border-r-0",
                                 isToday(day) && "bg-emerald-500/10"
                             )}
                         >
-                            <div className="text-xs text-zinc-500">
+                            <div className="text-xs text-muted-foreground">
                                 {format(day, 'EEE', { locale: nl })}
                             </div>
                             <div className={cn(
                                 "text-sm font-medium",
-                                isToday(day) ? "text-emerald-400" : "text-zinc-300"
+                                isToday(day) ? "text-emerald-400" : "text-foreground"
                             )}>
                                 {format(day, 'd', { locale: nl })}
                             </div>
@@ -421,10 +421,10 @@ export function PlanningGrid({
                 {employees.map(employee => (
                     <div
                         key={employee.id}
-                        className="grid border-b border-zinc-800 last:border-b-0"
+                        className="grid border-b border-border last:border-b-0"
                         style={{ gridTemplateColumns: `150px repeat(${days.length}, 1fr)` }}
                     >
-                        <div className="p-3 border-r border-zinc-800 flex items-center gap-2 bg-zinc-900/50 sticky left-0 z-[5]">
+                        <div className="p-3 border-r border-border flex items-center gap-2 bg-card/50 sticky left-0 z-[5]">
                             <div
                                 className="w-3 h-3 rounded-full shrink-0"
                                 style={{ backgroundColor: employee.color }}
@@ -438,9 +438,9 @@ export function PlanningGrid({
                                 <div
                                     key={day.toISOString()}
                                     className={cn(
-                                        "relative min-h-[60px] border-r border-zinc-800 last:border-r-0 p-1",
+                                        "relative min-h-[60px] border-r border-border last:border-r-0 p-1",
                                         isToday(day) && "bg-emerald-500/5",
-                                        !isWorkDay(day, employee.workDays) && "bg-zinc-800/30",
+                                        !isWorkDay(day, employee.workDays) && "bg-muted/30",
                                         schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
                                         !schedulingMode && "cursor-default"
                                     )}

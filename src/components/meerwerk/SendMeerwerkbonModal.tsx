@@ -142,9 +142,10 @@ export function SendMeerwerkbonModal({
         <DialogFooter>
           <Button
             type="button"
+            variant="success"
             onClick={handleDownloadAndOpenEmail}
             disabled={isSending}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-6 rounded-xl transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2"
+            className="w-full py-6 rounded-xl flex items-center justify-center gap-2"
           >
             {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
             <div className="flex flex-col items-start leading-tight">

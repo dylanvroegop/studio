@@ -149,7 +149,7 @@ export default function MeerwerkbonPage() {
                   <Button
                     asChild
                     variant="outline"
-                    className="h-10 gap-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-100"
+                    className="h-10 gap-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200 dark:hover:text-emerald-100"
                   >
                     <Link href="/meerwerkbon/nieuw">
                       <Plus className="h-4 w-4" />
@@ -160,7 +160,7 @@ export default function MeerwerkbonPage() {
                     type="button"
                     variant={filter === 'alle' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('alle')}
-                    className={cn('h-10', filter === 'alle' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
+                    className={cn('h-10', filter === 'alle' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
                   >
                     Alle
                   </Button>
@@ -168,7 +168,7 @@ export default function MeerwerkbonPage() {
                     type="button"
                     variant={filter === 'concept' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('concept')}
-                    className={cn('h-10', filter === 'concept' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
+                    className={cn('h-10', filter === 'concept' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
                   >
                     Concept
                   </Button>
@@ -176,7 +176,7 @@ export default function MeerwerkbonPage() {
                     type="button"
                     variant={filter === 'akkoord' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('akkoord')}
-                    className={cn('h-10', filter === 'akkoord' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
+                    className={cn('h-10', filter === 'akkoord' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
                   >
                     Akkoord
                   </Button>
@@ -184,7 +184,7 @@ export default function MeerwerkbonPage() {
                     type="button"
                     variant={filter === 'verzonden' ? 'outline' : 'ghost'}
                     onClick={() => setFilter('verzonden')}
-                    className={cn('h-10', filter === 'verzonden' && 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200')}
+                    className={cn('h-10', filter === 'verzonden' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
                   >
                     Verzonden
                   </Button>
@@ -201,7 +201,7 @@ export default function MeerwerkbonPage() {
                 <Button
                   asChild
                   variant="outline"
-                  className="mt-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-100"
+                  className="mt-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200 dark:hover:text-emerald-100"
                 >
                   <Link href="/meerwerkbon/nieuw">Nieuwe meerwerkbon</Link>
                 </Button>
@@ -213,7 +213,7 @@ export default function MeerwerkbonPage() {
                 <div
                   key={item.id}
                   className={cn(
-                    'group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-white/5 bg-card/40 px-5 py-4 hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both',
+                    'group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-border bg-card/60 px-5 py-4 hover:bg-card hover:border-border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both',
                     getMeerwerkbonSideBorderClass(item.status)
                   )}
                 >
@@ -221,37 +221,37 @@ export default function MeerwerkbonPage() {
 
                   <div className="flex-1 min-w-0 z-10 pointer-events-none space-y-1">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-bold text-zinc-100 truncate text-base group-hover:text-white transition-colors">
+                      <span className="font-bold text-foreground truncate text-base transition-colors">
                         {item.clientSnapshot?.naam || 'Onbekende klant'}
                       </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/5 bg-white/5 text-zinc-400 shrink-0">
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground shrink-0">
                         {item.numbering?.label || item.id.slice(0, 8)}
                       </span>
                       <MeerwerkbonStatusBadge status={item.status} />
                     </div>
 
-                    <div className="flex items-center gap-3 text-sm text-zinc-500">
-                      <span className="truncate max-w-[220px] text-zinc-400 font-medium">
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <span className="truncate max-w-[220px] text-muted-foreground font-medium">
                         {(item.linkedQuoteIds || []).length} gekoppelde offerte(s)
                       </span>
                       <span className="opacity-20">•</span>
-                      <span className="flex items-center gap-1.5 group-hover:text-zinc-300 transition-colors">
+                      <span className="flex items-center gap-1.5 transition-colors">
                         <Calendar className="h-3.5 w-3.5 opacity-70" />
                         {item.updatedAtDate ? format(item.updatedAtDate, 'd MMM yyyy', { locale: nl }) : '—'}
                       </span>
                       <span className="opacity-20">•</span>
-                      <span className="font-semibold tracking-wide text-emerald-400">
+                      <span className="font-semibold tracking-wide text-emerald-600 dark:text-emerald-400">
                         {formatCurrency(item.totals?.totaalInclBtw || 0)}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 z-20 opacity-70 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-2 z-20 opacity-100 sm:opacity-70 sm:group-hover:opacity-100 transition-opacity">
                     <Button
                       asChild
                       variant="secondary"
                       size="sm"
-                      className="gap-2 h-9 bg-zinc-800/80 hover:bg-zinc-700 border border-white/5 shadow-sm"
+                      className="gap-2 h-9 bg-muted/60 hover:bg-muted border border-border shadow-sm"
                     >
                       <Link href={`/meerwerkbon/${item.id}`}>
                         <Pencil className="h-3.5 w-3.5" />

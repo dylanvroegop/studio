@@ -12,7 +12,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, RotateCcw, Percent } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -241,6 +241,10 @@ export default function QuotePage() {
     const [pdfTextSettings, setPdfTextSettings] = useState<QuotePdfTextSettings>(defaultQuotePdfTextSettings);
     const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('onderVoorbehoud');
     const [activeTab, setActiveTab] = useState('materialen');
+    const [btwConverterRateInput, setBtwConverterRateInput] = useState('21');
+    const [btwConverterExclInput, setBtwConverterExclInput] = useState('');
+    const [btwConverterInclInput, setBtwConverterInclInput] = useState('');
+    const [btwConverterLastEdited, setBtwConverterLastEdited] = useState<'excl' | 'incl' | null>(null);
     const [isPdfSettingsOpen, setIsPdfSettingsOpen] = useState(false);
     const [hasSavedPdfSettings, setHasSavedPdfSettings] = useState(true); // assume true until proven otherwise
     const pdfSettingsShownOnceRef = useRef(false);
@@ -329,6 +333,76 @@ export default function QuotePage() {
     const [calculationElapsedSeconds, setCalculationElapsedSeconds] = useState(0);
     const [isRetryingCalculation, setIsRetryingCalculation] = useState(false);
     const calculationTimerStartedAtRef = useRef<number | null>(null);
+
+    const normalizedBtwConverterRate = useMemo(() => {
+        const parsed = parsePriceToNumber(btwConverterRateInput);
+        if (parsed === null) return 21;
+        return Math.min(100, Math.max(0, parsed));
+    }, [btwConverterRateInput]);
+
+    const formatConverterAmount = (value: number): string =>
+        value.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const converterExclValue = useMemo(
+        () => parsePriceToNumber(btwConverterExclInput),
+        [btwConverterExclInput]
+    );
+    const converterInclValue = useMemo(
+        () => parsePriceToNumber(btwConverterInclInput),
+        [btwConverterInclInput]
+    );
+
+    const converterBtwAmount = useMemo(() => {
+        if (converterExclValue === null || converterInclValue === null) return null;
+        return converterInclValue - converterExclValue;
+    }, [converterExclValue, converterInclValue]);
+
+    const handleBtwExclChange = (value: string) => {
+        setBtwConverterExclInput(value);
+        setBtwConverterLastEdited('excl');
+        const excl = parsePriceToNumber(value);
+        if (excl === null) {
+            setBtwConverterInclInput('');
+            return;
+        }
+        const incl = excl * (1 + normalizedBtwConverterRate / 100);
+        setBtwConverterInclInput(formatConverterAmount(incl));
+    };
+
+    const handleBtwInclChange = (value: string) => {
+        setBtwConverterInclInput(value);
+        setBtwConverterLastEdited('incl');
+        const incl = parsePriceToNumber(value);
+        if (incl === null) {
+            setBtwConverterExclInput('');
+            return;
+        }
+        const excl = incl / (1 + normalizedBtwConverterRate / 100);
+        setBtwConverterExclInput(formatConverterAmount(excl));
+    };
+
+    useEffect(() => {
+        if (btwConverterLastEdited === 'excl') {
+            const excl = parsePriceToNumber(btwConverterExclInput);
+            if (excl === null) {
+                setBtwConverterInclInput('');
+                return;
+            }
+            const incl = excl * (1 + normalizedBtwConverterRate / 100);
+            setBtwConverterInclInput(formatConverterAmount(incl));
+            return;
+        }
+
+        if (btwConverterLastEdited === 'incl') {
+            const incl = parsePriceToNumber(btwConverterInclInput);
+            if (incl === null) {
+                setBtwConverterExclInput('');
+                return;
+            }
+            const excl = incl / (1 + normalizedBtwConverterRate / 100);
+            setBtwConverterExclInput(formatConverterAmount(excl));
+        }
+    }, [normalizedBtwConverterRate, btwConverterLastEdited, btwConverterExclInput, btwConverterInclInput]);
 
     useEffect(() => {
         let cancelled = false;
@@ -774,33 +848,6 @@ export default function QuotePage() {
         }
     };
 
-    // Helper to update master material name via API
-    const updateMasterName = async (oldName: string, newName: string, rowId?: string): Promise<boolean> => {
-        if (!user) return false;
-        if (!oldName || !newName || oldName === newName) return false;
-
-        try {
-            const token = await user.getIdToken();
-            const response = await fetch('/api/materialen/update-price', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    ...(rowId ? { row_id: rowId } : { materiaalnaam: oldName }),
-                    new_materiaalnaam: newName
-                })
-            });
-
-            const result = await response.json();
-            return result.ok === true;
-        } catch (err) {
-            console.error("Failed to update master name:", err);
-            return false;
-        }
-    };
-
     // Sync verbruiksartikelen to small material list (insert-or-update by name)
     const upsertSmallMaterial = async (name: string, priceExclBtw: number, oldName?: string): Promise<boolean> => {
         if (!user) return false;
@@ -837,7 +884,6 @@ export default function QuotePage() {
 
         try {
             const updated = [...materials.groot];
-            const oldItem = updated[index];
             updated[index] = { ...updated[index], ...updates };
             setMaterials(prev => ({ ...prev, groot: updated }));
 
@@ -858,14 +904,6 @@ export default function QuotePage() {
                 const priceIncl = priceExcl * (1 + (quoteSettings.btwTarief / 100));
                 await updateMasterPrice(updated[index].product!, priceExcl, priceIncl, updated[index].row_id);
                 setLastSyncedAt(new Date());
-            }
-
-            // Update master material name if changed
-            if (updates.product !== undefined && oldItem.product && updates.product !== oldItem.product) {
-                const success = await updateMasterName(oldItem.product, updates.product, oldItem.row_id);
-                if (success) {
-                    setLastSyncedAt(new Date());
-                }
             }
         } finally {
             isUpdatingRef.current = false;
@@ -927,14 +965,6 @@ export default function QuotePage() {
                 const priceIncl = priceExcl * (1 + (quoteSettings.btwTarief / 100));
                 await updateMasterPrice(updated[index].product!, priceExcl, priceIncl, updated[index].row_id);
                 setLastSyncedAt(new Date());
-            }
-
-            // Update master material name if changed
-            if (updates.product !== undefined && oldItem.product && updates.product !== oldItem.product) {
-                const success = await updateMasterName(oldItem.product, updates.product, oldItem.row_id);
-                if (success) {
-                    setLastSyncedAt(new Date());
-                }
             }
         } finally {
             isUpdatingRef.current = false;
@@ -2283,11 +2313,13 @@ export default function QuotePage() {
                         </div>
                     </div>
                     <div className="flex gap-3 w-full sm:w-auto">
-                        <button
+                        <Button
+                            type="button"
+                            variant="success"
                             onClick={() => {
                                 void handleDownloadPDF();
                             }}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2"
                             disabled={!totals || loading || isGeneratingPDF}
                         >
                             {isGeneratingPDF ? (
@@ -2296,7 +2328,7 @@ export default function QuotePage() {
                                 <Download size={18} />
                             )}
                             Download
-                        </button>
+                        </Button>
 
                         {!loading && (
                             <>
@@ -2323,7 +2355,8 @@ export default function QuotePage() {
                                     <CalendarDays size={16} /> Inplannen
                                 </Button>
                                 <Button
-                                    className="flex-1 sm:flex-none gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                                    variant="success"
+                                    className="flex-1 sm:flex-none gap-2"
                                     onClick={() => setIsSendModalOpen(true)}
                                 >
                                     <Mail size={16} /> Versturen
@@ -2373,6 +2406,9 @@ export default function QuotePage() {
                                 </TabsTrigger>
                                 <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <MessageSquare size={16} /> Notities
+                                </TabsTrigger>
+                                <TabsTrigger value="btw-converter" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <Percent size={16} /> BTW-omrekenen
                                 </TabsTrigger>
                                 {isDevUser && (
                                     <TabsTrigger
@@ -3287,6 +3323,87 @@ export default function QuotePage() {
                                     </div>
                                 </div>
                             )}
+                        </TabsContent>
+
+                        <TabsContent value="btw-converter" className="mt-6">
+                            <div className="bg-card rounded-lg border border-border p-6 space-y-6">
+                                <div className="space-y-1">
+                                    <h3 className="text-lg font-semibold text-foreground">BTW-omrekenen</h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        Reken automatisch van excl. naar incl. BTW of andersom.
+                                    </p>
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-3">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="btw-percentage">BTW-percentage</Label>
+                                        <div className="relative">
+                                            <Input
+                                                id="btw-percentage"
+                                                value={btwConverterRateInput}
+                                                onChange={(e) => setBtwConverterRateInput(e.target.value)}
+                                                inputMode="decimal"
+                                                placeholder="21"
+                                                className="pr-8"
+                                            />
+                                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Standaard: 21%
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="btw-excl">Bedrag excl. BTW (€)</Label>
+                                        <Input
+                                            id="btw-excl"
+                                            value={btwConverterExclInput}
+                                            onChange={(e) => handleBtwExclChange(e.target.value)}
+                                            inputMode="decimal"
+                                            placeholder="0,00"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="btw-incl">Bedrag incl. BTW (€)</Label>
+                                        <Input
+                                            id="btw-incl"
+                                            value={btwConverterInclInput}
+                                            onChange={(e) => handleBtwInclChange(e.target.value)}
+                                            inputMode="decimal"
+                                            placeholder="0,00"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="rounded-md border border-border bg-muted/20 px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="text-sm text-muted-foreground">
+                                        Actief tarief: <span className="font-medium text-foreground">{normalizedBtwConverterRate.toLocaleString('nl-NL')}%</span>
+                                    </div>
+                                    <div className="text-sm text-muted-foreground">
+                                        BTW-bedrag:{' '}
+                                        <span className="font-semibold text-foreground">
+                                            {converterBtwAmount === null ? '—' : formatCurrency(converterBtwAmount)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                            setBtwConverterRateInput('21');
+                                            setBtwConverterExclInput('');
+                                            setBtwConverterInclInput('');
+                                            setBtwConverterLastEdited(null);
+                                        }}
+                                    >
+                                        Opnieuw instellen
+                                    </Button>
+                                </div>
+                            </div>
                         </TabsContent>
 
                         {activeTab === 'materialen' && !!calculation?.data_json && (

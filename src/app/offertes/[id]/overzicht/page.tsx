@@ -453,10 +453,27 @@ function defaultBouwplaatskosten(): BouwplaatsItem[] {
 
 function defaultVerzendkosten(): BouwplaatsItem[] {
   return [
-    { id: 'pakketpost', naam: 'Pakketpost', prijs: '', per: 'klus', isVast: false },
-    { id: 'koerier', naam: 'Koeriersdienst', prijs: '', per: 'klus', isVast: false },
-    { id: 'afleverkosten', naam: 'Afleverkosten', prijs: '', per: 'klus', isVast: false },
-    { id: 'verzend_overig', naam: 'Overige verzendkosten', prijs: '', per: 'klus', isVast: false },
+    { id: 'leverancier_transport_kosten', naam: 'Leverancier transport kosten', prijs: '', per: 'klus', isVast: true },
+  ];
+}
+
+function normalizeVerzendkostenItems(items: BouwplaatsItem[]): BouwplaatsItem[] {
+  const defaults = defaultVerzendkosten();
+  const fallback = defaults[0];
+  const firstFilled = items.find((item) => {
+    const prijs = euroNLToNumberOrNull(item.prijs);
+    return prijs !== null && prijs > 0;
+  });
+  const selected = items.find((item) => item.id === fallback.id) ?? firstFilled ?? items[0] ?? fallback;
+
+  return [
+    {
+      id: fallback.id,
+      naam: fallback.naam,
+      prijs: selected?.prijs ?? '',
+      per: 'klus',
+      isVast: true,
+    },
   ];
 }
 
@@ -985,10 +1002,10 @@ export default function OverzichtPage() {
 
         // Verzendkosten: quote extras, anders standaard pakket
         if (heeftVerzendInQuote) {
-          setVerzendkosten(mapOpslagenKostenNaarItems(extras.verzendkosten, defaultVerzendkosten));
+          setVerzendkosten(normalizeVerzendkostenItems(mapOpslagenKostenNaarItems(extras.verzendkosten, defaultVerzendkosten)));
         } else {
           const gekozen = verzendPacks.find((p) => p.id === stdVerzendPackId) ?? null;
-          setVerzendkosten(pakketNaarItems(gekozen, defaultVerzendkosten));
+          setVerzendkosten(normalizeVerzendkostenItems(pakketNaarItems(gekozen, defaultVerzendkosten)));
         }
 
         isHydratingRef.current = false;
@@ -1212,7 +1229,7 @@ export default function OverzichtPage() {
 
     return items.map((item) => {
       const prijsLabel = numberToEuroInputString(item.prijs) || '0';
-      return `${item.naam} € ${prijsLabel}/${item.per}`;
+      return `${item.naam} € ${prijsLabel}`;
     });
   }, [verzendkosten]);
 
@@ -1453,7 +1470,9 @@ export default function OverzichtPage() {
     field: keyof Pick<BouwplaatsItem, 'naam' | 'prijs' | 'per'>,
     value: string
   ) => {
-    setVerzendkosten((prev) => prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
+    setVerzendkosten((prev) =>
+      normalizeVerzendkostenItems(prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)))
+    );
   };
 
   const handleAddExtraVerzend = () => {
@@ -1470,7 +1489,7 @@ export default function OverzichtPage() {
   const handleSelectVerzendPakket = (pakketId: string) => {
     setGeselecteerdVerzendPakketId(pakketId);
     const gekozen = verzendPakketten.find((p) => p.id === pakketId) ?? null;
-    setVerzendkosten(pakketNaarItems(gekozen, defaultVerzendkosten));
+    setVerzendkosten(normalizeVerzendkostenItems(pakketNaarItems(gekozen, defaultVerzendkosten)));
   };
 
   /* ---------------------------------------------
@@ -1875,7 +1894,7 @@ export default function OverzichtPage() {
       const nextSelected = nextStd || '';
       setGeselecteerdVerzendPakketId(nextSelected);
       const gekozen = next.find((p) => p.id === nextSelected) ?? null;
-      setVerzendkosten(pakketNaarItems(gekozen, defaultVerzendkosten));
+      setVerzendkosten(normalizeVerzendkostenItems(pakketNaarItems(gekozen, defaultVerzendkosten)));
     }
 
     await schrijfGebruikerInstellingen({
@@ -2301,7 +2320,7 @@ export default function OverzichtPage() {
     onChange: (id: string) => void;
     error?: boolean;
   }) => (
-    <div className="grid gap-1 p-1 bg-black/20 rounded-xl border border-white/5" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+    <div className="grid gap-1 p-1 bg-muted rounded-xl border border-border" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
       {options.map((opt) => {
         const isActive = value === opt.id;
         return (
@@ -2313,7 +2332,7 @@ export default function OverzichtPage() {
               "flex items-center justify-center py-1.5 px-3 transition-all rounded-lg text-center text-xs font-medium",
               isActive && !error && "bg-emerald-600/20 text-emerald-400 shadow-sm ring-1 ring-emerald-500/50",
               isActive && error && "bg-red-500/20 text-red-400 shadow-sm ring-1 ring-red-500/50",
-              !isActive && "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+              !isActive && "text-muted-foreground hover:text-foreground hover:bg-background"
             )}
           >
             {opt.label}
@@ -2370,7 +2389,7 @@ export default function OverzichtPage() {
             <p className="text-sm text-muted-foreground">
               Onze calculator is op dit moment tijdelijk uit door onderhoud of een storing bij de verwerkingsserver.
             </p>
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-200">
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-200">
               Probeer het over ongeveer 1 uur opnieuw.
             </div>
             <div className="flex flex-wrap gap-2 pt-2">
@@ -2512,13 +2531,13 @@ export default function OverzichtPage() {
             </AlertDialogCancel>
 
             <AlertDialogAction
+              asChild
               onClick={(e) => {
                 e.preventDefault();
                 bevestigPopupEnGaVerder();
               }}
-              className="bg-emerald-600 text-white hover:bg-emerald-700"
             >
-              Opslaan & offerte genereren
+              <Button variant="success">Opslaan & offerte genereren</Button>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2770,7 +2789,8 @@ export default function OverzichtPage() {
                 <div className="sm:col-span-4 flex gap-2">
                   <Button
                     type="button"
-                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                    variant="success"
+                    className="w-full"
                     onClick={async () => {
                       if (isSavingSettings) return;
                       setIsSavingSettings(true);
@@ -2962,7 +2982,8 @@ export default function OverzichtPage() {
                 <div className="sm:col-span-4 flex gap-2">
                   <Button
                     type="button"
-                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                    variant="success"
+                    className="w-full"
                     onClick={async () => {
                       if (isSavingVerzendSettings) return;
                       setIsSavingVerzendSettings(true);
@@ -3079,7 +3100,7 @@ export default function OverzichtPage() {
                     size="sm"
                     onClick={deleteAllIncompleteJobs}
                     disabled={isDeletingIncompleteJobs || incompleteJobIds.length === 0}
-                    className="h-8 border-red-500/30 bg-red-500/5 text-red-300 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-40"
+                    className="h-8 border-red-500/30 bg-red-500/5 text-red-700 dark:text-red-300 hover:bg-red-500/10 hover:text-red-800 dark:hover:text-red-200 disabled:opacity-40"
                   >
                     {isDeletingIncompleteJobs ? (
                       <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
@@ -3093,7 +3114,7 @@ export default function OverzichtPage() {
 
             <div className="space-y-3">
               {jobs.length === 0 && (
-                <div className="mobile-calm-card rounded-xl bg-white/5 border border-white/5 py-12">
+                <div className="mobile-calm-card rounded-xl bg-card border border-border py-12">
                   <p className="text-sm text-muted-foreground italic text-center">
                     Er zijn nog geen klussen toegevoegd.
                   </p>
@@ -3175,7 +3196,7 @@ export default function OverzichtPage() {
                   <div
                     key={job.id}
                     className={cn(
-                      'mobile-calm-card group relative flex flex-col gap-4 rounded-xl border border-white/5 bg-card/40 px-4 py-4 transition-all duration-300 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:hover:bg-card/60 sm:hover:border-white/10 sm:hover:shadow-lg sm:hover:-translate-y-0.5',
+                      'mobile-calm-card group relative flex flex-col gap-4 rounded-xl border border-border bg-card/60 px-4 py-4 transition-all duration-300 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:hover:bg-card sm:hover:border-border sm:hover:shadow-lg sm:hover:-translate-y-0.5',
                       isComplete
                         ? 'border-l-4 border-l-emerald-500'
                         : 'border-l-4 border-l-red-500/30'
@@ -3184,7 +3205,7 @@ export default function OverzichtPage() {
                     <Link href={bewerkenHref} className="absolute inset-0 z-0" />
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-2.5 min-w-0">
-                        <h3 className="font-semibold text-sm text-foreground truncate group-hover:text-white transition-colors">
+                        <h3 className="font-semibold text-sm text-foreground truncate transition-colors">
                           {title}
                         </h3>
                         <span
@@ -3218,7 +3239,7 @@ export default function OverzichtPage() {
                         {preset && (
                           <>
                             <span className="hidden sm:inline opacity-20">•</span>
-                            <span className="hidden sm:inline text-zinc-400">{preset}</span>
+                            <span className="hidden sm:inline text-muted-foreground">{preset}</span>
                           </>
                         )}
                       </div>
@@ -3230,7 +3251,7 @@ export default function OverzichtPage() {
                           <Button
                             variant="secondary"
                             size="sm"
-                            className="mobile-calm-subtle h-8 flex-1 gap-2 bg-zinc-800/80 border border-white/5 shadow-sm sm:flex-none sm:hover:bg-zinc-700"
+                            className="mobile-calm-subtle h-8 flex-1 gap-2 bg-muted/60 border border-border shadow-sm sm:flex-none sm:hover:bg-muted"
                             onClick={(e) => {
                               e.stopPropagation();
                               router.push(bewerkenHref);
@@ -3247,7 +3268,7 @@ export default function OverzichtPage() {
                         role="button"
                         tabIndex={0}
                         aria-label="Verwijderen"
-                        className="px-3 py-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 transition-all cursor-pointer"
+                        className="px-3 py-1 rounded-lg text-muted-foreground hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 transition-all cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
                           openDeleteDialogForJob(job);
@@ -3273,7 +3294,7 @@ export default function OverzichtPage() {
             <button
               type="button"
               onClick={handleAddJob}
-              className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-emerald-500 hover:text-emerald-400 transition-all font-medium text-xs"
+              className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border hover:border-emerald-500/50 hover:bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 dark:hover:text-emerald-300 transition-all font-medium text-xs"
             >
               <Plus className="h-4 w-4" />
               <span>Een klus toevoegen</span>
@@ -3301,9 +3322,9 @@ export default function OverzichtPage() {
                 ) : null
               }
             >
-              <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
+              <div className="rounded-xl bg-card border border-border overflow-hidden">
                 {/* Werkpakket Selector */}
-                <div className="flex items-center gap-1.5 px-3 py-3 border-b border-white/5 bg-white/5">
+                <div className="flex items-center gap-1.5 px-3 py-3 border-b border-border bg-muted/30">
                   <div className="flex-1 space-y-1.5">
                     <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-0.5">
                       Werkpakket
@@ -3370,7 +3391,7 @@ export default function OverzichtPage() {
                         <EuroInput
                           value={item.prijs}
                           onChange={(v) => handleBouwplaatsChange(item.id, 'prijs', v)}
-                          inputClassName="bg-black/20 border-white/5 rounded-lg h-8 text-sm"
+                          inputClassName="bg-muted/40 border-border rounded-lg h-8 text-sm"
                           placeholder="0,00"
                         />
                       </div>
@@ -3378,7 +3399,7 @@ export default function OverzichtPage() {
                       {/* Per */}
                       <div className="w-20 shrink-0">
                         <Select value={item.per} onValueChange={(v) => handleBouwplaatsChange(item.id, 'per', v)}>
-                          <SelectTrigger className="bg-black/20 border-white/5 rounded-lg h-8 text-xs">
+                          <SelectTrigger className="bg-muted/40 border-border rounded-lg h-8 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -3414,7 +3435,7 @@ export default function OverzichtPage() {
                 <button
                   type="button"
                   onClick={handleAddExtraBouwplaats}
-                  className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-white/5"
+                  className="w-full flex items-center gap-2 py-3 px-4 text-emerald-600 dark:text-emerald-500 hover:text-emerald-500 dark:hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-border"
                 >
                   <Plus className="h-4 w-4" />
                   <span>Toevoegen</span>
@@ -3426,7 +3447,7 @@ export default function OverzichtPage() {
           {/* Verzendkosten */}
           <section className="space-y-3">
             <OverzichtSection
-              title="Verzendkosten"
+              title="Leverancier transport kosten"
               isCollapsed={!!collapsedSections['verzend']}
               onToggle={() => toggleSection('verzend')}
               onSettings={() => setVerzendBeheerOpen(true)}
@@ -3443,124 +3464,25 @@ export default function OverzichtPage() {
                 ) : null
               }
             >
-              <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
-                {/* Werkpakket Selector */}
-                <div className="flex items-center gap-1.5 px-3 py-3 border-b border-white/5 bg-white/5">
-                  <div className="flex-1 space-y-1.5">
-                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-0.5">
-                      Werkpakket
-                    </Label>
-                    <Select
-                      value={geselecteerdVerzendPakketId || 'LEEG'}
-                      onValueChange={(v) => {
-                        if (!v || v === 'LEEG') {
-                          setGeselecteerdVerzendPakketId('');
-                          setVerzendkosten(defaultVerzendkosten());
-                          return;
-                        }
-                        handleSelectVerzendPakket(v);
-                      }}
-                    >
-                      <SelectTrigger className="h-10 bg-black/40 border-emerald-500/20 focus:ring-emerald-500/20 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <Box className="w-4 h-4 text-emerald-500" />
-                          <SelectValue placeholder="Nieuw" />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="LEEG">Nieuw</SelectItem>
-                        {verzendPakketten.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.naam}
-                            {p.id === standaardVerzendPakketId ? ' (standaard)' : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-10 w-10 shrink-0 mt-5 text-muted-foreground hover:text-emerald-500"
-                    title="Opslaan als werkpakket"
-                    onClick={openVerzendOpslaan}
-                  >
-                    <Save className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {/* Items List */}
-                <div className="divide-y divide-white/5">
-                  {verzendkosten.map((item) => (
-                    <div key={item.id} className="group flex items-center gap-2 py-3 px-4 hover:bg-white/5 transition-colors">
-                      {/* Name */}
+              <div className="rounded-xl bg-card border border-border overflow-hidden">
+                {(() => {
+                  const item = normalizeVerzendkostenItems(verzendkosten)[0];
+                  return (
+                    <div className="group flex items-center gap-3 py-3 px-4 hover:bg-white/5 transition-colors">
                       <div className="flex-1 min-w-0">
-                        {item.isVast ? (
-                          <span className="text-sm text-foreground">{item.naam}</span>
-                        ) : (
-                          <Input
-                            value={item.naam}
-                            onChange={(e) => handleVerzendChange(item.id, 'naam', e.target.value)}
-                            placeholder="Bijv. Pakketpost / Koeriersdienst"
-                            className="bg-transparent border-0 px-0 h-7 text-sm focus-visible:ring-0 placeholder:text-muted-foreground/50"
-                          />
-                        )}
+                        <span className="text-sm text-foreground">{item.naam}</span>
                       </div>
-
-                      {/* Price */}
-                      <div className="w-24 shrink-0">
+                      <div className="w-32 shrink-0">
                         <EuroInput
                           value={item.prijs}
                           onChange={(v) => handleVerzendChange(item.id, 'prijs', v)}
-                          inputClassName="bg-black/20 border-white/5 rounded-lg h-8 text-sm"
+                          inputClassName="bg-muted/40 border-border rounded-lg h-8 text-sm"
                           placeholder="0,00"
                         />
                       </div>
-
-                      {/* Per */}
-                      <div className="w-20 shrink-0">
-                        <Select value={item.per} onValueChange={(v) => handleVerzendChange(item.id, 'per', v)}>
-                          <SelectTrigger className="bg-black/20 border-white/5 rounded-lg h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="dag">dag</SelectItem>
-                            <SelectItem value="week">week</SelectItem>
-                            <SelectItem value="klus">klus</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Delete - aligned with unit dropdown */}
-                      <div className="w-8 shrink-0 flex justify-center">
-                        {!item.isVast ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 opacity-40 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity"
-                            onClick={() => handleRemoveVerzend(item.id)}
-                            aria-label="Verwijderen"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        ) : (
-                          <div className="w-7 h-7" />
-                        )}
-                      </div>
                     </div>
-                  ))}
-                </div>
-
-                {/* Add Button */}
-                <button
-                  type="button"
-                  onClick={handleAddExtraVerzend}
-                  className="w-full flex items-center gap-2 py-3 px-4 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors text-sm font-medium border-t border-white/5"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Toevoegen</span>
-                </button>
+                  );
+                })()}
               </div>
             </OverzichtSection>
           </section>
@@ -3578,7 +3500,7 @@ export default function OverzichtPage() {
                 ) : null
               }
             >
-              <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+              <div className="p-4 rounded-xl bg-card border border-border space-y-4">
                 <SegmentedToggle
                   options={[
                     { id: 'perKm', label: 'Per km', subtitle: 'Automatisch' },
@@ -3598,7 +3520,7 @@ export default function OverzichtPage() {
                         value={prijsPerKm}
                         onChange={setPrijsPerKm}
                         inputClassName={cn(
-                          "bg-black/20 border-white/5 rounded-lg",
+                          "bg-muted/40 border-border rounded-lg",
                           !transportIsValid && "border-red-500 focus-visible:ring-red-500"
                         )}
                         placeholder="0,00"
@@ -3609,7 +3531,7 @@ export default function OverzichtPage() {
                       <EuroInput
                         value={tunnelkosten}
                         onChange={setTunnelkosten}
-                        inputClassName="bg-black/20 border-white/5 rounded-lg"
+                        inputClassName="bg-muted/40 border-border rounded-lg"
                         placeholder="0,00"
                       />
                       <span className="text-xs text-muted-foreground whitespace-nowrap">tunnelkosten</span>
@@ -3624,7 +3546,7 @@ export default function OverzichtPage() {
                         value={vasteTransportkosten}
                         onChange={setVasteTransportkosten}
                         inputClassName={cn(
-                          "bg-black/20 border-white/5 rounded-lg",
+                          "bg-muted/40 border-border rounded-lg",
                           !transportIsValid && "border-red-500 focus-visible:ring-red-500"
                         )}
                         placeholder="0,00"
@@ -3635,7 +3557,7 @@ export default function OverzichtPage() {
                       <EuroInput
                         value={tunnelkosten}
                         onChange={setTunnelkosten}
-                        inputClassName="bg-black/20 border-white/5 rounded-lg"
+                        inputClassName="bg-muted/40 border-border rounded-lg"
                         placeholder="0,00"
                       />
                       <span className="text-xs text-muted-foreground whitespace-nowrap">tunnelkosten</span>
@@ -3659,13 +3581,13 @@ export default function OverzichtPage() {
                 ) : null
               }
             >
-              <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+              <div className="p-4 rounded-xl bg-card border border-border space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="w-32">
                     <EuroInput
                       value={uurTarief}
                       onChange={setUurTarief}
-                      inputClassName="bg-black/20 border-white/5 rounded-lg"
+                      inputClassName="bg-muted/40 border-border rounded-lg"
                       placeholder="50,00"
                     />
                   </div>
@@ -3693,7 +3615,7 @@ export default function OverzichtPage() {
                 ) : null
               }
             >
-              <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
+              <div className="p-4 rounded-xl bg-card border border-border space-y-4">
                 <SegmentedToggle
                   options={[
                     { id: 'percentage', label: 'Percentage', subtitle: '% van totaal' },
@@ -3720,7 +3642,7 @@ export default function OverzichtPage() {
                           step="0.1"
                           placeholder="0"
                           className={cn(
-                            "pr-8 bg-black/20 border-white/5 rounded-lg",
+                            "pr-8 bg-muted/40 border-border rounded-lg",
                             !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
                           )}
                           value={winstMarge.percentage ?? ''}
@@ -3741,12 +3663,12 @@ export default function OverzichtPage() {
 
                     {/* Basis Selector */}
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-zinc-400 ml-1">Berekenen over:</Label>
+                      <Label className="text-xs text-muted-foreground ml-1">Berekenen over:</Label>
                       <Select
                         value={winstMarge.basis || 'totaal'}
                         onValueChange={(v: any) => setWinstMarge(prev => ({ ...prev, basis: v }))}
                       >
-                        <SelectTrigger className="w-full bg-black/20 border-white/5 rounded-lg h-9 text-sm">
+                        <SelectTrigger className="w-full bg-muted/40 border-border rounded-lg h-9 text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -3769,7 +3691,7 @@ export default function OverzichtPage() {
                           setWinstMarge((p) => ({ ...p, fixedAmount: n === null ? null : n }));
                         }}
                         inputClassName={cn(
-                          "bg-black/20 border-white/5 rounded-lg",
+                          "bg-muted/40 border-border rounded-lg",
                           !winstMargeIsValid && "border-red-500 focus-visible:ring-red-500"
                         )}
                         placeholder="0,00"
@@ -3840,7 +3762,7 @@ export default function OverzichtPage() {
                     onClick={sendManualOperationalErrorTest}
                     disabled={isSendingTestError}
                     variant="outline"
-                    className="w-full gap-2 border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200 sm:w-auto"
+                    className="w-full gap-2 border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 hover:text-amber-800 dark:hover:text-amber-200 sm:w-auto"
                   >
                     {isSendingTestError ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

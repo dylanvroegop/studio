@@ -15,13 +15,13 @@ export function BottomNav() {
     }
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/5 bg-zinc-900/80 backdrop-blur-md pb-safe pt-2">
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/90 backdrop-blur-md pb-safe pt-2">
             <div className="mx-auto flex max-w-md items-center justify-between px-6 py-2">
                 <Link
                     href="/dashboard"
                     className={cn(
                         "flex flex-col items-center gap-1 p-2 transition-colors",
-                        isActive('/dashboard') ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200"
+                        isActive('/dashboard') ? "text-emerald-500" : "text-muted-foreground hover:text-foreground"
                     )}
                 >
                     <LayoutDashboard className="h-6 w-6" strokeWidth={isActive('/dashboard') ? 2.5 : 2} />
@@ -32,7 +32,7 @@ export function BottomNav() {
                     href="/offertes"
                     className={cn(
                         "flex flex-col items-center gap-1 p-2 transition-colors",
-                        isActive('/offertes') ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200"
+                        isActive('/offertes') ? "text-emerald-500" : "text-muted-foreground hover:text-foreground"
                     )}
                 >
                     <FileText className="h-6 w-6" strokeWidth={isActive('/offertes') ? 2.5 : 2} />
@@ -43,7 +43,7 @@ export function BottomNav() {
                     href="/klanten"
                     className={cn(
                         "flex flex-col items-center gap-1 p-2 transition-colors",
-                        isActive('/klanten') ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200"
+                        isActive('/klanten') ? "text-emerald-500" : "text-muted-foreground hover:text-foreground"
                     )}
                 >
                     <Users className="h-6 w-6" strokeWidth={isActive('/klanten') ? 2.5 : 2} />
@@ -54,7 +54,7 @@ export function BottomNav() {
                     href="/materialen"
                     className={cn(
                         "flex flex-col items-center gap-1 p-2 transition-colors",
-                        isActive('/materialen') ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200"
+                        isActive('/materialen') ? "text-emerald-500" : "text-muted-foreground hover:text-foreground"
                     )}
                 >
                     <Boxes className="h-6 w-6" strokeWidth={isActive('/materialen') ? 2.5 : 2} />
@@ -65,7 +65,7 @@ export function BottomNav() {
                     href="/planning"
                     className={cn(
                         "flex flex-col items-center gap-1 p-2 transition-colors",
-                        isActive('/planning') ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200"
+                        isActive('/planning') ? "text-emerald-500" : "text-muted-foreground hover:text-foreground"
                     )}
                 >
                     <CalendarDays className="h-6 w-6" strokeWidth={isActive('/planning') ? 2.5 : 2} />
@@ -76,7 +76,7 @@ export function BottomNav() {
                     href="/instellingen"
                     className={cn(
                         "flex flex-col items-center gap-1 p-2 transition-colors",
-                        isActive('/instellingen') ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200"
+                        isActive('/instellingen') ? "text-emerald-500" : "text-muted-foreground hover:text-foreground"
                     )}
                 >
                     <Settings className="h-6 w-6" strokeWidth={isActive('/instellingen') ? 2.5 : 2} />

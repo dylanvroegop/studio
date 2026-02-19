@@ -23,6 +23,7 @@ import {
 
 const DISALLOWED_NUMBER_KEYS = new Set(['e', 'E', '+', '-']);
 const DISALLOWED_NUMBER_PASTE = /[eE+-]/;
+const MAX_INPUT_LENGTH = 100;
 
 type MaterialViewMode = 'single' | 'split';
 type MaterialCategoryStyle = 'groot' | 'verbruik' | 'neutral';
@@ -178,9 +179,10 @@ function MaterialRow({
                         <input
                             type="text"
                             value={localProduct}
-                            onChange={(e) => setLocalProduct(e.target.value)}
+                            onChange={(e) => setLocalProduct(e.target.value.slice(0, MAX_INPUT_LENGTH))}
                             onBlur={handleProductBlur}
                             onKeyDown={handleKeyDown}
+                            maxLength={MAX_INPUT_LENGTH}
                             className="w-full bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-300 text-sm hover:bg-zinc-800/50 hover:border-zinc-600 transition-all font-medium"
                         />
                     </div>
@@ -189,7 +191,7 @@ function MaterialRow({
                     <input
                         type="number"
                         value={localAantal}
-                        onChange={(e) => setLocalAantal(e.target.value)}
+                        onChange={(e) => setLocalAantal(e.target.value.slice(0, MAX_INPUT_LENGTH))}
                         onBlur={handleAantalBlur}
                         onKeyDown={(e) => {
                             if (DISALLOWED_NUMBER_KEYS.has(e.key)) {
@@ -213,10 +215,11 @@ function MaterialRow({
                             <input
                                 type="text"
                                 value={localPrijs}
-                                onChange={(e) => setLocalPrijs(e.target.value)}
+                                onChange={(e) => setLocalPrijs(e.target.value.slice(0, MAX_INPUT_LENGTH))}
                                 onBlur={handlePrijsBlur}
                                 onKeyDown={handleKeyDown}
                                 placeholder="0,00"
+                                maxLength={MAX_INPUT_LENGTH}
                                 style={{ width: `${Math.max(1, (localPrijs?.length || 4))}ch` }}
                                 className={`bg-transparent border-none focus:outline-none focus:ring-0 text-sm font-mono text-right p-0 ${needsPrice ? 'text-amber-400 font-bold placeholder:text-zinc-600' : 'text-zinc-200 font-medium placeholder:text-zinc-600'}`}
                             />
@@ -576,7 +579,8 @@ export function MaterialEditor({
                                         type="text"
                                         placeholder="Product naam"
                                         value={newItem.product}
-                                        onChange={(e) => setNewItem({ ...newItem, product: e.target.value })}
+                                        onChange={(e) => setNewItem({ ...newItem, product: e.target.value.slice(0, MAX_INPUT_LENGTH) })}
+                                        maxLength={MAX_INPUT_LENGTH}
                                         className="w-full bg-muted border border-border focus:ring-1 focus:ring-primary/50 rounded px-2 py-1 text-foreground text-sm"
                                     />
                                 </td>
@@ -585,7 +589,10 @@ export function MaterialEditor({
                                         type="number"
                                         min="1"
                                         value={newItem.aantal || ''}
-                                        onChange={(e) => setNewItem({ ...newItem, aantal: parseInt(e.target.value) || 0 })}
+                                        onChange={(e) => {
+                                            const capped = e.target.value.slice(0, MAX_INPUT_LENGTH);
+                                            setNewItem({ ...newItem, aantal: parseInt(capped) || 0 });
+                                        }}
                                         onKeyDown={(e) => {
                                             if (DISALLOWED_NUMBER_KEYS.has(e.key)) {
                                                 e.preventDefault();
@@ -609,9 +616,10 @@ export function MaterialEditor({
                                                 type="text"
                                                 placeholder="0,00"
                                                 value={localNewPrice}
-                                                onChange={(e) => setLocalNewPrice(e.target.value)}
+                                                onChange={(e) => setLocalNewPrice(e.target.value.slice(0, MAX_INPUT_LENGTH))}
                                                 onBlur={handleNewPrijsBlur}
                                                 onKeyDown={handleKeyDown}
+                                                maxLength={MAX_INPUT_LENGTH}
                                                 className="bg-transparent border-none focus:outline-none focus:ring-0 text-sm text-right text-foreground p-0 w-24"
                                             />
                                         </div>

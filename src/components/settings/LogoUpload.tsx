@@ -145,7 +145,7 @@ export function LogoUpload({
         {/* Preview Area */}
         <div className="flex-shrink-0">
           {previewUrl ? (
-            <div className="relative w-[200px] h-[80px] border border-gray-200 rounded-md overflow-hidden bg-white flex items-center justify-center p-2">
+            <div className="relative w-[200px] h-[80px] border border-border rounded-md overflow-hidden bg-card flex items-center justify-center p-2">
               <img
                 src={previewUrl}
                 alt={itemLabel}
@@ -153,10 +153,10 @@ export function LogoUpload({
               />
             </div>
           ) : (
-            <div className="w-[200px] h-[80px] border-2 border-dashed border-gray-300 rounded-md flex items-center justify-center bg-gray-50">
+            <div className="w-[200px] h-[80px] border-2 border-dashed border-border rounded-md flex items-center justify-center bg-muted/30">
               <div className="text-center">
-                <ImageIcon className="mx-auto h-8 w-8 text-gray-400" />
-                <p className="mt-1 text-xs text-gray-500">Geen {itemLabel.toLowerCase()}</p>
+                <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground" />
+                <p className="mt-1 text-xs text-muted-foreground">Geen {itemLabel.toLowerCase()}</p>
               </div>
             </div>
           )}
@@ -199,7 +199,7 @@ export function LogoUpload({
             )}
           </div>
 
-          <div className="text-xs text-gray-500 space-y-1">
+          <div className="text-xs text-muted-foreground space-y-1">
             <p>{recommendedText}</p>
             <p>Max. bestandsgrootte: 2MB • Formaten: PNG, JPG, GIF</p>
           </div>
@@ -226,7 +226,7 @@ export function LogoUpload({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuleren</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Verwijderen
             </AlertDialogAction>
           </AlertDialogFooter>

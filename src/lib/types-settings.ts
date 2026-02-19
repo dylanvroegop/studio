@@ -33,7 +33,25 @@ export interface LeverancierContact {
     naam: string;
     contactNaam: string;
     email: string;
+    contacten?: LeverancierPersoon[];
+    transportKostenRegels?: LeverancierTransportKostenRegel[];
+    gratisVerzendingVanafBedrag?: number | null;
 }
+
+export interface LeverancierPersoon {
+    id: string;
+    naam: string;
+    email: string;
+}
+
+export interface LeverancierTransportKostenRegel {
+    id: string;
+    label: string;
+    bedrag: number | null;
+    gratisVerzendingVanafBedrag?: number | null;
+}
+
+export type AppearanceMode = 'dark' | 'light';
 
 export interface UserSettings {
     // 1. Bedrijfsgegevens
@@ -99,6 +117,10 @@ export interface UserSettings {
     leveranciers: LeverancierContact[];
     defaultLeverancierId: string;
     materialListEmailTemplate?: string;
+    leverancierTransportKostenRegels?: LeverancierTransportKostenRegel[];
+
+    // 7. Uiterlijk
+    appearanceMode?: AppearanceMode;
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
@@ -148,13 +170,21 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     },
     leveranciers: [],
     defaultLeverancierId: '',
-    materialListEmailTemplate: ''
+    materialListEmailTemplate: '',
+    leverancierTransportKostenRegels: [],
+    appearanceMode: 'dark',
 };
 
 const safeString = (value: unknown): string => String(value ?? '').trim();
 
 const createFallbackLeverancierId = (index: number): string =>
     `supplier-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+
+const createFallbackTransportRegelId = (index: number): string =>
+    `transport-regel-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+
+const createFallbackContactId = (index: number): string =>
+    `supplier-contact-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
 
 export function normalizeLeverancierContactList(raw: unknown): LeverancierContact[] {
     if (!Array.isArray(raw)) return [];
@@ -169,8 +199,60 @@ export function normalizeLeverancierContactList(raw: unknown): LeverancierContac
         const naam = safeString(row.naam);
         const contactNaam = safeString(row.contactNaam ?? row.contactnaam);
         const email = safeString(row.email);
+        const rawContacten = Array.isArray(row.contacten) ? row.contacten : [];
+        const normalizedContacten: LeverancierPersoon[] = rawContacten
+            .map((entry, contactIndex) => {
+                if (!entry || typeof entry !== 'object') return null;
+                const contact = entry as Record<string, unknown>;
+                const contactLabel = safeString(contact.naam ?? contact.contactNaam ?? contact.contactnaam);
+                const contactEmail = safeString(contact.email);
+                if (!contactLabel && !contactEmail) return null;
+                return {
+                    id: safeString(contact.id) || createFallbackContactId(contactIndex),
+                    naam: contactLabel,
+                    email: contactEmail,
+                };
+            })
+            .filter(Boolean) as LeverancierPersoon[];
+        const rawTransportRegels = Array.isArray(row.transportKostenRegels)
+            ? row.transportKostenRegels
+            : Array.isArray(row.transportkostenRegels)
+                ? row.transportkostenRegels
+                : [];
+        const transportKostenRegels: LeverancierTransportKostenRegel[] = rawTransportRegels
+            .map((entry, regelIndex) => {
+                if (!entry || typeof entry !== 'object') return null;
+                const regel = entry as Record<string, unknown>;
+                const label = safeString(regel.label ?? regel.naam);
+                const rawBedrag = regel.bedrag;
+                const bedrag = typeof rawBedrag === 'number' && Number.isFinite(rawBedrag)
+                    ? rawBedrag
+                    : typeof rawBedrag === 'string' && rawBedrag.trim().length > 0
+                        ? Number(rawBedrag)
+                        : null;
 
-        if (!naam && !contactNaam && !email) return;
+                if (!label && (bedrag === null || Number.isNaN(bedrag))) return null;
+
+                return {
+                    id: safeString(regel.id) || createFallbackTransportRegelId(regelIndex),
+                    label,
+                    bedrag: bedrag !== null && Number.isFinite(bedrag) ? bedrag : null,
+                    gratisVerzendingVanafBedrag:
+                        typeof regel.gratisVerzendingVanafBedrag === 'number' && Number.isFinite(regel.gratisVerzendingVanafBedrag)
+                            ? regel.gratisVerzendingVanafBedrag
+                            : null,
+                };
+            })
+            .filter(Boolean) as LeverancierTransportKostenRegel[];
+
+        const rawGratisVanaf = row.gratisVerzendingVanafBedrag ?? row.gratisVerzendingVanaf;
+        const gratisVerzendingVanafBedrag = typeof rawGratisVanaf === 'number' && Number.isFinite(rawGratisVanaf)
+            ? rawGratisVanaf
+            : typeof rawGratisVanaf === 'string' && rawGratisVanaf.trim().length > 0
+                ? Number(rawGratisVanaf)
+                : null;
+
+        if (!naam && !contactNaam && !email && normalizedContacten.length === 0 && transportKostenRegels.length === 0 && !gratisVerzendingVanafBedrag) return;
 
         let id = safeString(row.id);
         if (!id || usedIds.has(id)) {
@@ -178,11 +260,26 @@ export function normalizeLeverancierContactList(raw: unknown): LeverancierContac
         }
         usedIds.add(id);
 
+        if (normalizedContacten.length === 0 && (contactNaam || email)) {
+            normalizedContacten.push({
+                id: createFallbackContactId(index),
+                naam: contactNaam,
+                email,
+            });
+        }
+        const primaryContact = normalizedContacten[0] ?? null;
+
         normalized.push({
             id,
             naam,
-            contactNaam,
-            email,
+            contactNaam: primaryContact?.naam || contactNaam,
+            email: primaryContact?.email || email,
+            contacten: normalizedContacten,
+            transportKostenRegels,
+            gratisVerzendingVanafBedrag:
+                gratisVerzendingVanafBedrag !== null && Number.isFinite(gratisVerzendingVanafBedrag)
+                    ? gratisVerzendingVanafBedrag
+                    : null,
         });
     });
 

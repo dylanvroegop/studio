@@ -1606,7 +1606,7 @@ export function MaterialSelectionModal({
                             setQuickCategoryPickerOpen(false);
                             setPriceImportDialogOpen(true);
                           }}
-                          className="hidden h-8 px-2.5 text-xs gap-2 border border-amber-400/45 bg-amber-500/12 text-amber-100 hover:bg-amber-500/20 lg:inline-flex"
+                          className="hidden h-8 px-2.5 text-xs gap-2 border border-amber-400/45 bg-amber-500/12 text-amber-700 dark:text-amber-100 hover:bg-amber-500/20 lg:inline-flex"
                         >
                           Prijs import aanvragen
                         </Button>
@@ -1643,7 +1643,7 @@ export function MaterialSelectionModal({
                             variant="outline"
                             size="sm"
                             onClick={() => setIsEditingWaste(true)}
-                            className="h-8 px-2.5 text-xs gap-2 border border-sky-400/45 bg-sky-500/12 text-sky-100 hover:bg-sky-500/20"
+                            className="h-8 px-2.5 text-xs gap-2 border border-sky-400/45 bg-sky-500/12 text-sky-700 dark:text-sky-100 hover:bg-sky-500/20"
                           >
                             <Pencil className="h-3.5 w-3.5 opacity-80" />
                             <span className="font-semibold uppercase tracking-wide">Afval</span>
@@ -1926,10 +1926,10 @@ export function MaterialSelectionModal({
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div className="flex flex-col gap-1">
-                  <DialogTitle className="text-xl font-bold text-white leading-none">
+                  <DialogTitle className="text-xl font-bold text-foreground leading-none">
                     {editingMaterialId ? 'Bewerk Materiaal' : 'Nieuw Materiaal'}
                   </DialogTitle>
-                  <DialogDescription className="text-zinc-400 text-sm">
+                  <DialogDescription className="text-muted-foreground text-sm">
                     {editingMaterialId ? 'Pas de gegevens van het materiaal aan.' : 'Vul de gegevens van het materiaal in.'}
                   </DialogDescription>
                 </div>

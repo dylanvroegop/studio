@@ -95,8 +95,8 @@ const navItems: NavigationItem[] = [
         href: '/archief',
         label: 'Archief',
         icon: Archive,
-        iconColorClass: 'text-zinc-400',
-        iconColorClassActive: 'text-zinc-200',
+        iconColorClass: 'text-muted-foreground',
+        iconColorClassActive: 'text-foreground',
     },
     {
         href: '/instellingen',
@@ -143,7 +143,7 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                 <Button
                     asChild
                     variant="outline"
-                    className="w-full justify-start font-semibold border-amber-500/40 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25 hover:text-amber-50"
+                    className="w-full justify-start font-semibold border-amber-500/40 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 dark:text-amber-100 dark:hover:text-amber-50"
                     onClick={onNavigate}
                 >
                     <Link href="/offertes/nieuw">
@@ -171,7 +171,7 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                                     'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
                                     active
                                         ? 'bg-emerald-500/15 text-emerald-400'
-                                        : 'text-zinc-300 hover:bg-muted hover:text-foreground'
+                                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                                 )}
                             >
                                 <Icon

@@ -36,7 +36,7 @@ export async function POST(req: Request) {
         if (trialBlockedResponse) return trialBlockedResponse;
 
         // 2. Parse Body
-        const { materiaalnaam, prijs_incl_btw, prijs_excl_btw, row_id, new_materiaalnaam, eenheid } = await req.json();
+        const { materiaalnaam, prijs_incl_btw, prijs_excl_btw, row_id, new_materiaalnaam, eenheid, allow_master_rename } = await req.json();
         const normalizedRowId = typeof row_id === 'string' ? row_id.trim() : '';
         const normalizedMateriaalnaam = typeof materiaalnaam === 'string' ? materiaalnaam.trim() : '';
 
@@ -48,6 +48,12 @@ export async function POST(req: Request) {
         }
         if (!normalizedRowId && typeof materiaalnaam !== 'string') {
             return NextResponse.json({ ok: false, message: 'materiaalnaam moet een string zijn' }, { status: 400 });
+        }
+        if (typeof new_materiaalnaam === 'string' && new_materiaalnaam.trim() && allow_master_rename !== true) {
+            return NextResponse.json(
+                { ok: false, message: 'Master naam wijzigen vereist expliciete bevestiging.' },
+                { status: 403 }
+            );
         }
 
         // 3. Update Supabase

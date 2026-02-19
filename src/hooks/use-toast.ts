@@ -2,11 +2,12 @@ import * as React from "react"
 
 import type { ToastProps } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 2
+const TOAST_LIMIT = 1
 
 // Belangrijk: in de shadcn template staat dit soms op 1.000.000ms (≈ 16 minuten),
 // waardoor toasts “blijven hangen”.
 const TOAST_REMOVE_DELAY = 250
+const TOAST_DEDUPE_WINDOW_MS = 1200
 
 type ToasterToast = ToastProps & {
   id: string
@@ -23,6 +24,8 @@ const actionTypes = {
 } as const
 
 let count = 0
+let lastToastSignature = ""
+let lastToastAt = 0
 function genId() {
   count = (count + 1) % Number.MAX_SAFE_INTEGER
   return count.toString()
@@ -118,6 +121,20 @@ const DEFAULT_DURATION_MS = 1800
 const DESTRUCTIVE_DURATION_MS = 2600
 
 function toast(input: ToastInput) {
+  const titleText = typeof input.title === "string" ? input.title.trim() : ""
+  const descriptionText = typeof input.description === "string" ? input.description.trim() : ""
+  const dedupeEligible = !!titleText || !!descriptionText
+  if (dedupeEligible) {
+    const signature = `${input.variant ?? "default"}|${titleText}|${descriptionText}`
+    const now = Date.now()
+    if (signature === lastToastSignature && now - lastToastAt < TOAST_DEDUPE_WINDOW_MS) {
+      const noop = () => undefined
+      return { id: "deduped", dismiss: noop, update: noop }
+    }
+    lastToastSignature = signature
+    lastToastAt = now
+  }
+
   const id = genId()
 
   const duration =

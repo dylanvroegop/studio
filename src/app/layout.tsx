@@ -1,15 +1,33 @@
-
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
 import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
 import { BusinessProfileGate } from '@/components/BusinessProfileGate';
+import { ThemeModeProvider } from '@/context/ThemeModeContext';
 
 export const metadata: Metadata = {
   title: 'Calvora',
   description: 'Maak snel en eenvoudig offertes voor timmerwerk.',
 };
+
+const themeBootstrapScript = `
+(function() {
+  try {
+    var storageKey = 'offertehulp.appearanceMode';
+    var defaultMode = 'dark';
+    var stored = window.localStorage.getItem(storageKey);
+    var mode = stored === 'light' || stored === 'dark' ? stored : defaultMode;
+    var root = document.documentElement;
+    root.classList.toggle('dark', mode === 'dark');
+    root.dataset.theme = mode;
+  } catch (error) {
+    var root = document.documentElement;
+    root.classList.add('dark');
+    root.dataset.theme = 'dark';
+  }
+})();
+`;
 
 export default function RootLayout({
   children,
@@ -17,14 +35,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="nl" className="dark">
+    <html lang="nl" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+      </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>
-          <MeasurementUnitProvider>
-            <BusinessProfileGate />
-            {children}
-            <Toaster />
-          </MeasurementUnitProvider>
+          <ThemeModeProvider>
+            <MeasurementUnitProvider>
+              <BusinessProfileGate />
+              {children}
+              <Toaster />
+            </MeasurementUnitProvider>
+          </ThemeModeProvider>
         </FirebaseClientProvider>
       </body>
     </html>

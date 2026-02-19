@@ -15,13 +15,10 @@ const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Overlay
-    ref={ref}
-    className={cn(
-      // ✅ Minder “zwart gat” effect:
-      // - van bg-black/80 -> bg-black/50
-      // - blur iets minder agressief
-      'fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] transition-opacity',
+    <DialogPrimitive.Overlay
+      ref={ref}
+      className={cn(
+      'fixed inset-0 z-50 bg-background/70 backdrop-blur-[2px] transition-opacity',
       className
     )}
     {...props}
@@ -38,10 +35,7 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        // ✅ Modal zelf minder “zwart”:
-        // - van bg-background (bij dark vaak bijna zwart) -> iets lichtere zinc
-        // - border en shadow blijven netjes
-        'fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-6 text-zinc-100 shadow-lg backdrop-blur-sm overflow-x-hidden',
+        'fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-2xl border border-border bg-card/95 p-6 text-foreground shadow-lg backdrop-blur-sm overflow-x-hidden',
         'duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
