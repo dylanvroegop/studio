@@ -20,6 +20,71 @@ function extractBearerToken(authHeader: string | null): string | null {
   return token || null;
 }
 
+function extractAiOutput(result: unknown): string | null {
+  if (!result || typeof result !== 'object') return null;
+
+  const row = result as {
+    output?: unknown;
+    content?: unknown;
+  };
+
+  if (typeof row.output === 'string' && row.output.trim()) {
+    return row.output;
+  }
+
+  const contentObject =
+    row.content && typeof row.content === 'object'
+      ? row.content as { parts?: Array<{ text?: unknown }> }
+      : null;
+  const firstPart = Array.isArray(contentObject?.parts) ? contentObject.parts[0] : null;
+  if (firstPart && typeof firstPart.text === 'string' && firstPart.text.trim()) {
+    return firstPart.text;
+  }
+
+  // Some n8n field mappings stringify the whole content object.
+  if (typeof row.content === 'string' && row.content.trim()) {
+    try {
+      const parsed = JSON.parse(row.content) as { parts?: Array<{ text?: unknown }> };
+      const parsedFirstPart = Array.isArray(parsed.parts) ? parsed.parts[0] : null;
+      if (parsedFirstPart && typeof parsedFirstPart.text === 'string' && parsedFirstPart.text.trim()) {
+        return parsedFirstPart.text;
+      }
+    } catch {
+      // Ignore invalid JSON content strings and continue fallback.
+    }
+  }
+
+  return null;
+}
+
+function parseGeneratedEmail(aiOutput: string): { onderwerp: string; body: string } {
+  const fallback = { onderwerp: '', body: aiOutput };
+
+  const tryParse = (value: string): { onderwerp: string; body: string } | null => {
+    try {
+      const parsed = JSON.parse(value) as { onderwerp?: unknown; body?: unknown };
+      const onderwerp = typeof parsed.onderwerp === 'string' ? parsed.onderwerp : '';
+      const body = typeof parsed.body === 'string' ? parsed.body : aiOutput;
+      return { onderwerp, body };
+    } catch {
+      return null;
+    }
+  };
+
+  const direct = tryParse(aiOutput);
+  if (direct) return direct;
+
+  const firstCurly = aiOutput.indexOf('{');
+  const lastCurly = aiOutput.lastIndexOf('}');
+  if (firstCurly !== -1 && lastCurly > firstCurly) {
+    const embedded = aiOutput.slice(firstCurly, lastCurly + 1);
+    const parsedEmbedded = tryParse(embedded);
+    if (parsedEmbedded) return parsedEmbedded;
+  }
+
+  return fallback;
+}
+
 export async function POST(request: Request) {
   try {
     const token = extractBearerToken(request.headers.get('authorization'));
@@ -81,27 +146,13 @@ export async function POST(request: Request) {
       Array.isArray(parsedData) && parsedData.length > 0
         ? parsedData[0]
         : parsedData;
-    const aiOutput =
-      result && typeof result === 'object' && 'output' in result
-        ? (result as { output?: unknown }).output
-        : null;
+    const aiOutput = extractAiOutput(result);
 
-    if (typeof aiOutput !== 'string' || !aiOutput.trim()) {
+    if (!aiOutput) {
       return NextResponse.json({ error: 'No output in webhook response' }, { status: 502 });
     }
-
-    let onderwerp = '';
-    let emailBody = aiOutput;
-
-    try {
-      const parsedOutput = JSON.parse(aiOutput) as { onderwerp?: unknown; body?: unknown };
-      if (typeof parsedOutput.onderwerp === 'string') onderwerp = parsedOutput.onderwerp;
-      if (typeof parsedOutput.body === 'string') emailBody = parsedOutput.body;
-    } catch {
-      // If AI output is plain text instead of JSON, keep fallback values.
-    }
-
-    return NextResponse.json({ onderwerp, body: emailBody });
+    const generated = parseGeneratedEmail(aiOutput);
+    return NextResponse.json(generated);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to generate email text';
     return NextResponse.json({ error: message }, { status: 500 });

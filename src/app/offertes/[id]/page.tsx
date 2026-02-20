@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import Link from "next/link";
-import { SendQuoteModal } from '@/components/quote/SendQuoteModal';
+import { SendQuoteModal, type QuoteAttachmentOptions } from '@/components/quote/SendQuoteModal';
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
@@ -1797,9 +1797,30 @@ export default function QuotePage() {
     };
 
     // Updated PDF Download Handler
-    const handleDownloadPDF = async (): Promise<void> => {
-        if (isGeneratingPDF) return;
+    const downloadBlobWithName = (blob: Blob, fileName: string) => {
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        window.URL.revokeObjectURL(url);
+    };
 
+    const sanitizeFileNamePart = (value: string): string =>
+        value
+            .trim()
+            .replace(/[\\/:*?"<>|]+/g, '-')
+            .replace(/\s+/g, ' ')
+            .slice(0, 80);
+
+    const captureDrawingsForPdf = async (): Promise<string[]> => {
+        if (isGeneratingPDF) {
+            throw new Error('PDF generatie is al bezig.');
+        }
+
+        let resolvedImages: string[] = [];
         setCapturedDrawings([]);
         setIsDrawingsReady(false);
         setIsGeneratingPDF(true);
@@ -1816,38 +1837,209 @@ export default function QuotePage() {
                 }
             };
 
-            // The actual generation is triggered by the onReady callback of HiddenPDFDrawings
             setPendingPDFAction(() => async (images: string[]) => {
-                const data = preparePDFData();
-                // Inject captured images
-                (data as any).drawingImages = images;
-
+                resolvedImages = images;
                 try {
-                    const pdfBlob = await generateQuotePDF(data);
-                    const url = window.URL.createObjectURL(pdfBlob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `Offerte-${data.offerteNummer}.pdf`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(url);
                     pendingPDFPromiseRef.current?.resolve();
-                } catch (err) {
-                    console.error("Error generating PDF:", err);
-                    const error = err instanceof Error ? err : new Error('Kon PDF niet genereren');
-                    toast({
-                        title: 'PDF genereren mislukt',
-                        description: error.message,
-                        variant: 'destructive',
-                    });
-                    pendingPDFPromiseRef.current?.reject(error);
                 } finally {
                     setIsGeneratingPDF(false);
                     setPendingPDFAction(null);
                 }
             });
         });
+
+        return resolvedImages;
+    };
+
+    const generateDrawingsOnlyPdf = async (
+        drawingImages: string[],
+        offerteNummer: string,
+        projectTitel: string,
+    ): Promise<Blob> => {
+        const { jsPDF } = await import('jspdf');
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 12;
+
+        drawingImages.forEach((imgData, index) => {
+            if (index > 0) doc.addPage();
+
+            let y = margin;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.setTextColor(30, 30, 30);
+            doc.text('TEKENINGEN', margin, y);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Offerte #${offerteNummer}`, pageWidth - margin, y, { align: 'right' });
+
+            y += 8;
+            doc.setDrawColor(220, 220, 220);
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 8;
+
+            const subTitle = projectTitel || `Tekening ${index + 1}`;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.setTextColor(40, 40, 40);
+            doc.text(`${subTitle} (${index + 1}/${drawingImages.length})`, margin, y);
+            y += 6;
+
+            const imageProps = doc.getImageProperties(imgData);
+            const availableWidth = pageWidth - (margin * 2);
+            const availableHeight = pageHeight - y - margin;
+
+            let imageWidth = availableWidth;
+            let imageHeight = (imageProps.height * availableWidth) / imageProps.width;
+            if (imageHeight > availableHeight) {
+                imageHeight = availableHeight;
+                imageWidth = (imageProps.width * availableHeight) / imageProps.height;
+            }
+
+            const imageX = margin + ((availableWidth - imageWidth) / 2);
+            doc.addImage(imgData, 'PNG', imageX, y, imageWidth, imageHeight);
+        });
+
+        return doc.output('blob');
+    };
+
+    const generateWerkbeschrijvingOnlyPdf = async (
+        werkbeschrijvingStappen: string[],
+        offerteNummer: string,
+        klantNaam: string,
+        projectTitel: string,
+    ): Promise<Blob> => {
+        const { jsPDF } = await import('jspdf');
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 16;
+        let y = margin;
+
+        const addPageIfNeeded = (requiredSpace: number) => {
+            if (y + requiredSpace <= pageHeight - margin) return;
+            doc.addPage();
+            y = margin;
+        };
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(25, 25, 25);
+        doc.text('WERKBESCHRIJVING', margin, y);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Offerte #${offerteNummer}`, pageWidth - margin, y, { align: 'right' });
+        y += 7;
+        doc.setDrawColor(220, 220, 220);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 8;
+
+        const intro = [
+            projectTitel ? `Project: ${projectTitel}` : '',
+            klantNaam ? `Klant: ${klantNaam}` : '',
+        ].filter(Boolean).join('  |  ');
+
+        if (intro) {
+            doc.setFontSize(9);
+            doc.setTextColor(90, 90, 90);
+            const introLines = doc.splitTextToSize(intro, pageWidth - (margin * 2));
+            doc.text(introLines, margin, y);
+            y += introLines.length * 4.3 + 5;
+        }
+
+        doc.setFontSize(9);
+        doc.setTextColor(40, 40, 40);
+        const stappen = werkbeschrijvingStappen.length > 0
+            ? werkbeschrijvingStappen
+            : ['Geen werkbeschrijving beschikbaar.'];
+
+        stappen.forEach((stap, index) => {
+            const nummer = `${index + 1}.`;
+            const regels = doc.splitTextToSize(stap, pageWidth - (margin * 2) - 10);
+            const ruimte = Math.max(6, regels.length * 4.5) + 2;
+            addPageIfNeeded(ruimte + 2);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text(nummer, margin, y);
+            doc.setFont('helvetica', 'normal');
+            doc.text(regels, margin + 8, y);
+            y += ruimte;
+        });
+
+        return doc.output('blob');
+    };
+
+    const handleDownloadPDF = async (attachments?: QuoteAttachmentOptions): Promise<void> => {
+        if (attachments) {
+            const selectedCount = [attachments.includeOfferte, attachments.includeTekeningen, attachments.includeWerkbeschrijving]
+                .filter(Boolean)
+                .length;
+            if (selectedCount === 0) {
+                throw new Error('Selecteer minimaal één PDF om te downloaden.');
+            }
+
+            const baseData = preparePDFData();
+            const offerteNummer = sanitizeFileNamePart(baseData.offerteNummer || 'CONCEPT');
+            const projectTitel = String(baseData.korteTitel || '').trim();
+            const klantNaam = String(baseData.klant?.naam || '').trim();
+
+            if (attachments.includeOfferte) {
+                const offerteData: PDFQuoteData = {
+                    ...baseData,
+                    settings: {
+                        ...baseData.settings,
+                        showTekeningen: false,
+                        showFullWerkbeschrijving: false,
+                    },
+                };
+                const offerteBlob = await generateQuotePDF(offerteData);
+                downloadBlobWithName(offerteBlob, `Offerte-${offerteNummer}.pdf`);
+            }
+
+            if (attachments.includeTekeningen) {
+                const images = await captureDrawingsForPdf();
+                if (!images || images.length === 0) {
+                    throw new Error('Geen tekeningen gevonden om als aparte PDF te versturen.');
+                }
+                const tekeningenBlob = await generateDrawingsOnlyPdf(images, offerteNummer, projectTitel);
+                downloadBlobWithName(tekeningenBlob, `Tekeningen-${offerteNummer}.pdf`);
+            }
+
+            if (attachments.includeWerkbeschrijving) {
+                const stappen = normalizeWerkbeschrijving(normalizedData?.werkbeschrijving || []);
+                const werkbeschrijvingBlob = await generateWerkbeschrijvingOnlyPdf(
+                    stappen,
+                    offerteNummer,
+                    klantNaam,
+                    projectTitel,
+                );
+                downloadBlobWithName(werkbeschrijvingBlob, `Werkbeschrijving-${offerteNummer}.pdf`);
+            }
+
+            return;
+        }
+
+        if (isGeneratingPDF) return;
+
+        try {
+            const images = await captureDrawingsForPdf();
+            const data = preparePDFData();
+            (data as any).drawingImages = images;
+            const pdfBlob = await generateQuotePDF(data);
+            const offerteNummer = sanitizeFileNamePart(data.offerteNummer || 'CONCEPT');
+            downloadBlobWithName(pdfBlob, `Offerte-${offerteNummer}.pdf`);
+        } catch (err) {
+            console.error("Error generating PDF:", err);
+            const error = err instanceof Error ? err : new Error('Kon PDF niet genereren');
+            toast({
+                title: 'PDF genereren mislukt',
+                description: error.message,
+                variant: 'destructive',
+            });
+        }
     };
 
     const handleMarkQuoteAsSent = async (): Promise<void> => {

@@ -18,13 +18,19 @@ import { toast } from "@/hooks/use-toast";
 import { useUser } from '@/firebase';
 import { reportOperationalError } from '@/lib/report-operational-error';
 
+export interface QuoteAttachmentOptions {
+    includeOfferte: boolean;
+    includeTekeningen: boolean;
+    includeWerkbeschrijving: boolean;
+}
+
 interface SendQuoteModalProps {
     isOpen: boolean;
     onClose: () => void;
     klantInfo: KlantInformatie | null;
     offerteNummer: string;
     werkbeschrijving: any;
-    onDownloadPDF: () => Promise<void> | void;
+    onDownloadPDF: (options: QuoteAttachmentOptions) => Promise<void> | void;
     totaalInclBtw: number;
     geldigTot: string;
     bedrijfsnaam: string;
@@ -55,10 +61,20 @@ export function SendQuoteModal({
     const [body, setBody] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSending, setIsSending] = useState(false);
+    const [attachments, setAttachments] = useState<QuoteAttachmentOptions>({
+        includeOfferte: true,
+        includeTekeningen: true,
+        includeWerkbeschrijving: true,
+    });
 
     useEffect(() => {
         if (isOpen && klantInfo) {
             setEmail(klantInfo.emailadres || '');
+            setAttachments({
+                includeOfferte: true,
+                includeTekeningen: true,
+                includeWerkbeschrijving: true,
+            });
 
             const shortDesc = generateWorkSummary(werkbeschrijving, 40);
             setSubject(`Offerte #${offerteNummer}${shortDesc ? ` - ${shortDesc}` : ''}`);
@@ -156,6 +172,9 @@ export function SendQuoteModal({
         if (isSending) return;
         const trimmedEmail = email.trim();
         const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+        const selectedAttachmentCount = [attachments.includeOfferte, attachments.includeTekeningen, attachments.includeWerkbeschrijving]
+            .filter(Boolean)
+            .length;
 
         if (!emailIsValid) {
             toast({
@@ -166,10 +185,19 @@ export function SendQuoteModal({
             return;
         }
 
+        if (selectedAttachmentCount === 0) {
+            toast({
+                title: "Kies minimaal één PDF",
+                description: "Selecteer offerte, tekeningen en/of werkbeschrijving.",
+                variant: "destructive",
+            });
+            return;
+        }
+
         setIsSending(true);
         try {
             try {
-                await Promise.resolve(onDownloadPDF());
+                await Promise.resolve(onDownloadPDF(attachments));
             } catch (error) {
                 console.error('Error downloading PDF before mailto:', error);
                 toast({
@@ -202,7 +230,9 @@ export function SendQuoteModal({
 
             toast({
                 title: "E-mail geopend",
-                description: "Vergeet niet de gedownloade PDF als bijlage toe te voegen.",
+                description: selectedAttachmentCount === 1
+                    ? "Vergeet niet de gedownloade PDF als bijlage toe te voegen."
+                    : `Vergeet niet ${selectedAttachmentCount} gedownloade PDF's als bijlage toe te voegen.`,
                 duration: 5000,
             });
 
@@ -232,6 +262,39 @@ export function SendQuoteModal({
                             placeholder="naam@voorbeeld.nl"
                             className="bg-zinc-800 border-zinc-700 focus:ring-emerald-500 text-white"
                         />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label className="text-zinc-400">PDF bijlagen (losse bestanden)</Label>
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-800/40 p-3 space-y-2">
+                            <label className="flex items-center justify-between gap-3 text-sm text-zinc-200 cursor-pointer">
+                                <span>Offerte (hoofdbestand)</span>
+                                <input
+                                    type="checkbox"
+                                    checked={attachments.includeOfferte}
+                                    onChange={(e) => setAttachments((prev) => ({ ...prev, includeOfferte: e.target.checked }))}
+                                    className="h-4 w-4 accent-emerald-500"
+                                />
+                            </label>
+                            <label className="flex items-center justify-between gap-3 text-sm text-zinc-200 cursor-pointer">
+                                <span>Tekeningen (aparte PDF)</span>
+                                <input
+                                    type="checkbox"
+                                    checked={attachments.includeTekeningen}
+                                    onChange={(e) => setAttachments((prev) => ({ ...prev, includeTekeningen: e.target.checked }))}
+                                    className="h-4 w-4 accent-emerald-500"
+                                />
+                            </label>
+                            <label className="flex items-center justify-between gap-3 text-sm text-zinc-200 cursor-pointer">
+                                <span>Werkbeschrijving (aparte PDF)</span>
+                                <input
+                                    type="checkbox"
+                                    checked={attachments.includeWerkbeschrijving}
+                                    onChange={(e) => setAttachments((prev) => ({ ...prev, includeWerkbeschrijving: e.target.checked }))}
+                                    className="h-4 w-4 accent-emerald-500"
+                                />
+                            </label>
+                        </div>
                     </div>
 
                     <div className="space-y-2">
@@ -287,8 +350,8 @@ export function SendQuoteModal({
                     >
                         {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
                         <div className="flex flex-col items-start leading-tight">
-                            <span>{isSending ? 'PDF downloaden...' : 'Download PDF en open e-mail'}</span>
-                            <span className="text-[10px] opacity-80 font-normal">Voeg de PDF handmatig toe in je mail-app</span>
+                            <span>{isSending ? 'PDF(s) downloaden...' : 'Download PDF(s) en open e-mail'}</span>
+                            <span className="text-[10px] opacity-80 font-normal">Voeg de bestanden handmatig toe in je mail-app</span>
                         </div>
                     </Button>
                 </DialogFooter>

@@ -418,6 +418,8 @@ export default function GenericMeasurementPage() {
   const [hasTussenstijl, setHasTussenstijl] = useState(false);
   const [dakpanWerkendeMaten, setDakpanWerkendeMaten] = useState<DakpanWerkendeMaten | null>(null);
   const hasAppliedPendingOpeningIntentRef = useRef(false);
+  const itemContainerRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const shouldScrollToLatestAddedItemRef = useRef(false);
   const prevVakIdsRef = useRef<Record<number, Set<string>>>({});
   const [manualVakkenOverride, setManualVakkenOverride] = useState<Record<number, boolean>>({});
   const [nadenDefaults, setNadenDefaults] = useState<{
@@ -2654,8 +2656,29 @@ export default function GenericMeasurementPage() {
       hasBoeiboordDaktrimMaterialFromPreviousPage
     );
     const newItem = applyHellendDakDefaultsFromDakpan(withBoeiboordDefaults, dakpanWerkendeMaten);
+    shouldScrollToLatestAddedItemRef.current = true;
     setItems(prev => [...prev, newItem]);
   };
+
+  useEffect(() => {
+    itemContainerRefs.current = itemContainerRefs.current.slice(0, items.length);
+  }, [items.length]);
+
+  useEffect(() => {
+    if (!shouldScrollToLatestAddedItemRef.current) return;
+    const targetIndex = items.length - 1;
+    if (targetIndex < 0) return;
+
+    shouldScrollToLatestAddedItemRef.current = false;
+
+    requestAnimationFrame(() => {
+      const target = itemContainerRefs.current[targetIndex];
+      if (!target) return;
+      const offsetTop = 96;
+      const targetTop = Math.max(0, target.getBoundingClientRect().top + window.scrollY - offsetTop);
+      window.scrollTo({ top: targetTop, behavior: 'smooth' });
+    });
+  }, [items.length]);
 
   const removeItem = (index: number) => {
     if (items.length <= 1) {
@@ -4120,7 +4143,12 @@ export default function GenericMeasurementPage() {
         <form>
           <div className="space-y-8">
             {items.map((item, index) => (
-              <React.Fragment key={index}>
+              <div
+                key={index}
+                ref={(node) => {
+                  itemContainerRefs.current[index] = node;
+                }}
+              >
                 {/* Item divider / label — only when multiple items */}
                 {items.length > 1 && (
                   <div className="flex items-center gap-3">
@@ -6540,7 +6568,7 @@ export default function GenericMeasurementPage() {
                   )}
 
                 </div>
-              </React.Fragment>
+              </div>
             ))}
 
             {items.length === 0 && <div className="text-center py-12 border-2 border-dashed border-zinc-800 rounded-3xl bg-card/20"><p className="text-muted-foreground">Geen items.</p></div>}
