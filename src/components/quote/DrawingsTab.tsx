@@ -14,6 +14,19 @@ interface DrawingsTabProps {
     quote: Quote;
 }
 
+interface JobDrawingSnapshot {
+    url: string;
+    title?: string;
+    index: number;
+}
+
+interface DrawingSnapshotEntry {
+    job: Job;
+    url: string;
+    title?: string;
+    index: number;
+}
+
 function getJobMeta(job: Job): { type?: string; slug?: string } {
     const topMeta = (job as any).meta || {};
     const maatwerkMeta = (job.maatwerk as any)?.meta || {};
@@ -36,8 +49,57 @@ function getVisualisatieUrl(job: Job): string | null {
     return value.length > 0 ? value : null;
 }
 
+function getVisualisatieSnapshots(job: Job): JobDrawingSnapshot[] {
+    const rawSnapshots = (job as any).visualisatieSnapshots;
+    if (!Array.isArray(rawSnapshots)) return [];
+
+    return rawSnapshots
+        .map((rawSnapshot: any, fallbackIndex: number) => {
+            if (typeof rawSnapshot === 'string') {
+                const url = rawSnapshot.trim();
+                if (!url) return null;
+                return { url, index: fallbackIndex } as JobDrawingSnapshot;
+            }
+
+            if (!rawSnapshot || typeof rawSnapshot !== 'object') return null;
+            const urlRaw = (rawSnapshot.url ?? rawSnapshot.visualisatieUrl);
+            if (typeof urlRaw !== 'string') return null;
+            const url = urlRaw.trim();
+            if (!url) return null;
+
+            const title = typeof rawSnapshot.title === 'string' ? rawSnapshot.title.trim() : undefined;
+            const parsedIndex = typeof rawSnapshot.index === 'number'
+                ? rawSnapshot.index
+                : Number.parseInt(String(rawSnapshot.index ?? fallbackIndex), 10);
+            const index = Number.isFinite(parsedIndex) ? parsedIndex : fallbackIndex;
+
+            return {
+                url,
+                title: title || undefined,
+                index,
+            } as JobDrawingSnapshot;
+        })
+        .filter((snapshot): snapshot is JobDrawingSnapshot => Boolean(snapshot));
+}
+
+function getDrawingSnapshotEntries(job: Job): DrawingSnapshotEntry[] {
+    const snapshots = getVisualisatieSnapshots(job);
+    if (snapshots.length > 0) {
+        return snapshots.map((snapshot, snapshotPosition) => ({
+            job,
+            url: snapshot.url,
+            title: snapshot.title,
+            index: Number.isFinite(snapshot.index) ? snapshot.index : snapshotPosition,
+        }));
+    }
+
+    const fallbackUrl = getVisualisatieUrl(job);
+    if (!fallbackUrl) return [];
+    return [{ job, url: fallbackUrl, index: 0 }];
+}
+
 function hasPotentialDrawing(job: Job): boolean {
-    if (getVisualisatieUrl(job)) return true;
+    if (getDrawingSnapshotEntries(job).length > 0) return true;
 
     const maatwerk = job.maatwerk as any;
     return Boolean(
@@ -108,8 +170,14 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
     }, [quote, firestore]);
 
     const drawingJobs = useMemo(() => jobs.filter((job) => hasPotentialDrawing(job)), [jobs]);
-    const snapshotJobs = useMemo(() => drawingJobs.filter((job) => Boolean(getVisualisatieUrl(job))), [drawingJobs]);
-    const missingSnapshotJobs = useMemo(() => drawingJobs.filter((job) => !getVisualisatieUrl(job)), [drawingJobs]);
+    const snapshotEntries = useMemo(
+        () => drawingJobs.flatMap((job) => getDrawingSnapshotEntries(job)),
+        [drawingJobs],
+    );
+    const missingSnapshotJobs = useMemo(
+        () => drawingJobs.filter((job) => getDrawingSnapshotEntries(job).length === 0),
+        [drawingJobs],
+    );
 
     const convertUrlToBase64 = async (url: string): Promise<string | null> => {
         try {
@@ -124,7 +192,7 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
     };
 
     const handleExportDrawingsPdf = async (): Promise<void> => {
-        if (snapshotJobs.length === 0 || isExportingPdf) return;
+        if (snapshotEntries.length === 0 || isExportingPdf) return;
 
         setIsExportingPdf(true);
         try {
@@ -137,11 +205,8 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
             const offerteNummer = String((quote as any)?.offerteNummer || quote.id || 'concept').trim();
             let exportedCount = 0;
 
-            for (const job of snapshotJobs) {
-                const imageUrl = getVisualisatieUrl(job);
-                if (!imageUrl) continue;
-
-                const imageData = await convertUrlToBase64(imageUrl);
+            for (const entry of snapshotEntries) {
+                const imageData = await convertUrlToBase64(entry.url);
                 if (!imageData) continue;
 
                 if (exportedCount > 0) {
@@ -166,7 +231,9 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(11);
                 doc.setTextColor(40, 40, 40);
-                doc.text(getJobTitle(job), margin, y);
+                const fallbackTitle = getJobTitle(entry.job);
+                const drawingTitle = entry.title || (entry.index > 0 ? `${fallbackTitle} ${entry.index + 1}` : fallbackTitle);
+                doc.text(drawingTitle, margin, y);
                 y += 6;
 
                 const imageProps = doc.getImageProperties(imageData);
@@ -203,10 +270,10 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
                 description: `${exportedCount} tekening(en) gedownload.`,
             });
 
-            if (exportedCount < snapshotJobs.length) {
+            if (exportedCount < snapshotEntries.length) {
                 toast({
                     title: 'Niet alle tekeningen meegenomen',
-                    description: `${snapshotJobs.length - exportedCount} tekening(en) hadden geen bruikbare afbeelding.`,
+                    description: `${snapshotEntries.length - exportedCount} tekening(en) hadden geen bruikbare afbeelding.`,
                     variant: 'destructive',
                 });
             }
@@ -251,15 +318,22 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
                     onClick={() => {
                         void handleExportDrawingsPdf();
                     }}
-                    disabled={isExportingPdf || snapshotJobs.length === 0}
+                    disabled={isExportingPdf || snapshotEntries.length === 0}
                 >
                     {isExportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     {isExportingPdf ? 'PDF genereren...' : 'Exporteer tekeningen als PDF'}
                 </Button>
             </div>
 
-            {snapshotJobs.map((job, i) => (
-                <SnapshotDrawingSection key={job.id || i} job={job} index={i} />
+            {snapshotEntries.map((entry, i) => (
+                <SnapshotDrawingSection
+                    key={`${entry.job.id || 'job'}-${entry.index}-${entry.url}`}
+                    job={entry.job}
+                    visualisatieUrl={entry.url}
+                    snapshotTitle={entry.title}
+                    snapshotIndex={entry.index}
+                    index={i}
+                />
             ))}
 
             {missingSnapshotJobs.length > 0 && (
@@ -288,16 +362,26 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
     );
 }
 
-function SnapshotDrawingSection({ job, index }: { job: Job; index: number }) {
+function SnapshotDrawingSection({
+    job,
+    visualisatieUrl,
+    snapshotTitle,
+    snapshotIndex,
+    index,
+}: {
+    job: Job;
+    visualisatieUrl: string;
+    snapshotTitle?: string;
+    snapshotIndex: number;
+    index: number;
+}) {
     const [isExpandedOpen, setIsExpandedOpen] = useState(false);
 
     const meta = getJobMeta(job);
     const categorySlug = meta.type || '';
     const jobSlug = meta.slug || '';
-    const title = getJobTitle(job);
-    const visualisatieUrl = getVisualisatieUrl(job);
-
-    if (!visualisatieUrl) return null;
+    const jobTitle = getJobTitle(job);
+    const title = snapshotTitle || (snapshotIndex > 0 ? `${jobTitle} ${snapshotIndex + 1}` : jobTitle);
 
     return (
         <div className="space-y-5">

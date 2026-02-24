@@ -3769,10 +3769,17 @@ export default function GenericMeasurementPage() {
     startTransition(async () => {
       try {
         let visualisatieUrl: string | null = null;
-        const visualizerElement = visualizerRefs.current[0];
+        const visualisatieSnapshots: Array<{ url: string; title: string; index: number }> = [];
+        const snapshotItemLabel = jobConfig.measurementLabel || jobConfig.title.split(' ')[0] || 'Item';
 
-        if (visualizerElement) {
-          try {
+        try {
+          const auth = getAuth();
+          const storage = getStorage(auth.app);
+
+          for (let index = 0; index < items.length; index += 1) {
+            const visualizerElement = visualizerRefs.current[index];
+            if (!visualizerElement) continue;
+
             const canvas = await html2canvas(visualizerElement, {
               backgroundColor: '#18181b',
               scale: 2,
@@ -3783,14 +3790,26 @@ export default function GenericMeasurementPage() {
             const blob = await new Promise<Blob>((resolve, reject) => {
               canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Failed to create blob')), 'image/png', 0.95);
             });
-            const auth = getAuth();
-            const storage = getStorage(auth.app);
-            const storageRef = ref(storage, `visualisaties/${quoteId}/${klusId}.png`);
+
+            const storagePath = index === 0
+              ? `visualisaties/${quoteId}/${klusId}.png`
+              : `visualisaties/${quoteId}/${klusId}-${index + 1}.png`;
+            const storageRef = ref(storage, storagePath);
             await uploadBytes(storageRef, blob, { contentType: 'image/png' });
-            visualisatieUrl = await getDownloadURL(storageRef);
-          } catch (uploadError) {
-            console.error('Error capturing visualization:', uploadError);
+            const downloadUrl = await getDownloadURL(storageRef);
+
+            visualisatieSnapshots.push({
+              url: downloadUrl,
+              title: `${snapshotItemLabel} ${index + 1}`,
+              index,
+            });
           }
+        } catch (uploadError) {
+          console.error('Error capturing visualization(s):', uploadError);
+        }
+
+        if (visualisatieSnapshots.length > 0) {
+          visualisatieUrl = visualisatieSnapshots[0].url;
         }
 
         const quoteRef = doc(firestore, 'quotes', quoteId);
@@ -4092,6 +4111,10 @@ export default function GenericMeasurementPage() {
 
         if (visualisatieUrl) {
           updateData[`klussen.${klusId}.visualisatieUrl`] = visualisatieUrl;
+        }
+
+        if (visualisatieSnapshots.length > 0) {
+          updateData[`klussen.${klusId}.visualisatieSnapshots`] = visualisatieSnapshots;
         }
 
         await updateDoc(quoteRef, updateData);

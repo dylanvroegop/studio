@@ -118,6 +118,64 @@ function getOptionalEnv(key: string): string | null {
   return value || null;
 }
 
+async function notifyOpsHubWebsiteRequest(input: {
+  requestId: string;
+  userId: string;
+  contactNaam: string;
+  bedrijfsnaam: string | null;
+  email: string;
+  telefoon: string;
+  websiteType: string;
+  projectBeschrijving: string;
+  budgetRange: string | null;
+  extraWensen: string | null;
+  contactVoorkeur: string;
+  contactVoorkeurLabel: string;
+  afspraakDatum: string | null;
+  afspraakTijd: string | null;
+}) {
+  const url = getOptionalEnv('OPS_HUB_WEBSITE_REQUEST_INGEST_URL');
+  const secret = getOptionalEnv('N8N_HEADER_SECRET');
+  if (!url || !secret) return;
+
+  const payload = {
+    source: 'studio_website_request',
+    requestId: input.requestId,
+    userId: input.userId,
+    submittedAt: new Date().toISOString(),
+    aanvraag: {
+      contactNaam: input.contactNaam,
+      bedrijfsnaam: input.bedrijfsnaam,
+      email: input.email,
+      telefoon: input.telefoon,
+      websiteType: input.websiteType,
+      projectBeschrijving: input.projectBeschrijving,
+      budgetRange: input.budgetRange,
+      extraWensen: input.extraWensen,
+      contactVoorkeur: input.contactVoorkeur,
+      contactVoorkeurLabel: input.contactVoorkeurLabel,
+      afspraakDatum: input.afspraakDatum,
+      afspraakTijd: input.afspraakTijd,
+    },
+  };
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-offertehulp-secret': secret,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
+  } catch (error) {
+    console.error('Ops hub ingest voor website-aanvraag mislukt:', error);
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const auth = await determineAuth(req);
@@ -281,6 +339,23 @@ export async function POST(req: Request) {
       ].join('\n'),
       verstuurdOp: new Date().toISOString(),
     };
+
+    void notifyOpsHubWebsiteRequest({
+      requestId: requestRef.id,
+      userId: auth.uid,
+      contactNaam,
+      bedrijfsnaam,
+      email,
+      telefoon,
+      websiteType: body.websiteType,
+      projectBeschrijving: body.projectBeschrijving,
+      budgetRange: body.budgetRange,
+      extraWensen: body.extraWensen,
+      contactVoorkeur: body.contactVoorkeur,
+      contactVoorkeurLabel,
+      afspraakDatum: body.afspraakDatum,
+      afspraakTijd: body.afspraakTijd,
+    });
 
     try {
       const controller = new AbortController();

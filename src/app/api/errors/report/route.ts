@@ -143,6 +143,59 @@ function renderTelegramText(payload: {
   ].join('\n');
 }
 
+async function forwardErrorToOpsHub(input: {
+  title: string;
+  message: string;
+  source: string;
+  severity: string;
+  route: string | null;
+  url: string | null;
+  user: UserProfile;
+  context: unknown;
+  webhookSecret: string | null;
+}) {
+  const url = process.env.OPS_HUB_APP_ERROR_INGEST_URL?.trim();
+  if (!url) return;
+
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+  };
+  if (input.webhookSecret) {
+    headers['x-offertehulp-secret'] = input.webhookSecret;
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        source: `studio:${input.source}`,
+        title: input.title,
+        message: input.message,
+        severity: input.severity,
+        route: input.route,
+        url: input.url,
+        userId: input.user.uid,
+        context: {
+          user: input.user,
+          context: input.context,
+        },
+        createdAt: new Date().toISOString(),
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.error('Ops hub app-error ingest failed', {
+        status: res.status,
+        bodyPreview: text.slice(0, 500),
+      });
+    }
+  } catch (error) {
+    console.error('Ops hub app-error ingest crashed', error);
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const token = extractBearerToken(request.headers.get('authorization'));
@@ -203,7 +256,7 @@ export async function POST(request: Request) {
     };
 
     const webhookUrl = getWebhookUrl();
-    const webhookSecret = process.env.N8N_HEADER_SECRET?.trim();
+    const webhookSecret = process.env.N8N_HEADER_SECRET?.trim() || null;
 
     const headers: Record<string, string> = {
       'content-type': 'application/json',
@@ -252,6 +305,18 @@ export async function POST(request: Request) {
         { status: 502 }
       );
     }
+
+    await forwardErrorToOpsHub({
+      title,
+      message,
+      source,
+      severity,
+      route,
+      url,
+      user,
+      context: payload.context,
+      webhookSecret,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {

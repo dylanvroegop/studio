@@ -16,6 +16,27 @@ function getVisualisatieUrl(job: Job): string | null {
     return value.length > 0 ? value : null;
 }
 
+function getSnapshotUrls(job: Job): string[] {
+    const rawSnapshots = (job as any).visualisatieSnapshots;
+    if (Array.isArray(rawSnapshots)) {
+        const urls = rawSnapshots
+            .map((snapshot: any) => {
+                if (typeof snapshot === 'string') return snapshot.trim();
+                if (!snapshot || typeof snapshot !== 'object') return '';
+                const value = snapshot.url ?? snapshot.visualisatieUrl;
+                return typeof value === 'string' ? value.trim() : '';
+            })
+            .filter((url: string) => url.length > 0);
+
+        if (urls.length > 0) {
+            return urls;
+        }
+    }
+
+    const fallbackUrl = getVisualisatieUrl(job);
+    return fallbackUrl ? [fallbackUrl] : [];
+}
+
 export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
     const firestore = useFirestore();
     const [jobs, setJobs] = useState<Job[]>([]);
@@ -65,9 +86,7 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
     }, [quote, firestore]);
 
     const snapshotUrls = useMemo(() => {
-        return jobs
-            .map((job) => getVisualisatieUrl(job))
-            .filter((url): url is string => Boolean(url));
+        return jobs.flatMap((job) => getSnapshotUrls(job));
     }, [jobs]);
 
     const urlToBase64 = async (url: string): Promise<string | null> => {

@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase/firestore';
-import { addDoc, collection, serverTimestamp, query, where, getDocs, limit, getDoc, doc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, query, where, getDocs, limit, getDoc, doc, writeBatch } from 'firebase/firestore';
 import type { DataJson } from '@/lib/quote-calculations';
 import type { UserSettings } from '@/lib/types-settings';
 import { reserveInvoiceNumber } from '@/lib/firestore-actions';
@@ -177,6 +177,41 @@ export async function createInvoiceFromQuote(
   });
 
   const docRef = await addDoc(collection(firestore, 'invoices'), payload || {});
+
+  if (invoiceType === 'eind') {
+    const quoteIds = new Set<string>();
+    const primaryQuoteId = (quoteId || '').toString().trim();
+    if (primaryQuoteId) quoteIds.add(primaryQuoteId);
+
+    if (Array.isArray(combinedQuoteIds)) {
+      combinedQuoteIds.forEach((id) => {
+        const normalized = String(id || '').trim();
+        if (normalized) quoteIds.add(normalized);
+      });
+    }
+
+    if (quoteIds.size > 0) {
+      const quoteRefs = Array.from(quoteIds).map((id) => doc(firestore, 'quotes', id));
+      const quoteSnaps = await Promise.all(quoteRefs.map((ref) => getDoc(ref)));
+
+      const batch = writeBatch(firestore);
+      let updates = 0;
+      quoteSnaps.forEach((snap) => {
+        if (!snap.exists()) return;
+        const currentStatus = (snap.data() as any)?.status;
+        if (currentStatus === 'geaccepteerd') return;
+
+        batch.update(snap.ref, {
+          status: 'verzonden',
+          updatedAt: serverTimestamp(),
+        } as any);
+        updates += 1;
+      });
+      if (updates > 0) {
+        await batch.commit();
+      }
+    }
+  }
 
   return docRef.id;
 }

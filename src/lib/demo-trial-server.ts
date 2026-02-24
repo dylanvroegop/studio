@@ -3,7 +3,7 @@ import { initFirebaseAdmin } from '@/firebase/admin';
 import { getDemoTrialState } from '@/lib/demo-trial';
 
 const PRICING_URL = 'https://calvora.nl/prijzen';
-const TRIAL_DURATION_DAYS = 14;
+const TRIAL_DURATION_DAYS = 7;
 
 export function demoTrialExpiredResponse(expiresAt?: Date | null) {
   return NextResponse.json(
@@ -33,6 +33,12 @@ export function subscriptionInactiveResponse(subscriptionStatus?: string | null)
 
 function plusDays(base: Date, days: number): Date {
   return new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function datesEqual(left?: Date | null, right?: Date | null): boolean {
+  if (!left && !right) return true;
+  if (!left || !right) return false;
+  return left.getTime() === right.getTime();
 }
 
 export async function ensureDemoTrialInitializedByUid(uid: string): Promise<void> {
@@ -71,6 +77,15 @@ export async function ensureDemoTrialInitializedByUid(uid: string): Promise<void
       const startAt = trialState.startAt || new Date();
       patch.demoStartAt = startAt;
       patch.demoExpiresAt = plusDays(startAt, TRIAL_DURATION_DAYS);
+    }
+
+    // Enforce the current demo window duration for existing demo accounts.
+    const effectiveIsDemo = businessData?.isDemo === true || patch.isDemo === true;
+    if (effectiveIsDemo && trialState.startAt && trialState.expiresAt) {
+      const expectedExpiresAt = plusDays(trialState.startAt, TRIAL_DURATION_DAYS);
+      if (!datesEqual(trialState.expiresAt, expectedExpiresAt)) {
+        patch.demoExpiresAt = expectedExpiresAt;
+      }
     }
   }
 

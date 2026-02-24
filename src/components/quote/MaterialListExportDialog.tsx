@@ -992,38 +992,42 @@ export function MaterialListExportDialog({
         </div>
         </div>
 
-        <DialogFooter className="sticky bottom-0 z-10 border-t border-border/70 bg-background/95 pt-3 backdrop-blur gap-2 sm:gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>
-            Sluiten
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleCopy}
-            disabled={!hasExportItems}
-            className="gap-2"
-          >
-            <Copy className="h-4 w-4" />
-            Kopieer lijst
-          </Button>
-          <Button
-            type="button"
-            onClick={handleOpenMail}
-            disabled={!hasExportItems || !hasSuppliers || !hasValidSelectedSupplier}
-            className="gap-2"
-          >
-            <Mail className="h-4 w-4" />
-            E-mail openen
-          </Button>
-          <Button
-            type="button"
-            onClick={handleDownloadPdf}
-            disabled={!hasExportItems || isPdfBusy}
-            className="gap-2"
-          >
-            {isPdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Download PDF
-          </Button>
+        <DialogFooter className="sticky bottom-0 z-10 border-t border-border/70 bg-background/95 p-2 backdrop-blur sm:p-3">
+          <div className="w-full rounded-xl border border-border/70 bg-card/90 p-2 shadow-lg">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
+                Sluiten
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCopy}
+                disabled={!hasExportItems}
+                className="w-full gap-2 sm:w-auto"
+              >
+                <Copy className="h-4 w-4" />
+                Kopieer lijst
+              </Button>
+              <Button
+                type="button"
+                onClick={handleOpenMail}
+                disabled={!hasExportItems || !hasSuppliers || !hasValidSelectedSupplier}
+                className="w-full gap-2 sm:w-auto"
+              >
+                <Mail className="h-4 w-4" />
+                E-mail openen
+              </Button>
+              <Button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={!hasExportItems || isPdfBusy}
+                className="w-full gap-2 sm:w-auto"
+              >
+                {isPdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Download PDF
+              </Button>
+            </div>
+          </div>
         </DialogFooter>
 
         <Dialog open={isTemplateEditorOpen} onOpenChange={setIsTemplateEditorOpen}>

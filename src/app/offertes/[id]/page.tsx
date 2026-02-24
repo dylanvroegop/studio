@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuoteData } from '@/hooks/useQuoteData';
 import { calculateQuoteTotals, QuoteSettings as QuoteCalculationSettings, KlantInformatie, formatCurrency, MaterialItem, generateWorkSummary, normalizeWerkbeschrijving, normalizeDataJson, unwrapRoot } from '@/lib/quote-calculations';
 import { ClientInfoCard } from '@/components/quote/ClientInfoCard';
@@ -12,10 +12,20 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, RotateCcw, Percent } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, RotateCcw, Percent, Share2 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
@@ -27,6 +37,7 @@ import { Input } from '@/components/ui/input';
 import Link from "next/link";
 import { SendQuoteModal, type QuoteAttachmentOptions } from '@/components/quote/SendQuoteModal';
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
+import { MaterialListExportDialog } from '@/components/quote/MaterialListExportDialog';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
 import { QuoteSwitcher } from '@/components/quote/QuoteSwitcher';
@@ -45,6 +56,9 @@ import {
 } from '@/lib/quote-pdf-text-settings';
 
 import { Quote } from "@/lib/types";
+import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
+import type { LeverancierContact } from '@/lib/types-settings';
+import { normalizeLeverancierContactList, pickDefaultLeverancierId } from '@/lib/types-settings';
 
 interface GrootCompareQuoteColumn {
     quoteId: string;
@@ -288,6 +302,11 @@ export default function QuotePage() {
     const [materialPackagePickerSearch, setMaterialPackagePickerSearch] = useState('');
     const [isSaveMaterialPackageOpen, setIsSaveMaterialPackageOpen] = useState(false);
     const [materialPackageName, setMaterialPackageName] = useState('');
+    const [confirmResetToNieuwOpen, setConfirmResetToNieuwOpen] = useState(false);
+    const [isMaterialExportOpen, setIsMaterialExportOpen] = useState(false);
+    const [materialSuppliers, setMaterialSuppliers] = useState<LeverancierContact[]>([]);
+    const [defaultMaterialSupplierId, setDefaultMaterialSupplierId] = useState('');
+    const [materialEmailTemplate, setMaterialEmailTemplate] = useState('');
     const [isSavingMaterialPackage, setIsSavingMaterialPackage] = useState(false);
     const [materialViewMode, setMaterialViewMode] = useState<MaterialViewMode>('single');
     const [mobileMaterialSection, setMobileMaterialSection] = useState<MobileMaterialSection>('groot');
@@ -454,6 +473,12 @@ export default function QuotePage() {
                         const rawPackages = instellingen.offerteMateriaalPakketten ?? settings.offerteMateriaalPakketten;
                         const parsedPackages = normalizeStoredMaterialPackages(rawPackages);
                         setMaterialPackages(parsedPackages);
+                        const leveranciers = normalizeLeverancierContactList(settings.leveranciers);
+                        const defaultLeverancierId = pickDefaultLeverancierId(settings.defaultLeverancierId, leveranciers);
+                        const savedMaterialEmailTemplate = String(settings.materialListEmailTemplate || '').trim();
+                        setMaterialSuppliers(leveranciers);
+                        setDefaultMaterialSupplierId(defaultLeverancierId);
+                        setMaterialEmailTemplate(savedMaterialEmailTemplate);
 
                         const selectedPackageRaw =
                             typeof instellingen.offerteMateriaalPakketId === 'string'
@@ -1165,6 +1190,15 @@ export default function QuotePage() {
                 });
             }
 
+            // Immediate sync for overzicht page so amount updates without waiting for debounced totals effect.
+            if (firestore && id) {
+                await updateDoc(doc(firestore, 'quotes', id), {
+                    totaalbedrag: 0,
+                    amount: 0,
+                    updatedAt: serverTimestamp(),
+                });
+            }
+
             await persistMaterialPackages(
                 materialPackages,
                 { grootmaterialen: [], verbruiksartikelen: [] },
@@ -1188,9 +1222,13 @@ export default function QuotePage() {
         }
     };
 
+    const handleRequestResetMaterialPackageToNieuw = () => {
+        setConfirmResetToNieuwOpen(true);
+    };
+
     const handleSelectMaterialPackageFromPicker = (packageId: string) => {
         if (packageId === 'NIEUW') {
-            void handleResetMaterialPackageToNieuw();
+            handleRequestResetMaterialPackageToNieuw();
             return;
         }
         setIsMaterialPackagePickerOpen(false);
@@ -1584,6 +1622,161 @@ export default function QuotePage() {
         }));
         return [...grootItems, ...verbruikItems];
     }, [materials.groot, materials.verbruik]);
+
+    const materialExportItems = useMemo<MaterialListExportItem[]>(() => {
+        const mapItem = (item: MaterialItem, bron: string, index: number): MaterialListExportItem | null => {
+            const naam = String(item?.product || '').trim();
+            if (!naam) return null;
+            const eenheid = String((item as any)?.eenheid || 'stuk').trim() || 'stuk';
+            const aantal = Number.isFinite(Number(item?.aantal)) && Number(item?.aantal) > 0 ? Math.round(Number(item.aantal)) : 1;
+            const prijs = Number(item?.prijs_per_stuk);
+            return {
+                key: `${bron}-${naam}-${index}`,
+                naam,
+                bron,
+                eenheid,
+                aantal,
+                prijsExclBtw: Number.isFinite(prijs) ? Number(prijs.toFixed(2)) : null,
+            };
+        };
+
+        const groot = materials.groot
+            .map((item, index) => mapItem(item, 'Grootmaterialen', index))
+            .filter((item): item is MaterialListExportItem => item !== null);
+        const verbruik = materials.verbruik
+            .map((item, index) => mapItem(item, 'Verbruiksmaterialen', index))
+            .filter((item): item is MaterialListExportItem => item !== null);
+        return [...groot, ...verbruik];
+    }, [materials.groot, materials.verbruik]);
+
+    const materialExportContext = useMemo<MaterialListExportMeta>(() => ({
+        offerteNummer: (quote as any)?.offerteNummer || null,
+        klusTitel: normalizedData?.korteTitel || normalizedData?.werkbeschrijving || (quote as any)?.titel || 'Offerte',
+        klantNaam: klantInfo ? `${klantInfo.voornaam} ${klantInfo.achternaam}`.trim() : '',
+        klantEmail: klantInfo?.emailadres || '',
+        senderCompanyName: userProfile?.settings?.bedrijfsnaam || businessData?.bedrijfsnaam || '',
+        senderContactName: businessData?.contactNaam || user?.displayName || userProfile?.naam || '',
+        senderAddress: `${userProfile?.settings?.adres || ''} ${userProfile?.settings?.huisnummer || ''}`.trim() || businessData?.adres || '',
+        senderStreet: userProfile?.settings?.adres || '',
+        senderHouseNumber: userProfile?.settings?.huisnummer || '',
+        senderPostalCode: userProfile?.settings?.postcode || businessData?.postcode || '',
+        senderCity: userProfile?.settings?.plaats || businessData?.plaats || '',
+        senderPhone: userProfile?.settings?.telefoon || businessData?.telefoon || '',
+        senderKvk: userProfile?.settings?.kvkNummer || businessData?.kvkNummer || businessData?.kvk || '',
+        senderBtw: userProfile?.settings?.btwNummer || businessData?.btwNummer || businessData?.btw || '',
+        createdAt: new Date(),
+    }), [quote, normalizedData, klantInfo, userProfile, businessData, user]);
+
+    const saveMaterialSupplierSettings = useCallback(async (
+        nextSuppliersInput: LeverancierContact[],
+        preferredDefaultSupplierId?: string,
+    ): Promise<string> => {
+        if (!user || !firestore) throw new Error('Gebruiker of database niet beschikbaar.');
+
+        const normalizedSuppliers = normalizeLeverancierContactList(nextSuppliersInput);
+        const resolvedDefaultSupplierId = pickDefaultLeverancierId(
+            preferredDefaultSupplierId ?? defaultMaterialSupplierId,
+            normalizedSuppliers,
+        );
+
+        await setDoc(doc(firestore, 'users', user.uid), {
+            settings: {
+                leveranciers: normalizedSuppliers,
+                defaultLeverancierId: resolvedDefaultSupplierId,
+            },
+        }, { merge: true });
+
+        setMaterialSuppliers(normalizedSuppliers);
+        setDefaultMaterialSupplierId(resolvedDefaultSupplierId);
+        return resolvedDefaultSupplierId;
+    }, [user, firestore, defaultMaterialSupplierId]);
+
+    const handleUpdateMaterialSupplierContact = useCallback(async ({
+        supplierId,
+        contactId,
+        contactNaam,
+        email,
+    }: {
+        supplierId: string;
+        contactId?: string;
+        contactNaam: string;
+        email: string;
+    }): Promise<void> => {
+        const resolvedSupplierId = String(supplierId || '').trim();
+        if (!resolvedSupplierId) throw new Error('Geen leverancier geselecteerd.');
+
+        const trimmedContactNaam = String(contactNaam || '').trim();
+        const trimmedEmail = String(email || '').trim();
+        if (!trimmedEmail) throw new Error('E-mailadres ontbreekt.');
+
+        const nextSuppliers = (materialSuppliers || []).map((supplier) => (
+            supplier.id === resolvedSupplierId
+                ? {
+                    ...supplier,
+                    contacten: (() => {
+                        const existing = Array.isArray(supplier.contacten) ? supplier.contacten : [];
+                        if (contactId) {
+                            const hasTarget = existing.some((contact) => contact.id === contactId);
+                            if (hasTarget) {
+                                return existing.map((contact) => (
+                                    contact.id === contactId
+                                        ? { ...contact, naam: trimmedContactNaam, email: trimmedEmail }
+                                        : contact
+                                ));
+                            }
+                        }
+                        if (existing.length === 0) {
+                            return [{ id: crypto.randomUUID(), naam: trimmedContactNaam, email: trimmedEmail }];
+                        }
+                        return [{ ...existing[0], naam: trimmedContactNaam, email: trimmedEmail }, ...existing.slice(1)];
+                    })(),
+                    contactNaam: trimmedContactNaam,
+                    email: trimmedEmail,
+                }
+                : supplier
+        ));
+
+        await saveMaterialSupplierSettings(nextSuppliers, defaultMaterialSupplierId || resolvedSupplierId);
+    }, [materialSuppliers, saveMaterialSupplierSettings, defaultMaterialSupplierId]);
+
+    const handleCreateMaterialSupplier = useCallback(async ({
+        naam,
+        contactNaam,
+        email,
+    }: {
+        naam: string;
+        contactNaam: string;
+        email: string;
+    }): Promise<string> => {
+        const trimmedNaam = String(naam || '').trim();
+        const trimmedContactNaam = String(contactNaam || '').trim();
+        const trimmedEmail = String(email || '').trim();
+        if (!trimmedNaam) throw new Error('Leveranciersnaam ontbreekt.');
+        if (!trimmedEmail) throw new Error('E-mailadres ontbreekt.');
+
+        const newSupplier: LeverancierContact = {
+            id: crypto.randomUUID(),
+            naam: trimmedNaam,
+            contactNaam: trimmedContactNaam,
+            email: trimmedEmail,
+            contacten: [{ id: crypto.randomUUID(), naam: trimmedContactNaam, email: trimmedEmail }],
+        };
+
+        const nextSuppliers = [...(materialSuppliers || []), newSupplier];
+        await saveMaterialSupplierSettings(nextSuppliers, newSupplier.id);
+        return newSupplier.id;
+    }, [materialSuppliers, saveMaterialSupplierSettings]);
+
+    const handleSaveMaterialEmailTemplate = useCallback(async (template: string): Promise<void> => {
+        if (!user || !firestore) throw new Error('Gebruiker of database niet beschikbaar.');
+        const normalizedTemplate = String(template || '').trim();
+        await setDoc(doc(firestore, 'users', user.uid), {
+            settings: {
+                materialListEmailTemplate: normalizedTemplate,
+            },
+        }, { merge: true });
+        setMaterialEmailTemplate(normalizedTemplate);
+    }, [user, firestore]);
 
     const handleUpdateCombinedItem = (index: number, updates: Partial<MaterialItem>) => {
         const source = combinedMaterialItems[index];
@@ -2547,6 +2740,13 @@ export default function QuotePage() {
                                     <CalendarDays size={16} /> Inplannen
                                 </Button>
                                 <Button
+                                    variant="outline"
+                                    className="flex-1 sm:flex-none gap-2"
+                                    onClick={() => router.push(`/offertes/${id}/overzicht`)}
+                                >
+                                    <PenTool size={16} /> Calculatie
+                                </Button>
+                                <Button
                                     variant="success"
                                     className="flex-1 sm:flex-none gap-2"
                                     onClick={() => setIsSendModalOpen(true)}
@@ -3078,7 +3278,7 @@ export default function QuotePage() {
                                                 type="button"
                                                 variant="outline"
                                                 className="h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border font-semibold"
-                                                onClick={() => void handleResetMaterialPackageToNieuw()}
+                                                onClick={handleRequestResetMaterialPackageToNieuw}
                                             >
                                                 <Sparkles className="h-4 w-4 mr-2 text-muted-foreground" />
                                                 Nieuw
@@ -3599,19 +3799,28 @@ export default function QuotePage() {
                         </TabsContent>
 
                         {activeTab === 'materialen' && !!calculation?.data_json && (
-                            <div className="quote-materials-sticky-footer mobile-calm-pane fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur-sm">
-                                <div className="mx-auto max-w-7xl px-4 pt-2 pb-[max(env(safe-area-inset-bottom),0.75rem)] sm:px-6">
+                            <div className="quote-materials-sticky-footer mobile-calm-pane fixed bottom-0 left-0 right-0 z-30 border border-border/80 bg-background/95 backdrop-blur-sm md:bottom-0">
+                                <div className="mx-auto max-w-7xl px-4 py-2 sm:px-6">
                                     <div className="mobile-calm-card rounded-xl border border-border/70 bg-card/90 px-4 py-2 shadow-lg">
                                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <div className="w-6 h-6 rounded-md bg-muted flex items-center justify-center text-muted-foreground shrink-0">
-                                                    <Package size={14} />
-                                                </div>
-                                                <h3 className="font-semibold text-foreground tracking-tight text-xs uppercase whitespace-nowrap">
-                                                    Totaal materialen
-                                                </h3>
-                                            </div>
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => setIsMaterialExportOpen(true)}
+                                                disabled={materialExportItems.length === 0}
+                                                className="h-8 gap-2 text-xs sm:text-sm"
+                                            >
+                                                <Share2 className="h-3.5 w-3.5" />
+                                                Materiaallijst delen
+                                            </Button>
                                             <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-4">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <div className="w-6 h-6 rounded-md bg-muted flex items-center justify-center text-muted-foreground shrink-0">
+                                                        <Package size={14} />
+                                                    </div>
+                                                    <h3 className="font-semibold text-foreground tracking-tight text-xs uppercase whitespace-nowrap">
+                                                        Totaal materialen
+                                                    </h3>
+                                                </div>
                                                 <div className="flex items-center gap-2 whitespace-nowrap">
                                                     <span className="text-[11px] uppercase text-zinc-400 font-medium">
                                                         Totaal (excl. btw)
@@ -3674,12 +3883,51 @@ export default function QuotePage() {
                 defaultCategory="all"
             />
 
+            <AlertDialog open={confirmResetToNieuwOpen} onOpenChange={setConfirmResetToNieuwOpen}>
+                <AlertDialogContent className="rounded-2xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Starten met Nieuw?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Dit verwijdert de huidige materialen uit deze offerte en start zonder werkpakket.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2 sm:gap-2">
+                        <AlertDialogCancel className="rounded-xl">Annuleren</AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                type="button"
+                                variant="destructiveSoft"
+                                onClick={() => {
+                                    setConfirmResetToNieuwOpen(false);
+                                    void handleResetMaterialPackageToNieuw();
+                                }}
+                            >
+                                Start nieuw
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <MaterialListExportDialog
+                isOpen={isMaterialExportOpen}
+                onClose={() => setIsMaterialExportOpen(false)}
+                items={materialExportItems}
+                meta={materialExportContext}
+                suppliers={materialSuppliers}
+                defaultSupplierId={defaultMaterialSupplierId}
+                onUpdateSupplierContact={handleUpdateMaterialSupplierContact}
+                onCreateSupplier={handleCreateMaterialSupplier}
+                savedEmailTemplate={materialEmailTemplate}
+                onSaveEmailTemplate={handleSaveMaterialEmailTemplate}
+            />
+
             <Dialog open={isMaterialPackagePickerOpen} onOpenChange={setIsMaterialPackagePickerOpen}>
                 <DialogContent className="w-[95vw] max-w-[1200px] h-[88vh] overflow-hidden flex flex-col">
                     <DialogHeader className="space-y-2">
                         <DialogTitle>Kies een werkpakket</DialogTitle>
                         <DialogDescription>
-                            Selecteer een werkpakket of start direct zonder preset.
+                            Selecteer een werkpakket of start direct zonder werkpakket.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -3749,7 +3997,13 @@ export default function QuotePage() {
                     <div className="flex items-center justify-between gap-2 pt-2">
                         <Button
                             type="button"
-                            variant="outline"
+                            variant="ghost"
+                            onClick={() => setIsMaterialPackagePickerOpen(false)}
+                        >
+                            Terug
+                        </Button>
+                        <Button
+                            type="button"
                             onClick={() => {
                                 setIsMaterialPackagePickerOpen(false);
                                 openSaveMaterialPackageDialog();
@@ -3757,9 +4011,6 @@ export default function QuotePage() {
                         >
                             <Save className="h-4 w-4 mr-2" />
                             Opslaan als werkpakket
-                        </Button>
-                        <Button type="button" variant="ghost" onClick={() => setIsMaterialPackagePickerOpen(false)}>
-                            Sluiten
                         </Button>
                     </div>
                 </DialogContent>

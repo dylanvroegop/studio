@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Timestamp, collection, onSnapshot, query, where } from 'firebase/firestore';
-import { Calendar, FileSignature, Loader2, Pencil, Plus, Search } from 'lucide-react';
+import { Timestamp, collection, doc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { Calendar, FileSignature, Loader2, MoreHorizontal, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
@@ -13,6 +13,22 @@ import { DashboardHeader } from '@/components/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useFirestore, useUser } from '@/firebase';
 import type { Meerwerkbon, MeerwerkbonStatus } from '@/lib/types';
 import { formatCurrency } from '@/lib/meerwerkbon-utils';
@@ -53,6 +69,9 @@ export default function MeerwerkbonPage() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('alle');
   const [items, setItems] = useState<Array<Meerwerkbon & { updatedAtDate: Date | null }>>([]);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<(Meerwerkbon & { updatedAtDate: Date | null }) | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -106,6 +125,32 @@ export default function MeerwerkbonPage() {
     });
   }, [items, search, filter]);
 
+  function openArchiveDialog(item: Meerwerkbon & { updatedAtDate: Date | null }): void {
+    setArchiveTarget(item);
+    setArchiveOpen(true);
+  }
+
+  async function confirmArchive(): Promise<void> {
+    if (!user || !firestore || !archiveTarget || archiving) return;
+    setArchiving(true);
+    try {
+      const ref = doc(firestore, 'meerwerkbonnen', archiveTarget.id);
+      await updateDoc(ref, {
+        archived: true,
+        archivedAt: serverTimestamp(),
+        archivedBy: user.uid,
+        updatedAt: serverTimestamp(),
+      } as any);
+      setArchiveOpen(false);
+      setArchiveTarget(null);
+    } catch (e: any) {
+      console.error(e);
+      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon meerwerkbon niet archiveren.'}`);
+    } finally {
+      setArchiving(false);
+    }
+  }
+
   if (isUserLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -115,7 +160,7 @@ export default function MeerwerkbonPage() {
   }
 
   return (
-    <div className="app-shell min-h-screen bg-background pb-10">
+    <div className="app-shell min-h-screen bg-background pb-36 md:pb-28">
       <AppNavigation />
       <DashboardHeader user={user} title="Meerwerkbon" />
 
@@ -135,60 +180,14 @@ export default function MeerwerkbonPage() {
                 </div>
               )}
 
-              <div className="flex flex-col md:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Zoek op klant, bonnummer of offerte-id..."
-                    className="pl-9"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="h-10 gap-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200 dark:hover:text-emerald-100"
-                  >
-                    <Link href="/meerwerkbon/nieuw">
-                      <Plus className="h-4 w-4" />
-                      Nieuwe meerwerkbon
-                    </Link>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={filter === 'alle' ? 'outline' : 'ghost'}
-                    onClick={() => setFilter('alle')}
-                    className={cn('h-10', filter === 'alle' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
-                  >
-                    Alle
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={filter === 'concept' ? 'outline' : 'ghost'}
-                    onClick={() => setFilter('concept')}
-                    className={cn('h-10', filter === 'concept' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
-                  >
-                    Concept
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={filter === 'akkoord' ? 'outline' : 'ghost'}
-                    onClick={() => setFilter('akkoord')}
-                    className={cn('h-10', filter === 'akkoord' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
-                  >
-                    Akkoord
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={filter === 'verzonden' ? 'outline' : 'ghost'}
-                    onClick={() => setFilter('verzonden')}
-                    className={cn('h-10', filter === 'verzonden' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
-                  >
-                    Verzonden
-                  </Button>
-                </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Zoek op klant, bonnummer of offerte-id..."
+                  className="pl-9"
+                />
               </div>
             </CardContent>
           </Card>
@@ -258,6 +257,34 @@ export default function MeerwerkbonPage() {
                         <span className="hidden sm:inline">Openen</span>
                       </Link>
                     </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                          }}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Meer acties</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem
+                          className="cursor-pointer text-destructive focus:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openArchiveDialog(item);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Verwijderen
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))}
@@ -265,6 +292,92 @@ export default function MeerwerkbonPage() {
           )}
         </div>
       </main>
+
+      <div className="overview-sticky-footer fixed bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] z-40 md:bottom-0">
+        <div className="mx-auto w-full max-w-3xl px-4 md:px-6">
+          <div className="rounded-2xl border border-border/70 bg-card/95 p-2 shadow-xl backdrop-blur-md">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <Button
+                asChild
+                variant="default"
+                className="h-10 col-span-2 gap-2 sm:col-span-1"
+              >
+                <Link href="/meerwerkbon/nieuw">
+                  <Plus className="h-4 w-4" />
+                  Nieuwe meerwerkbon
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                variant={filter === 'alle' ? 'outline' : 'ghost'}
+                onClick={() => setFilter('alle')}
+                className={cn('h-10', filter === 'alle' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
+              >
+                Alle
+              </Button>
+              <Button
+                type="button"
+                variant={filter === 'concept' ? 'outline' : 'ghost'}
+                onClick={() => setFilter('concept')}
+                className={cn('h-10', filter === 'concept' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
+              >
+                Concept
+              </Button>
+              <Button
+                type="button"
+                variant={filter === 'akkoord' ? 'outline' : 'ghost'}
+                onClick={() => setFilter('akkoord')}
+                className={cn('h-10', filter === 'akkoord' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
+              >
+                Akkoord
+              </Button>
+              <Button
+                type="button"
+                variant={filter === 'verzonden' ? 'outline' : 'ghost'}
+                onClick={() => setFilter('verzonden')}
+                className={cn('h-10', filter === 'verzonden' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
+              >
+                Verzonden
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Meerwerkbon archiveren?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deze meerwerkbon wordt verplaatst naar het archief. Je kunt dit later ongedaan maken via het archief.
+              {archiveTarget ? (
+                <div className="mt-3 text-xs text-muted-foreground">
+                  <span className="font-mono text-foreground">
+                    {archiveTarget.numbering?.label || archiveTarget.id.slice(0, 8)}
+                  </span>
+                  <span className="opacity-30 mx-2">•</span>
+                  <span>{archiveTarget.clientSnapshot?.naam || 'Onbekende klant'}</span>
+                </div>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel disabled={archiving} className="rounded-xl">
+              Annuleren
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                type="button"
+                onClick={confirmArchive}
+                disabled={archiving}
+                variant="destructiveSoft"
+              >
+                {archiving ? 'Archiveren...' : 'Archiveren'}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

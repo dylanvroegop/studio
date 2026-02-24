@@ -247,14 +247,27 @@ function MaterialRow({
                 )}
                 {onRemoveItem && (
                     <td className="px-6 py-3 text-right">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setShowDeleteDialog(true)}
-                            className="h-8 w-8 text-zinc-600 hover:text-red-400 hover:bg-red-950/20 transition-all"
-                        >
-                            <Trash2 size={14} />
-                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
+                                >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">Meer acties</span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                    className="cursor-pointer text-destructive focus:text-destructive"
+                                    onClick={() => setShowDeleteDialog(true)}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                    Verwijderen
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </td>
                 )}
             </tr>
@@ -462,10 +475,11 @@ export function MaterialEditor({
                                 <Button
                                     type="button"
                                     variant="ghost"
-                                    className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                    size="icon"
+                                    className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
                                 >
-                                    <MoreHorizontal size={14} className="mr-1" />
-                                    Meer opties
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    <span className="sr-only">Meer opties</span>
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-72">

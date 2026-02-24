@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -61,6 +61,8 @@ export function SendQuoteModal({
     const [body, setBody] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSending, setIsSending] = useState(false);
+    const hasInitializedForOpenRef = useRef(false);
+    const isLaunchingMailRef = useRef(false);
     const [attachments, setAttachments] = useState<QuoteAttachmentOptions>({
         includeOfferte: true,
         includeTekeningen: true,
@@ -68,20 +70,27 @@ export function SendQuoteModal({
     });
 
     useEffect(() => {
-        if (isOpen && klantInfo) {
-            setEmail(klantInfo.emailadres || '');
-            setAttachments({
-                includeOfferte: true,
-                includeTekeningen: true,
-                includeWerkbeschrijving: true,
-            });
-
-            const shortDesc = generateWorkSummary(werkbeschrijving, 40);
-            setSubject(`Offerte #${offerteNummer}${shortDesc ? ` - ${shortDesc}` : ''}`);
-
-            // Set a default body or placeholder
-            setBody(`Beste ${klantInfo.voornaam || (klantInfo.bedrijfsnaam || 'klant')},\n\nHierbij ontvangt u de offerte voor de aangevraagde werkzaamheden.\n\nMet vriendelijke groet,\n\n${bedrijfsnaam || klantInfo.bedrijfsnaam || ''}`);
+        if (!isOpen) {
+            hasInitializedForOpenRef.current = false;
+            isLaunchingMailRef.current = false;
+            return;
         }
+
+        if (!klantInfo || hasInitializedForOpenRef.current) return;
+
+        hasInitializedForOpenRef.current = true;
+        setEmail(klantInfo.emailadres || '');
+        setAttachments({
+            includeOfferte: true,
+            includeTekeningen: true,
+            includeWerkbeschrijving: true,
+        });
+
+        const shortDesc = generateWorkSummary(werkbeschrijving, 40);
+        setSubject(`Offerte #${offerteNummer}${shortDesc ? ` - ${shortDesc}` : ''}`);
+
+        // Set a default body or placeholder
+        setBody(`Beste ${klantInfo.voornaam || (klantInfo.bedrijfsnaam || 'klant')},\n\nHierbij ontvangt u de offerte voor de aangevraagde werkzaamheden.\n\nMet vriendelijke groet,\n\n${bedrijfsnaam || klantInfo.bedrijfsnaam || ''}`);
     }, [isOpen, klantInfo, offerteNummer, werkbeschrijving, bedrijfsnaam]);
 
     const handleGenerateEmail = async () => {
@@ -169,7 +178,8 @@ export function SendQuoteModal({
     };
 
     const handleDownloadAndOpenEmail = async () => {
-        if (isSending) return;
+        if (isSending || isLaunchingMailRef.current) return;
+        isLaunchingMailRef.current = true;
         const trimmedEmail = email.trim();
         const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
         const selectedAttachmentCount = [attachments.includeOfferte, attachments.includeTekeningen, attachments.includeWerkbeschrijving]
@@ -239,6 +249,7 @@ export function SendQuoteModal({
             onClose();
         } finally {
             setIsSending(false);
+            isLaunchingMailRef.current = false;
         }
     };
 

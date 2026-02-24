@@ -168,11 +168,21 @@
     transition: left 200ms ease-out;
   }
 
+  .overview-sticky-footer {
+    left: 0;
+    right: 0;
+    transition: left 200ms ease-out;
+  }
+
   .app-nav-open .quote-materials-sticky-footer {
     left: 15.84rem;
   }
 
   .app-nav-open .settings-sticky-footer {
+    left: 15.84rem;
+  }
+
+  .app-nav-open .overview-sticky-footer {
     left: 15.84rem;
   }
 }

@@ -20,7 +20,7 @@ import {
   Calendar,
   FileText,
   Loader2,
-  Pencil,
+  MoreHorizontal,
   Plus,
   Search,
   Trash2,
@@ -45,6 +45,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useFirestore, useUser } from '@/firebase';
 import { createEmptyQuote } from '@/lib/firestore-actions';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
@@ -52,7 +58,7 @@ import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-sta
 import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-type FilterMode = 'alle' | 'concept' | 'verzonden';
+type FilterMode = 'alle' | 'concept' | 'verzonden' | 'berekend';
 
 type QuoteRow = Quote & {
   id: string;
@@ -317,11 +323,7 @@ export default function OffertesPage() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<QuoteRow | null>(null);
   const [archiving, setArchiving] = useState(false);
-  const [deletingConcepts, setDeletingConcepts] = useState(false);
-  const [deletingCalculatedQuotes, setDeletingCalculatedQuotes] = useState(false);
   const isSyncingTotalsRef = useRef(false);
-
-  const isDev = process.env.NODE_ENV !== 'production';
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -556,6 +558,7 @@ export default function OffertesPage() {
 
     if (filter === 'concept') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'concept');
     if (filter === 'verzonden') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden');
+    if (filter === 'berekend') result = result.filter((q) => q.status === 'in_behandeling' && hasCalculatedAmount(q.totaalbedrag || q.amount || 0));
 
     if (!s) return result;
     return result.filter((q) => {
@@ -699,66 +702,6 @@ export default function OffertesPage() {
     }
   }
 
-  async function handleDeleteAllConceptQuotes(): Promise<void> {
-    if (!user || !firestore || deletingConcepts || deletingCalculatedQuotes || !isDev) return;
-
-    const conceptQuotes = quotes.filter((q) => q.status === 'concept');
-    if (!conceptQuotes.length) return;
-
-    const akkoord = window.confirm(
-      `Weet je zeker dat je ${conceptQuotes.length} concept offertes definitief wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`
-    );
-    if (!akkoord) return;
-
-    setDeletingConcepts(true);
-    try {
-      for (let i = 0; i < conceptQuotes.length; i += 450) {
-        const chunk = conceptQuotes.slice(i, i + 450);
-        const batch = writeBatch(firestore);
-        chunk.forEach((quote) => {
-          batch.delete(doc(firestore, 'quotes', quote.id));
-        });
-        await batch.commit();
-      }
-    } catch (e: any) {
-      console.error(e);
-      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon concept offertes niet verwijderen.'}`);
-    } finally {
-      setDeletingConcepts(false);
-    }
-  }
-
-  async function handleDeleteAllCalculatedQuotes(): Promise<void> {
-    if (!user || !firestore || deletingCalculatedQuotes || deletingConcepts || !isDev) return;
-
-    const calculatedQuotes = quotes.filter(
-      (q) => q.status === 'in_behandeling' && hasCalculatedAmount(q.totaalbedrag || q.amount || 0)
-    );
-    if (!calculatedQuotes.length) return;
-
-    const akkoord = window.confirm(
-      `Weet je zeker dat je ${calculatedQuotes.length} berekende offertes definitief wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`
-    );
-    if (!akkoord) return;
-
-    setDeletingCalculatedQuotes(true);
-    try {
-      for (let i = 0; i < calculatedQuotes.length; i += 450) {
-        const chunk = calculatedQuotes.slice(i, i + 450);
-        const batch = writeBatch(firestore);
-        chunk.forEach((quote) => {
-          batch.delete(doc(firestore, 'quotes', quote.id));
-        });
-        await batch.commit();
-      }
-    } catch (e: any) {
-      console.error(e);
-      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon berekende offertes niet verwijderen.'}`);
-    } finally {
-      setDeletingCalculatedQuotes(false);
-    }
-  }
-
   if (isUserLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -784,7 +727,7 @@ export default function OffertesPage() {
 
   return (
     <TooltipProvider>
-      <div className="app-shell min-h-screen bg-background pb-10">
+      <div className="app-shell min-h-screen bg-background pb-36 md:pb-28">
         <AppNavigation />
         <DashboardHeader user={user} title="Offertes" />
 
@@ -815,158 +758,6 @@ export default function OffertesPage() {
                     />
                   </div>
 
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                    <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                      <DialogTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-10 w-full gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-200 dark:hover:text-cyan-100 sm:w-auto"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Nieuwe offerte
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>Nieuwe offerte</DialogTitle>
-                          <DialogDescription>
-                            Kies een bestaande klant of voeg een nieuwe klant toe. De offerte zelf start leeg.
-                          </DialogDescription>
-                        </DialogHeader>
-
-                        <div className="space-y-3">
-                          <Input
-                            value={clientSearch}
-                            onChange={(e) => setClientSearch(e.target.value)}
-                            placeholder="Zoek klanten op naam, e-mail of plaats..."
-                          />
-
-                          <div className="max-h-[50vh] overflow-y-auto space-y-2 pr-1">
-                            {filteredClients.length === 0 ? (
-                              <div className="text-sm text-muted-foreground p-3">Geen klanten gevonden.</div>
-                            ) : (
-                              filteredClients.map((c) => {
-                                const name = `${c.voornaam || ''} ${c.achternaam || ''}`.trim() || c.bedrijfsnaam || 'Onbekende klant';
-                                const isSelected = selectedClientId === c.id;
-                                return (
-                                  <button
-                                    key={c.id}
-                                    type="button"
-                                    onClick={() => setSelectedClientId(c.id)}
-                                    className={cn(
-                                      'w-full rounded-lg border p-3 text-left transition-colors',
-                                      isSelected
-                                        ? 'border-cyan-500/50 bg-cyan-500/10'
-                                        : 'border-border/50 bg-background/30 hover:bg-background/50'
-                                    )}
-                                  >
-                                    <div className="font-semibold text-sm">{name}</div>
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      {[c.emailadres, c.telefoonnummer, c.plaats].filter(Boolean).join(' • ') || '—'}
-                                    </div>
-                                  </button>
-                                );
-                              })
-                            )}
-                          </div>
-
-                          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setNewClientOpen(true)}
-                              className="h-10"
-                            >
-                              Nieuwe klant toevoegen
-                            </Button>
-
-                            <div className="flex flex-col gap-2 sm:flex-row">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="h-10"
-                                onClick={() => handleCreateEmptyQuote()}
-                                disabled={creatingQuote}
-                              >
-                                {creatingQuote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                Start zonder klant
-                              </Button>
-                              <Button
-                                type="button"
-                                className="h-10 border-cyan-500/50 bg-cyan-500/20 text-cyan-700 hover:bg-cyan-500/30 dark:text-cyan-100"
-                                onClick={() => handleCreateEmptyQuote({ withSelectedClient: true })}
-                                disabled={creatingQuote || !selectedClientId}
-                              >
-                                {creatingQuote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                Start met klant
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-
-                    <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap">
-                      <Button
-                        type="button"
-                        variant={filter === 'alle' ? 'outline' : 'ghost'}
-                        onClick={() => setFilter('alle')}
-                        className={cn('h-10', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
-                      >
-                        Alle
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={filter === 'concept' ? 'outline' : 'ghost'}
-                        onClick={() => setFilter('concept')}
-                        className={cn('h-10', filter === 'concept' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
-                      >
-                        Concept
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={filter === 'verzonden' ? 'outline' : 'ghost'}
-                        onClick={() => setFilter('verzonden')}
-                        className={cn('h-10', filter === 'verzonden' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
-                      >
-                        Verzonden
-                      </Button>
-                    </div>
-                  </div>
-
-                  {isDev ? (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <Button
-                        type="button"
-                        variant="destructiveSoft"
-                        className="h-10"
-                        onClick={handleDeleteAllConceptQuotes}
-                        disabled={deletingConcepts || deletingCalculatedQuotes || !quotes.some((q) => q.status === 'concept')}
-                      >
-                        {deletingConcepts ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
-                        Verwijder alle concepten
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="destructiveSoft"
-                        className="h-10"
-                        onClick={handleDeleteAllCalculatedQuotes}
-                        disabled={
-                          deletingCalculatedQuotes
-                          || deletingConcepts
-                          || !quotes.some((q) => q.status === 'in_behandeling' && hasCalculatedAmount(q.totaalbedrag || q.amount || 0))
-                        }
-                      >
-                        {deletingCalculatedQuotes ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4 mr-2" />
-                        )}
-                        Verwijder alle berekende
-                      </Button>
-                    </div>
-                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -1080,39 +871,38 @@ export default function OffertesPage() {
                           <TooltipContent>Open de offerte</TooltipContent>
                         </Tooltip>
 
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              className="h-9 flex-1 gap-2 border border-border bg-muted/60 shadow-sm hover:bg-muted sm:flex-none"
-                              aria-label="Open calculatie"
+                        <DropdownMenu>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Meer acties</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent>Meer acties</TooltipContent>
+                          </Tooltip>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem
+                              className="cursor-pointer text-destructive focus:text-destructive"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                e.preventDefault();
-                                router.push(`/offertes/${q.id}/overzicht`);
+                                openArchiveDialog(q);
                               }}
                             >
-                              <Pencil className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">Calculatie</span>
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Open de calculatie</TooltipContent>
-                        </Tooltip>
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground transition-all hover:border hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            openArchiveDialog(q);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Archiveren</span>
-                        </Button>
+                              <Trash2 className="h-4 w-4" />
+                              Verwijderen
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   );
@@ -1121,6 +911,137 @@ export default function OffertesPage() {
             )}
           </div>
         </main>
+
+        <div className="overview-sticky-footer fixed bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] z-40 md:bottom-0">
+          <div className="mx-auto w-full max-w-3xl px-4 md:px-6">
+            <div className="rounded-2xl border border-border/70 bg-card/95 p-2 shadow-xl backdrop-blur-md">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      type="button"
+                      className="h-10 col-span-2 gap-2 sm:col-span-1"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Nieuwe offerte
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Nieuwe offerte</DialogTitle>
+                      <DialogDescription>
+                        Kies een bestaande klant of voeg een nieuwe klant toe. De offerte zelf start leeg.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                      <Input
+                        value={clientSearch}
+                        onChange={(e) => setClientSearch(e.target.value)}
+                        placeholder="Zoek klanten op naam, e-mail of plaats..."
+                      />
+
+                      <div className="max-h-[50vh] overflow-y-auto space-y-2 pr-1">
+                        {filteredClients.length === 0 ? (
+                          <div className="text-sm text-muted-foreground p-3">Geen klanten gevonden.</div>
+                        ) : (
+                          filteredClients.map((c) => {
+                            const name = `${c.voornaam || ''} ${c.achternaam || ''}`.trim() || c.bedrijfsnaam || 'Onbekende klant';
+                            const isSelected = selectedClientId === c.id;
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => setSelectedClientId(c.id)}
+                                className={cn(
+                                  'w-full rounded-lg border p-3 text-left transition-colors',
+                                  isSelected
+                                    ? 'border-cyan-500/50 bg-cyan-500/10'
+                                    : 'border-border/50 bg-background/30 hover:bg-background/50'
+                                )}
+                              >
+                                <div className="font-semibold text-sm">{name}</div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {[c.emailadres, c.telefoonnummer, c.plaats].filter(Boolean).join(' • ') || '—'}
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setNewClientOpen(true)}
+                          className="h-10"
+                        >
+                          Nieuwe klant toevoegen
+                        </Button>
+
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-10"
+                            onClick={() => handleCreateEmptyQuote()}
+                            disabled={creatingQuote}
+                          >
+                            {creatingQuote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Start zonder klant
+                          </Button>
+                          <Button
+                            type="button"
+                            className="h-10 border-cyan-500/50 bg-cyan-500/20 text-cyan-700 hover:bg-cyan-500/30 dark:text-cyan-100"
+                            onClick={() => handleCreateEmptyQuote({ withSelectedClient: true })}
+                            disabled={creatingQuote || !selectedClientId}
+                          >
+                            {creatingQuote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Start met klant
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                <Button
+                  type="button"
+                  variant={filter === 'alle' ? 'outline' : 'ghost'}
+                  onClick={() => setFilter('alle')}
+                  className={cn('h-10', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
+                >
+                  Alle
+                </Button>
+                <Button
+                  type="button"
+                  variant={filter === 'concept' ? 'outline' : 'ghost'}
+                  onClick={() => setFilter('concept')}
+                  className={cn('h-10', filter === 'concept' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
+                >
+                  Concept
+                </Button>
+                <Button
+                  type="button"
+                  variant={filter === 'verzonden' ? 'outline' : 'ghost'}
+                  onClick={() => setFilter('verzonden')}
+                  className={cn('h-10', filter === 'verzonden' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
+                >
+                  Verzonden
+                </Button>
+                <Button
+                  type="button"
+                  variant={filter === 'berekend' ? 'outline' : 'ghost'}
+                  onClick={() => setFilter('berekend')}
+                  className={cn('h-10', filter === 'berekend' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
+                >
+                  Berekend
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
           <AlertDialogContent className="rounded-2xl">

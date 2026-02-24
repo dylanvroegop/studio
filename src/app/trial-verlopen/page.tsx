@@ -93,7 +93,7 @@ export default function TrialVerlopenPage() {
             Demo verlopen
           </CardTitle>
           <CardDescription>
-            Uw proefperiode van 14 dagen is afgelopen. Bekijk de abonnementen om door te gaan.
+            Uw proefperiode van 7 dagen is afgelopen. Bekijk de abonnementen om door te gaan.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

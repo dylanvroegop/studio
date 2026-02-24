@@ -15,7 +15,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { Calendar, CheckCircle2, Loader2, Pencil, Plus, ReceiptText, Search, Trash2, FileText } from 'lucide-react';
+import { Calendar, CheckCircle2, Loader2, MoreHorizontal, Pencil, Plus, ReceiptText, Search, Trash2, FileText } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +27,12 @@ import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -41,7 +47,7 @@ import { nl } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
 import { promoteInvoiceRelatedQuotesToAcceptedInTransaction } from '@/lib/quote-status';
 
-type FilterMode = 'alle' | 'openstaand' | 'betaald';
+type FilterMode = 'alle' | 'concept' | 'verzonden' | 'openstaand' | 'betaald';
 
 function naarDate(value: any): Date | null {
   if (!value) return null;
@@ -160,6 +166,12 @@ export default function FacturenPage() {
     if (filter === 'openstaand') {
       result = result.filter((inv) => (inv.paymentSummary?.openAmount ?? inv.totalsSnapshot?.totaalInclBtw ?? 0) > 0);
     }
+    if (filter === 'concept') {
+      result = result.filter((inv) => inv.status === 'concept');
+    }
+    if (filter === 'verzonden') {
+      result = result.filter((inv) => inv.status === 'verzonden');
+    }
     if (filter === 'betaald') {
       result = result.filter((inv) => inv.status === 'betaald');
     }
@@ -260,7 +272,7 @@ export default function FacturenPage() {
 
   return (
     <TooltipProvider>
-      <div className="app-shell min-h-screen bg-background pb-10">
+      <div className="app-shell min-h-screen bg-background pb-36 md:pb-28">
         <AppNavigation />
         <DashboardHeader user={user} title="Facturen" />
 
@@ -280,127 +292,14 @@ export default function FacturenPage() {
                 </div>
               )}
 
-              <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Zoek op klant, factuurnummer of offerte-id..."
-                    className="pl-9"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                    <DialogTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-10 gap-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200 dark:hover:text-emerald-100"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Nieuwe factuur
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-2xl">
-                      <DialogHeader>
-                        <DialogTitle>Nieuwe factuur</DialogTitle>
-                        <DialogDescription>Kies een offerte en maak een voorschot- of eindfactuur.</DialogDescription>
-                      </DialogHeader>
-
-                      <div className="space-y-3">
-                        <Input
-                          value={quoteSearch}
-                          onChange={(e) => setQuoteSearch(e.target.value)}
-                          placeholder="Zoek offertes op klant, titel of nummer..."
-                        />
-
-                        <div className="max-h-[60vh] overflow-y-auto space-y-2 pr-1">
-                          {filteredQuotes.length === 0 ? (
-                            <div className="text-sm text-muted-foreground p-3">Geen offertes gevonden.</div>
-                          ) : (
-                            filteredQuotes.map((q) => {
-                              const klant =
-                                q?.klantinformatie?.bedrijfsnaam ||
-                                `${q?.klantinformatie?.voornaam || ''} ${q?.klantinformatie?.achternaam || ''}`.trim() ||
-                                'Onbekende klant';
-                              const label = typeof q?.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
-                              const total = typeof q?.amount === 'number' ? q.amount : (typeof q?.totaalbedrag === 'number' ? q.totaalbedrag : 0);
-                              const disabled = !total || total <= 0;
-                              return (
-                                <div key={q.id} className="rounded-lg border border-border/50 bg-background/30 p-3 flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
-                                      <div className="font-semibold text-sm truncate">{label}</div>
-                                      <div className="text-xs text-muted-foreground truncate">• {klant}</div>
-                                    </div>
-                                    <div className="text-xs text-muted-foreground mt-1 truncate">
-                                      {(q?.titel || q?.title || '').toString() || '—'}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      Totaal: {formatCurrency(total)}
-                                    </div>
-                                  </div>
-                                  <div className="flex gap-2 shrink-0">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      className="h-9"
-                                      disabled={disabled}
-                                      onClick={() => {
-                                        router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=voorschot`);
-                                        setCreateOpen(false);
-                                      }}
-                                    >
-                                      Voorschot
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="success"
-                                      className="h-9"
-                                      disabled={disabled}
-                                      onClick={() => {
-                                        router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=eind`);
-                                        setCreateOpen(false);
-                                      }}
-                                    >
-                                      Eindfactuur
-                                    </Button>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                  <Button
-                    type="button"
-                    variant={filter === 'alle' ? 'outline' : 'ghost'}
-                    onClick={() => setFilter('alle')}
-                    className={cn('h-10', filter === 'alle' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
-                  >
-                    Alle
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={filter === 'openstaand' ? 'outline' : 'ghost'}
-                    onClick={() => setFilter('openstaand')}
-                    className={cn('h-10', filter === 'openstaand' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
-                  >
-                    Openstaand
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={filter === 'betaald' ? 'outline' : 'ghost'}
-                    onClick={() => setFilter('betaald')}
-                    className={cn('h-10', filter === 'betaald' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
-                  >
-                    Betaald
-                  </Button>
-                </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Zoek op klant, factuurnummer of offerte-id..."
+                  className="pl-9"
+                />
               </div>
             </CardContent>
           </Card>
@@ -528,19 +427,34 @@ export default function FacturenPage() {
                         <TooltipContent>Open deze factuur</TooltipContent>
                       </Tooltip>
 
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 hover:border hover:border-red-500/20 rounded-lg transition-all"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          openArchiveDialog(inv);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Archiveren</span>
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                            }}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Meer acties</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuItem
+                            className="cursor-pointer text-destructive focus:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openArchiveDialog(inv);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Verwijderen
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 );
@@ -549,6 +463,140 @@ export default function FacturenPage() {
           )}
           </div>
         </main>
+
+        <div className="overview-sticky-footer fixed bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] z-40 md:bottom-0">
+          <div className="mx-auto w-full max-w-3xl px-4 md:px-6">
+            <div className="rounded-2xl border border-border/70 bg-card/95 p-2 shadow-xl backdrop-blur-md">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="h-10 col-span-2 gap-2 sm:col-span-1"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Nieuwe factuur
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Nieuwe factuur</DialogTitle>
+                      <DialogDescription>Kies een offerte en maak een voorschot- of eindfactuur.</DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                      <Input
+                        value={quoteSearch}
+                        onChange={(e) => setQuoteSearch(e.target.value)}
+                        placeholder="Zoek offertes op klant, titel of nummer..."
+                      />
+
+                      <div className="max-h-[60vh] overflow-y-auto space-y-2 pr-1">
+                        {filteredQuotes.length === 0 ? (
+                          <div className="text-sm text-muted-foreground p-3">Geen offertes gevonden.</div>
+                        ) : (
+                          filteredQuotes.map((q) => {
+                            const klant =
+                              q?.klantinformatie?.bedrijfsnaam ||
+                              `${q?.klantinformatie?.voornaam || ''} ${q?.klantinformatie?.achternaam || ''}`.trim() ||
+                              'Onbekende klant';
+                            const label = typeof q?.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
+                            const total = typeof q?.amount === 'number' ? q.amount : (typeof q?.totaalbedrag === 'number' ? q.totaalbedrag : 0);
+                            const disabled = !total || total <= 0;
+                            return (
+                              <div key={q.id} className="rounded-lg border border-border/50 bg-background/30 p-3 flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
+                                    <div className="font-semibold text-sm truncate">{label}</div>
+                                    <div className="text-xs text-muted-foreground truncate">• {klant}</div>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1 truncate">
+                                    {(q?.titel || q?.title || '').toString() || '—'}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    Totaal: {formatCurrency(total)}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2 shrink-0">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-9"
+                                    disabled={disabled}
+                                    onClick={() => {
+                                      router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=voorschot`);
+                                      setCreateOpen(false);
+                                    }}
+                                  >
+                                    Voorschot
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="success"
+                                    className="h-9"
+                                    disabled={disabled}
+                                    onClick={() => {
+                                      router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=eind`);
+                                      setCreateOpen(false);
+                                    }}
+                                  >
+                                    Eindfactuur
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Button
+                  type="button"
+                  variant={filter === 'alle' ? 'outline' : 'ghost'}
+                  onClick={() => setFilter('alle')}
+                  className={cn('h-10', filter === 'alle' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
+                >
+                  Alle
+                </Button>
+                <Button
+                  type="button"
+                  variant={filter === 'concept' ? 'outline' : 'ghost'}
+                  onClick={() => setFilter('concept')}
+                  className={cn('h-10', filter === 'concept' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
+                >
+                  Concept
+                </Button>
+                <Button
+                  type="button"
+                  variant={filter === 'openstaand' ? 'outline' : 'ghost'}
+                  onClick={() => setFilter('openstaand')}
+                  className={cn('h-10', filter === 'openstaand' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
+                >
+                  Openstaand
+                </Button>
+                <Button
+                  type="button"
+                  variant={filter === 'verzonden' ? 'outline' : 'ghost'}
+                  onClick={() => setFilter('verzonden')}
+                  className={cn('h-10', filter === 'verzonden' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
+                >
+                  Verzonden
+                </Button>
+                <Button
+                  type="button"
+                  variant={filter === 'betaald' ? 'outline' : 'ghost'}
+                  onClick={() => setFilter('betaald')}
+                  className={cn('h-10', filter === 'betaald' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
+                >
+                  Betaald
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
           <AlertDialogContent className="rounded-2xl">
