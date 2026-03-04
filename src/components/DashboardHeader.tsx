@@ -164,6 +164,10 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
     }
 
     try {
+      await fetch('/api/auth/session', {
+        method: 'DELETE',
+        credentials: 'include',
+      }).catch(() => null);
       await signOut(auth);
       toast({ title: 'Succes', description: 'U bent uitgelogd.' });
       router.push('/login');

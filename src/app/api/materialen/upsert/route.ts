@@ -6,6 +6,7 @@ import { getDefaultTemplateUidOrThrow } from '@/lib/bootstrap-defaults';
 import { parsePriceToNumber } from '@/lib/utils';
 import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
+import { isFeatureEnabled } from '@/lib/feature-flags';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -773,7 +774,9 @@ export async function POST(req: Request) {
         ? { ...payload, safety_answers: safetyAnswers }
         : payload;
     const dbPayload = toMainMaterialListPayload(payload);
-    const useN8nMaterialenUpsertRoute = process.env.USE_N8N_MATERIALEN_UPSERT_ROUTE === 'true';
+    const useN8nMaterialenUpsertRoute =
+      process.env.USE_N8N_MATERIALEN_UPSERT_ROUTE === 'true'
+      && await isFeatureEnabled('materials.n8n_upsert_enabled', true);
 
     let data: any = null;
     let realRowId: string | null = null;

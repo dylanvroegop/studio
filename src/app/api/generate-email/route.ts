@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
+import { isFeatureEnabled } from '@/lib/feature-flags';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -111,6 +112,11 @@ export async function POST(request: Request) {
     const webhookUrl = getWebhookUrl();
     if (!webhookUrl) {
       return NextResponse.json({ error: 'Webhook URL is not configured' }, { status: 500 });
+    }
+
+    const featureEnabled = await isFeatureEnabled('ai.generate_email_enabled', true);
+    if (!featureEnabled) {
+      return NextResponse.json({ error: 'AI e-mail generatie is tijdelijk uitgeschakeld' }, { status: 503 });
     }
 
     const webhookSecret = process.env.N8N_HEADER_SECRET?.trim();

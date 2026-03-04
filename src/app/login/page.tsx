@@ -21,6 +21,15 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 
+function resolveSafeNextPath(raw: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('/')) return null;
+  if (trimmed.startsWith('//')) return null;
+  if (trimmed.startsWith('/login')) return null;
+  return trimmed;
+}
+
 function LoginPageContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,6 +43,7 @@ function LoginPageContent() {
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const claimAttemptedRef = useRef<string | null>(null);
+  const nextPath = resolveSafeNextPath(searchParams.get('next'));
 
   const checkoutSessionId =
     (searchParams.get('session_id') || searchParams.get('stripe_session_id') || searchParams.get('checkout_session_id') || '').trim();
@@ -77,28 +87,72 @@ function LoginPageContent() {
     }
   };
 
+  const syncServerSession = async (firebaseUser: User): Promise<boolean> => {
+    try {
+      const token = await firebaseUser.getIdToken(true);
+      const response = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ idToken: token }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        toast({
+          variant: 'destructive',
+          title: 'Sessie synchroniseren mislukt',
+          description: payload?.message || 'Probeer opnieuw in te loggen.',
+        });
+        return false;
+      }
+
+      return true;
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Sessie synchroniseren mislukt',
+        description: 'Probeer opnieuw in te loggen.',
+      });
+      return false;
+    }
+  };
+
+  const redirectAfterLogin = async (firebaseUser: User): Promise<void> => {
+    const sessionOk = await syncServerSession(firebaseUser);
+    if (!sessionOk) return;
+
+    await claimStripeSessionIfPresent(firebaseUser);
+    router.push(nextPath || '/dashboard');
+  };
+
   useEffect(() => {
     if (!isUserLoading && user) {
       const key = `${user.uid}:${checkoutSessionId}`;
       if (claimAttemptedRef.current === key) {
-        router.push('/dashboard');
+        void redirectAfterLogin(user);
         return;
       }
       claimAttemptedRef.current = key;
 
       let cancelled = false;
       (async () => {
-        await claimStripeSessionIfPresent(user);
-        if (!cancelled) {
-          router.push('/dashboard');
+        const sessionOk = await syncServerSession(user);
+        if (!sessionOk || cancelled) {
+          return;
         }
+
+        await claimStripeSessionIfPresent(user);
+        if (!cancelled) router.push(nextPath || '/dashboard');
       })();
 
       return () => {
         cancelled = true;
       };
     }
-  }, [user, isUserLoading, router, checkoutSessionId]);
+  }, [user, isUserLoading, router, checkoutSessionId, nextPath]);
 
   const handleLogin = async () => {
     setIsLoading(true);
@@ -111,8 +165,7 @@ function LoginPageContent() {
 
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       claimAttemptedRef.current = `${userCredential.user.uid}:${checkoutSessionId}`;
-      await claimStripeSessionIfPresent(userCredential.user);
-      router.push('/dashboard');
+      await redirectAfterLogin(userCredential.user);
     } catch (e) {
       const authError = e as AuthError;
       let errorMessage = 'Er is een onbekende fout opgetreden.';

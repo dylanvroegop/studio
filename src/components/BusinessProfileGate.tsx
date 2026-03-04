@@ -7,7 +7,7 @@ import { useFirestore, useUser } from '@/firebase';
 import { isBusinessProfileComplete } from '@/lib/business-profile-completion';
 import { getDemoTrialState } from '@/lib/demo-trial';
 
-const ONBOARDING_BYPASS_PATH_PREFIXES = ['/instellingen', '/login', '/register', '/view', '/support', '/trial-verlopen'];
+const ONBOARDING_BYPASS_PATH_PREFIXES = ['/instellingen', '/login', '/register', '/view', '/support', '/trial-verlopen', '/admin'];
 
 function isOnboardingBypassPath(pathname: string): boolean {
   return ONBOARDING_BYPASS_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));

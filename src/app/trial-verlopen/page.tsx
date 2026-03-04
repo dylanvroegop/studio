@@ -27,6 +27,10 @@ export default function TrialVerlopenPage() {
   const handleBackToLogin = async () => {
     setIsLoggingOut(true);
     try {
+      await fetch('/api/auth/session', {
+        method: 'DELETE',
+        credentials: 'include',
+      }).catch(() => null);
       if (auth) {
         await signOut(auth);
       }

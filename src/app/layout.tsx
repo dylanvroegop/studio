@@ -5,6 +5,7 @@ import { FirebaseClientProvider } from '@/firebase';
 import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
 import { BusinessProfileGate } from '@/components/BusinessProfileGate';
 import { ThemeModeProvider } from '@/context/ThemeModeContext';
+import { AuthSessionSync } from '@/components/AuthSessionSync';
 
 export const metadata: Metadata = {
   title: 'Calvora',
@@ -50,6 +51,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>
+          <AuthSessionSync />
           <ThemeModeProvider>
             <MeasurementUnitProvider>
               <BusinessProfileGate />
