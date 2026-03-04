@@ -912,15 +912,15 @@ export default function OffertesPage() {
           </div>
         </main>
 
-        <div className="overview-sticky-footer fixed bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] z-40 md:bottom-0">
-          <div className="mx-auto w-full max-w-3xl px-4 md:px-6">
-            <div className="rounded-2xl border border-border/70 bg-card/95 p-2 shadow-xl backdrop-blur-md">
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+        <div className="overview-sticky-footer fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),0px)] z-40 md:bottom-0">
+          <div className="mx-auto w-full max-w-3xl px-0 md:px-6">
+            <div className="rounded-t-2xl border-t border-border/70 bg-card/95 px-4 py-3 shadow-2xl backdrop-blur-md sm:rounded-2xl sm:border sm:p-2 sm:shadow-xl">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
                 <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                   <DialogTrigger asChild>
                     <Button
                       type="button"
-                      className="h-10 col-span-2 gap-2 sm:col-span-1"
+                      className="h-10 shrink-0 gap-2 px-4"
                     >
                       <Plus className="h-4 w-4" />
                       Nieuwe offerte
@@ -1010,7 +1010,7 @@ export default function OffertesPage() {
                   type="button"
                   variant={filter === 'alle' ? 'outline' : 'ghost'}
                   onClick={() => setFilter('alle')}
-                  className={cn('h-10', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
+                  className={cn('h-10 shrink-0', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
                 >
                   Alle
                 </Button>
@@ -1018,7 +1018,7 @@ export default function OffertesPage() {
                   type="button"
                   variant={filter === 'concept' ? 'outline' : 'ghost'}
                   onClick={() => setFilter('concept')}
-                  className={cn('h-10', filter === 'concept' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
+                  className={cn('h-10 shrink-0', filter === 'concept' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
                 >
                   Concept
                 </Button>
@@ -1026,7 +1026,7 @@ export default function OffertesPage() {
                   type="button"
                   variant={filter === 'verzonden' ? 'outline' : 'ghost'}
                   onClick={() => setFilter('verzonden')}
-                  className={cn('h-10', filter === 'verzonden' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
+                  className={cn('h-10 shrink-0', filter === 'verzonden' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
                 >
                   Verzonden
                 </Button>
@@ -1034,7 +1034,7 @@ export default function OffertesPage() {
                   type="button"
                   variant={filter === 'berekend' ? 'outline' : 'ghost'}
                   onClick={() => setFilter('berekend')}
-                  className={cn('h-10', filter === 'berekend' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
+                  className={cn('h-10 shrink-0', filter === 'berekend' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
                 >
                   Berekend
                 </Button>
