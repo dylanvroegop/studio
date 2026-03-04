@@ -259,95 +259,104 @@ export async function searchAdminSubscriptions(query: string): Promise<AdminSubs
 }
 
 export async function searchAdminQuotes(query: string): Promise<AdminQuoteRow[]> {
-  const { firestore } = initFirebaseAdmin();
-  const q = query.trim().toLowerCase();
-  type QuoteDocLike = { id: string; data: () => Record<string, unknown> | undefined };
+  try {
+    const { firestore } = initFirebaseAdmin();
+    const q = query.trim().toLowerCase();
+    type QuoteDocLike = { id: string; data: () => Record<string, unknown> | undefined };
 
-  let docs: QuoteDocLike[] = [];
-  if (query.trim()) {
-    const exact = await firestore.collection('quotes').doc(query.trim()).get().catch(() => null);
-    if (exact?.exists) {
-      docs = [exact as unknown as QuoteDocLike];
+    let docs: QuoteDocLike[] = [];
+    if (query.trim()) {
+      const exact = await firestore.collection('quotes').doc(query.trim()).get().catch(() => null);
+      if (exact?.exists) {
+        docs = [exact as unknown as QuoteDocLike];
+      }
     }
-  }
 
-  if (docs.length === 0) {
-    const recentSnap = await firestore.collection('quotes').orderBy('updatedAt', 'desc').limit(20).get();
-    docs = recentSnap.docs as unknown as QuoteDocLike[];
-  }
-
-  const quoteIds = docs.map((doc) => doc.id);
-  let supabaseRows: Record<string, unknown>[] = [];
-  if (quoteIds.length > 0) {
-    const { data } = await supabaseAdmin
-      .from('quotes_collection')
-      .select('id, quoteid, gebruikerid, status, data_json, created_at')
-      .in('quoteid', quoteIds)
-      .order('created_at', { ascending: false });
-    supabaseRows = (data || []) as Record<string, unknown>[];
-  }
-
-  const supabaseMap = new Map<string, Record<string, unknown>>();
-  supabaseRows.forEach((row) => {
-    const quoteId = normalizeString(row.quoteid);
-    if (quoteId && !supabaseMap.has(quoteId)) {
-      supabaseMap.set(quoteId, row);
+    if (docs.length === 0) {
+      const recentSnap = await firestore.collection('quotes').orderBy('updatedAt', 'desc').limit(20).get();
+      docs = recentSnap.docs as unknown as QuoteDocLike[];
     }
-  });
 
-  const results: AdminQuoteRow[] = [];
-  docs.forEach((doc) => {
-    const data = (doc.data() || {}) as Record<string, unknown>;
-    const customerData =
-      data.klantinformatie && typeof data.klantinformatie === 'object'
-        ? (data.klantinformatie as Record<string, unknown>)
-        : {};
-    const businessData =
-      data.bedrijfsgegevens && typeof data.bedrijfsgegevens === 'object'
-        ? (data.bedrijfsgegevens as Record<string, unknown>)
-        : {};
+    const quoteIds = docs.map((doc) => doc.id);
+    let supabaseRows: Record<string, unknown>[] = [];
+    if (quoteIds.length > 0) {
+      try {
+        const { data } = await supabaseAdmin
+          .from('quotes_collection')
+          .select('id, quoteid, gebruikerid, status, data_json, created_at')
+          .in('quoteid', quoteIds)
+          .order('created_at', { ascending: false });
+        supabaseRows = (data || []) as Record<string, unknown>[];
+      } catch (error) {
+        console.error('Admin quotes: Supabase lookup failed, falling back to Firestore only.', error);
+      }
+    }
 
-    const customerName =
-      normalizeString(customerData.bedrijfsnaam)
-      || [normalizeString(customerData.voornaam), normalizeString(customerData.achternaam)]
+    const supabaseMap = new Map<string, Record<string, unknown>>();
+    supabaseRows.forEach((row) => {
+      const quoteId = normalizeString(row.quoteid);
+      if (quoteId && !supabaseMap.has(quoteId)) {
+        supabaseMap.set(quoteId, row);
+      }
+    });
+
+    const results: AdminQuoteRow[] = [];
+    docs.forEach((doc) => {
+      const data = (doc.data() || {}) as Record<string, unknown>;
+      const customerData =
+        data.klantinformatie && typeof data.klantinformatie === 'object'
+          ? (data.klantinformatie as Record<string, unknown>)
+          : {};
+      const businessData =
+        data.bedrijfsgegevens && typeof data.bedrijfsgegevens === 'object'
+          ? (data.bedrijfsgegevens as Record<string, unknown>)
+          : {};
+
+      const customerName =
+        normalizeString(customerData.bedrijfsnaam)
+        || [normalizeString(customerData.voornaam), normalizeString(customerData.achternaam)]
+          .filter(Boolean)
+          .join(' ')
+        || null;
+      const companyName = normalizeString(businessData.naam);
+      const haystack = [doc.id, customerName, companyName, normalizeString(data.userId)]
         .filter(Boolean)
         .join(' ')
-      || null;
-    const companyName = normalizeString(businessData.naam);
-    const haystack = [doc.id, customerName, companyName, normalizeString(data.userId)]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-    if (q && !haystack.includes(q)) return;
+        .toLowerCase();
+      if (q && !haystack.includes(q)) return;
 
-    const supabaseRow = supabaseMap.get(doc.id) || null;
-    const preview = {
-      titel: normalizeString(data.titel) || normalizeString(data.werkomschrijving),
-      offerteNummer: normalizeString(data.offerteNummer),
-      klantEmail: normalizeString(customerData['e-mailadres']),
-    };
+      const supabaseRow = supabaseMap.get(doc.id) || null;
+      const preview = {
+        titel: normalizeString(data.titel) || normalizeString(data.werkomschrijving),
+        offerteNummer: normalizeString(data.offerteNummer),
+        klantEmail: normalizeString(customerData['e-mailadres']),
+      };
 
-    results.push({
-      quoteId: doc.id,
-      ownerUid: normalizeString(data.userId),
-      customerName,
-      companyName,
-      status: normalizeString(data.status),
-      updatedAt: toDateString(data.updatedAt),
-      calculationStartedAt: toDateString(data.calculationStartedAt),
-      calculationFailedAt: toDateString(data.calculationFailedAt),
-      hasSupabaseCalculation: Boolean(supabaseRow),
-      supabaseCalculationId: normalizeString(supabaseRow?.id),
-      supabaseStatus: normalizeString(supabaseRow?.status),
-      quotePreview: preview,
-      generatedOutputPreview:
-        supabaseRow && typeof supabaseRow.data_json === 'object'
-          ? (supabaseRow.data_json as Record<string, unknown>)
-          : null,
+      results.push({
+        quoteId: doc.id,
+        ownerUid: normalizeString(data.userId),
+        customerName,
+        companyName,
+        status: normalizeString(data.status),
+        updatedAt: toDateString(data.updatedAt),
+        calculationStartedAt: toDateString(data.calculationStartedAt),
+        calculationFailedAt: toDateString(data.calculationFailedAt),
+        hasSupabaseCalculation: Boolean(supabaseRow),
+        supabaseCalculationId: normalizeString(supabaseRow?.id),
+        supabaseStatus: normalizeString(supabaseRow?.status),
+        quotePreview: preview,
+        generatedOutputPreview:
+          supabaseRow && typeof supabaseRow.data_json === 'object'
+            ? (supabaseRow.data_json as Record<string, unknown>)
+            : null,
+      });
     });
-  });
 
-  return results.slice(0, 20);
+    return results.slice(0, 20);
+  } catch (error) {
+    console.error('Admin quotes: page data failed.', error);
+    return [];
+  }
 }
 
 export async function getAdminAuditLogs(): Promise<AdminAuditLogEntry[]> {
