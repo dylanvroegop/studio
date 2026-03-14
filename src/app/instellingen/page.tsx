@@ -879,7 +879,7 @@ function InstellingenPageContent() {
                                                     </div>
 
                                                     <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
-                                                        <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex flex-wrap items-center justify-between gap-2">
                                                             <div>
                                                                 <p className="text-sm font-semibold">Supplier material list upload (mail contacten)</p>
                                                                 <p className="text-xs text-muted-foreground">Meerdere contactpersonen voor materiaallijst delen.</p>
@@ -962,7 +962,7 @@ function InstellingenPageContent() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-3">
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
                                     <p className="text-xs text-muted-foreground">Bijv. Bouwcenter - € 150</p>
                                     <Button
                                         type="button"
@@ -1026,7 +1026,7 @@ function InstellingenPageContent() {
                                                 </div>
                                                 <div className="flex flex-wrap items-center gap-3">
                                                     <span className="text-sm text-foreground">Gratis verzending boven:</span>
-                                                    <div className="relative w-[180px]">
+                                                    <div className="relative w-full sm:w-[180px]">
                                                         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
                                                         <Input
                                                             type="number"

@@ -241,7 +241,7 @@ export function AppNavigation() {
                                 <Menu className="h-4 w-4" />
                             </Button>
                         </SheetTrigger>
-                        <SheetContent side="left" className="w-[300px] p-0 sm:w-[350px]">
+                        <SheetContent side="left" className="w-[85vw] max-w-[350px] p-0">
                             <SheetHeader className="sr-only">
                                 <SheetTitle>Navigatie</SheetTitle>
                                 <SheetDescription>Navigatiemenu van de applicatie.</SheetDescription>

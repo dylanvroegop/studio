@@ -176,7 +176,7 @@ export function WizardHeader({
                                     <Menu className="h-4 w-4" />
                                 </Button>
                             </SheetTrigger>
-                            <SheetContent side="left" className="w-[300px] sm:w-[350px] p-0">
+                            <SheetContent side="left" className="w-[85vw] max-w-[350px] p-0">
                                 <SheetHeader className="p-6 border-b text-left">
                                     <SheetTitle>Navigatie</SheetTitle>
                                     <SheetDescription>Snelle toegang tot alle onderdelen.</SheetDescription>
