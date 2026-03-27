@@ -68,40 +68,6 @@ function formatPostcode(value: string) {
   return clean;
 }
 
-const DEV_CLIENT_AUTOFILL = {
-  klanttype: 'Zakelijk',
-  bedrijfsnaam: 'vroegop timmerwerken',
-  contactpersoon: 'dylan',
-  voornaam: 'Dylan',
-  achternaam: 'Vroegop',
-  emailadres: 'dylanvroegop2@gmail.com',
-  telefoonnummer: '0657540176',
-  straat: 'Spinhuisweg',
-  huisnummer: '64',
-  postcode: '4336 GB',
-  plaats: 'Middelburg',
-  afwijkendProjectadres: true,
-  projectStraat: 'Bessestraat',
-  projectHuisnummer: '3',
-  projectPostcode: '4462 CK',
-  projectPlaats: 'Goes',
-} as const;
-
-function hasKlantgegevens(data: Record<string, any> | null | undefined): boolean {
-  if (!data || typeof data !== 'object') return false;
-  const keysToCheck = [
-    'voornaam',
-    'achternaam',
-    'emailadres',
-    'telefoonnummer',
-    'straat',
-    'huisnummer',
-    'postcode',
-    'plaats',
-  ];
-  return keysToCheck.some((key) => typeof data[key] === 'string' && data[key].trim().length > 0);
-}
-
 // function schoonObject removed in favor of cleanFirestoreData
 
 /**
@@ -119,13 +85,16 @@ const KlantinformatieSchema = z.object({
   bedrijfsnaam: z.string().optional(),
   contactpersoon: z.string().optional(),
   voornaam: z.string().min(1, 'Voornaam is verplicht'),
-  achternaam: z.string().min(1, 'Achternaam is verplicht'),
-  emailadres: z.string().email('Ongeldig e-mailadres'),
-  telefoonnummer: z.string().min(1, 'Telefoonnummer is verplicht'),
-  straat: z.string().min(1, 'Straat is verplicht'),
-  huisnummer: z.string().min(1, 'Huisnummer is verplicht'),
-  postcode: z.string().min(1, 'Postcode is verplicht'),
-  plaats: z.string().min(1, 'Plaats is verplicht'),
+  achternaam: z.string().optional(),
+  emailadres: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().email('Ongeldig e-mailadres').optional()
+  ),
+  telefoonnummer: z.string().optional(),
+  straat: z.string().optional(),
+  huisnummer: z.string().optional(),
+  postcode: z.string().optional(),
+  plaats: z.string().optional(),
   afwijkendProjectadres: z.preprocess((val) => val === 'on', z.boolean()).optional(),
   projectStraat: z.string().optional(),
   projectHuisnummer: z.string().optional(),
@@ -136,7 +105,15 @@ const KlantinformatieSchema = z.object({
 /* ---------------------------------------------
  Component
 --------------------------------------------- */
-export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref?: string }) {
+export function NewQuoteForm({
+  quoteId,
+  backHref,
+  successHref,
+}: {
+  quoteId?: string;
+  backHref?: string;
+  successHref?: string;
+}) {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
@@ -146,9 +123,6 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
   const [klanttype, setKlanttype] = useState<'particulier' | 'zakelijk'>('particulier');
   const [showProjectAddress, setShowProjectAddress] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [isDevUser, setIsDevUser] = useState(false);
-  const [isDevCheckDone, setIsDevCheckDone] = useState(false);
-  const [quoteLoaded, setQuoteLoaded] = useState(!quoteId);
 
   // Data state
   const [initialKI, setInitialKI] = useState<Record<string, any> | null>(null);
@@ -161,46 +135,11 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
   const [searchQuery, setSearchQuery] = useState('');
   const [isMounted, setIsMounted] = useState(false);
   const resolvedBackHref = backHref ?? (quoteId ? '/offertes' : '/');
+  const requiresWorkDescriptionPrompt = Boolean(successHref);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadDevClaim = async () => {
-      if (!user) {
-        if (!cancelled) {
-          setIsDevUser(false);
-          setIsDevCheckDone(true);
-        }
-        return;
-      }
-
-      try {
-        const tokenResult = await user.getIdTokenResult(true);
-        if (!cancelled) {
-          setIsDevUser(tokenResult?.claims?.dev === true);
-        }
-      } catch {
-        if (!cancelled) {
-          setIsDevUser(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsDevCheckDone(true);
-        }
-      }
-    };
-
-    setIsDevCheckDone(false);
-    void loadDevClaim();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
 
   // 1. Fetch Quote (if editing)
   useEffect(() => {
@@ -221,22 +160,11 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
         }
       } finally {
         setIsLoading(false);
-        setQuoteLoaded(true);
       }
     };
 
     fetchQuote();
   }, [quoteId, firestore]);
-
-  useEffect(() => {
-    if (!quoteLoaded || !isDevCheckDone || !isDevUser) return;
-    if (hasKlantgegevens(initialKI)) return;
-
-    setInitialKI(DEV_CLIENT_AUTOFILL);
-    setKlanttype('zakelijk');
-    setShowProjectAddress(true);
-    setFormKey((prev) => prev + 1);
-  }, [initialKI, isDevCheckDone, isDevUser, quoteLoaded]);
 
   // 2. Fetch Clients (ordered by newest first)
   useEffect(() => {
@@ -341,11 +269,19 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
     if (typeof raw.projectStraat === 'string') raw.projectStraat = formatCapitalize(raw.projectStraat);
     if (typeof raw.projectPlaats === 'string') raw.projectPlaats = formatCapitalize(raw.projectPlaats);
     if (typeof raw.projectPostcode === 'string') raw.projectPostcode = formatPostcode(raw.projectPostcode);
+    const workDescriptionPrompt =
+      typeof raw.workDescriptionPrompt === 'string' ? raw.workDescriptionPrompt.trim() : '';
+
+    if (requiresWorkDescriptionPrompt && !workDescriptionPrompt) {
+      toast({ variant: 'destructive', title: 'Vul eerst een korte werkbeschrijving in.' });
+      return;
+    }
 
     startTransition(async () => {
       const validated = KlantinformatieSchema.safeParse(raw);
       if (!validated.success) {
-        toast({ variant: 'destructive', title: 'Vul alle verplichte velden in' });
+        const firstMessage = validated.error.issues[0]?.message || 'Controleer de ingevulde velden';
+        toast({ variant: 'destructive', title: firstMessage });
         return;
       }
 
@@ -368,16 +304,21 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
       try {
         // 1) SAVE/UPDATE CLIENT in Address Book
         const clientRef = collection(firestore, 'clients');
-        const q = query(
-          clientRef,
-          where('emailadres', '==', cleanData.emailadres),
-          where('userId', '==', user.uid)
-        );
-        const snap = await getDocs(q);
+        const emailadres = typeof cleanData.emailadres === 'string' ? cleanData.emailadres.trim() : '';
+        if (emailadres) {
+          const q = query(
+            clientRef,
+            where('emailadres', '==', emailadres),
+            where('userId', '==', user.uid)
+          );
+          const snap = await getDocs(q);
 
-        if (!snap.empty) {
-          const docId = snap.docs[0].id;
-          await updateDoc(doc(firestore, 'clients', docId), { ...cleanData, updatedAt: serverTimestamp() });
+          if (!snap.empty) {
+            const docId = snap.docs[0].id;
+            await updateDoc(doc(firestore, 'clients', docId), { ...cleanData, updatedAt: serverTimestamp() });
+          } else {
+            await addDoc(clientRef, { ...cleanData, createdAt: serverTimestamp() });
+          }
         } else {
           await addDoc(clientRef, { ...cleanData, createdAt: serverTimestamp() });
         }
@@ -387,10 +328,43 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
           klantinformatie: cleanData
         });
 
-        router.push(`/offertes/${quoteId}/klus/nieuw`);
+        // 3) Ensure Supabase data_json is in sync with the latest client info.
+        // Needed for manual-flow quotes that were initialized before klantdata existed.
+        const token = await user.getIdToken();
+        await fetch('/api/quotes/ensure-data-json', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ quoteId }),
+        });
+
+        if (requiresWorkDescriptionPrompt) {
+          const generateResponse = await fetch('/api/generate-work-description', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              quoteId,
+              prompt: workDescriptionPrompt,
+            }),
+          });
+
+          const generatePayload = await generateResponse.json().catch(() => null) as { error?: string } | null;
+          if (!generateResponse.ok) {
+            throw new Error(generatePayload?.error || 'Kon werkbeschrijving niet genereren.');
+          }
+        }
+
+        const resolvedSuccessHref = successHref || `/offertes/${quoteId}/klus/nieuw`;
+        router.push(resolvedSuccessHref);
       } catch (e) {
         console.error(e);
-        toast({ variant: 'destructive', title: 'Fout bij opslaan' });
+        const message = e instanceof Error ? e.message : 'Fout bij opslaan';
+        toast({ variant: 'destructive', title: message });
       }
     });
   };
@@ -551,12 +525,11 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="achternaam">Achternaam *</Label>
+              <Label htmlFor="achternaam">Achternaam</Label>
               <Input
                 id="achternaam"
                 name="achternaam"
                 placeholder="Achternaam"
-                required
                 defaultValue={initialKI?.achternaam}
                 onBlur={(e) => {
                   const v = formatCapitalize(e.target.value);
@@ -569,25 +542,23 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="emailadres">E-mailadres *</Label>
+              <Label htmlFor="emailadres">E-mailadres</Label>
               <Input
                 id="emailadres"
                 name="emailadres"
                 type="email"
                 placeholder="naam@voorbeeld.nl"
-                required
                 defaultValue={initialKI?.emailadres}
                 onBlur={(e) => handleAutoSave('emailadres', e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="telefoonnummer">Telefoonnummer *</Label>
+              <Label htmlFor="telefoonnummer">Telefoonnummer</Label>
               <Input
                 id="telefoonnummer"
                 name="telefoonnummer"
                 type="tel"
                 placeholder="06 12345678"
-                required
                 defaultValue={initialKI?.telefoonnummer}
                 onBlur={(e) => handleAutoSave('telefoonnummer', e.target.value)}
               />
@@ -601,12 +572,11 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
             <h3 className="font-medium">Factuuradres</h3>
             <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
               <div className="sm:col-span-4 space-y-1.5">
-                <Label htmlFor="straat">Straat *</Label>
+                <Label htmlFor="straat">Straat</Label>
                 <Input
                   id="straat"
                   name="straat"
                   placeholder="Straatnaam"
-                  required
 
                   defaultValue={initialKI?.straat}
                   onBlur={(e) => {
@@ -617,23 +587,21 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
                 />
               </div>
               <div className="sm:col-span-2 space-y-1.5">
-                <Label htmlFor="huisnummer">Nr. *</Label>
+                <Label htmlFor="huisnummer">Nr.</Label>
                 <Input
                   id="huisnummer"
                   name="huisnummer"
                   placeholder="Nr."
-                  required
                   defaultValue={initialKI?.huisnummer}
                   onBlur={(e) => handleAutoSave('huisnummer', e.target.value)}
                 />
               </div>
               <div className="sm:col-span-2 space-y-1.5">
-                <Label htmlFor="postcode">Postcode *</Label>
+                <Label htmlFor="postcode">Postcode</Label>
                 <Input
                   id="postcode"
                   name="postcode"
                   placeholder="1234 AB"
-                  required
                   defaultValue={initialKI?.postcode}
                   onBlur={(e) => {
                     const v = formatPostcode(e.target.value);
@@ -643,12 +611,11 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
                 />
               </div>
               <div className="sm:col-span-4 space-y-1.5">
-                <Label htmlFor="plaats">Plaats *</Label>
+                <Label htmlFor="plaats">Plaats</Label>
                 <Input
                   id="plaats"
                   name="plaats"
                   placeholder="Plaatsnaam"
-                  required
                   defaultValue={initialKI?.plaats}
                   onBlur={(e) => {
                     const v = formatCapitalize(e.target.value);
@@ -726,6 +693,24 @@ export function NewQuoteForm({ quoteId, backHref }: { quoteId?: string; backHref
                     handleAutoSave('projectPlaats', v);
                   }}
                 />
+              </div>
+            </div>
+          )}
+
+          {requiresWorkDescriptionPrompt && (
+            <div className="space-y-3 rounded-lg border border-border p-4 bg-muted/10">
+              <h3 className="font-medium">Werkbeschrijving genereren</h3>
+              <Input
+                id="workDescriptionPrompt"
+                name="workDescriptionPrompt"
+                placeholder="Bijv. schilderklus woonkamer"
+                required
+              />
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Korte input is genoeg. Bijvoorbeeld: &quot;schilderklus woonkamer&quot;.
+                </p>
+                <span className="text-xs font-medium text-emerald-500">Genereer</span>
               </div>
             </div>
           )}

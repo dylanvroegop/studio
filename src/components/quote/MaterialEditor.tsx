@@ -52,6 +52,7 @@ interface MaterialEditorProps {
         checked: boolean;
         onCheckedChange: (checked: boolean) => void;
     };
+    hideHeader?: boolean;
 }
 
 interface MaterialRowProps {
@@ -247,7 +248,7 @@ function MaterialRow({
                 )}
                 {onRemoveItem && (
                     <td className="px-6 py-3 text-right">
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                             <DropdownMenuTrigger asChild>
                                 <Button
                                     variant="ghost"
@@ -347,6 +348,7 @@ export function MaterialEditor({
     showHeaderSummary = false,
     showAdvancedControlsMenu = true,
     listViewToggle,
+    hideHeader = false,
 }: MaterialEditorProps) {
     const [isAdding, setIsAdding] = useState(false);
     const [newItem, setNewItem] = useState<Partial<MaterialItem>>({
@@ -443,99 +445,101 @@ export function MaterialEditor({
     return (
         <div className={`bg-card/50 rounded-xl border border-border overflow-hidden backdrop-blur-sm ${categoryContainerClass}`}>
             {/* Header */}
-            <div className={`flex justify-between items-start gap-3 px-6 py-4 border-b border-border ${categoryHeaderClass}`}>
-                <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${categoryIconClass}`}>
-                        <Package size={18} />
-                    </div>
-                    <div>
-                        <h3 className="font-semibold text-foreground tracking-tight text-sm uppercase">{title}</h3>
-                        {itemsNeedingPrice > 0 && (
-                            <span className="flex items-center gap-1 text-red-600 text-[10px] font-medium uppercase mt-0.5">
-                                <AlertCircle size={10} />
-                                {itemsNeedingPrice} zonder prijs
-                            </span>
-                        )}
-                        {showHeaderSummary && (
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${categoryChipClass}`}>
-                                    Aantal regels: {items.length}
+            {!hideHeader && (
+                <div className={`flex justify-between items-start gap-3 px-6 py-4 border-b border-border ${categoryHeaderClass}`}>
+                    <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${categoryIconClass}`}>
+                            <Package size={18} />
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-foreground tracking-tight text-sm uppercase">{title}</h3>
+                            {itemsNeedingPrice > 0 && (
+                                <span className="flex items-center gap-1 text-red-600 text-[10px] font-medium uppercase mt-0.5">
+                                    <AlertCircle size={10} />
+                                    {itemsNeedingPrice} zonder prijs
                                 </span>
-                                <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${categoryChipClass}`}>
-                                    Subtotaal (excl. btw): {formatCurrency(subtotal)}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-                {hasAdvancedControls && (
-                    showAdvancedControlsMenu ? (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
-                                >
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    <span className="sr-only">Meer opties</span>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-72">
-                                {enableCalculationViewToggle && hasCalculationData && (
-                                    <DropdownMenuItem
-                                        onSelect={(event) => event.preventDefault()}
-                                        className="cursor-default focus:bg-muted/60"
-                                    >
-                                        <div className="flex w-full items-center justify-between gap-3">
-                                            <span className="text-xs text-foreground">{calculationToggleLabel}</span>
-                                            <Switch
-                                                checked={showCalculation}
-                                                onCheckedChange={setShowCalculation}
-                                                onClick={(event) => event.stopPropagation()}
-                                            />
-                                        </div>
-                                    </DropdownMenuItem>
-                                )}
-                                {listViewToggle && (
-                                    <DropdownMenuItem
-                                        onSelect={(event) => event.preventDefault()}
-                                        className="cursor-default focus:bg-muted/60"
-                                    >
-                                        <div className="flex w-full items-center justify-between gap-3">
-                                            <span className="text-xs text-foreground">{listViewToggle.label}</span>
-                                            <Switch
-                                                checked={listViewToggle.checked}
-                                                onCheckedChange={listViewToggle.onCheckedChange}
-                                                onClick={(event) => event.stopPropagation()}
-                                            />
-                                        </div>
-                                    </DropdownMenuItem>
-                                )}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    ) : (
-                        <div className="flex items-center gap-4">
-                            {enableCalculationViewToggle && hasCalculationData && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs text-muted-foreground">{calculationToggleLabel}</span>
-                                    <Switch checked={showCalculation} onCheckedChange={setShowCalculation} />
-                                </div>
                             )}
-                            {listViewToggle && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs text-muted-foreground">{listViewToggle.label}</span>
-                                    <Switch
-                                        checked={listViewToggle.checked}
-                                        onCheckedChange={listViewToggle.onCheckedChange}
-                                    />
+                            {showHeaderSummary && (
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${categoryChipClass}`}>
+                                        Aantal regels: {items.length}
+                                    </span>
+                                    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${categoryChipClass}`}>
+                                        Subtotaal (excl. btw): {formatCurrency(subtotal)}
+                                    </span>
                                 </div>
                             )}
                         </div>
-                    )
-                )}
-            </div>
+                    </div>
+                    {hasAdvancedControls && (
+                        showAdvancedControlsMenu ? (
+                            <DropdownMenu modal={false}>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
+                                    >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                        <span className="sr-only">Meer opties</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-72">
+                                    {enableCalculationViewToggle && hasCalculationData && (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => event.preventDefault()}
+                                            className="cursor-default focus:bg-muted/60"
+                                        >
+                                            <div className="flex w-full items-center justify-between gap-3">
+                                                <span className="text-xs text-foreground">{calculationToggleLabel}</span>
+                                                <Switch
+                                                    checked={showCalculation}
+                                                    onCheckedChange={setShowCalculation}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                />
+                                            </div>
+                                        </DropdownMenuItem>
+                                    )}
+                                    {listViewToggle && (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => event.preventDefault()}
+                                            className="cursor-default focus:bg-muted/60"
+                                        >
+                                            <div className="flex w-full items-center justify-between gap-3">
+                                                <span className="text-xs text-foreground">{listViewToggle.label}</span>
+                                                <Switch
+                                                    checked={listViewToggle.checked}
+                                                    onCheckedChange={listViewToggle.onCheckedChange}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                />
+                                            </div>
+                                        </DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        ) : (
+                            <div className="flex items-center gap-4">
+                                {enableCalculationViewToggle && hasCalculationData && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground">{calculationToggleLabel}</span>
+                                        <Switch checked={showCalculation} onCheckedChange={setShowCalculation} />
+                                    </div>
+                                )}
+                                {listViewToggle && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground">{listViewToggle.label}</span>
+                                        <Switch
+                                            checked={listViewToggle.checked}
+                                            onCheckedChange={listViewToggle.onCheckedChange}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    )}
+                </div>
+            )}
 
             {/* Table */}
             <div className="overflow-x-auto">
@@ -712,12 +716,6 @@ export function MaterialEditor({
                 </div>
             </div>
 
-            {items.length === 0 && !isAdding && (
-                <div className="p-12 text-center text-muted-foreground">
-                    <Package size={32} className="mx-auto mb-3 opacity-20" />
-                    <p className="text-sm">Geen materialen in deze categorie</p>
-                </div>
-            )}
         </div>
     );
 }

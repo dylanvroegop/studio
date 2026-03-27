@@ -33,84 +33,12 @@ type QuoteDataShape = {
   };
 };
 
-type MaterialPresetItem = {
-  product: string;
-  aantal: number;
-  prijs_per_stuk: number;
-  eenheid?: string;
-};
-
-type QuoteMaterialPreset = {
-  grootmaterialen: MaterialPresetItem[];
-  verbruiksartikelen: MaterialPresetItem[];
-};
-
 function toFiniteNumber(value: unknown, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function sanitizePresetItems(value: unknown): MaterialPresetItem[] {
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .map((raw) => {
-      if (!raw || typeof raw !== 'object') return null;
-      const row = raw as Record<string, unknown>;
-      const product = String(row.product ?? '').trim();
-      if (!product) return null;
-
-      const parsedAantal = Number(row.aantal);
-      const parsedPrijs = Number(row.prijs_per_stuk ?? row.prijs_excl_btw ?? row.prijs);
-      const aantal = Number.isFinite(parsedAantal) && parsedAantal > 0 ? parsedAantal : 1;
-      const prijs = Number.isFinite(parsedPrijs) && parsedPrijs >= 0 ? parsedPrijs : 0;
-      const eenheid = typeof row.eenheid === 'string' ? row.eenheid : undefined;
-
-      return {
-        product,
-        aantal,
-        prijs_per_stuk: prijs,
-        eenheid,
-      } as MaterialPresetItem;
-    })
-    .filter((item): item is MaterialPresetItem => item !== null);
-}
-
-function resolveQuoteMaterialPreset(userData: Record<string, unknown>): QuoteMaterialPreset {
-  const instellingen =
-    userData?.instellingen && typeof userData.instellingen === 'object'
-      ? (userData.instellingen as Record<string, unknown>)
-      : {};
-  const settings =
-    userData?.settings && typeof userData.settings === 'object'
-      ? (userData.settings as Record<string, unknown>)
-      : {};
-
-  const source =
-    (instellingen.offerteMateriaalPreset && typeof instellingen.offerteMateriaalPreset === 'object'
-      ? (instellingen.offerteMateriaalPreset as Record<string, unknown>)
-      : null)
-    ?? (settings.offerteMateriaalPreset && typeof settings.offerteMateriaalPreset === 'object'
-      ? (settings.offerteMateriaalPreset as Record<string, unknown>)
-      : null);
-
-  if (!source) {
-    return {
-      grootmaterialen: [],
-      verbruiksartikelen: [],
-    };
-  }
-
-  return {
-    grootmaterialen: sanitizePresetItems(source.grootmaterialen),
-    verbruiksartikelen: sanitizePresetItems(source.verbruiksartikelen),
-  };
-}
-
-function buildManualDataJson(
-  quoteData: QuoteDataShape,
-  materialPreset: QuoteMaterialPreset
-): Record<string, unknown> {
+function buildManualDataJson(quoteData: QuoteDataShape): Record<string, unknown> {
   const instellingen = quoteData.instellingen ?? {};
   const transport = quoteData.extras?.transport ?? {};
   const winstMarge = quoteData.extras?.winstMarge ?? {};
@@ -118,8 +46,8 @@ function buildManualDataJson(
     typeof quoteData.werkomschrijving === 'string' ? quoteData.werkomschrijving.trim() : '';
 
   return {
-    grootmaterialen: materialPreset.grootmaterialen,
-    verbruiksartikelen: materialPreset.verbruiksartikelen,
+    grootmaterialen: [],
+    verbruiksartikelen: [],
     uren_specificatie: [],
     totaal_uren: 0,
     werkbeschrijving: werkomschrijving ? [werkomschrijving] : [],
@@ -172,12 +100,6 @@ export async function rebuildQuoteDataJsonForUser(params: {
     throw new Error('Geen toegang tot deze offerte');
   }
 
-  let materialPreset: QuoteMaterialPreset = { grootmaterialen: [], verbruiksartikelen: [] };
-  const userSnap = await firestore.collection('users').doc(uid).get().catch(() => null);
-  if (userSnap?.exists) {
-    materialPreset = resolveQuoteMaterialPreset((userSnap.data() ?? {}) as Record<string, unknown>);
-  }
-
   const { data: existingRows, error: existingError } = await supabaseAdmin
     .from('quotes_collection')
     .select('id, quoteid, gebruikerid, status, data_json, created_at')
@@ -191,7 +113,7 @@ export async function rebuildQuoteDataJsonForUser(params: {
   }
 
   const existing = Array.isArray(existingRows) ? existingRows[0] : null;
-  const dataJson = buildManualDataJson(quoteData, materialPreset);
+  const dataJson = buildManualDataJson(quoteData);
 
   if (existing?.id) {
     const { data: updatedRows, error: updateError } = await supabaseAdmin

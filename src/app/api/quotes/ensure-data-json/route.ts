@@ -45,79 +45,7 @@ type QuoteDataShape = {
   };
 };
 
-type MaterialPresetItem = {
-  product: string;
-  aantal: number;
-  prijs_per_stuk: number;
-  eenheid?: string;
-};
-
-type QuoteMaterialPreset = {
-  grootmaterialen: MaterialPresetItem[];
-  verbruiksartikelen: MaterialPresetItem[];
-};
-
-function sanitizePresetItems(value: unknown): MaterialPresetItem[] {
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .map((raw) => {
-      if (!raw || typeof raw !== 'object') return null;
-      const row = raw as Record<string, unknown>;
-      const product = String(row.product ?? '').trim();
-      if (!product) return null;
-
-      const parsedAantal = Number(row.aantal);
-      const parsedPrijs = Number(row.prijs_per_stuk ?? row.prijs_excl_btw ?? row.prijs);
-      const aantal = Number.isFinite(parsedAantal) && parsedAantal > 0 ? parsedAantal : 1;
-      const prijs = Number.isFinite(parsedPrijs) && parsedPrijs >= 0 ? parsedPrijs : 0;
-      const eenheid = typeof row.eenheid === 'string' ? row.eenheid : undefined;
-
-      return {
-        product,
-        aantal,
-        prijs_per_stuk: prijs,
-        eenheid,
-      } as MaterialPresetItem;
-    })
-    .filter((item): item is MaterialPresetItem => item !== null);
-}
-
-function resolveQuoteMaterialPreset(userData: Record<string, unknown>): QuoteMaterialPreset {
-  const instellingen =
-    userData?.instellingen && typeof userData.instellingen === 'object'
-      ? (userData.instellingen as Record<string, unknown>)
-      : {};
-  const settings =
-    userData?.settings && typeof userData.settings === 'object'
-      ? (userData.settings as Record<string, unknown>)
-      : {};
-
-  const source =
-    (instellingen.offerteMateriaalPreset && typeof instellingen.offerteMateriaalPreset === 'object'
-      ? (instellingen.offerteMateriaalPreset as Record<string, unknown>)
-      : null)
-    ?? (settings.offerteMateriaalPreset && typeof settings.offerteMateriaalPreset === 'object'
-      ? (settings.offerteMateriaalPreset as Record<string, unknown>)
-      : null);
-
-  if (!source) {
-    return {
-      grootmaterialen: [],
-      verbruiksartikelen: [],
-    };
-  }
-
-  return {
-    grootmaterialen: sanitizePresetItems(source.grootmaterialen),
-    verbruiksartikelen: sanitizePresetItems(source.verbruiksartikelen),
-  };
-}
-
-function buildManualDataJson(
-  quoteData: QuoteDataShape,
-  materialPreset: QuoteMaterialPreset
-): Record<string, unknown> {
+function buildManualDataJson(quoteData: QuoteDataShape): Record<string, unknown> {
   const instellingen = quoteData.instellingen ?? {};
   const transport = quoteData.extras?.transport ?? {};
   const winstMarge = quoteData.extras?.winstMarge ?? {};
@@ -125,8 +53,8 @@ function buildManualDataJson(
     typeof quoteData.werkomschrijving === 'string' ? quoteData.werkomschrijving.trim() : '';
 
   return {
-    grootmaterialen: materialPreset.grootmaterialen,
-    verbruiksartikelen: materialPreset.verbruiksartikelen,
+    grootmaterialen: [],
+    verbruiksartikelen: [],
     uren_specificatie: [],
     totaal_uren: 0,
     werkbeschrijving: werkomschrijving ? [werkomschrijving] : [],
@@ -196,17 +124,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, message: 'Geen toegang tot deze offerte' }, { status: 403 });
     }
 
-    let materialPreset: QuoteMaterialPreset = { grootmaterialen: [], verbruiksartikelen: [] };
-    try {
-      const userSnap = await firestore.collection('users').doc(decodedTokenUid).get();
-      if (userSnap.exists) {
-        const userData = (userSnap.data() ?? {}) as Record<string, unknown>;
-        materialPreset = resolveQuoteMaterialPreset(userData);
-      }
-    } catch (error) {
-      console.warn('Kon offerte materiaal preset niet lezen, ga door met lege preset:', error);
-    }
-
     const { data: existingRows, error: existingError } = await supabaseAdmin
       .from('quotes_collection')
       .select('id, quoteid, gebruikerid, status, data_json')
@@ -221,13 +138,40 @@ export async function POST(req: Request) {
     }
 
     const existing = Array.isArray(existingRows) ? existingRows[0] : null;
-    const dataJson = buildManualDataJson(quoteData, materialPreset);
+    const dataJson = buildManualDataJson(quoteData);
 
     if (existing?.data_json) {
+      const existingId = typeof existing.id === 'string' ? existing.id : String(existing.id || '');
+      if (!existingId) {
+        return NextResponse.json({ ok: false, message: 'Ongeldige bestaande calculatie-ID' }, { status: 500 });
+      }
+      const existingJson =
+        existing.data_json && typeof existing.data_json === 'object'
+          ? (existing.data_json as Record<string, unknown>)
+          : {};
+      const mergedDataJson = {
+        ...existingJson,
+        klantinformatie: quoteData.klantinformatie ?? existingJson.klantinformatie ?? null,
+      };
+
+      const { data: updatedRows, error: updateExistingError } = await supabaseAdmin
+        .from('quotes_collection')
+        .update({
+          data_json: mergedDataJson,
+        })
+        .eq('id', existingId)
+        .select('id, quoteid, gebruikerid, status, data_json')
+        .limit(1);
+
+      if (updateExistingError) {
+        console.error('Supabase update error (ensure-data-json existing merge):', updateExistingError);
+        return NextResponse.json({ ok: false, message: updateExistingError.message }, { status: 500 });
+      }
+
       return NextResponse.json({
         ok: true,
         created: false,
-        data: existing,
+        data: Array.isArray(updatedRows) ? updatedRows[0] : existing,
       });
     }
 

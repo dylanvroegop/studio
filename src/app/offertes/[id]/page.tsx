@@ -5,15 +5,13 @@ import { useQuoteData } from '@/hooks/useQuoteData';
 import { calculateQuoteTotals, QuoteSettings as QuoteCalculationSettings, KlantInformatie, formatCurrency, MaterialItem, generateWorkSummary, normalizeWerkbeschrijving, normalizeDataJson, unwrapRoot } from '@/lib/quote-calculations';
 import { ClientInfoCard } from '@/components/quote/ClientInfoCard';
 import { CostSummaryCard } from '@/components/quote/CostSummaryCard';
-import { WorkDescriptionCard } from '@/components/quote/WorkDescriptionCard';
 import { MaterialEditor } from '@/components/quote/MaterialEditor';
 import { LaborBreakdown } from '@/components/quote/LaborBreakdown';
 import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, Eye, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, RotateCcw, Percent, Share2 } from 'lucide-react';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, RotateCcw, Share2 } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
@@ -40,7 +38,6 @@ import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialListExportDialog } from '@/components/quote/MaterialListExportDialog';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
-import { QuoteSwitcher } from '@/components/quote/QuoteSwitcher';
 import { AppNavigation } from '@/components/AppNavigation';
 import { LogoUpload } from '@/components/settings/LogoUpload';
 import { findExistingVoorschotInvoiceId } from '@/lib/invoice-actions';
@@ -95,8 +92,6 @@ type QuoteMaterialPackage = QuoteMaterialPreset & {
 };
 
 type VoorwaardenEditorMode = 'vastePrijs' | 'onderVoorbehoud';
-type MaterialViewMode = 'single' | 'split';
-type MobileMaterialSection = 'groot' | 'verbruik';
 
 function toPresetItems(items: MaterialItem[]): MaterialPresetItem[] {
     const mapped: Array<MaterialPresetItem | null> = items.map((item) => {
@@ -255,12 +250,16 @@ export default function QuotePage() {
     const [pdfTextSettings, setPdfTextSettings] = useState<QuotePdfTextSettings>(defaultQuotePdfTextSettings);
     const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('onderVoorbehoud');
     const [activeTab, setActiveTab] = useState('materialen');
-    const [btwConverterRateInput, setBtwConverterRateInput] = useState('21');
-    const [btwConverterExclInput, setBtwConverterExclInput] = useState('');
-    const [btwConverterInclInput, setBtwConverterInclInput] = useState('');
-    const [btwConverterLastEdited, setBtwConverterLastEdited] = useState<'excl' | 'incl' | null>(null);
+    const [manualWorkDescriptionRows, setManualWorkDescriptionRows] = useState<string[]>([]);
+    const [workDescriptionPrompt, setWorkDescriptionPrompt] = useState('');
+    const [isGeneratingWorkDescription, setIsGeneratingWorkDescription] = useState(false);
+    const [isAutoSavingWorkDescription, setIsAutoSavingWorkDescription] = useState(false);
+    const lastSyncedWerkbeschrijvingRef = useRef<string>('');
+    const autoSaveWerkbeschrijvingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isPdfSettingsOpen, setIsPdfSettingsOpen] = useState(false);
     const [hasSavedPdfSettings, setHasSavedPdfSettings] = useState(true); // assume true until proven otherwise
+    const [isSavingPdfSettings, setIsSavingPdfSettings] = useState(false);
+    const [pdfSettingsSavedAt, setPdfSettingsSavedAt] = useState<number | null>(null);
     const pdfSettingsShownOnceRef = useRef(false);
 
     const [materials, setMaterials] = useState<{
@@ -308,8 +307,6 @@ export default function QuotePage() {
     const [defaultMaterialSupplierId, setDefaultMaterialSupplierId] = useState('');
     const [materialEmailTemplate, setMaterialEmailTemplate] = useState('');
     const [isSavingMaterialPackage, setIsSavingMaterialPackage] = useState(false);
-    const [materialViewMode, setMaterialViewMode] = useState<MaterialViewMode>('single');
-    const [mobileMaterialSection, setMobileMaterialSection] = useState<MobileMaterialSection>('groot');
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
     const [voorschotIngeschakeld, setVoorschotIngeschakeld] = useState(false);
@@ -339,7 +336,6 @@ export default function QuotePage() {
 
     const [userProfile, setUserProfile] = useState<any>(null);
     const [businessData, setBusinessData] = useState<any>(null);
-    const [isDevUser, setIsDevUser] = useState(false);
     const [isComparingGrootPrices, setIsComparingGrootPrices] = useState(false);
     const [isGrootCompareOpen, setIsGrootCompareOpen] = useState(false);
     const [grootCompareError, setGrootCompareError] = useState<string | null>(null);
@@ -352,104 +348,6 @@ export default function QuotePage() {
     const [calculationElapsedSeconds, setCalculationElapsedSeconds] = useState(0);
     const [isRetryingCalculation, setIsRetryingCalculation] = useState(false);
     const calculationTimerStartedAtRef = useRef<number | null>(null);
-
-    const normalizedBtwConverterRate = useMemo(() => {
-        const parsed = parsePriceToNumber(btwConverterRateInput);
-        if (parsed === null) return 21;
-        return Math.min(100, Math.max(0, parsed));
-    }, [btwConverterRateInput]);
-
-    const formatConverterAmount = (value: number): string =>
-        value.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-    const converterExclValue = useMemo(
-        () => parsePriceToNumber(btwConverterExclInput),
-        [btwConverterExclInput]
-    );
-    const converterInclValue = useMemo(
-        () => parsePriceToNumber(btwConverterInclInput),
-        [btwConverterInclInput]
-    );
-
-    const converterBtwAmount = useMemo(() => {
-        if (converterExclValue === null || converterInclValue === null) return null;
-        return converterInclValue - converterExclValue;
-    }, [converterExclValue, converterInclValue]);
-
-    const handleBtwExclChange = (value: string) => {
-        setBtwConverterExclInput(value);
-        setBtwConverterLastEdited('excl');
-        const excl = parsePriceToNumber(value);
-        if (excl === null) {
-            setBtwConverterInclInput('');
-            return;
-        }
-        const incl = excl * (1 + normalizedBtwConverterRate / 100);
-        setBtwConverterInclInput(formatConverterAmount(incl));
-    };
-
-    const handleBtwInclChange = (value: string) => {
-        setBtwConverterInclInput(value);
-        setBtwConverterLastEdited('incl');
-        const incl = parsePriceToNumber(value);
-        if (incl === null) {
-            setBtwConverterExclInput('');
-            return;
-        }
-        const excl = incl / (1 + normalizedBtwConverterRate / 100);
-        setBtwConverterExclInput(formatConverterAmount(excl));
-    };
-
-    useEffect(() => {
-        if (btwConverterLastEdited === 'excl') {
-            const excl = parsePriceToNumber(btwConverterExclInput);
-            if (excl === null) {
-                setBtwConverterInclInput('');
-                return;
-            }
-            const incl = excl * (1 + normalizedBtwConverterRate / 100);
-            setBtwConverterInclInput(formatConverterAmount(incl));
-            return;
-        }
-
-        if (btwConverterLastEdited === 'incl') {
-            const incl = parsePriceToNumber(btwConverterInclInput);
-            if (incl === null) {
-                setBtwConverterExclInput('');
-                return;
-            }
-            const excl = incl / (1 + normalizedBtwConverterRate / 100);
-            setBtwConverterExclInput(formatConverterAmount(excl));
-        }
-    }, [normalizedBtwConverterRate, btwConverterLastEdited, btwConverterExclInput, btwConverterInclInput]);
-
-    useEffect(() => {
-        let cancelled = false;
-
-        const loadDevClaim = async () => {
-            if (!user) {
-                setIsDevUser(false);
-                return;
-            }
-
-            try {
-                const tokenResult = await user.getIdTokenResult(true);
-                if (!cancelled) {
-                    setIsDevUser(tokenResult?.claims?.dev === true);
-                }
-            } catch {
-                if (!cancelled) {
-                    setIsDevUser(false);
-                }
-            }
-        };
-
-        void loadDevClaim();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [user]);
 
     // Fetch user profile and business details
     useEffect(() => {
@@ -516,8 +414,6 @@ export default function QuotePage() {
         hasEditedMaterialsRef.current = false;
         lastSavedMaterialPresetRef.current = '';
         setSelectedMaterialPackageId('NIEUW');
-        setMaterialViewMode('single');
-        setMobileMaterialSection('groot');
     }, [id]);
 
     useEffect(() => {
@@ -662,21 +558,12 @@ export default function QuotePage() {
             const normalized = normalizeDataJson(calculation.data_json);
             const nextGroot = Array.isArray(normalized.grootmaterialen) ? normalized.grootmaterialen : [];
             const nextVerbruik = Array.isArray(normalized.verbruiksartikelen) ? normalized.verbruiksartikelen : [];
-            const hasCalculatedMaterialDetails =
-                nextGroot.some(
-                    (item) => typeof item?.hoe_berekend === 'string' && item.hoe_berekend.trim().length > 0
-                ) ||
-                nextVerbruik.some(
-                    (item) => typeof item?.waarom_dit === 'string' && item.waarom_dit.trim().length > 0
-                );
 
             // 1. Materials
             setMaterials({
                 groot: nextGroot,
                 verbruik: nextVerbruik,
             });
-
-            setMaterialViewMode(hasCalculatedMaterialDetails ? 'split' : 'single');
 
             // 2. Client Info
             if (normalized.klantinformatie) {
@@ -727,12 +614,6 @@ export default function QuotePage() {
         }
     }, [calculation]);
 
-    useEffect(() => {
-        if (materialViewMode === 'single') {
-            setMobileMaterialSection('groot');
-        }
-    }, [materialViewMode]);
-
     // Fetch quote metadata from Firebase (Fallback for legacy data or metadata only)
     useEffect(() => {
         if (isUserLoading) return;
@@ -777,7 +658,14 @@ export default function QuotePage() {
 
                 // If calculation didn't have client info, try Firebase (legacy support)
                 setKlantInfo((prev) => {
-                    if (prev) return prev; // Already loaded from calculation
+                    const hasExistingClientData = !!(
+                        (prev?.bedrijfsnaam && String(prev.bedrijfsnaam).trim()) ||
+                        (prev?.voornaam && String(prev.voornaam).trim()) ||
+                        (prev?.achternaam && String(prev.achternaam).trim()) ||
+                        (prev?.emailadres && String(prev.emailadres).trim()) ||
+                        (prev?.telefoonnummer && String(prev.telefoonnummer).trim())
+                    );
+                    if (hasExistingClientData) return prev;
 
                     const ki = quoteData.klantinformatie || {};
                     const factuur = ki.factuuradres || {};
@@ -786,18 +674,18 @@ export default function QuotePage() {
                         voornaam: ki.voornaam || '',
                         achternaam: ki.achternaam || '',
                         bedrijfsnaam: ki.bedrijfsnaam,
-                        emailadres: ki['e-mailadres'] || '',
+                        emailadres: ki.emailadres || ki['e-mailadres'] || '',
                         telefoonnummer: ki.telefoonnummer || '',
-                        straat: factuur.straat || '',
-                        huisnummer: (factuur.huisnummer || '') + (factuur.toevoeging ? ` ${factuur.toevoeging}` : ''),
-                        postcode: factuur.postcode || '',
-                        plaats: factuur.plaats || '',
+                        straat: ki.straat || factuur.straat || '',
+                        huisnummer: ((ki.huisnummer || factuur.huisnummer || '') + ((ki.toevoeging || factuur.toevoeging) ? ` ${ki.toevoeging || factuur.toevoeging}` : '')).trim(),
+                        postcode: ki.postcode || factuur.postcode || '',
+                        plaats: ki.plaats || factuur.plaats || '',
                         afwijkendProjectadres: ki.afwijkendProjectadres || false,
-                        projectAdres: ki.projectadres ? {
-                            straat: ki.projectadres.straat || '',
-                            huisnummer: (ki.projectadres.huisnummer || '') + (ki.projectadres.toevoeging ? ` ${ki.projectadres.toevoeging}` : ''),
-                            postcode: ki.projectadres.postcode || '',
-                            plaats: ki.projectadres.plaats || ''
+                        projectAdres: (ki.projectAdres || ki.projectadres) ? {
+                            straat: (ki.projectAdres?.straat || ki.projectadres?.straat || ''),
+                            huisnummer: ((ki.projectAdres?.huisnummer || ki.projectadres?.huisnummer || '') + ((ki.projectAdres?.toevoeging || ki.projectadres?.toevoeging) ? ` ${ki.projectAdres?.toevoeging || ki.projectadres?.toevoeging}` : '')).trim(),
+                            postcode: ki.projectAdres?.postcode || ki.projectadres?.postcode || '',
+                            plaats: ki.projectAdres?.plaats || ki.projectadres?.plaats || ''
                         } : undefined
                     };
                 });
@@ -1600,6 +1488,128 @@ export default function QuotePage() {
         ...materials.verbruik.filter(item => !item.prijs_per_stuk || item.prijs_per_stuk === 0)
     ].length;
 
+    const roundMoney = (value: number): number => Number((value || 0).toFixed(2));
+
+    const applyMaterialTargetWithAdjustment = async (
+        category: 'groot' | 'verbruik',
+        targetSubtotal: number,
+    ) => {
+        if (!calculation) return;
+        const safeTarget = roundMoney(Math.max(0, targetSubtotal));
+        const currentList = category === 'groot' ? materials.groot : materials.verbruik;
+        const currentSubtotal = roundMoney(
+            currentList.reduce((sum, item) => sum + (Number(item.prijs_per_stuk) || 0) * (Number(item.aantal) || 0), 0),
+        );
+        const delta = roundMoney(safeTarget - currentSubtotal);
+        if (Math.abs(delta) < 0.01) return;
+
+        const adjustmentIndex = currentList.findIndex((item) => {
+            const name = String(item.product || '').trim().toLowerCase();
+            return name === 'extra kosten';
+        });
+
+        let nextList: MaterialItem[];
+        if (adjustmentIndex >= 0) {
+            const existing = currentList[adjustmentIndex];
+            const nextPrice = roundMoney((Number(existing.prijs_per_stuk) || 0) + delta);
+            if (Math.abs(nextPrice) < 0.01) {
+                nextList = currentList.filter((_, index) => index !== adjustmentIndex);
+            } else {
+                nextList = currentList.map((item, index) =>
+                    index === adjustmentIndex
+                        ? { ...item, aantal: 1, eenheid: item.eenheid || 'stuk', prijs_per_stuk: nextPrice }
+                        : item,
+                );
+            }
+        } else {
+            nextList = [
+                ...currentList,
+                {
+                    product: 'Extra kosten',
+                    aantal: 1,
+                    prijs_per_stuk: delta,
+                    eenheid: 'stuk',
+                },
+            ];
+        }
+
+        hasEditedMaterialsRef.current = true;
+        setSelectedMaterialPackageId('NIEUW');
+        isUpdatingRef.current = true;
+
+        try {
+            const nextMaterials = category === 'groot'
+                ? { groot: nextList, verbruik: materials.verbruik }
+                : { groot: materials.groot, verbruik: nextList };
+
+            setMaterials(nextMaterials);
+
+            const root = unwrapRoot(calculation.data_json);
+            await updateDataJson({
+                ...root,
+                grootmaterialen: nextMaterials.groot,
+                verbruiksartikelen: nextMaterials.verbruik,
+            });
+
+            toast({
+                title: 'Kosten aangepast',
+                description: 'Verschil toegevoegd als "Extra kosten".',
+            });
+        } finally {
+            isUpdatingRef.current = false;
+        }
+    };
+
+    const handleUpdateMaterialenGrootTotal = async (value: number) => {
+        await applyMaterialTargetWithAdjustment('groot', value);
+    };
+
+    const handleUpdateMaterialenVerbruikTotal = async (value: number) => {
+        await applyMaterialTargetWithAdjustment('verbruik', value);
+    };
+
+    const handleUpdateMaterialenSubtotal = async (value: number) => {
+        const safeTarget = roundMoney(Math.max(0, value));
+        const currentSubtotal = roundMoney(grootSubtotal + verbruikSubtotal);
+        const delta = roundMoney(safeTarget - currentSubtotal);
+        if (Math.abs(delta) < 0.01) return;
+        await applyMaterialTargetWithAdjustment('groot', roundMoney(grootSubtotal + delta));
+    };
+
+    const handleUpdateWinstMargePercentage = async (percentage: number) => {
+        if (!quoteSettings) return;
+        const safePercentage = Math.max(0, Number(percentage) || 0);
+        await handleUpdateSettings({
+            ...quoteSettings,
+            extras: {
+                ...quoteSettings.extras,
+                winstMarge: {
+                    ...quoteSettings.extras.winstMarge,
+                    mode: 'percentage',
+                    percentage: safePercentage,
+                },
+            },
+        });
+    };
+
+    const handleUpdateWinstMargeAmountIncl = async (amountIncl: number) => {
+        if (!quoteSettings) return;
+        const safeIncl = Math.max(0, Number(amountIncl) || 0);
+        const btwFactor = 1 + ((quoteSettings.btwTarief || 21) / 100);
+        const exclAmount = roundMoney(safeIncl / btwFactor);
+        await handleUpdateSettings({
+            ...quoteSettings,
+            extras: {
+                ...quoteSettings.extras,
+                winstMarge: {
+                    ...quoteSettings.extras.winstMarge,
+                    mode: 'fixed',
+                    fixedAmount: exclAmount,
+                },
+            },
+        });
+    };
+
     type MaterialSourceCategory = 'groot' | 'verbruik';
     type CombinedMaterialItem = MaterialItem & {
         _sourceCategory: MaterialSourceCategory;
@@ -1795,15 +1805,6 @@ export default function QuotePage() {
     };
     const handleOpenSingleMaterialPicker = () => {
         setActiveCategory('groot');
-    };
-
-    const handleMainTabChange = (nextTab: string) => {
-        if (nextTab === 'compare') {
-            setActiveTab('materialen');
-            void handleCompareLastThreeGrootPrices();
-            return;
-        }
-        setActiveTab(nextTab);
     };
 
     // Calculate totals when data is available
@@ -2371,6 +2372,52 @@ export default function QuotePage() {
         }
     };
 
+    const savePdfSettingsNow = useCallback(async () => {
+        if (!user || !firestore || !id || !quote) return;
+        setIsSavingPdfSettings(true);
+        try {
+            await handlePdfSettingsChange(pdfSettings);
+
+            const quoteRef = doc(firestore, 'quotes', id);
+            await updateDoc(quoteRef, {
+                facturatie: {
+                    voorschotIngeschakeld,
+                    voorschotPercentage,
+                    onderVoorbehoud,
+                },
+                pdfTeksten: pdfTextSettings,
+                updatedAt: new Date(),
+            });
+
+            setPdfSettingsSavedAt(Date.now());
+            toast({
+                title: 'Opgeslagen',
+                description: 'PDF instellingen zijn opgeslagen.',
+            });
+            setIsPdfSettingsOpen(false);
+        } catch (e) {
+            console.error('Fout bij handmatig opslaan PDF instellingen:', e);
+            toast({
+                variant: 'destructive',
+                title: 'Opslaan mislukt',
+                description: 'Probeer het opnieuw.',
+            });
+        } finally {
+            setIsSavingPdfSettings(false);
+        }
+    }, [
+        user,
+        firestore,
+        id,
+        quote,
+        pdfSettings,
+        voorschotIngeschakeld,
+        voorschotPercentage,
+        onderVoorbehoud,
+        pdfTextSettings,
+        toast,
+    ]);
+
     const handlePdfLogoChange = async (url: string | null) => {
         if (!user || !firestore) return;
 
@@ -2496,6 +2543,8 @@ export default function QuotePage() {
     })();
 
     const hasStoredCalculatedTotal = storedQuoteTotal !== null;
+    const laborTotalHours = (calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0;
+    const laborHoursPerDay = Number(userProfile?.settings?.planningSettings?.defaultWorkdayHours) || 8;
     const calculationInProgress =
         quote?.status === 'in_behandeling' &&
         !calculation?.data_json &&
@@ -2607,6 +2656,153 @@ export default function QuotePage() {
         }
     };
 
+    const currentWerkbeschrijving = useMemo(
+        () => normalizeWerkbeschrijving(normalizedData?.werkbeschrijving || []),
+        [normalizedData?.werkbeschrijving],
+    );
+
+    useEffect(() => {
+        const serialized = currentWerkbeschrijving.join('\n');
+        if (lastSyncedWerkbeschrijvingRef.current === serialized) {
+            return;
+        }
+
+        setManualWorkDescriptionRows(
+            currentWerkbeschrijving.length > 0 ? currentWerkbeschrijving : [''],
+        );
+        lastSyncedWerkbeschrijvingRef.current = serialized;
+    }, [currentWerkbeschrijving]);
+
+    useEffect(() => {
+        if (!calculation?.data_json) return;
+        const parsedWerkbeschrijving = manualWorkDescriptionRows
+            .map((line) => line.trim())
+            .filter(Boolean);
+        const serializedParsed = parsedWerkbeschrijving.join('\n');
+
+        if (serializedParsed === lastSyncedWerkbeschrijvingRef.current) {
+            return;
+        }
+
+        if (autoSaveWerkbeschrijvingTimerRef.current) {
+            clearTimeout(autoSaveWerkbeschrijvingTimerRef.current);
+        }
+
+        autoSaveWerkbeschrijvingTimerRef.current = setTimeout(() => {
+            setIsAutoSavingWorkDescription(true);
+            const root = unwrapRoot(calculation.data_json);
+            updateDataJson({
+                ...root,
+                werkbeschrijving: parsedWerkbeschrijving,
+            })
+                .then(() => {
+                    lastSyncedWerkbeschrijvingRef.current = serializedParsed;
+                })
+                .catch((err: any) => {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Automatisch opslaan mislukt',
+                        description: err?.message || 'Kon werkbeschrijving niet opslaan.',
+                    });
+                })
+                .finally(() => {
+                    setIsAutoSavingWorkDescription(false);
+                });
+        }, 600);
+
+        return () => {
+            if (autoSaveWerkbeschrijvingTimerRef.current) {
+                clearTimeout(autoSaveWerkbeschrijvingTimerRef.current);
+            }
+        };
+    }, [manualWorkDescriptionRows, calculation?.data_json, updateDataJson, toast]);
+
+    const handleGenerateWorkDescription = async () => {
+        const prompt = workDescriptionPrompt.trim();
+        if (!prompt || !user) return;
+
+        if (!calculation?.data_json) {
+            toast({
+                variant: 'destructive',
+                title: 'Nog geen offerte-data',
+                description: 'Open deze offerte opnieuw nadat de basisdata is aangemaakt.',
+            });
+            return;
+        }
+
+        setIsGeneratingWorkDescription(true);
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/generate-work-description', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    prompt,
+                    quoteId: id,
+                }),
+            });
+
+            const payload = await response.json().catch(() => null) as
+                | { werkbeschrijving?: unknown; error?: string }
+                | null;
+
+            if (!response.ok) {
+                throw new Error(payload?.error || 'Kon werkbeschrijving niet genereren.');
+            }
+
+            const generated = Array.isArray(payload?.werkbeschrijving)
+                ? payload.werkbeschrijving
+                    .map((row) => String(row || '').trim())
+                    .filter(Boolean)
+                : [];
+
+            if (generated.length === 0) {
+                throw new Error('Geen werkbeschrijving ontvangen.');
+            }
+
+            const root = unwrapRoot(calculation.data_json);
+            await updateDataJson({
+                ...root,
+                werkbeschrijving: generated,
+            });
+
+            setManualWorkDescriptionRows(generated);
+            lastSyncedWerkbeschrijvingRef.current = generated.join('\n');
+
+            toast({
+                title: 'Werkbeschrijving gegenereerd',
+                description: 'De werkbeschrijving is toegevoegd aan deze offerte.',
+            });
+            setWorkDescriptionPrompt('');
+        } catch (err: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Genereren mislukt',
+                description: err?.message || 'Kon werkbeschrijving niet genereren.',
+            });
+        } finally {
+            setIsGeneratingWorkDescription(false);
+        }
+    };
+
+    const handleChangeWorkDescriptionRow = (index: number, value: string) => {
+        setManualWorkDescriptionRows((prev) => prev.map((item, i) => (i === index ? value : item)));
+    };
+
+    const handleAddWorkDescriptionRow = () => {
+        setManualWorkDescriptionRows((prev) => [...prev, '']);
+    };
+
+    const handleRemoveWorkDescriptionRow = (index: number) => {
+        setManualWorkDescriptionRows((prev) => {
+            const next = prev.filter((_, i) => i !== index);
+            return next.length > 0 ? next : [''];
+        });
+    };
+
     const LoadingPanel = () => (
         <div className="flex flex-col items-center justify-center py-20 gap-6">
             <div className="flex w-full max-w-sm flex-col items-center gap-3">
@@ -2687,7 +2883,6 @@ export default function QuotePage() {
                                 <h1 className="text-xl font-bold text-foreground">
                                     Offerte {(quote as any)?.offerteNummer || 'Concept'}
                                 </h1>
-                                <QuoteSwitcher currentQuoteId={id} />
                                 {quote?.titel && <span className="text-muted-foreground font-normal hidden sm:inline">• {quote.titel}</span>}
                             </div>
                             {klantInfo && (
@@ -2700,19 +2895,20 @@ export default function QuotePage() {
                     <div className="flex gap-3 w-full sm:w-auto">
                         <Button
                             type="button"
-                            variant="success"
+                            variant="outline"
                             onClick={() => {
                                 void handleDownloadPDF();
                             }}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2"
+                            className="flex-1 sm:flex-none flex items-center justify-center"
                             disabled={!totals || loading || isGeneratingPDF}
+                            aria-label="Download"
+                            title="Download"
                         >
                             {isGeneratingPDF ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                                 <Download size={18} />
                             )}
-                            Download
                         </Button>
 
                         {!loading && (
@@ -2768,7 +2964,7 @@ export default function QuotePage() {
                         </Button>
                     </div>
                 ) : (
-                    <Tabs value={activeTab} onValueChange={handleMainTabChange} className="space-y-6">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
                             <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
                                 <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
@@ -2784,9 +2980,6 @@ export default function QuotePage() {
                                 <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <Euro size={16} /> Overzicht
                                 </TabsTrigger>
-                                <TabsTrigger value="arbeid" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <Clock size={16} /> Arbeid
-                                </TabsTrigger>
                                 <TabsTrigger value="tekeningen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <PenTool size={16} /> Tekeningen
                                 </TabsTrigger>
@@ -2799,36 +2992,28 @@ export default function QuotePage() {
                                 <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <MessageSquare size={16} /> Notities
                                 </TabsTrigger>
-                                <TabsTrigger value="btw-converter" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <Percent size={16} /> BTW-omrekenen
-                                </TabsTrigger>
-                                {isDevUser && (
-                                    <TabsTrigger
-                                        value="compare"
-                                        disabled={isComparingGrootPrices}
-                                        className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
-                                    >
-                                        {isComparingGrootPrices ? <Loader2 size={16} className="animate-spin" /> : <Eye size={16} />}
-                                        Compare
-                                    </TabsTrigger>
-                                )}
                             </TabsList>
 
-                            {activeTab === 'pdf' && (
-                                <Dialog open={isPdfSettingsOpen} onOpenChange={(open) => {
-                                    setIsPdfSettingsOpen(open);
-                                    if (!open && !hasSavedPdfSettings) {
-                                        // User closed dialog without saving - mark as saved with defaults
-                                        setHasSavedPdfSettings(true);
-                                        handlePdfSettingsChange(pdfSettings);
-                                    }
-                                }}>
-                                    <DialogTrigger asChild>
-                                        <Button variant="ghost" size="sm" className="bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground mr-1">
-                                            <Settings size={16} className="mr-2" /> PDF Instellingen
-                                        </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="sm:max-w-2xl p-0 overflow-hidden bg-background border-border shadow-2xl">
+                            <Dialog open={isPdfSettingsOpen} onOpenChange={(open) => {
+                                setIsPdfSettingsOpen(open);
+                                if (!open && !hasSavedPdfSettings) {
+                                    // User closed dialog without saving - mark as saved with defaults
+                                    setHasSavedPdfSettings(true);
+                                    handlePdfSettingsChange(pdfSettings);
+                                }
+                            }}>
+                                <DialogTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label="PDF instellingen"
+                                        title="PDF instellingen"
+                                        className="bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground mr-1 sm:ml-auto"
+                                    >
+                                        <Settings size={16} />
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="w-[95vw] sm:max-w-4xl lg:max-w-5xl p-0 overflow-hidden bg-background border-border shadow-2xl">
                                         <DialogHeader className="px-6 pt-6">
                                             <DialogTitle>PDF Instellingen</DialogTitle>
                                             <DialogDescription>
@@ -2843,7 +3028,7 @@ export default function QuotePage() {
                                             </div>
                                         )}
 
-                                        <div className="px-6 pb-6 space-y-6 max-h-[75vh] overflow-y-auto">
+                                        <div className="px-6 pb-24 space-y-6 max-h-[75vh] overflow-y-auto">
                                             <div className="rounded-lg border border-border bg-card">
                                                 <QuoteSettings
                                                     settings={pdfSettings}
@@ -3075,9 +3260,29 @@ export default function QuotePage() {
                                                 </div>
                                             </div>
                                         </div>
-                                    </DialogContent>
-                                </Dialog>
-                            )}
+                                        <div className="sticky bottom-0 z-20 border-t border-border bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <p className="text-xs text-muted-foreground">
+                                                    {isSavingPdfSettings
+                                                        ? 'Opslaan...'
+                                                        : pdfSettingsSavedAt
+                                                            ? `Opgeslagen ${formatDistanceToNow(new Date(pdfSettingsSavedAt), { addSuffix: true, locale: nl })}`
+                                                            : 'Wijzigingen worden automatisch opgeslagen.'}
+                                                </p>
+                                                <Button
+                                                    type="button"
+                                                    variant="success"
+                                                    className="gap-2"
+                                                    onClick={savePdfSettingsNow}
+                                                    disabled={isSavingPdfSettings}
+                                                >
+                                                    {isSavingPdfSettings ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                                                    Opslaan
+                                                </Button>
+                                            </div>
+                                        </div>
+                                </DialogContent>
+                            </Dialog>
                         </div>
 
                         {/* Overzicht Tab */}
@@ -3117,6 +3322,11 @@ export default function QuotePage() {
                                                         totaal_uren: newHours,
                                                     });
                                                 }}
+                                                onUpdateMaterialenGrootTotal={handleUpdateMaterialenGrootTotal}
+                                                onUpdateMaterialenVerbruikTotal={handleUpdateMaterialenVerbruikTotal}
+                                                onUpdateMaterialenSubtotal={handleUpdateMaterialenSubtotal}
+                                                onUpdateWinstMargePercentage={handleUpdateWinstMargePercentage}
+                                                onUpdateWinstMargeAmountIncl={handleUpdateWinstMargeAmountIncl}
                                             />
                                         </div>
                                     </div>
@@ -3207,6 +3417,34 @@ export default function QuotePage() {
                                             </CardContent>
                                         </Card>
                                     )}
+
+                                    <Card className="border border-border bg-card/50">
+                                        <CardHeader className="pb-3">
+                                            <CardTitle className="text-base">Verbruiksartikelen</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="px-0 pb-0">
+                                            <MaterialEditor
+                                                title="VERBRUIKSARTIKELEN"
+                                                items={materials.verbruik}
+                                                onUpdateItem={handleUpdateVerbruiksItem}
+                                                onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
+                                                onAddItem={(item) => handleAddItem('verbruik', item)}
+                                                subtotal={verbruikSubtotal}
+                                                vatRate={quoteSettings?.btwTarief}
+                                                showLineTotalInclBtw={false}
+                                                onAddClick={() => setActiveCategory('verbruik')}
+                                                enableCalculationViewToggle
+                                                calculationTextFields="waarom_dit"
+                                                calculationToggleLabel="Laat toelichting zien"
+                                                calculationRowLabel="Waarom dit"
+                                                showDontAutoIncludeOption
+                                                viewMode="split"
+                                                categoryStyle="neutral"
+                                                showAdvancedControlsMenu
+                                                hideHeader
+                                            />
+                                        </CardContent>
+                                    </Card>
                                 </div>
                             )}
                         </TabsContent>
@@ -3229,17 +3467,6 @@ export default function QuotePage() {
                                 </div>
                             ) : (
                                 <>
-                                    {lastSyncedAt && (
-                                        <div className="flex items-center justify-end mb-4">
-                                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                                <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                Opgeslagen {formatDistanceToNow(lastSyncedAt, { addSuffix: true, locale: nl })}
-                                            </span>
-                                        </div>
-                                    )}
-
                                     <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
                                         <div
                                             className="grid w-full items-stretch"
@@ -3286,148 +3513,83 @@ export default function QuotePage() {
                                         </div>
                                     </div>
 
-                                    {materialViewMode === 'single' ? (
-                                        <MaterialEditor
-                                            title="MATERIALEN LIJST"
-                                            items={combinedMaterialItems}
-                                            onUpdateItem={handleUpdateCombinedItem}
-                                            onRemoveItem={handleRemoveCombinedItem}
-                                            subtotal={totalMaterialExcl}
-                                            vatRate={quoteSettings?.btwTarief}
-                                            showLineTotalInclBtw={false}
-                                            viewMode="single"
-                                            categoryStyle="neutral"
-                                            showAdvancedControlsMenu
-                                            onAddClick={handleOpenSingleMaterialPicker}
-                                            showDontAutoIncludeOption={false}
-                                        />
+                                    {!quoteSettings ? (
+                                        <div className="bg-card rounded-lg border border-border p-12 text-center">
+                                            <Clock size={48} className="mx-auto text-muted mb-4" />
+                                            <h3 className="text-lg font-medium text-foreground mb-2">Nog geen uren</h3>
+                                            <p className="text-muted-foreground">
+                                                De urenspecificatie wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                            </p>
+                                        </div>
                                     ) : (
-                                        <>
-                                            <div className="hidden md:block space-y-4">
-                                                <MaterialEditor
-                                                    title="GROOTMATERIALEN"
-                                                    items={materials.groot}
-                                                    onUpdateItem={handleUpdateGrootItem}
-                                                    onRemoveItem={(index) => handleRemoveItem('groot', index)}
-                                                    onAddItem={(item) => handleAddItem('groot', item)}
-                                                    subtotal={grootSubtotal}
-                                                    vatRate={quoteSettings?.btwTarief}
-                                                    showLineTotalInclBtw={false}
-                                                    onAddClick={() => setActiveCategory('groot')}
-                                                    enableCalculationViewToggle
-                                                    calculationTextFields="hoe_berekend"
-                                                    showDontAutoIncludeOption={false}
-                                                    viewMode="split"
-                                                    categoryStyle="groot"
-                                                    showAdvancedControlsMenu
-                                                />
-                                                <MaterialEditor
-                                                    title="VERBRUIKSARTIKELEN"
-                                                    items={materials.verbruik}
-                                                    onUpdateItem={handleUpdateVerbruiksItem}
-                                                    onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
-                                                    onAddItem={(item) => handleAddItem('verbruik', item)}
-                                                    subtotal={verbruikSubtotal}
-                                                    vatRate={quoteSettings?.btwTarief}
-                                                    showLineTotalInclBtw={false}
-                                                    onAddClick={() => setActiveCategory('verbruik')}
-                                                    enableCalculationViewToggle
-                                                    calculationTextFields="waarom_dit"
-                                                    calculationToggleLabel="Laat toelichting zien"
-                                                    calculationRowLabel="Waarom dit"
-                                                    showDontAutoIncludeOption
-                                                    viewMode="split"
-                                                    categoryStyle="verbruik"
-                                                    showAdvancedControlsMenu
-                                                />
-                                            </div>
-                                            <div className="md:hidden">
-                                                <Accordion
-                                                    type="single"
-                                                    value={mobileMaterialSection}
-                                                    onValueChange={(value) => {
-                                                        if (value === 'groot' || value === 'verbruik') {
-                                                            setMobileMaterialSection(value);
-                                                        }
-                                                    }}
-                                                    className="space-y-3"
-                                                >
-                                                    <AccordionItem value="groot" className="overflow-hidden rounded-xl border border-border/70 bg-card/40">
-                                                        <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                                                            <div className="flex w-full items-center justify-between gap-2 pr-2">
-                                                                <div className="flex min-w-0 items-center gap-2">
-                                                                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                                                                    <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                                                                        Grootmaterialen
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 text-[11px] text-muted-foreground whitespace-nowrap">
-                                                                    <span>{materials.groot.length} regels</span>
-                                                                    <span>{formatCurrency(grootSubtotal)}</span>
-                                                                </div>
-                                                            </div>
-                                                        </AccordionTrigger>
-                                                        <AccordionContent className="pb-0">
-                                                            <MaterialEditor
-                                                                title="GROOTMATERIALEN"
-                                                                items={materials.groot}
-                                                                onUpdateItem={handleUpdateGrootItem}
-                                                                onRemoveItem={(index) => handleRemoveItem('groot', index)}
-                                                                onAddItem={(item) => handleAddItem('groot', item)}
-                                                                subtotal={grootSubtotal}
-                                                                vatRate={quoteSettings?.btwTarief}
-                                                                showLineTotalInclBtw={false}
-                                                                onAddClick={() => setActiveCategory('groot')}
-                                                                enableCalculationViewToggle
-                                                                calculationTextFields="hoe_berekend"
-                                                                showDontAutoIncludeOption={false}
-                                                                viewMode="split"
-                                                                categoryStyle="groot"
-                                                                showAdvancedControlsMenu
-                                                            />
-                                                        </AccordionContent>
-                                                    </AccordionItem>
-                                                    <AccordionItem value="verbruik" className="overflow-hidden rounded-xl border border-border/70 bg-card/40">
-                                                        <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                                                            <div className="flex w-full items-center justify-between gap-2 pr-2">
-                                                                <div className="flex min-w-0 items-center gap-2">
-                                                                    <span className="h-2 w-2 rounded-full bg-cyan-400" />
-                                                                    <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                                                                        Verbruiksmaterialen
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 text-[11px] text-muted-foreground whitespace-nowrap">
-                                                                    <span>{materials.verbruik.length} regels</span>
-                                                                    <span>{formatCurrency(verbruikSubtotal)}</span>
-                                                                </div>
-                                                            </div>
-                                                        </AccordionTrigger>
-                                                        <AccordionContent className="pb-0">
-                                                            <MaterialEditor
-                                                                title="VERBRUIKSARTIKELEN"
-                                                                items={materials.verbruik}
-                                                                onUpdateItem={handleUpdateVerbruiksItem}
-                                                                onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
-                                                                onAddItem={(item) => handleAddItem('verbruik', item)}
-                                                                subtotal={verbruikSubtotal}
-                                                                vatRate={quoteSettings?.btwTarief}
-                                                                showLineTotalInclBtw={false}
-                                                                onAddClick={() => setActiveCategory('verbruik')}
-                                                                enableCalculationViewToggle
-                                                                calculationTextFields="waarom_dit"
-                                                                calculationToggleLabel="Laat toelichting zien"
-                                                                calculationRowLabel="Waarom dit"
-                                                                showDontAutoIncludeOption
-                                                                viewMode="split"
-                                                                categoryStyle="verbruik"
-                                                                showAdvancedControlsMenu
-                                                            />
-                                                        </AccordionContent>
-                                                    </AccordionItem>
-                                                </Accordion>
-                                            </div>
-                                        </>
+                                        <LaborBreakdown
+                                            urenSpecificatie={normalizedData?.uren_specificatie || []}
+                                            totaalUren={laborTotalHours}
+                                            uurTarief={quoteSettings?.uurTariefExclBtw || 0}
+                                            btwTarief={quoteSettings?.btwTarief || 21}
+                                            urenPerDag={laborHoursPerDay}
+                                            showSummaryInHeader
+                                            onUpdateHourlyRate={(newRate) => {
+                                                if (!quoteSettings) return;
+                                                handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
+                                            }}
+                                            onUpdateTotalHours={async (newHours) => {
+                                                if (!calculation) return;
+                                                const root = unwrapRoot(calculation.data_json);
+                                                await updateDataJson({
+                                                    ...root,
+                                                    totaal_uren: newHours,
+                                                });
+                                            }}
+                                            onUpdateItem={async (index, newHours) => {
+                                                if (!calculation || !normalizedData) return;
+                                                const updatedItems = [...(normalizedData.uren_specificatie || [])];
+                                                if (updatedItems[index]) {
+                                                    updatedItems[index] = { ...updatedItems[index], uren: newHours };
+
+                                                    // Recalculate total hours based on the new item value
+                                                    const newTotal = updatedItems.reduce((sum, item) => sum + (item.uren || 0), 0);
+
+                                                    const root = unwrapRoot(calculation.data_json);
+                                                    await updateDataJson({
+                                                        ...root,
+                                                        uren_specificatie: updatedItems,
+                                                        totaal_uren: newTotal
+                                                    });
+                                                }
+                                            }}
+                                        />
                                     )}
+
+                                    {lastSyncedAt && (
+                                        <div className="flex items-center justify-end mb-4">
+                                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                                <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Opgeslagen {formatDistanceToNow(lastSyncedAt, { addSuffix: true, locale: nl })}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    <MaterialEditor
+                                        title="GROOTMATERIALEN"
+                                        items={materials.groot}
+                                        onUpdateItem={handleUpdateGrootItem}
+                                        onRemoveItem={(index) => handleRemoveItem('groot', index)}
+                                        onAddItem={(item) => handleAddItem('groot', item)}
+                                        subtotal={grootSubtotal}
+                                        vatRate={quoteSettings?.btwTarief}
+                                        showLineTotalInclBtw={false}
+                                        onAddClick={() => setActiveCategory('groot')}
+                                        enableCalculationViewToggle
+                                        calculationTextFields="hoe_berekend"
+                                        showDontAutoIncludeOption={false}
+                                        viewMode="split"
+                                        categoryStyle="neutral"
+                                        showAdvancedControlsMenu
+                                        hideHeader
+                                    />
 
                                     <Dialog open={isGrootCompareOpen} onOpenChange={setIsGrootCompareOpen}>
                                         <DialogContent className="sm:max-w-6xl max-h-[94vh] overflow-hidden">
@@ -3623,56 +3785,6 @@ export default function QuotePage() {
                             )}
                         </TabsContent>
 
-                        {/* Arbeid Tab */}
-                        <TabsContent value="arbeid" className="mt-6">
-                            {loading ? (
-                                <LoadingPanel />
-                            ) : !calculation?.data_json || !quoteSettings ? (
-                                <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                    <Clock size={48} className="mx-auto text-muted mb-4" />
-                                    <h3 className="text-lg font-medium text-foreground mb-2">Nog geen uren</h3>
-                                    <p className="text-muted-foreground">
-                                        De urenspecificatie wordt automatisch gegenereerd zodra de calculatie is voltooid.
-                                    </p>
-                                </div>
-                            ) : (
-                                <LaborBreakdown
-                                    urenSpecificatie={normalizedData?.uren_specificatie || []}
-                                    totaalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
-                                    uurTarief={quoteSettings?.uurTariefExclBtw || 0}
-                                    onUpdateHourlyRate={(newRate) => {
-                                        if (!quoteSettings) return;
-                                        handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
-                                    }}
-                                    onUpdateTotalHours={async (newHours) => {
-                                        if (!calculation) return;
-                                        const root = unwrapRoot(calculation.data_json);
-                                        await updateDataJson({
-                                            ...root,
-                                            totaal_uren: newHours,
-                                        });
-                                    }}
-                                    onUpdateItem={async (index, newHours) => {
-                                        if (!calculation || !normalizedData) return;
-                                        const updatedItems = [...(normalizedData.uren_specificatie || [])];
-                                        if (updatedItems[index]) {
-                                            updatedItems[index] = { ...updatedItems[index], uren: newHours };
-
-                                            // Recalculate total hours based on the new item value
-                                            const newTotal = updatedItems.reduce((sum, item) => sum + (item.uren || 0), 0);
-
-                                            const root = unwrapRoot(calculation.data_json);
-                                            await updateDataJson({
-                                                ...root,
-                                                uren_specificatie: updatedItems,
-                                                totaal_uren: newTotal
-                                            });
-                                        }
-                                    }}
-                                />
-                            )}
-                        </TabsContent>
-
                         {/* PDF Tab */}
                         <TabsContent value="pdf" className="mt-6 space-y-4">
                             {loading ? (
@@ -3692,7 +3804,73 @@ export default function QuotePage() {
                             {loading ? (
                                 <LoadingPanel />
                             ) : (
-                                <WorkDescriptionCard werkbeschrijving={normalizedData?.werkbeschrijving || []} />
+                                <div className="space-y-4">
+                                    <Card className="border border-border bg-card/50">
+                                        <CardHeader className="pb-3">
+                                            <CardTitle className="text-base">Werkbeschrijving</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-3">
+                                            <div className="space-y-2">
+                                                {manualWorkDescriptionRows.map((row, index) => (
+                                                    <div key={`werkbeschrijving-row-${index}`} className="flex items-center gap-2">
+                                                        <span className="text-muted-foreground text-sm">-</span>
+                                                        <Input
+                                                            value={row}
+                                                            onChange={(e) => handleChangeWorkDescriptionRow(index, e.target.value)}
+                                                            placeholder="Bijv. Materialen aanvoeren"
+                                                            className="h-9"
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => handleRemoveWorkDescriptionRow(index)}
+                                                            aria-label="Verwijder regel"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className="h-9"
+                                                    onClick={handleAddWorkDescriptionRow}
+                                                >
+                                                    <Plus className="mr-2 h-4 w-4" />
+                                                    Bullet toevoegen
+                                                </Button>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {isAutoSavingWorkDescription ? 'Automatisch opslaan...' : 'Wordt automatisch opgeslagen'}
+                                                </div>
+                                            </div>
+                                            <div className="grid gap-3 pt-2 md:grid-cols-[1fr_auto]">
+                                                <Input
+                                                    value={workDescriptionPrompt}
+                                                    onChange={(e) => setWorkDescriptionPrompt(e.target.value)}
+                                                    placeholder="Bijv. schilderklus woonkamer"
+                                                    className="h-9"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="success"
+                                                    className="h-9"
+                                                    onClick={() => { void handleGenerateWorkDescription(); }}
+                                                    disabled={isGeneratingWorkDescription || !workDescriptionPrompt.trim()}
+                                                >
+                                                    {isGeneratingWorkDescription ? (
+                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Sparkles className="mr-2 h-4 w-4" />
+                                                    )}
+                                                    Genereer
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </div>
                             )}
                         </TabsContent>
 
@@ -3715,87 +3893,6 @@ export default function QuotePage() {
                                     </div>
                                 </div>
                             )}
-                        </TabsContent>
-
-                        <TabsContent value="btw-converter" className="mt-6">
-                            <div className="bg-card rounded-lg border border-border p-6 space-y-6">
-                                <div className="space-y-1">
-                                    <h3 className="text-lg font-semibold text-foreground">BTW-omrekenen</h3>
-                                    <p className="text-sm text-muted-foreground">
-                                        Reken automatisch van excl. naar incl. BTW of andersom.
-                                    </p>
-                                </div>
-
-                                <div className="grid gap-4 md:grid-cols-3">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="btw-percentage">BTW-percentage</Label>
-                                        <div className="relative">
-                                            <Input
-                                                id="btw-percentage"
-                                                value={btwConverterRateInput}
-                                                onChange={(e) => setBtwConverterRateInput(e.target.value)}
-                                                inputMode="decimal"
-                                                placeholder="21"
-                                                className="pr-8"
-                                            />
-                                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground">
-                                            Standaard: 21%
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="btw-excl">Bedrag excl. BTW (€)</Label>
-                                        <Input
-                                            id="btw-excl"
-                                            value={btwConverterExclInput}
-                                            onChange={(e) => handleBtwExclChange(e.target.value)}
-                                            inputMode="decimal"
-                                            placeholder="0,00"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="btw-incl">Bedrag incl. BTW (€)</Label>
-                                        <Input
-                                            id="btw-incl"
-                                            value={btwConverterInclInput}
-                                            onChange={(e) => handleBtwInclChange(e.target.value)}
-                                            inputMode="decimal"
-                                            placeholder="0,00"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="rounded-md border border-border bg-muted/20 px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <div className="text-sm text-muted-foreground">
-                                        Actief tarief: <span className="font-medium text-foreground">{normalizedBtwConverterRate.toLocaleString('nl-NL')}%</span>
-                                    </div>
-                                    <div className="text-sm text-muted-foreground">
-                                        BTW-bedrag:{' '}
-                                        <span className="font-semibold text-foreground">
-                                            {converterBtwAmount === null ? '—' : formatCurrency(converterBtwAmount)}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="flex justify-end">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => {
-                                            setBtwConverterRateInput('21');
-                                            setBtwConverterExclInput('');
-                                            setBtwConverterInclInput('');
-                                            setBtwConverterLastEdited(null);
-                                        }}
-                                    >
-                                        Opnieuw instellen
-                                    </Button>
-                                </div>
-                            </div>
                         </TabsContent>
 
                         {activeTab === 'materialen' && !!calculation?.data_json && (

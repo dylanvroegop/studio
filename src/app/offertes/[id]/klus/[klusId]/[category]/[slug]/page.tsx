@@ -3886,11 +3886,18 @@ export default function GenericMeasurementPage() {
               ? (userData?.trespa_seam_thickness ?? 8)
               : (isRockpanel ? (userData?.rockpanel_seam_thickness ?? 8) : 8);
 
-            processed.boeiboord_panelen = buildBoeiboordPanelen(processed);
-            processed.boeiboord_aantallen = {
-              voorzijde: processed.boeiboord_mirror ? 2 : 1,
-              onderzijde: processed.boeiboord_mirror ? 2 : 1,
-            };
+            const boeiboordPanelen = buildBoeiboordPanelen(processed);
+            const boeiboordAantallen = boeiboordPanelen.reduce(
+              (acc, paneel) => {
+                if (paneel.zijde === 'voorzijde') acc.voorzijde += 1;
+                if (paneel.zijde === 'onderzijde') acc.onderzijde += 1;
+                return acc;
+              },
+              { voorzijde: 0, onderzijde: 0 }
+            );
+
+            processed.boeiboord_panelen = boeiboordPanelen;
+            processed.boeiboord_aantallen = boeiboordAantallen;
             processed['naad dikte tussen 2 platen kopkant'] = seamThickness;
             processed.latten_samenvatting = buildBoeiboordLattenSamenvatting(processed);
             processed.voorzijde_latafstand = processed.latafstand;

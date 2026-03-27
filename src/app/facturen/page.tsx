@@ -15,7 +15,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { Calendar, CheckCircle2, Loader2, MoreHorizontal, Pencil, Plus, ReceiptText, Search, Trash2, FileText } from 'lucide-react';
+import { Calendar, CheckCircle2, Loader2, Pencil, Plus, ReceiptText, Search, Trash2, FileText } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,12 +27,6 @@ import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -427,34 +421,24 @@ export default function FacturenPage() {
                         <TooltipContent>Open deze factuur</TooltipContent>
                       </Tooltip>
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-9 w-9 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
+                            className="h-9 w-9 rounded-lg text-destructive transition-all hover:bg-destructive/10"
                             onClick={(e) => {
                               e.stopPropagation();
                               e.preventDefault();
-                            }}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Meer acties</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                          <DropdownMenuItem
-                            className="cursor-pointer text-destructive focus:text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
                               openArchiveDialog(inv);
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
-                            Verwijderen
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <span className="sr-only">Verwijderen</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Verwijderen</TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                 );

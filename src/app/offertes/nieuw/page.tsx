@@ -24,6 +24,22 @@ function createEmptyQuoteDeduped(firestore: Firestore, userId: string): Promise<
   return promise;
 }
 
+async function ensureManualQuoteData(quoteId: string, token: string): Promise<void> {
+  const response = await fetch('/api/quotes/ensure-data-json', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ quoteId }),
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || payload?.ok !== true) {
+    throw new Error(payload?.message || 'Kon lege offerte-data niet initialiseren.');
+  }
+}
+
 export default function NewQuoteRedirect() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
@@ -36,6 +52,8 @@ export default function NewQuoteRedirect() {
     (async () => {
       try {
         const quoteId = await createEmptyQuoteDeduped(firestore, user.uid);
+        const token = await user.getIdToken();
+        await ensureManualQuoteData(quoteId, token);
         if (!cancelled) router.replace(`/offertes/${quoteId}/klant`);
       } catch (error) {
         console.error('Fout bij starten nieuwe offerte:', error);

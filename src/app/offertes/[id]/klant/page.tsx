@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { NewQuoteForm } from '@/components/new-quote-form-wrapper';
 import { useUser } from '@/firebase';
 import { WizardHeader } from '@/components/WizardHeader';
@@ -39,7 +39,12 @@ function PaginaLaden() {
 
 export default function QuoteClientPage({ params }: { params: { id: string } }) {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { user, isUserLoading } = useUser();
+    const rawSuccessRedirect = searchParams.get('successRedirect');
+    const successHref = rawSuccessRedirect && rawSuccessRedirect.startsWith('/offertes/')
+      ? rawSuccessRedirect
+      : undefined;
 
     useEffect(() => {
         if (!isUserLoading && !user) router.push('/login');
@@ -79,7 +84,7 @@ export default function QuoteClientPage({ params }: { params: { id: string } }) 
                 <div className="mx-auto w-full max-w-4xl">
                     <div className="rounded-2xl border border-white/5 bg-card/40 shadow-2xl backdrop-blur-xl ring-1 ring-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="oh-cta-green p-6 sm:p-10">
-                            <NewQuoteForm quoteId={params.id} backHref="/offertes" />
+                            <NewQuoteForm quoteId={params.id} backHref="/offertes" successHref={successHref} />
                         </div>
                     </div>
                 </div>

@@ -344,6 +344,11 @@ function EuroInput(props: {
 
   const [focused, setFocused] = useState(false);
   const hasValue = (value ?? '').trim() !== '' && (value ?? '').trim() !== '0';
+  const handleSelectAll = (el: HTMLInputElement) => {
+    requestAnimationFrame(() => {
+      el.select();
+    });
+  };
 
   return (
     <div className={cn('relative', className)}>
@@ -362,8 +367,12 @@ function EuroInput(props: {
         inputMode="decimal"
         disabled={disabled}
         value={value}
-        onFocus={() => setFocused(true)}
+        onFocus={(e) => {
+          setFocused(true);
+          handleSelectAll(e.currentTarget);
+        }}
         onBlur={() => setFocused(false)}
+        onClick={(e) => handleSelectAll(e.currentTarget)}
         onChange={(e) => onChange(formatEuroNL(e.target.value))}
         placeholder={placeholder}
         className={cn('pl-7 text-right', inputClassName)}

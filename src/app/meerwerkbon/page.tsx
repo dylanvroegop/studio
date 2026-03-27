@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Timestamp, collection, doc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { Calendar, FileSignature, Loader2, MoreHorizontal, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Calendar, FileSignature, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
@@ -23,16 +23,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { useFirestore, useUser } from '@/firebase';
 import type { Meerwerkbon, MeerwerkbonStatus } from '@/lib/types';
 import { formatCurrency } from '@/lib/meerwerkbon-utils';
 import { MeerwerkbonStatusBadge } from '@/components/meerwerk/MeerwerkbonStatusBadge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 type FilterMode = 'alle' | MeerwerkbonStatus;
@@ -257,34 +252,24 @@ export default function MeerwerkbonPage() {
                         <span className="hidden sm:inline">Openen</span>
                       </Link>
                     </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-9 w-9 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
+                          className="h-9 w-9 rounded-lg text-destructive transition-all hover:bg-destructive/10"
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
-                          }}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Meer acties</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenuItem
-                          className="cursor-pointer text-destructive focus:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
                             openArchiveDialog(item);
                           }}
                         >
                           <Trash2 className="h-4 w-4" />
-                          Verwijderen
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <span className="sr-only">Verwijderen</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Verwijderen</TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               ))}

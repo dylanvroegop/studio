@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  addDoc,
   collection,
   doc,
   getDocs,
@@ -20,7 +19,6 @@ import {
   Calendar,
   FileText,
   Loader2,
-  MoreHorizontal,
   Plus,
   Search,
   Trash2,
@@ -34,7 +32,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -45,12 +42,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { useFirestore, useUser } from '@/firebase';
 import { createEmptyQuote } from '@/lib/firestore-actions';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
@@ -240,23 +231,6 @@ function haalTotaalUitCalculatie(dataJson: unknown): number | null {
   return null;
 }
 
-const EMPTY_CLIENT: Client = {
-  id: '',
-  voornaam: '',
-  achternaam: '',
-  bedrijfsnaam: '',
-  emailadres: '',
-  telefoonnummer: '',
-  straat: '',
-  huisnummer: '',
-  postcode: '',
-  plaats: '',
-  projectStraat: '',
-  projectHuisnummer: '',
-  projectPostcode: '',
-  projectPlaats: '',
-};
-
 function toQuoteKlantinformatie(client: Client): Record<string, unknown> {
   const projectStraat = (client.projectStraat || '').trim();
   const projectHuisnummer = (client.projectHuisnummer || '').trim();
@@ -315,10 +289,6 @@ export default function OffertesPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-
-  const [newClientOpen, setNewClientOpen] = useState(false);
-  const [newClient, setNewClient] = useState<Client>(EMPTY_CLIENT);
-  const [creatingClient, setCreatingClient] = useState(false);
 
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<QuoteRow | null>(null);
@@ -634,45 +604,26 @@ export default function OffertesPage() {
     }
   }
 
-  async function handleCreateClient(): Promise<void> {
-    if (!user || !firestore || creatingClient) return;
-
-    const voornaam = (newClient.voornaam || '').trim();
-    const achternaam = (newClient.achternaam || '').trim();
-    if (!voornaam && !achternaam) return;
-
-    setCreatingClient(true);
+  async function handleCreateQuoteWithNewClient(): Promise<void> {
+    if (!user || !firestore || creatingQuoteRef.current) return;
+    creatingQuoteRef.current = true;
+    setCreatingQuote(true);
     try {
-      const docRef = await addDoc(collection(firestore, 'clients'), {
-        userId: user.uid,
-        voornaam: newClient.voornaam || '',
-        achternaam: newClient.achternaam || '',
-        bedrijfsnaam: newClient.bedrijfsnaam || '',
-        emailadres: newClient.emailadres || '',
-        telefoonnummer: newClient.telefoonnummer || '',
-        straat: newClient.straat || '',
-        huisnummer: newClient.huisnummer || '',
-        postcode: newClient.postcode || '',
-        plaats: newClient.plaats || '',
-        afwijkendProjectadres: true,
-        projectStraat: newClient.projectStraat || '',
-        projectHuisnummer: newClient.projectHuisnummer || '',
-        projectPostcode: newClient.projectPostcode || '',
-        projectPlaats: newClient.projectPlaats || '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        klanttype: newClient.bedrijfsnaam ? 'Zakelijk' : 'Particulier',
-      });
+      const quoteId = await createEmptyQuote(firestore, user.uid);
+      await ensureManualQuoteData(quoteId);
 
-      const created = { ...newClient, id: docRef.id, userId: user.uid };
-      setClients((prev) => [created, ...prev]);
-      setSelectedClientId(docRef.id);
-      setNewClient(EMPTY_CLIENT);
-      setNewClientOpen(false);
-    } catch (e) {
-      console.error('Fout bij klant aanmaken:', e);
+      setCreateOpen(false);
+      setSelectedClientId(null);
+      setClientSearch('');
+
+      const successRedirect = encodeURIComponent(`/offertes/${quoteId}`);
+      router.push(`/offertes/${quoteId}/klant?successRedirect=${successRedirect}`);
+    } catch (e: any) {
+      console.error(e);
+      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon geen offerte aanmaken.'}`);
     } finally {
-      setCreatingClient(false);
+      creatingQuoteRef.current = false;
+      setCreatingQuote(false);
     }
   }
 
@@ -871,38 +822,24 @@ export default function OffertesPage() {
                           <TooltipContent>Open de offerte</TooltipContent>
                         </Tooltip>
 
-                        <DropdownMenu>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                  }}
-                                >
-                                  <MoreHorizontal className="h-4 w-4" />
-                                  <span className="sr-only">Meer acties</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                            </TooltipTrigger>
-                            <TooltipContent>Meer acties</TooltipContent>
-                          </Tooltip>
-                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                            <DropdownMenuItem
-                              className="cursor-pointer text-destructive focus:text-destructive"
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 shrink-0 rounded-lg text-destructive transition-all hover:bg-destructive/10"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                e.preventDefault();
                                 openArchiveDialog(q);
                               }}
                             >
                               <Trash2 className="h-4 w-4" />
-                              Verwijderen
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              <span className="sr-only">Verwijderen</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Verwijderen</TooltipContent>
+                        </Tooltip>
                       </div>
                     </div>
                   );
@@ -970,37 +907,23 @@ export default function OffertesPage() {
                         )}
                       </div>
 
-                      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                      <div className="flex justify-end">
                         <Button
                           type="button"
-                          variant="outline"
-                          onClick={() => setNewClientOpen(true)}
+                          variant="success"
                           className="h-10"
+                          onClick={() => {
+                            if (selectedClientId) {
+                              void handleCreateEmptyQuote({ withSelectedClient: true });
+                              return;
+                            }
+                            void handleCreateQuoteWithNewClient();
+                          }}
+                          disabled={creatingQuote}
                         >
-                          Nieuwe klant toevoegen
+                          {creatingQuote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          {selectedClientId ? 'Start met klant' : 'Nieuwe klant toevoegen'}
                         </Button>
-
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-10"
-                            onClick={() => handleCreateEmptyQuote()}
-                            disabled={creatingQuote}
-                          >
-                            {creatingQuote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                            Start zonder klant
-                          </Button>
-                          <Button
-                            type="button"
-                            className="h-10 border-cyan-500/50 bg-cyan-500/20 text-cyan-700 hover:bg-cyan-500/30 dark:text-cyan-100"
-                            onClick={() => handleCreateEmptyQuote({ withSelectedClient: true })}
-                            disabled={creatingQuote || !selectedClientId}
-                          >
-                            {creatingQuote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                            Start met klant
-                          </Button>
-                        </div>
                       </div>
                     </div>
                   </DialogContent>
@@ -1075,126 +998,6 @@ export default function OffertesPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        <Dialog
-          open={newClientOpen}
-          onOpenChange={(open) => {
-            setNewClientOpen(open);
-            if (!open) setNewClient(EMPTY_CLIENT);
-          }}
-        >
-          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-            <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
-              <DialogTitle>Nieuwe klant toevoegen</DialogTitle>
-            </DialogHeader>
-
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              <div className="grid gap-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Voornaam</Label>
-                    <Input
-                      value={newClient.voornaam || ''}
-                      placeholder="Voornaam"
-                      onChange={(e) => setNewClient((prev) => ({ ...prev, voornaam: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Achternaam</Label>
-                    <Input
-                      value={newClient.achternaam || ''}
-                      placeholder="Achternaam"
-                      onChange={(e) => setNewClient((prev) => ({ ...prev, achternaam: e.target.value }))}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Bedrijfsnaam (optioneel)</Label>
-                  <Input
-                    value={newClient.bedrijfsnaam || ''}
-                    placeholder="Bedrijf B.V."
-                    onChange={(e) => setNewClient((prev) => ({ ...prev, bedrijfsnaam: e.target.value }))}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>E-mail</Label>
-                    <Input
-                      value={newClient.emailadres || ''}
-                      placeholder="naam@voorbeeld.nl"
-                      onChange={(e) => setNewClient((prev) => ({ ...prev, emailadres: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Telefoon</Label>
-                    <Input
-                      value={newClient.telefoonnummer || ''}
-                      placeholder="06 12345678"
-                      onChange={(e) => setNewClient((prev) => ({ ...prev, telefoonnummer: e.target.value }))}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4 rounded-lg border p-4 bg-muted/10">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-foreground">Factuuradres</span>
-                    <div className="flex-1 border-t" />
-                  </div>
-                  <div className="grid grid-cols-4 gap-4">
-                    <div className="col-span-3 space-y-2">
-                      <Label>Straat</Label>
-                      <Input
-                        value={newClient.straat || ''}
-                        placeholder="Straatnaam"
-                        onChange={(e) => setNewClient((prev) => ({ ...prev, straat: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Nr.</Label>
-                      <Input
-                        value={newClient.huisnummer || ''}
-                        placeholder="Nr."
-                        onChange={(e) => setNewClient((prev) => ({ ...prev, huisnummer: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label>Postcode</Label>
-                      <Input
-                        value={newClient.postcode || ''}
-                        placeholder="1234 AB"
-                        onChange={(e) => setNewClient((prev) => ({ ...prev, postcode: e.target.value }))}
-                      />
-                    </div>
-                    <div className="col-span-2 space-y-2">
-                      <Label>Plaats</Label>
-                      <Input
-                        value={newClient.plaats || ''}
-                        placeholder="Plaatsnaam"
-                        onChange={(e) => setNewClient((prev) => ({ ...prev, plaats: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="shrink-0 border-t bg-background px-6 py-4">
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setNewClientOpen(false)}>
-                  Annuleren
-                </Button>
-                <Button type="button" onClick={handleCreateClient} disabled={creatingClient}>
-                  {creatingClient ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Klant opslaan
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
     </TooltipProvider>
   );

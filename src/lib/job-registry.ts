@@ -309,13 +309,13 @@ const KOOF_FIELDS: MeasurementField[] = [
 ];
 
 const BOEIBOORD_FIELDS: MeasurementField[] = [
-  { key: 'lengte', label: 'Lengte Voorzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
-  { key: 'hoogte', label: 'Hoogte Voorzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 250' },
-  { key: 'lengte_onderzijde', label: 'Lengte Onderzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
-  { key: 'breedte', label: 'Breedte Onderzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 300' },
+  { key: 'lengte', label: 'Lengte Voorzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000', optional: true },
+  { key: 'hoogte', label: 'Hoogte Voorzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 250', optional: true },
+  { key: 'lengte_onderzijde', label: 'Lengte Onderzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000', optional: true },
+  { key: 'breedte', label: 'Breedte Onderzijde', type: 'number', suffix: 'mm', placeholder: 'Bijv. 300', optional: true },
   { key: 'balkafstand', label: 'Balkafstand (h.o.h.)', type: 'number', suffix: 'mm', optional: true },
-  { key: 'latafstand', label: 'Latafstand Voorzijde (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300 },
-  { key: 'onderzijde_latafstand', label: 'Latafstand Onderzijde (h.o.h.) *', type: 'number', suffix: 'mm', defaultValue: 300, optional: true },
+  { key: 'latafstand', label: 'Latafstand Voorzijde (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, optional: true },
+  { key: 'onderzijde_latafstand', label: 'Latafstand Onderzijde (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, optional: true },
   { key: 'kopkanten', label: 'Kopkanten', type: 'boolean', defaultValue: false },
   { key: 'kopkant_breedte', label: 'Breedte Kopkant', type: 'number', suffix: 'mm', defaultValue: 300, optional: true },
   { key: 'kopkant_hoogte', label: 'Hoogte Kopkant', type: 'number', suffix: 'mm', defaultValue: 250, optional: true },
@@ -1035,7 +1035,7 @@ const BOEIBOORD_HOUT_MATS: MaterialSection[] = [
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
 
   // 3. BEKLEDING
-  { label: 'Boeiboord Hout', categoryFilter: 'Merantie, Hardhout geschaafd, Vloer-rabat-vellingdelen', category: 'beplating', key: 'boeiboord_hout', category_ultra_filter: '' },
+  { label: 'Boeiboord Hout', categoryFilter: 'Exterieur platen', category: 'beplating', key: 'boeiboord_hout', category_ultra_filter: '' },
 
   // 4. AFWERKING
   { label: 'Ventilatieprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'ventilatieprofiel', category_ultra_filter: '' },
