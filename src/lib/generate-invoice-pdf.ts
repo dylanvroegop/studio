@@ -7,6 +7,7 @@ export interface PDFInvoiceData {
   invoiceNumberLabel: string;
   issueDate: string;
   dueDate: string;
+  paymentTermDays?: number;
   betreftOfferte?: string;
 
   logoUrl?: string;
@@ -106,11 +107,14 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   doc.text(`Factuur #${data.invoiceNumberLabel}`, pageWidth - margin, y + 12, { align: 'right' });
   doc.text(`Factuurdatum: ${data.issueDate}`, pageWidth - margin, y + 17, { align: 'right' });
   doc.text(`Vervaldatum: ${data.dueDate}`, pageWidth - margin, y + 22, { align: 'right' });
+  if (typeof data.paymentTermDays === 'number' && Number.isFinite(data.paymentTermDays)) {
+    doc.text(`Betaaltermijn: ${Math.max(1, Math.round(data.paymentTermDays))} dagen`, pageWidth - margin, y + 27, { align: 'right' });
+  }
   if (data.betreftOfferte) {
-    doc.text(`Betreft: ${data.betreftOfferte}`, pageWidth - margin, y + 27, { align: 'right' });
+    doc.text(`Betreft: ${data.betreftOfferte}`, pageWidth - margin, y + 32, { align: 'right' });
   }
 
-  y += 32;
+  y += 37;
 
   // Company + customer blocks
   const colGap = 10;
@@ -194,7 +198,7 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   const totalRows: Array<{ label: string; value: number | undefined }> = [
-    { label: 'Subtotaal (excl. BTW)', value: data.totals.totaalExclBtw },
+    { label: 'Totaal (excl. BTW)', value: data.totals.totaalExclBtw },
     { label: 'BTW', value: data.totals.btw },
     { label: 'Totaal (incl. BTW)', value: data.totals.totaalInclBtw },
   ];
@@ -219,7 +223,6 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   const paymentLines: string[] = [];
 
   if (data.bedrijf.iban) paymentLines.push(`IBAN: ${data.bedrijf.iban}`);
-  if (data.bedrijf.bankNaam) paymentLines.push(`Bank: ${data.bedrijf.bankNaam}`);
   if (data.bedrijf.bic) paymentLines.push(`BIC: ${data.bedrijf.bic}`);
   paymentLines.push(`Omschrijving: ${data.invoiceType === 'voorschot' ? 'Voorschotfactuur' : 'Eindfactuur'} #${data.invoiceNumberLabel}`);
 

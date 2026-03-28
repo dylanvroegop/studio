@@ -15,133 +15,70 @@ interface LaborBreakdownProps {
     onUpdateItem?: (index: number, hours: number) => void;
 }
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Pencil, Plus, Minus } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Plus, Minus, MoreHorizontal } from 'lucide-react';
 
 export function LaborBreakdown({
     urenSpecificatie,
     totaalUren,
     uurTarief,
-    btwTarief = 21,
+    btwTarief: _btwTarief = 21,
     urenPerDag = 8,
     showSummaryInHeader = true,
     onUpdateHourlyRate,
     onUpdateTotalHours,
-    onUpdateItem
+    onUpdateItem: _onUpdateItem
 }: LaborBreakdownProps) {
-    // Row editing state
-    const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
-    const [tempRowHours, setTempRowHours] = useState<string>('');
-    const rowInputRef = useRef<HTMLInputElement>(null);
-
-    // Focus row input when editing starts
-    useEffect(() => {
-        if (editingRowIndex !== null && rowInputRef.current) {
-            rowInputRef.current.focus();
-        }
-    }, [editingRowIndex]);
-
-    const startEditingRow = (index: number, hours: number) => {
-        setEditingRowIndex(index);
-        setTempRowHours(hours.toString());
-    };
-
-    const saveRow = (index: number) => {
-        const newHours = parseFloat(tempRowHours);
-        if (!isNaN(newHours) && onUpdateItem) {
-            onUpdateItem(index, newHours);
-        }
-        setEditingRowIndex(null);
-    };
-
-    const cancelEditingRow = () => {
-        setEditingRowIndex(null);
-    };
-
-    const [isEditingRate, setIsEditingRate] = useState(false);
     const [tempRate, setTempRate] = useState<string>('');
-    const rateInputRef = useRef<HTMLInputElement>(null);
-
-    const [isEditingHours, setIsEditingHours] = useState(false);
     const [tempHours, setTempHours] = useState<string>('');
-    const hoursInputRef = useRef<HTMLInputElement>(null);
-    const [isEditingDays, setIsEditingDays] = useState(false);
     const [tempDays, setTempDays] = useState<string>('');
-    const daysInputRef = useRef<HTMLInputElement>(null);
     const [showCalculationRows, setShowCalculationRows] = useState(false);
 
-    useEffect(() => {
-        if (isEditingRate && rateInputRef.current) {
-            rateInputRef.current.focus();
-        }
-    }, [isEditingRate]);
-
-    useEffect(() => {
-        if (isEditingHours && hoursInputRef.current) {
-            hoursInputRef.current.focus();
-        }
-    }, [isEditingHours]);
-    useEffect(() => {
-        if (isEditingDays && daysInputRef.current) {
-            daysInputRef.current.focus();
-        }
-    }, [isEditingDays]);
-
-    const startEditingRate = () => {
-        setTempRate(uurTarief.toString());
-        setIsEditingRate(true);
+    const parseLocalizedNumber = (value: string): number => {
+        const normalized = value.replace(/\./g, '').replace(',', '.');
+        const parsed = parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : NaN;
     };
 
     const saveRate = () => {
-        const newRate = parseFloat(tempRate);
+        const newRate = parseLocalizedNumber(tempRate);
         if (!isNaN(newRate) && onUpdateHourlyRate) {
             onUpdateHourlyRate(newRate);
         }
-        setIsEditingRate(false);
-    };
-
-    const cancelEditingRate = () => {
-        setIsEditingRate(false);
-    };
-
-    const startEditingHours = () => {
-        setTempHours(totaalUren.toString());
-        setIsEditingHours(true);
     };
 
     const saveHours = () => {
-        const newHours = parseFloat(tempHours);
+        const newHours = parseLocalizedNumber(tempHours);
         if (!isNaN(newHours) && onUpdateTotalHours) {
             onUpdateTotalHours(newHours);
         }
-        setIsEditingHours(false);
-    };
-
-    const cancelEditingHours = () => {
-        setIsEditingHours(false);
-    };
-    const startEditingDays = () => {
-        setTempDays((totaalUren / safeUrenPerDag).toString());
-        setIsEditingDays(true);
     };
     const saveDays = () => {
-        const newDays = parseFloat(tempDays);
+        const newDays = parseLocalizedNumber(tempDays);
         if (!isNaN(newDays) && onUpdateTotalHours) {
             const newHours = Math.max(0, newDays * safeUrenPerDag);
             onUpdateTotalHours(Number(newHours.toFixed(2)));
         }
-        setIsEditingDays(false);
-    };
-    const cancelEditingDays = () => {
-        setIsEditingDays(false);
     };
 
     const totaalArbeid = totaalUren * uurTarief;
-    const totaalArbeidInclBtw = totaalArbeid * (1 + ((Number.isFinite(btwTarief) ? btwTarief : 21) / 100));
     const safeUrenPerDag = Number.isFinite(urenPerDag) && urenPerDag > 0 ? urenPerDag : 8;
     const totaalDagen = totaalUren / safeUrenPerDag;
+
+    useEffect(() => {
+        setTempRate(uurTarief.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    }, [uurTarief]);
+
+    useEffect(() => {
+        setTempHours(totaalUren.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 2 }));
+    }, [totaalUren]);
+
+    useEffect(() => {
+        setTempDays(totaalDagen.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 2 }));
+    }, [totaalDagen]);
 
     const adjustDays = (deltaDays: number) => {
         if (!onUpdateTotalHours) return;
@@ -157,198 +94,62 @@ export function LaborBreakdown({
                     <Clock size={18} className="text-muted-foreground" />
                     <h3 className="font-semibold text-foreground">URENSPECIFICATIE</h3>
                 </div>
-                {showSummaryInHeader && <div className="flex items-center gap-4 text-sm">
-                    {urenSpecificatie.length > 0 && (
-                        <span className="text-muted-foreground flex items-center gap-2">
-                            <span className="text-xs">Laat berekening zien</span>
-                            <Switch checked={showCalculationRows} onCheckedChange={setShowCalculationRows} />
-                        </span>
-                    )}
-                    <span className="text-muted-foreground flex items-center gap-2">
-                        Uurtarief:
-                        {isEditingRate ? (
-                            <div className="flex items-center gap-1">
-                                <span className="text-muted-foreground">€</span>
-                                <Input
-                                    ref={rateInputRef}
-                                    type="number"
-                                    value={tempRate}
-                                    onChange={(e) => setTempRate(e.target.value)}
-                                    onBlur={saveRate}
-                                    className="h-7 w-20 px-2 py-1 text-sm bg-background border-border"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveRate();
-                                        if (e.key === 'Escape') cancelEditingRate();
-                                    }}
-                                />
-                            </div>
-                        ) : (
+                {showSummaryInHeader && urenSpecificatie.length > 0 && (
+                    <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild>
                             <button
                                 type="button"
-                                className="p-0 border-0 bg-transparent text-foreground/90 flex items-center gap-2 hover:text-foreground transition-colors"
-                                onClick={startEditingRate}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors"
+                                aria-label="Meer opties"
                             >
-                                {formatCurrency(uurTarief)}
-                                <Pencil size={12} className="text-muted-foreground" />
+                                <MoreHorizontal className="h-4 w-4" />
                             </button>
-                        )}
-                        <span className="text-xs text-muted-foreground">excl. btw</span>
-                    </span>
-                    <span className="text-emerald-400 font-medium flex items-center gap-2">
-                        Totaal:
-                        {isEditingHours ? (
-                            <div className="flex items-center gap-1">
-                                <Input
-                                    ref={hoursInputRef}
-                                    type="number"
-                                    value={tempHours}
-                                    onChange={(e) => setTempHours(e.target.value)}
-                                    onBlur={saveHours}
-                                    className="h-7 w-20 px-2 py-1 text-sm bg-background border-border"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveHours();
-                                        if (e.key === 'Escape') cancelEditingHours();
-                                    }}
-                                />
-                            </div>
-                        ) : (
-                            <button
-                                type="button"
-                                className="p-0 border-0 bg-transparent flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors"
-                                onClick={startEditingHours}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-72">
+                            <DropdownMenuItem
+                                onSelect={(event) => event.preventDefault()}
+                                className="cursor-default focus:bg-muted/60"
                             >
-                                {formatNumber(totaalUren)} uur ({formatNumber(totaalDagen)} dagen)
-                                <Pencil size={12} className="text-emerald-600" />
-                            </button>
-                        )}
-                    </span>
-                    <span className="text-muted-foreground flex items-center gap-2">
-                        Dagen:
-                        {isEditingDays ? (
-                            <div className="flex items-center gap-1">
-                                <Input
-                                    ref={daysInputRef}
-                                    type="number"
-                                    value={tempDays}
-                                    onChange={(e) => setTempDays(e.target.value)}
-                                    onBlur={saveDays}
-                                    className="h-7 w-20 px-2 py-1 text-sm bg-background border-border"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveDays();
-                                        if (e.key === 'Escape') cancelEditingDays();
-                                    }}
-                                />
-                                <span className="text-xs text-muted-foreground">dagen</span>
-                            </div>
-                        ) : (
-                            <>
-                                <button
-                                    type="button"
-                                    className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-foreground hover:bg-muted disabled:opacity-50"
-                                    onClick={() => adjustDays(-1)}
-                                    disabled={!onUpdateTotalHours || totaalUren <= 0}
-                                    aria-label="Verlaag met 1 dag"
-                                >
-                                    <Minus size={12} />
-                                </button>
-                                <button
-                                    type="button"
-                                    className="p-0 border-0 bg-transparent text-foreground hover:text-emerald-300 transition-colors inline-flex items-center gap-2"
-                                    onClick={startEditingDays}
-                                >
-                                    <span className="min-w-[3ch] text-center">{formatNumber(totaalDagen)}</span>
-                                    <Pencil size={12} className="text-muted-foreground" />
-                                </button>
-                                <button
-                                    type="button"
-                                    className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-foreground hover:bg-muted disabled:opacity-50"
-                                    onClick={() => adjustDays(1)}
-                                    disabled={!onUpdateTotalHours}
-                                    aria-label="Verhoog met 1 dag"
-                                >
-                                    <Plus size={12} />
-                                </button>
-                            </>
-                        )}
-                    </span>
-                </div>}
+                                <div className="flex w-full items-center justify-between gap-3">
+                                    <span className="text-xs text-foreground">Laat berekening zien</span>
+                                    <Switch
+                                        checked={showCalculationRows}
+                                        onCheckedChange={setShowCalculationRows}
+                                        onClick={(event) => event.stopPropagation()}
+                                    />
+                                </div>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
             </div>
 
             {/* Table */}
             <div className="overflow-x-auto">
-                <table className="w-full">
-                    <thead className="bg-muted/50">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground w-20">
+                <table className="w-full border-collapse">
+                    <thead>
+                        <tr className="bg-muted/20 text-left">
+                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider">
                                 Dagen
                             </th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground w-20">
+                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-24">
                                 Uren
                             </th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground w-28">
-                                Excl. btw
+                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-36">
+                                Tarief <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(excl. btw)</span>
                             </th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground w-28">
-                                Incl. btw
+                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-24">
+                                Eenheid
                             </th>
+                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-32">
+                                Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(excl. btw)</span>
+                            </th>
+                            <th className="px-6 py-3 w-12" />
                         </tr>
                     </thead>
-                    <tbody>
-                        {showCalculationRows ? (
-                            urenSpecificatie.map((item, index) => (
-                                <tr
-                                    key={index}
-                                    className="border-b border-border hover:bg-muted/30 transition-colors"
-                                >
-                                    <td className="px-4 py-3 text-foreground/80">
-                                        {formatNumber(item.uren / safeUrenPerDag)}
-                                    </td>
-                                    <td className="px-4 py-3 text-foreground/80 font-medium">
-                                        {editingRowIndex === index ? (
-                                            <Input
-                                                ref={rowInputRef}
-                                                type="number"
-                                                value={tempRowHours}
-                                                onChange={(e) => setTempRowHours(e.target.value)}
-                                                onBlur={() => saveRow(index)}
-                                                className="h-7 w-20 px-2 py-1 text-sm bg-background border-border font-medium"
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') saveRow(index);
-                                                    if (e.key === 'Escape') cancelEditingRow();
-                                                }}
-                                            />
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                className="p-0 border-0 bg-transparent flex items-center gap-2 text-foreground/80 hover:text-foreground transition-colors"
-                                                onClick={() => startEditingRow(index, item.uren)}
-                                            >
-                                                {formatNumber(item.uren)}
-                                                <Pencil size={12} className="text-muted-foreground" />
-                                            </button>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-right text-foreground/80">
-                                        {formatCurrency(item.uren * uurTarief)}
-                                    </td>
-                                    <td className="px-4 py-3 text-right text-foreground/80">
-                                        {formatCurrency((item.uren * uurTarief) * (1 + ((Number.isFinite(btwTarief) ? btwTarief : 21) / 100)))}
-                                    </td>
-                                </tr>
-                            ))
-                        ) : (
-                            <tr className="border-b border-border">
-                                <td colSpan={4} className="px-4 py-3 text-sm text-muted-foreground">
-                                    Berekening verborgen. Zet <span className="text-foreground">Laat berekening zien</span> aan om details te bekijken.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-
-                    {/* Footer with totals */}
-                    <tfoot className="bg-muted/50">
+                    <tbody className="divide-y divide-border">
                         <tr>
-                            <td className="px-4 py-4 font-semibold text-foreground">
+                            <td className="px-6 py-3 font-semibold text-foreground">
                                 <div className="flex items-center gap-2">
                                     <button
                                         type="button"
@@ -359,29 +160,17 @@ export function LaborBreakdown({
                                     >
                                         <Minus size={12} />
                                     </button>
-                                    {isEditingDays ? (
-                                        <Input
-                                            ref={daysInputRef}
-                                            type="number"
-                                            value={tempDays}
-                                            onChange={(e) => setTempDays(e.target.value)}
-                                            onBlur={saveDays}
-                                            className="h-7 w-20 px-2 py-1 text-sm bg-background border-border"
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') saveDays();
-                                                if (e.key === 'Escape') cancelEditingDays();
-                                            }}
-                                        />
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            className="p-0 border-0 bg-transparent text-foreground hover:text-emerald-300 transition-colors inline-flex items-center gap-2"
-                                            onClick={startEditingDays}
-                                        >
-                                            {formatNumber(totaalDagen)}
-                                            <Pencil size={12} className="text-muted-foreground" />
-                                        </button>
-                                    )}
+                                    <Input
+                                        type="text"
+                                        value={tempDays}
+                                        onChange={(e) => setTempDays(e.target.value)}
+                                        onBlur={saveDays}
+                                        className="w-12 bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold text-center hover:bg-zinc-800/50 hover:border-zinc-600 transition-all"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') saveDays();
+                                            if (e.key === 'Escape') setTempDays(totaalDagen.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 2 }));
+                                        }}
+                                    />
                                     <button
                                         type="button"
                                         className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-foreground hover:bg-muted disabled:opacity-50"
@@ -393,39 +182,54 @@ export function LaborBreakdown({
                                     </button>
                                 </div>
                             </td>
-                            <td className="px-4 py-4 font-semibold text-foreground">
-                                {isEditingHours ? (
-                                    <Input
-                                        ref={hoursInputRef}
-                                        type="number"
-                                        value={tempHours}
-                                        onChange={(e) => setTempHours(e.target.value)}
-                                        onBlur={saveHours}
-                                        className="h-7 w-20 px-2 py-1 text-sm bg-background border-border"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') saveHours();
-                                            if (e.key === 'Escape') cancelEditingHours();
-                                        }}
-                                    />
-                                ) : (
-                                    <button
-                                        type="button"
-                                        className="p-0 border-0 bg-transparent text-foreground hover:text-emerald-300 transition-colors inline-flex items-center gap-2"
-                                        onClick={startEditingHours}
-                                    >
-                                        {formatNumber(totaalUren)}
-                                        <Pencil size={12} className="text-muted-foreground" />
-                                    </button>
-                                )}
+                            <td className="px-6 py-3 font-semibold text-foreground">
+                                <Input
+                                    type="text"
+                                    value={tempHours}
+                                    onChange={(e) => setTempHours(e.target.value)}
+                                    onBlur={saveHours}
+                                    className="w-12 bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold hover:bg-zinc-800/50 hover:border-zinc-600 transition-all"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveHours();
+                                        if (e.key === 'Escape') setTempHours(totaalUren.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 2 }));
+                                    }}
+                                />
                             </td>
-                            <td className="px-4 py-4 text-right font-bold text-emerald-400">
+                            <td className="px-6 py-3 text-right">
+                                <label className="flex items-center justify-end w-28 bg-zinc-900/40 border border-zinc-700/60 rounded px-2 py-1 hover:bg-zinc-800/50 transition-all focus-within:ring-1 focus-within:ring-emerald-500/50 focus-within:border-emerald-500/50 hover:border-zinc-600 cursor-text">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-zinc-400 text-sm pointer-events-none">€</span>
+                                        <input
+                                            type="text"
+                                            value={tempRate}
+                                            onChange={(e) => setTempRate(e.target.value)}
+                                            onBlur={saveRate}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') saveRate();
+                                                if (e.key === 'Escape') setTempRate(uurTarief.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                                            }}
+                                            style={{ width: `${Math.max(1, (tempRate?.length || 4))}ch` }}
+                                            className="bg-transparent border-none focus:outline-none focus:ring-0 text-sm font-mono text-right p-0 text-zinc-200 font-medium"
+                                        />
+                                    </div>
+                                </label>
+                            </td>
+                            <td className="px-6 py-3 text-zinc-300 text-sm">uur</td>
+                            <td className="px-6 py-3 text-right text-zinc-300 text-sm">
                                 {formatCurrency(totaalArbeid)}
                             </td>
-                            <td className="px-4 py-4 text-right font-bold text-emerald-400">
-                                {formatCurrency(totaalArbeidInclBtw)}
+                            <td className="px-6 py-3 text-right w-12">
+                                <span className="inline-flex h-9 w-9 opacity-0 pointer-events-none" aria-hidden />
                             </td>
                         </tr>
-                    </tfoot>
+                        {showCalculationRows && urenSpecificatie.map((item, index) => (
+                            <tr key={`detail-${index}`} className="bg-zinc-900/20">
+                                <td colSpan={6} className="px-6 py-3 text-xs text-zinc-300">
+                                    {item.taak || `Urenregel ${index + 1}`}: {formatNumber(item.uren / safeUrenPerDag)} dagen • {formatNumber(item.uren)} uur • {formatCurrency(item.uren * uurTarief)}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
                 </table>
             </div>
         </div>

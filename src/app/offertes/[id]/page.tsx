@@ -7,6 +7,7 @@ import { ClientInfoCard } from '@/components/quote/ClientInfoCard';
 import { CostSummaryCard } from '@/components/quote/CostSummaryCard';
 import { MaterialEditor } from '@/components/quote/MaterialEditor';
 import { LaborBreakdown } from '@/components/quote/LaborBreakdown';
+import { NacalculatieTab } from '@/components/quote/NacalculatieTab';
 import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
@@ -2545,6 +2546,11 @@ export default function QuotePage() {
     const hasStoredCalculatedTotal = storedQuoteTotal !== null;
     const laborTotalHours = (calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0;
     const laborHoursPerDay = Number(userProfile?.settings?.planningSettings?.defaultWorkdayHours) || 8;
+    const laborRateExcl = Number(quoteSettings?.uurTariefExclBtw) || 0;
+    const laborTotalExcl = (Number(laborTotalHours) || 0) * laborRateExcl;
+    const footerVatRate = Number(quoteSettings?.btwTarief) || 21;
+    const footerQuoteTotalExcl = totalMaterialExcl + laborTotalExcl;
+    const footerQuoteTotalIncl = footerQuoteTotalExcl * (1 + footerVatRate / 100);
     const calculationInProgress =
         quote?.status === 'in_behandeling' &&
         !calculation?.data_json &&
@@ -2979,6 +2985,9 @@ export default function QuotePage() {
                                 </TabsTrigger>
                                 <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <Euro size={16} /> Overzicht
+                                </TabsTrigger>
+                                <TabsTrigger value="nacalculatie" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    <ClipboardList size={16} /> Nacalculatie
                                 </TabsTrigger>
                                 <TabsTrigger value="tekeningen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <PenTool size={16} /> Tekeningen
@@ -3418,34 +3427,19 @@ export default function QuotePage() {
                                         </Card>
                                     )}
 
-                                    <Card className="border border-border bg-card/50">
-                                        <CardHeader className="pb-3">
-                                            <CardTitle className="text-base">Verbruiksartikelen</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="px-0 pb-0">
-                                            <MaterialEditor
-                                                title="VERBRUIKSARTIKELEN"
-                                                items={materials.verbruik}
-                                                onUpdateItem={handleUpdateVerbruiksItem}
-                                                onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
-                                                onAddItem={(item) => handleAddItem('verbruik', item)}
-                                                subtotal={verbruikSubtotal}
-                                                vatRate={quoteSettings?.btwTarief}
-                                                showLineTotalInclBtw={false}
-                                                onAddClick={() => setActiveCategory('verbruik')}
-                                                enableCalculationViewToggle
-                                                calculationTextFields="waarom_dit"
-                                                calculationToggleLabel="Laat toelichting zien"
-                                                calculationRowLabel="Waarom dit"
-                                                showDontAutoIncludeOption
-                                                viewMode="split"
-                                                categoryStyle="neutral"
-                                                showAdvancedControlsMenu
-                                                hideHeader
-                                            />
-                                        </CardContent>
-                                    </Card>
                                 </div>
+                            )}
+                        </TabsContent>
+
+                        <TabsContent value="nacalculatie" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            {isUserLoading || !user ? (
+                                <LoadingPanel />
+                            ) : (
+                                <NacalculatieTab
+                                    quoteId={id}
+                                    userId={user.uid}
+                                    defaultHourlyRateExcl={quoteSettings?.uurTariefExclBtw || 50}
+                                />
                             )}
                         </TabsContent>
 
@@ -3915,7 +3909,7 @@ export default function QuotePage() {
                                                         <Package size={14} />
                                                     </div>
                                                     <h3 className="font-semibold text-foreground tracking-tight text-xs uppercase whitespace-nowrap">
-                                                        Totaal materialen
+                                                        Totaal offerte
                                                     </h3>
                                                 </div>
                                                 <div className="flex items-center gap-2 whitespace-nowrap">
@@ -3923,7 +3917,7 @@ export default function QuotePage() {
                                                         Totaal (excl. btw)
                                                     </span>
                                                     <span className="text-primary font-bold tracking-tight">
-                                                        {formatCurrency(totalMaterialExcl)}
+                                                        {formatCurrency(footerQuoteTotalExcl)}
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-2 whitespace-nowrap">
@@ -3931,7 +3925,7 @@ export default function QuotePage() {
                                                         Totaal (incl. btw)
                                                     </span>
                                                     <span className="text-primary font-bold tracking-tight">
-                                                        {formatCurrency(totalMaterialExcl * (1 + (quoteSettings?.btwTarief || 21) / 100))}
+                                                        {formatCurrency(footerQuoteTotalIncl)}
                                                     </span>
                                                 </div>
                                             </div>

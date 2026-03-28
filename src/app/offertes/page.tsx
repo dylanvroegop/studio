@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   collection,
+  deleteField,
   doc,
   getDocs,
   onSnapshot,
@@ -22,6 +23,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Undo2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -49,7 +51,7 @@ import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-sta
 import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-type FilterMode = 'alle' | 'concept' | 'verzonden' | 'berekend';
+type FilterMode = 'alle' | 'concept' | 'verzonden' | 'berekend' | 'archief';
 
 type QuoteRow = Quote & {
   id: string;
@@ -320,8 +322,7 @@ export default function OffertesPage() {
               createdAtDate: naarDate(raw?.createdAt),
               updatedAtDate: naarDate(raw?.updatedAt),
             } as QuoteRow;
-          })
-          .filter((quote) => !quote.archived);
+          });
 
         data.sort((a, b) => {
           const aNum = typeof a.offerteNummer === 'number' ? a.offerteNummer : 0;
@@ -526,9 +527,14 @@ export default function OffertesPage() {
     const s = search.trim().toLowerCase();
     let result = [...quotes];
 
-    if (filter === 'concept') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'concept');
-    if (filter === 'verzonden') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden');
-    if (filter === 'berekend') result = result.filter((q) => q.status === 'in_behandeling' && hasCalculatedAmount(q.totaalbedrag || q.amount || 0));
+    if (filter === 'archief') {
+      result = result.filter((q) => !!q.archived);
+    } else {
+      result = result.filter((q) => !q.archived);
+      if (filter === 'concept') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'concept');
+      if (filter === 'verzonden') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden');
+      if (filter === 'berekend') result = result.filter((q) => q.status === 'in_behandeling' && hasCalculatedAmount(q.totaalbedrag || q.amount || 0));
+    }
 
     if (!s) return result;
     return result.filter((q) => {
@@ -632,6 +638,22 @@ export default function OffertesPage() {
     setArchiveOpen(true);
   }
 
+  async function restoreQuote(quote: QuoteRow): Promise<void> {
+    if (!user || !firestore) return;
+    try {
+      const ref = doc(firestore, 'quotes', quote.id);
+      await updateDoc(ref, {
+        archived: false,
+        archivedAt: deleteField(),
+        archivedBy: deleteField(),
+        updatedAt: serverTimestamp(),
+      } as any);
+    } catch (e: any) {
+      console.error(e);
+      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon offerte niet herstellen.'}`);
+    }
+  }
+
   async function confirmArchive(): Promise<void> {
     if (!user || !firestore || !archiveTarget || archiving) return;
     setArchiving(true);
@@ -722,18 +744,20 @@ export default function OffertesPage() {
             ) : filteredQuotes.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center space-y-3">
-                  <div className="font-semibold">Geen offertes gevonden</div>
+                  <div className="font-semibold">{filter === 'archief' ? 'Geen gearchiveerde offertes gevonden' : 'Geen offertes gevonden'}</div>
                   <div className="text-sm text-muted-foreground">
-                    Maak een nieuwe lege offerte om te starten.
+                    {filter === 'archief' ? 'Archiveer een offerte om die hier te zien.' : 'Maak een nieuwe lege offerte om te starten.'}
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="mt-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-200"
-                    onClick={() => setCreateOpen(true)}
-                  >
-                    Nieuwe offerte
-                  </Button>
+                  {filter !== 'archief' && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-200"
+                      onClick={() => setCreateOpen(true)}
+                    >
+                      Nieuwe offerte
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ) : (
@@ -747,6 +771,7 @@ export default function OffertesPage() {
                   const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : null;
                   const klant = getKlantNaam(q);
                   const isCalculating = effectiveStatus === 'in_behandeling' && !hasCalculated;
+                  const isArchived = !!q.archived;
 
                   return (
                     <div
@@ -783,6 +808,11 @@ export default function OffertesPage() {
                             {isCalculating && <Loader2 className="h-3 w-3 animate-spin" />}
                             {statusMeta.label}
                           </span>
+                          {isArchived && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200 shrink-0">
+                              Gearchiveerd
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground sm:gap-3 sm:text-sm">
@@ -827,18 +857,27 @@ export default function OffertesPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-9 w-9 shrink-0 rounded-lg text-destructive transition-all hover:bg-destructive/10"
+                              className={cn(
+                                'h-9 w-9 shrink-0 rounded-lg transition-all',
+                                isArchived
+                                  ? 'text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-300 hover:bg-emerald-500/10'
+                                  : 'text-destructive hover:bg-destructive/10'
+                              )}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
+                                if (isArchived) {
+                                  void restoreQuote(q);
+                                  return;
+                                }
                                 openArchiveDialog(q);
                               }}
                             >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Verwijderen</span>
+                              {isArchived ? <Undo2 className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+                              <span className="sr-only">{isArchived ? 'Herstellen' : 'Verwijderen'}</span>
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Verwijderen</TooltipContent>
+                          <TooltipContent>{isArchived ? 'Herstellen' : 'Verwijderen'}</TooltipContent>
                         </Tooltip>
                       </div>
                     </div>
@@ -960,6 +999,14 @@ export default function OffertesPage() {
                   className={cn('h-10 shrink-0', filter === 'berekend' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
                 >
                   Berekend
+                </Button>
+                <Button
+                  type="button"
+                  variant={filter === 'archief' ? 'outline' : 'ghost'}
+                  onClick={() => setFilter('archief')}
+                  className={cn('h-10 shrink-0', filter === 'archief' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
+                >
+                  Archief
                 </Button>
               </div>
             </div>

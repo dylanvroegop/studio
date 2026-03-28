@@ -78,14 +78,6 @@ const INCOMING_FEATURES: IncomingFeature[] = [
       'Templatebibliotheek per werksoort (dak, wand, kozijn) met standaardteksten en vaste opbouw.',
   },
   {
-    id: 8,
-    title: 'Meerwerk-flow met digitale akkoord',
-    domein: 'Offertes / Facturen',
-    status: 'In onderzoek',
-    beschrijving:
-      'Tijdens uitvoering extra werk registreren, laten goedkeuren en direct meenemen in nacalculatie.',
-  },
-  {
     id: 9,
     title: 'Foto- en bijlagenkoppeling per klus',
     domein: 'Planning / Offertes',
@@ -142,14 +134,6 @@ const INCOMING_FEATURES: IncomingFeature[] = [
       'Analyse van afwijkingen tussen begrote en gerealiseerde uren, materiaal en winst.',
   },
   {
-    id: 16,
-    title: 'Inkooplijst export per leverancier',
-    domein: 'Producten / Offertes',
-    status: 'Klaar voor planning',
-    beschrijving:
-      'Automatische bundeling van benodigde materialen per leverancier met aantallen en artikelniveau.',
-  },
-  {
     id: 17,
     title: 'Afval- en snijverlies aanbevelingen',
     domein: 'Calculatie',
@@ -172,14 +156,6 @@ const INCOMING_FEATURES: IncomingFeature[] = [
     status: 'In onderzoek',
     beschrijving:
       'Uren en notities lokaal kunnen registreren op locatie zonder internet, met latere synchronisatie.',
-  },
-  {
-    id: 20,
-    title: 'Predictieve omzet- en kasstroomforecast',
-    domein: 'Dashboard / Winst',
-    status: 'Roadmap kandidaat',
-    beschrijving:
-      'Verwachtingsmodel op basis van offertepijplijn, factuurhistorie en betaalgedrag.',
   },
 ];
 
@@ -230,15 +206,15 @@ export default function NieuwPage() {
             Incoming features
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Overzicht van 20 potentiële verbeteringen voor Calvora, afgestemd op calculatie, planning, facturatie en winststuring.
+            Overzicht van {INCOMING_FEATURES.length} potentiële verbeteringen voor Calvora, afgestemd op calculatie, planning, facturatie en winststuring.
           </p>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            {INCOMING_FEATURES.map((feature) => (
+            {INCOMING_FEATURES.map((feature, index) => (
               <Card key={feature.id} className="border-border/60 bg-card/50">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
-                    <CardTitle className="text-base leading-snug">{feature.id}. {feature.title}</CardTitle>
+                    <CardTitle className="text-base leading-snug">{index + 1}. {feature.title}</CardTitle>
                     <Badge variant="outline" className={statusClassName(feature.status)}>
                       {feature.status}
                     </Badge>

@@ -253,10 +253,10 @@ function MaterialRow({
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
+                                    className="h-9 w-9 shrink-0 rounded-lg text-red-300/80 transition-all hover:bg-red-500/10 hover:text-red-300"
                                 >
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    <span className="sr-only">Meer acties</span>
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="sr-only">Verwijder materiaal</span>
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -480,6 +480,81 @@ export function MaterialEditor({
                                         variant="ghost"
                                         size="icon"
                                         className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
+                                    >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                        <span className="sr-only">Meer opties</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-72">
+                                    {enableCalculationViewToggle && hasCalculationData && (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => event.preventDefault()}
+                                            className="cursor-default focus:bg-muted/60"
+                                        >
+                                            <div className="flex w-full items-center justify-between gap-3">
+                                                <span className="text-xs text-foreground">{calculationToggleLabel}</span>
+                                                <Switch
+                                                    checked={showCalculation}
+                                                    onCheckedChange={setShowCalculation}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                />
+                                            </div>
+                                        </DropdownMenuItem>
+                                    )}
+                                    {listViewToggle && (
+                                        <DropdownMenuItem
+                                            onSelect={(event) => event.preventDefault()}
+                                            className="cursor-default focus:bg-muted/60"
+                                        >
+                                            <div className="flex w-full items-center justify-between gap-3">
+                                                <span className="text-xs text-foreground">{listViewToggle.label}</span>
+                                                <Switch
+                                                    checked={listViewToggle.checked}
+                                                    onCheckedChange={listViewToggle.onCheckedChange}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                />
+                                            </div>
+                                        </DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        ) : (
+                            <div className="flex items-center gap-4">
+                                {enableCalculationViewToggle && hasCalculationData && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground">{calculationToggleLabel}</span>
+                                        <Switch checked={showCalculation} onCheckedChange={setShowCalculation} />
+                                    </div>
+                                )}
+                                {listViewToggle && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground">{listViewToggle.label}</span>
+                                        <Switch
+                                            checked={listViewToggle.checked}
+                                            onCheckedChange={listViewToggle.onCheckedChange}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    )}
+                </div>
+            )}
+            {hideHeader && (
+                <div className="flex justify-between items-center p-4 border-b border-border">
+                    <div className="flex items-center gap-3">
+                        <Package size={18} className="text-muted-foreground" />
+                        <h3 className="font-semibold text-foreground">{title}</h3>
+                    </div>
+                    {hasAdvancedControls && (
+                        showAdvancedControlsMenu ? (
+                            <DropdownMenu modal={false}>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground transition-all hover:bg-muted/70"
                                     >
                                         <MoreHorizontal className="h-4 w-4" />
                                         <span className="sr-only">Meer opties</span>

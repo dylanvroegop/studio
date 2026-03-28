@@ -199,7 +199,7 @@ function NieuweFactuurPageContent() {
       </header>
 
       <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
-        <div className="max-w-3xl space-y-6">
+        <div className="mx-auto max-w-3xl space-y-6">
 
           {!quote ? (
             <Card>

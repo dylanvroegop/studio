@@ -28,6 +28,11 @@ service cloud.firestore {
       match /quote_notes/{noteId} {
          allow read, write: if isSignedIn() && get(/databases/$(database)/documents/quotes/$(quoteId)).data.userId == request.auth.uid;
       }
+
+      // Subcollection: Nacalculatie (actual cost tracking)
+      match /nacalculatie/{docId} {
+        allow read, write: if isSignedIn() && get(/databases/$(database)/documents/quotes/$(quoteId)).data.userId == request.auth.uid;
+      }
     }
 
     // Rules for the 'invoices' collection (Facturen)

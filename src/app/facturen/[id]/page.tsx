@@ -355,6 +355,7 @@ export default function FactuurDetailPage() {
       invoiceNumberLabel: invoice.invoiceNumberLabel,
       issueDate: effectiveIssueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }),
       dueDate: effectiveDueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }),
+      paymentTermDays: effectivePaymentTermDays,
       betreftOfferte: invoicePdfSettings?.showQuoteReference !== false
         ? (invoice.sourceQuote?.offerteNummer ? `Offerte #${invoice.sourceQuote.offerteNummer}` : undefined)
         : undefined,
@@ -382,7 +383,7 @@ export default function FactuurDetailPage() {
         email: klant.email || '',
       },
       totals: {
-        totaalExclBtw: invoicePdfSettings?.showTotalsBreakdown === false ? undefined : invoice.totalsSnapshot?.totaalExclBtw,
+        totaalExclBtw: invoice.totalsSnapshot?.totaalExclBtw,
         btw: invoicePdfSettings?.showTotalsBreakdown === false ? undefined : invoice.totalsSnapshot?.btw,
         totaalInclBtw: invoice.totalsSnapshot?.totaalInclBtw ?? 0,
       },
@@ -456,6 +457,8 @@ export default function FactuurDetailPage() {
         const paidNow = Number(data?.paymentSummary?.paidAmount ?? 0) || 0;
         const nextPaidAmount = Math.max(total, paidNow);
 
+        await promoteInvoiceRelatedQuotesToAcceptedInTransaction(tx, firestore, data);
+
         tx.update(invRef, {
           status: 'betaald',
           'paymentSummary.paidAmount': nextPaidAmount,
@@ -464,8 +467,6 @@ export default function FactuurDetailPage() {
           paidAt: data?.paidAt ?? serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-
-        await promoteInvoiceRelatedQuotesToAcceptedInTransaction(tx, firestore, data);
       });
 
       toast({ title: 'Bijgewerkt', description: 'Factuur is gemarkeerd als betaald.' });
@@ -527,11 +528,11 @@ export default function FactuurDetailPage() {
           update.paidAt = inv?.paidAt ?? serverTimestamp();
         }
 
-        tx.update(invRef, update);
-
         if (invoiceImpliesAccepted(newStatus)) {
           await promoteInvoiceRelatedQuotesToAcceptedInTransaction(tx, firestore, inv);
         }
+
+        tx.update(invRef, update);
       });
 
       setPayAmount('');
