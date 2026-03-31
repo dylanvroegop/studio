@@ -12,6 +12,7 @@ interface CostSummaryCardProps {
     onUpdateMaterialenGrootTotal?: (value: number) => void;
     onUpdateMaterialenVerbruikTotal?: (value: number) => void;
     onUpdateMaterialenSubtotal?: (value: number) => void;
+    onUpdateTransportTotal?: (value: number) => void;
     onUpdateWinstMargePercentage?: (value: number) => void;
     onUpdateWinstMargeAmountIncl?: (value: number) => void;
 }
@@ -29,6 +30,7 @@ export function CostSummaryCard({
     onUpdateMaterialenGrootTotal,
     onUpdateMaterialenVerbruikTotal,
     onUpdateMaterialenSubtotal,
+    onUpdateTransportTotal,
     onUpdateWinstMargePercentage,
     onUpdateWinstMargeAmountIncl,
 }: CostSummaryCardProps) {
@@ -37,7 +39,7 @@ export function CostSummaryCard({
 
     const [isEditingHours, setIsEditingHours] = useState(false);
     const [tempHours, setTempHours] = useState<string>('');
-    const [editingField, setEditingField] = useState<null | 'groot' | 'verbruik' | 'subtotaal' | 'margePct' | 'margeAmount'>(null);
+    const [editingField, setEditingField] = useState<null | 'groot' | 'verbruik' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount'>(null);
     const [tempFieldValue, setTempFieldValue] = useState<string>('');
 
     const startEditingRate = () => {
@@ -90,7 +92,7 @@ export function CostSummaryCard({
     };
 
     const startEditingAmount = (
-        field: 'groot' | 'verbruik' | 'subtotaal' | 'margePct' | 'margeAmount',
+        field: 'groot' | 'verbruik' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount',
         initialValue: number,
     ) => {
         setTempFieldValue(initialValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -116,6 +118,8 @@ export function CostSummaryCard({
             onUpdateMaterialenVerbruikTotal(parsed);
         } else if (editingField === 'subtotaal' && onUpdateMaterialenSubtotal) {
             onUpdateMaterialenSubtotal(parsed);
+        } else if (editingField === 'transport' && onUpdateTransportTotal) {
+            onUpdateTransportTotal(parsed);
         } else if (editingField === 'margePct' && onUpdateWinstMargePercentage) {
             onUpdateWinstMargePercentage(parsed);
         } else if (editingField === 'margeAmount' && onUpdateWinstMargeAmountIncl) {
@@ -314,7 +318,30 @@ export function CostSummaryCard({
                                 totaal reistijd per klus; {totalTravelHoursPerKlus.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} uur
                             </span>
                         </span>
-                        <span className="text-foreground">{formatCurrency(totals.transportTotaal)}</span>
+                        {editingField === 'transport' ? (
+                            <Input
+                                autoFocus
+                                type="text"
+                                value={tempFieldValue}
+                                onChange={(e) => setTempFieldValue(e.target.value)}
+                                onBlur={saveEditingAmount}
+                                onFocus={selectAllOnFocus}
+                                className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') saveEditingAmount();
+                                    if (e.key === 'Escape') cancelEditingAmount();
+                                }}
+                            />
+                        ) : (
+                            <button
+                                type="button"
+                                className="text-foreground flex items-center gap-1 hover:text-primary transition-colors"
+                                onClick={() => startEditingAmount('transport', totals.transportTotaal)}
+                            >
+                                {formatCurrency(totals.transportTotaal)}
+                                <Pencil size={12} className="text-muted-foreground" />
+                            </button>
+                        )}
                     </div>
                 </div>
 

@@ -8,6 +8,7 @@ import {
     Firestore,
     getDoc
 } from 'firebase/firestore';
+import { sanitizeQuotePdfTextSettings } from '@/lib/quote-pdf-text-settings';
 
 /**
  * Reserves the next available quote number for a specific user.
@@ -91,6 +92,7 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
         standaardWinstMarge: { percentage: 10 },
         standaardTransport: { vasteTransportkosten: 45.00 }
     };
+    let defaultPdfTeksten: ReturnType<typeof sanitizeQuotePdfTextSettings> | null = null;
 
     try {
         const userDocRef = doc(firestore, 'users', userId);
@@ -101,6 +103,9 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
             const nieuweInstellingen = data?.instellingen ?? {};
             // Prefer explicit `instellingen`, fallback to legacy `settings`
             settings = { ...settings, ...legacySettings, ...nieuweInstellingen };
+            if (data?.defaultPdfTeksten) {
+                defaultPdfTeksten = sanitizeQuotePdfTextSettings(data.defaultPdfTeksten);
+            }
         }
     } catch (e) {
         console.error("Error fetching user settings for new quote defaults:", e);
@@ -130,7 +135,8 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
                 mode: 'percentage',
                 percentage: 10
             },
-        }
+        },
+        ...(defaultPdfTeksten ? { pdfTeksten: defaultPdfTeksten } : {})
     });
 
     return docRef.id;

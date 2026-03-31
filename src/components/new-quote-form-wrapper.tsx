@@ -272,11 +272,6 @@ export function NewQuoteForm({
     const workDescriptionPrompt =
       typeof raw.workDescriptionPrompt === 'string' ? raw.workDescriptionPrompt.trim() : '';
 
-    if (requiresWorkDescriptionPrompt && !workDescriptionPrompt) {
-      toast({ variant: 'destructive', title: 'Vul eerst een korte werkbeschrijving in.' });
-      return;
-    }
-
     startTransition(async () => {
       const validated = KlantinformatieSchema.safeParse(raw);
       if (!validated.success) {
@@ -340,7 +335,7 @@ export function NewQuoteForm({
           body: JSON.stringify({ quoteId }),
         });
 
-        if (requiresWorkDescriptionPrompt) {
+        if (requiresWorkDescriptionPrompt && workDescriptionPrompt) {
           const generateResponse = await fetch('/api/generate-work-description', {
             method: 'POST',
             headers: {
@@ -704,7 +699,6 @@ export function NewQuoteForm({
                 id="workDescriptionPrompt"
                 name="workDescriptionPrompt"
                 placeholder="Bijv. schilderklus woonkamer"
-                required
               />
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">

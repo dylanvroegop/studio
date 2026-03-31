@@ -741,10 +741,6 @@ function InstellingenPageContent() {
                                     <Input value={settings.iban} onChange={e => update('iban', e.target.value)} />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Banknaam</Label>
-                                    <Input value={settings.bankNaam} onChange={e => update('bankNaam', e.target.value)} />
-                                </div>
-                                <div className="space-y-2">
                                     <Label>BIC / Swift</Label>
                                     <Input value={settings.bic} onChange={e => update('bic', e.target.value)} />
                                 </div>

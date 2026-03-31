@@ -10,6 +10,13 @@ export interface QuotePDFSettings {
     showFullWerkbeschrijving: boolean;
     showPricesPerItem: boolean;
     showTekeningen: boolean;
+    showSummaryMaterialen: boolean;
+    showSummaryArbeid: boolean;
+    showSummaryArbeidUren: boolean;
+    showSummaryTransport: boolean;
+    showSummaryExclBtw: boolean;
+    showSummaryBtw: boolean;
+    showSummaryInclBtw: boolean;
 }
 
 export const defaultQuotePDFSettings: QuotePDFSettings = {
@@ -19,7 +26,28 @@ export const defaultQuotePDFSettings: QuotePDFSettings = {
     showFullWerkbeschrijving: true,
     showPricesPerItem: false,
     showTekeningen: false,
+    showSummaryMaterialen: true,
+    showSummaryArbeid: true,
+    showSummaryArbeidUren: true,
+    showSummaryTransport: true,
+    showSummaryExclBtw: true,
+    showSummaryBtw: true,
+    showSummaryInclBtw: true,
 };
+
+export function sanitizeQuotePDFSettings(value: unknown): QuotePDFSettings {
+    if (!value || typeof value !== 'object') return { ...defaultQuotePDFSettings };
+    const raw = value as Partial<Record<keyof QuotePDFSettings, unknown>>;
+    const result = { ...defaultQuotePDFSettings };
+
+    (Object.keys(defaultQuotePDFSettings) as Array<keyof QuotePDFSettings>).forEach((key) => {
+        if (typeof raw[key] === 'boolean') {
+            result[key] = raw[key] as boolean;
+        }
+    });
+
+    return result;
+}
 
 interface QuoteSettingsProps {
     settings: QuotePDFSettings;
@@ -101,6 +129,61 @@ export function QuoteSettings({ settings, onChange, variant = 'default' }: Quote
                 icon={Clock}
             />
 
+            <div className="mt-3 px-3 pt-3 border-t border-zinc-800">
+                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">Samenvatting in PDF</p>
+            </div>
+
+            <ToggleRow
+                settingKey="showSummaryMaterialen"
+                label="Regel: Materialen"
+                description="Toon materiaalbedrag in samenvatting"
+                icon={Eye}
+            />
+
+            <ToggleRow
+                settingKey="showSummaryArbeid"
+                label="Regel: Arbeid"
+                description="Toon arbeidsbedrag in samenvatting"
+                icon={Clock}
+            />
+
+            {settings.showSummaryArbeid && (
+                <ToggleRow
+                    settingKey="showSummaryArbeidUren"
+                    label="Uren tonen bij arbeid"
+                    description="Bijv. Arbeid (45 uur)"
+                    icon={Eye}
+                />
+            )}
+
+            <ToggleRow
+                settingKey="showSummaryTransport"
+                label="Regel: Transport"
+                description="Toon transportbedrag in samenvatting"
+                icon={Package}
+            />
+
+            <ToggleRow
+                settingKey="showSummaryExclBtw"
+                label="Regel: Totaal excl. BTW"
+                description="Toon subtotaal exclusief BTW"
+                icon={Eye}
+            />
+
+            <ToggleRow
+                settingKey="showSummaryBtw"
+                label="Regel: BTW"
+                description="Toon BTW-bedrag"
+                icon={Eye}
+            />
+
+            <ToggleRow
+                settingKey="showSummaryInclBtw"
+                label="Regel: Totaal incl. BTW"
+                description="Toon eindtotaal inclusief BTW"
+                icon={Eye}
+            />
+
             {(settings.showGrootmaterialen || settings.showVerbruiksartikelen) && (
                 <ToggleRow
                     settingKey="showPricesPerItem"
@@ -127,6 +210,13 @@ export function QuoteSettings({ settings, onChange, variant = 'default' }: Quote
                         showFullWerkbeschrijving: true,
                         showPricesPerItem: false,
                         showTekeningen: false,
+                        showSummaryMaterialen: true,
+                        showSummaryArbeid: true,
+                        showSummaryArbeidUren: true,
+                        showSummaryTransport: true,
+                        showSummaryExclBtw: true,
+                        showSummaryBtw: true,
+                        showSummaryInclBtw: true,
                     })}
                     className="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded transition-colors flex-1"
                 >
@@ -140,6 +230,13 @@ export function QuoteSettings({ settings, onChange, variant = 'default' }: Quote
                         showFullWerkbeschrijving: true,
                         showPricesPerItem: false,
                         showTekeningen: true,
+                        showSummaryMaterialen: true,
+                        showSummaryArbeid: true,
+                        showSummaryArbeidUren: true,
+                        showSummaryTransport: true,
+                        showSummaryExclBtw: true,
+                        showSummaryBtw: true,
+                        showSummaryInclBtw: true,
                     })}
                     className="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded transition-colors flex-1"
                 >

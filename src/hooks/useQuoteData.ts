@@ -11,6 +11,25 @@ export interface QuoteCalculation {
     data_json: DataJson;
 }
 
+function extractErrorMessage(err: unknown): string {
+    if (err instanceof Error && typeof err.message === 'string') return err.message;
+    return String(err ?? 'Onbekende fout');
+}
+
+async function getUserTokenSafe(user: { getIdToken: () => Promise<string> } | null): Promise<string | null> {
+    if (!user) return null;
+    try {
+        return await user.getIdToken();
+    } catch (err) {
+        console.warn('⚠️ [useQuoteData] getIdToken failed, using cached fallback if available:', err);
+        const cached = (user as any)?.stsTokenManager?.accessToken;
+        if (typeof cached === 'string' && cached.length > 0) {
+            return cached;
+        }
+        return null;
+    }
+}
+
 export function useQuoteData(quoteId: string) {
     const { user } = useUser();
     const [calculation, setCalculation] = useState<QuoteCalculation | null>(null);
@@ -30,7 +49,10 @@ export function useQuoteData(quoteId: string) {
                 // We'll keep loading=true as long as we don't have a 'completed' status.
 
                 console.log('Fetching for quoteId:', quoteId);
-                const token = await user.getIdToken();
+                const token = await getUserTokenSafe(user);
+                if (!token) {
+                    throw new Error('Authenticatie tijdelijk niet beschikbaar. Controleer je internetverbinding en probeer opnieuw.');
+                }
                 const response = await fetch('/api/quotes/get-calculations', {
                     method: 'POST',
                     headers: {
@@ -109,7 +131,11 @@ export function useQuoteData(quoteId: string) {
 
         try {
             console.log('📤 [updateDataJson] Calling API route...');
-            const token = await user.getIdToken();
+            const token = await getUserTokenSafe(user);
+            if (!token) {
+                setError('Authenticatie tijdelijk niet beschikbaar. Controleer je internetverbinding en probeer opnieuw.');
+                return;
+            }
 
             const response = await fetch('/api/quotes/update-data-json', {
                 method: 'POST',
@@ -155,7 +181,11 @@ export function useQuoteData(quoteId: string) {
             }
         } catch (err) {
             console.error('❌ [updateDataJson] Failed to update quote data:', err);
-            throw err;
+            const message = extractErrorMessage(err);
+            setError(message.includes('auth/network-request-failed')
+                ? 'Geen verbinding met authenticatie. Controleer je internet en probeer opnieuw.'
+                : message);
+            return;
         }
     };
 

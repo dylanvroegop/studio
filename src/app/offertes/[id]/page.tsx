@@ -9,7 +9,7 @@ import { MaterialEditor } from '@/components/quote/MaterialEditor';
 import { LaborBreakdown } from '@/components/quote/LaborBreakdown';
 import { NacalculatieTab } from '@/components/quote/NacalculatieTab';
 import { PDFPreview } from '@/components/quote/PDFPreview';
-import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings } from '@/components/quote/QuoteSettings';
+import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, RotateCcw, Share2 } from 'lucide-react';
@@ -249,6 +249,7 @@ export default function QuotePage() {
     // Add state for PDF settings using default imported settings
     const [pdfSettings, setPdfSettings] = useState<QuotePDFSettings>(defaultQuotePDFSettings);
     const [pdfTextSettings, setPdfTextSettings] = useState<QuotePdfTextSettings>(defaultQuotePdfTextSettings);
+    const hasEditedPdfTextSettingsRef = useRef(false);
     const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('onderVoorbehoud');
     const [activeTab, setActiveTab] = useState('materialen');
     const [manualWorkDescriptionRows, setManualWorkDescriptionRows] = useState<string[]>([]);
@@ -310,7 +311,7 @@ export default function QuotePage() {
     const [isSavingMaterialPackage, setIsSavingMaterialPackage] = useState(false);
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
-    const [voorschotIngeschakeld, setVoorschotIngeschakeld] = useState(false);
+    const [voorschotIngeschakeld, setVoorschotIngeschakeld] = useState(true);
     const [voorschotPercentage, setVoorschotPercentage] = useState<number>(50);
     const [onderVoorbehoud, setOnderVoorbehoud] = useState(false);
     const [existingVoorschotInvoiceId, setExistingVoorschotInvoiceId] = useState<string | null>(null);
@@ -390,7 +391,7 @@ export default function QuotePage() {
                         }
 
                         if (data.defaultPdfSettings) {
-                            setPdfSettings(data.defaultPdfSettings);
+                            setPdfSettings(sanitizeQuotePDFSettings(data.defaultPdfSettings));
                             setHasSavedPdfSettings(true);
                         } else {
                             setHasSavedPdfSettings(false);
@@ -436,7 +437,9 @@ export default function QuotePage() {
         if (!quote) return;
         const f = (quote as any)?.facturatie;
         if (f && typeof f === 'object') {
-            setVoorschotIngeschakeld(!!f.voorschotIngeschakeld);
+            setVoorschotIngeschakeld(
+                typeof f.voorschotIngeschakeld === 'boolean' ? f.voorschotIngeschakeld : true
+            );
             if (typeof f.voorschotPercentage === 'number' && Number.isFinite(f.voorschotPercentage)) {
                 setVoorschotPercentage(f.voorschotPercentage);
             }
@@ -444,8 +447,11 @@ export default function QuotePage() {
                 setOnderVoorbehoud(!!f.onderVoorbehoud);
             }
         }
-        setPdfTextSettings(sanitizeQuotePdfTextSettings((quote as any)?.pdfTeksten));
-    }, [quote]);
+        const quotePdfTeksten = (quote as any)?.pdfTeksten;
+        const userDefaultPdfTeksten = (userProfile as any)?.defaultPdfTeksten;
+        setPdfTextSettings(sanitizeQuotePdfTextSettings(quotePdfTeksten ?? userDefaultPdfTeksten));
+        hasEditedPdfTextSettingsRef.current = false;
+    }, [quote, userProfile]);
 
     // Zoek bestaande voorschotfactuur id (voor link in UI)
     useEffect(() => {
@@ -478,6 +484,18 @@ export default function QuotePage() {
                     pdfTeksten: pdfTextSettings,
                     updatedAt: new Date(),
                 });
+
+                if (hasEditedPdfTextSettingsRef.current) {
+                    const userRef = doc(firestore, 'users', user.uid);
+                    await setDoc(
+                        userRef,
+                        {
+                            defaultPdfTeksten: pdfTextSettings,
+                        },
+                        { merge: true }
+                    );
+                    hasEditedPdfTextSettingsRef.current = false;
+                }
             } catch (e) {
                 console.error('Fout bij opslaan facturatie:', e);
             }
@@ -1593,6 +1611,26 @@ export default function QuotePage() {
         });
     };
 
+    const handleUpdateTransportTotal = async (amountExcl: number) => {
+        if (!quoteSettings) return;
+        const safeAmount = Math.max(0, Number(amountExcl) || 0);
+        const totaalUren = Number((calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0);
+        const transportAantalDagen = Math.max(1, Math.ceil(Math.max(0, totaalUren) / 8));
+        const vasteTransportkostenPerDag = safeAmount / transportAantalDagen;
+        await handleUpdateSettings({
+            ...quoteSettings,
+            extras: {
+                ...quoteSettings.extras,
+                transport: {
+                    ...quoteSettings.extras.transport,
+                    mode: 'fixed',
+                    vasteTransportkosten: vasteTransportkostenPerDag,
+                    tunnelkosten: 0,
+                },
+            },
+        });
+    };
+
     const handleUpdateWinstMargeAmountIncl = async (amountIncl: number) => {
         if (!quoteSettings) return;
         const safeIncl = Math.max(0, Number(amountIncl) || 0);
@@ -1849,7 +1887,11 @@ export default function QuotePage() {
                 instellingen: {
                     ...(root?.instellingen as any),
                     ...newSettings
-                }
+                },
+                extras: {
+                    ...(root?.extras as any),
+                    ...newSettings.extras,
+                },
             });
         }
     };
@@ -1857,6 +1899,7 @@ export default function QuotePage() {
     const actieveVoorwaarden = getVoorwaardenByMode(pdfTextSettings, voorwaardenEditorMode);
 
     const updateVoorwaardenAt = (index: number, value: string) => {
+        hasEditedPdfTextSettingsRef.current = true;
         setPdfTextSettings((prev) => {
             const current = getVoorwaardenByMode(prev, voorwaardenEditorMode);
             const next = [...current];
@@ -1866,6 +1909,7 @@ export default function QuotePage() {
     };
 
     const addVoorwaarde = () => {
+        hasEditedPdfTextSettingsRef.current = true;
         setPdfTextSettings((prev) => {
             const current = getVoorwaardenByMode(prev, voorwaardenEditorMode);
             return withVoorwaardenByMode(prev, voorwaardenEditorMode, [...current, '']);
@@ -1873,6 +1917,7 @@ export default function QuotePage() {
     };
 
     const removeVoorwaarde = (index: number) => {
+        hasEditedPdfTextSettingsRef.current = true;
         setPdfTextSettings((prev) => {
             const current = getVoorwaardenByMode(prev, voorwaardenEditorMode);
             const next = current.filter((_, i) => i !== index);
@@ -1881,6 +1926,7 @@ export default function QuotePage() {
     };
 
     const moveVoorwaarde = (index: number, direction: -1 | 1) => {
+        hasEditedPdfTextSettingsRef.current = true;
         setPdfTextSettings((prev) => {
             const current = getVoorwaardenByMode(prev, voorwaardenEditorMode);
             const target = index + direction;
@@ -1893,6 +1939,7 @@ export default function QuotePage() {
     };
 
     const resetPdfTekstenNaarStandaard = () => {
+        hasEditedPdfTextSettingsRef.current = true;
         setPdfTextSettings(defaultQuotePdfTextSettings);
     };
 
@@ -2003,12 +2050,18 @@ export default function QuotePage() {
         window.URL.revokeObjectURL(url);
     };
 
-    const sanitizeFileNamePart = (value: string): string =>
-        value
+    const sanitizeFileNamePart = (value: unknown): string => {
+        const normalized = typeof value === 'string'
+            ? value
+            : typeof value === 'number'
+                ? String(value)
+                : '';
+        return normalized
             .trim()
             .replace(/[\\/:*?"<>|]+/g, '-')
             .replace(/\s+/g, ' ')
             .slice(0, 80);
+    };
 
     const captureDrawingsForPdf = async (): Promise<string[]> => {
         if (isGeneratingPDF) {
@@ -2389,6 +2442,15 @@ export default function QuotePage() {
                 pdfTeksten: pdfTextSettings,
                 updatedAt: new Date(),
             });
+
+            const userRef = doc(firestore, 'users', user.uid);
+            await setDoc(
+                userRef,
+                {
+                    defaultPdfTeksten: pdfTextSettings,
+                },
+                { merge: true }
+            );
 
             setPdfSettingsSavedAt(Date.now());
             toast({
@@ -3117,11 +3179,11 @@ export default function QuotePage() {
                                                     </Label>
                                                     {actieveVoorwaarden.map((regel, index) => (
                                                         <div key={`${voorwaardenEditorMode}-${index}`} className="flex items-center gap-2">
-                                                            <Input
-                                                                value={regel}
-                                                                onChange={(e) => updateVoorwaardenAt(index, e.target.value)}
-                                                                placeholder="Voorwaarde..."
-                                                            />
+                                                        <Input
+                                                            value={regel}
+                                                            onChange={(e) => updateVoorwaardenAt(index, e.target.value)}
+                                                            placeholder="Voorwaarde..."
+                                                        />
                                                             <Button
                                                                 type="button"
                                                                 variant="outline"
@@ -3165,10 +3227,11 @@ export default function QuotePage() {
                                                         id="pdfAfsluitingTekst"
                                                         value={pdfTextSettings.afsluitingTekst}
                                                         onChange={(e) =>
+                                                            ((hasEditedPdfTextSettingsRef.current = true),
                                                             setPdfTextSettings((prev) => ({
                                                                 ...prev,
                                                                 afsluitingTekst: e.target.value,
-                                                            }))
+                                                            })))
                                                         }
                                                         rows={3}
                                                         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -3182,10 +3245,11 @@ export default function QuotePage() {
                                                             id="pdfGroetTekst"
                                                             value={pdfTextSettings.groetTekst}
                                                             onChange={(e) =>
+                                                                ((hasEditedPdfTextSettingsRef.current = true),
                                                                 setPdfTextSettings((prev) => ({
                                                                     ...prev,
                                                                     groetTekst: e.target.value,
-                                                                }))
+                                                                })))
                                                             }
                                                             placeholder="Bijv. Met vriendelijke groet,"
                                                         />
@@ -3196,10 +3260,11 @@ export default function QuotePage() {
                                                             id="pdfOndertekeningNaam"
                                                             value={pdfTextSettings.ondertekeningNaam}
                                                             onChange={(e) =>
+                                                                ((hasEditedPdfTextSettingsRef.current = true),
                                                                 setPdfTextSettings((prev) => ({
                                                                     ...prev,
                                                                     ondertekeningNaam: e.target.value,
-                                                                }))
+                                                                })))
                                                             }
                                                             placeholder="Leeg = bedrijfsnaam uit profiel"
                                                         />
@@ -3334,6 +3399,7 @@ export default function QuotePage() {
                                                 onUpdateMaterialenGrootTotal={handleUpdateMaterialenGrootTotal}
                                                 onUpdateMaterialenVerbruikTotal={handleUpdateMaterialenVerbruikTotal}
                                                 onUpdateMaterialenSubtotal={handleUpdateMaterialenSubtotal}
+                                                onUpdateTransportTotal={handleUpdateTransportTotal}
                                                 onUpdateWinstMargePercentage={handleUpdateWinstMargePercentage}
                                                 onUpdateWinstMargeAmountIncl={handleUpdateWinstMargeAmountIncl}
                                             />
@@ -3781,6 +3847,24 @@ export default function QuotePage() {
 
                         {/* PDF Tab */}
                         <TabsContent value="pdf" className="mt-6 space-y-4">
+                            <Card className="border border-border bg-card/50">
+                                <CardContent className="pt-4">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <div className="text-sm font-medium text-foreground">Onder voorbehoud</div>
+                                            <div className="text-xs text-muted-foreground">
+                                                Toon PDF als richtprijs (incl. nacalculatie-tekst).
+                                            </div>
+                                        </div>
+                                        <Switch
+                                            checked={onderVoorbehoud}
+                                            onCheckedChange={setOnderVoorbehoud}
+                                            aria-label="Onder voorbehoud inschakelen"
+                                        />
+                                    </div>
+                                </CardContent>
+                            </Card>
+
                             {loading ? (
                                 <LoadingPanel />
                             ) : !isDrawingsReady ? (

@@ -111,6 +111,44 @@ function getImageFormatFromDataUrl(dataUrl: string): 'PNG' | 'JPEG' | 'WEBP' {
     return 'PNG';
 }
 
+function roundMoney(value: number): number {
+    return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+}
+
+function buildSummaryLineTotalsWithHiddenMargin(totals: PDFQuoteData['totals']): {
+    materialen: number;
+    arbeid: number;
+    transport: number;
+} {
+    const materialenBase = Math.max(0, Number(totals.materialenTotaal) || 0);
+    const arbeidBase = Math.max(0, Number(totals.arbeidTotaal) || 0);
+    const transportBase = Math.max(0, Number(totals.transportTotaal) || 0);
+    const baseSum = materialenBase + arbeidBase + transportBase;
+    const totalExcl = Math.max(0, Number(totals.totaalExclBtw) || 0);
+    const hiddenMargin = Math.max(0, Number(totals.winstMarge) || 0);
+
+    if (baseSum <= 0 || hiddenMargin <= 0) {
+        return {
+            materialen: roundMoney(materialenBase),
+            arbeid: roundMoney(arbeidBase),
+            transport: roundMoney(transportBase),
+        };
+    }
+
+    const materialenRaw = materialenBase + (hiddenMargin * (materialenBase / baseSum));
+    const arbeidRaw = arbeidBase + (hiddenMargin * (arbeidBase / baseSum));
+
+    const materialen = roundMoney(materialenRaw);
+    const arbeid = roundMoney(arbeidRaw);
+    const transport = roundMoney(totalExcl - materialen - arbeid);
+
+    return {
+        materialen,
+        arbeid,
+        transport: transport >= 0 ? transport : roundMoney(transportBase + (hiddenMargin * (transportBase / baseSum))),
+    };
+}
+
 export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const doc = new jsPDF({
         orientation: 'portrait',
@@ -350,11 +388,23 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
 
-    const summaryItems = [
-        ['Materialen', formatCurrency(data.totals.materialenTotaal)],
-        [`Arbeid (${data.totals.totaalUren} uur)`, formatCurrency(data.totals.arbeidTotaal)],
-        ['Transport', formatCurrency(data.totals.transportTotaal)],
-    ];
+    const summaryLineTotals = buildSummaryLineTotalsWithHiddenMargin(data.totals);
+    const summaryItems: Array<[string, string]> = [];
+
+    if (data.settings.showSummaryMaterialen) {
+        summaryItems.push(['Materialen', formatCurrency(summaryLineTotals.materialen)]);
+    }
+
+    if (data.settings.showSummaryArbeid) {
+        const arbeidLabel = data.settings.showSummaryArbeidUren
+            ? `Arbeid (${data.totals.totaalUren} uur)`
+            : 'Arbeid';
+        summaryItems.push([arbeidLabel, formatCurrency(summaryLineTotals.arbeid)]);
+    }
+
+    if (data.settings.showSummaryTransport) {
+        summaryItems.push(['Transport', formatCurrency(summaryLineTotals.transport)]);
+    }
 
     doc.setTextColor(80, 80, 80);
     summaryItems.forEach(([label, value]) => {
@@ -365,34 +415,46 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         y += 6;
     });
 
-    y += 2;
-    doc.setDrawColor(150, 150, 150);
-    doc.line(pageWidth - 70, y, pageWidth - margin, y);
-    y += 6;
+    const hasInterimTotals = data.settings.showSummaryExclBtw || data.settings.showSummaryBtw;
 
-    doc.setTextColor(80, 80, 80);
-    doc.text('Totaal excl. BTW', margin, y);
-    doc.setTextColor(30, 30, 30);
-    doc.text(formatCurrency(data.totals.totaalExclBtw), pageWidth - margin, y, { align: 'right' });
-    y += 6;
+    if (summaryItems.length > 0 && (hasInterimTotals || data.settings.showSummaryInclBtw)) {
+        y += 2;
+        doc.setDrawColor(150, 150, 150);
+        doc.line(pageWidth - 70, y, pageWidth - margin, y);
+        y += 6;
+    }
 
-    doc.setTextColor(80, 80, 80);
-    doc.text(`BTW (${data.totals.btwPercentage}%)`, margin, y);
-    doc.setTextColor(30, 30, 30);
-    doc.text(formatCurrency(data.totals.btw), pageWidth - margin, y, { align: 'right' });
-    y += 4;
+    if (data.settings.showSummaryExclBtw) {
+        doc.setTextColor(80, 80, 80);
+        doc.text('Totaal excl. BTW', margin, y);
+        doc.setTextColor(30, 30, 30);
+        doc.text(formatCurrency(data.totals.totaalExclBtw), pageWidth - margin, y, { align: 'right' });
+        y += 6;
+    }
 
-    doc.setLineWidth(0.8);
-    doc.setDrawColor(16, 185, 129); // Emerald
-    doc.line(pageWidth - 70, y, pageWidth - margin, y);
-    y += 7;
+    if (data.settings.showSummaryBtw) {
+        doc.setTextColor(80, 80, 80);
+        doc.text(`BTW (${data.totals.btwPercentage}%)`, margin, y);
+        doc.setTextColor(30, 30, 30);
+        doc.text(formatCurrency(data.totals.btw), pageWidth - margin, y, { align: 'right' });
+        y += 4;
+    }
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(30, 30, 30);
-    doc.text(isOnderVoorbehoud ? 'RICHTPRIJS INCL. BTW' : 'TOTAAL INCL. BTW', margin, y);
-    doc.setTextColor(16, 185, 129);
-    doc.text(formatCurrency(data.totals.totaalInclBtw), pageWidth - margin, y, { align: 'right' });
+    if (data.settings.showSummaryInclBtw) {
+        if (hasInterimTotals) {
+            doc.setLineWidth(0.8);
+            doc.setDrawColor(16, 185, 129); // Emerald
+            doc.line(pageWidth - 70, y, pageWidth - margin, y);
+            y += 7;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(30, 30, 30);
+        doc.text(isOnderVoorbehoud ? 'RICHTPRIJS INCL. BTW' : 'TOTAAL INCL. BTW', margin, y);
+        doc.setTextColor(16, 185, 129);
+        doc.text(formatCurrency(data.totals.totaalInclBtw), pageWidth - margin, y, { align: 'right' });
+    }
     if (isOnderVoorbehoud) {
         y += 5;
         doc.setFont('helvetica', 'normal');
@@ -761,54 +823,12 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.text(tekstInstellingen.ondertekeningNaam || data.bedrijf.naam, margin, y);
 
     // ═══════════════════════════════════════════════════════════════
-    // OPTIONAL PAGE: TEKENINGEN (if enabled)
+    // OPTIONAL PAGE: TEKENINGEN (only when enabled and actual drawings exist)
     // ═══════════════════════════════════════════════════════════════
 
-    if (data.settings.showTekeningen) {
-        // If we have captured images, render them
-        if (data.drawingImages && data.drawingImages.length > 0) {
-            data.drawingImages.forEach((imgData, index) => {
-                doc.addPage();
-                y = margin;
-
-                // Header
-                doc.setFontSize(14);
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(30, 30, 30);
-                doc.text(`TEKENINGEN (${index + 1}/${data.drawingImages!.length})`, margin, y);
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(100, 100, 100);
-                doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, y, { align: 'right' });
-
-                y += 8;
-                drawLine(y);
-                y += 10;
-
-                try {
-                    // Calculate aspect ratio to fit page
-                    const imgProps = doc.getImageProperties(imgData);
-                    const availableWidth = pageWidth - (margin * 2);
-                    const availableHeight = pageHeight - y - margin;
-
-                    let imgWidth = availableWidth;
-                    let imgHeight = (imgProps.height * availableWidth) / imgProps.width;
-
-                    if (imgHeight > availableHeight) {
-                        imgHeight = availableHeight;
-                        imgWidth = (imgProps.width * availableHeight) / imgProps.height;
-                    }
-
-                    doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
-                } catch (err) {
-                    console.error("Error adding image to PDF:", err);
-                    doc.setFontSize(10);
-                    doc.setTextColor(255, 0, 0);
-                    doc.text("Fout bij laden van tekening.", margin, y + 10);
-                }
-            });
-        } else {
-            // Fallback: Placeholder if enabled but no images found (or legacy behavior)
+    const drawingImages = Array.isArray(data.drawingImages) ? data.drawingImages : [];
+    if (data.settings.showTekeningen && drawingImages.length > 0) {
+        drawingImages.forEach((imgData, index) => {
             doc.addPage();
             y = margin;
 
@@ -816,7 +836,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             doc.setFontSize(14);
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(30, 30, 30);
-            doc.text('TEKENINGEN', margin, y);
+            doc.text(`TEKENINGEN (${index + 1}/${drawingImages.length})`, margin, y);
             doc.setFontSize(9);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(100, 100, 100);
@@ -826,21 +846,28 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             drawLine(y);
             y += 10;
 
-            // Placeholder content
-            doc.setFontSize(10);
-            doc.setTextColor(50, 50, 50);
-            doc.text('Zie bijlagen voor technische tekeningen en plattegronden.', margin, y);
+            try {
+                // Calculate aspect ratio to fit page
+                const imgProps = doc.getImageProperties(imgData);
+                const availableWidth = pageWidth - (margin * 2);
+                const availableHeight = pageHeight - y - margin;
 
-            // Example box to indicate where drawings would go
-            y += 20;
-            doc.setDrawColor(230, 230, 230);
-            doc.setFillColor(250, 250, 250);
-            doc.roundedRect(margin, y, pageWidth - (margin * 2), 150, 3, 3, 'FD');
+                let imgWidth = availableWidth;
+                let imgHeight = (imgProps.height * availableWidth) / imgProps.width;
 
-            doc.setTextColor(150, 150, 150);
-            doc.setFontSize(14);
-            doc.text('Ruimte voor tekeningen', pageWidth / 2, y + 75, { align: 'center' });
-        }
+                if (imgHeight > availableHeight) {
+                    imgHeight = availableHeight;
+                    imgWidth = (imgProps.width * availableHeight) / imgProps.height;
+                }
+
+                doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
+            } catch (err) {
+                console.error("Error adding image to PDF:", err);
+                doc.setFontSize(10);
+                doc.setTextColor(255, 0, 0);
+                doc.text("Fout bij laden van tekening.", margin, y + 10);
+            }
+        });
     }
 
     // Return as blob

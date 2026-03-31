@@ -633,6 +633,12 @@ export default function OffertesPage() {
     }
   }
 
+  const handleSelectExistingClient = (clientId: string): void => {
+    if (creatingQuoteRef.current) return;
+    setSelectedClientId(clientId);
+    void handleCreateEmptyQuote({ withSelectedClient: true });
+  };
+
   function openArchiveDialog(quote: QuoteRow): void {
     setArchiveTarget(quote);
     setArchiveOpen(true);
@@ -928,7 +934,7 @@ export default function OffertesPage() {
                               <button
                                 key={c.id}
                                 type="button"
-                                onClick={() => setSelectedClientId(c.id)}
+                                onClick={() => handleSelectExistingClient(c.id)}
                                 className={cn(
                                   'w-full rounded-lg border p-3 text-left transition-colors',
                                   isSelected
@@ -952,16 +958,12 @@ export default function OffertesPage() {
                           variant="success"
                           className="h-10"
                           onClick={() => {
-                            if (selectedClientId) {
-                              void handleCreateEmptyQuote({ withSelectedClient: true });
-                              return;
-                            }
                             void handleCreateQuoteWithNewClient();
                           }}
                           disabled={creatingQuote}
                         >
                           {creatingQuote ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                          {selectedClientId ? 'Start met klant' : 'Nieuwe klant toevoegen'}
+                          Nieuwe klant toevoegen
                         </Button>
                       </div>
                     </div>
