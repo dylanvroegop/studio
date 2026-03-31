@@ -252,6 +252,7 @@ export default function QuotePage() {
     const hasEditedPdfTextSettingsRef = useRef(false);
     const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('onderVoorbehoud');
     const [activeTab, setActiveTab] = useState('materialen');
+    const [manualWorkDescriptionTitle, setManualWorkDescriptionTitle] = useState('');
     const [manualWorkDescriptionRows, setManualWorkDescriptionRows] = useState<string[]>([]);
     const [workDescriptionPrompt, setWorkDescriptionPrompt] = useState('');
     const [isGeneratingWorkDescription, setIsGeneratingWorkDescription] = useState(false);
@@ -2729,24 +2730,37 @@ export default function QuotePage() {
         [normalizedData?.werkbeschrijving],
     );
 
+    const currentWerkbeschrijvingTitle = useMemo(
+        () => String(normalizedData?.korteTitel || '').trim(),
+        [normalizedData?.korteTitel],
+    );
+
     useEffect(() => {
-        const serialized = currentWerkbeschrijving.join('\n');
+        const serialized = JSON.stringify({
+            title: currentWerkbeschrijvingTitle,
+            rows: currentWerkbeschrijving,
+        });
         if (lastSyncedWerkbeschrijvingRef.current === serialized) {
             return;
         }
 
+        setManualWorkDescriptionTitle(currentWerkbeschrijvingTitle);
         setManualWorkDescriptionRows(
             currentWerkbeschrijving.length > 0 ? currentWerkbeschrijving : [''],
         );
         lastSyncedWerkbeschrijvingRef.current = serialized;
-    }, [currentWerkbeschrijving]);
+    }, [currentWerkbeschrijving, currentWerkbeschrijvingTitle]);
 
     useEffect(() => {
         if (!calculation?.data_json) return;
+        const parsedTitle = manualWorkDescriptionTitle.trim();
         const parsedWerkbeschrijving = manualWorkDescriptionRows
             .map((line) => line.trim())
             .filter(Boolean);
-        const serializedParsed = parsedWerkbeschrijving.join('\n');
+        const serializedParsed = JSON.stringify({
+            title: parsedTitle,
+            rows: parsedWerkbeschrijving,
+        });
 
         if (serializedParsed === lastSyncedWerkbeschrijvingRef.current) {
             return;
@@ -2761,6 +2775,7 @@ export default function QuotePage() {
             const root = unwrapRoot(calculation.data_json);
             updateDataJson({
                 ...root,
+                korteTitel: parsedTitle,
                 werkbeschrijving: parsedWerkbeschrijving,
             })
                 .then(() => {
@@ -2783,7 +2798,7 @@ export default function QuotePage() {
                 clearTimeout(autoSaveWerkbeschrijvingTimerRef.current);
             }
         };
-    }, [manualWorkDescriptionRows, calculation?.data_json, updateDataJson, toast]);
+    }, [manualWorkDescriptionTitle, manualWorkDescriptionRows, calculation?.data_json, updateDataJson, toast]);
 
     const handleGenerateWorkDescription = async () => {
         const prompt = workDescriptionPrompt.trim();
@@ -2838,7 +2853,10 @@ export default function QuotePage() {
             });
 
             setManualWorkDescriptionRows(generated);
-            lastSyncedWerkbeschrijvingRef.current = generated.join('\n');
+            lastSyncedWerkbeschrijvingRef.current = JSON.stringify({
+                title: manualWorkDescriptionTitle.trim(),
+                rows: generated,
+            });
 
             toast({
                 title: 'Werkbeschrijving gegenereerd',
@@ -3375,7 +3393,13 @@ export default function QuotePage() {
                                 <div className="space-y-6">
                                     {/* Top row: Client + Cost Summary */}
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                        <ClientInfoCard klantInfo={klantInfo} />
+                                        <ClientInfoCard
+                                            klantInfo={klantInfo}
+                                            onEditClient={() => {
+                                                const redirect = encodeURIComponent(`/offertes/${id}`);
+                                                router.push(`/offertes/${id}/klant?successRedirect=${redirect}`);
+                                            }}
+                                        />
                                         <div className="lg:col-span-2 flex flex-col gap-4">
 
                                             <CostSummaryCard
@@ -3888,6 +3912,15 @@ export default function QuotePage() {
                                             <CardTitle className="text-base">Werkbeschrijving</CardTitle>
                                         </CardHeader>
                                         <CardContent className="space-y-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-xs text-muted-foreground">Hoofdtitel</Label>
+                                                <Input
+                                                    value={manualWorkDescriptionTitle}
+                                                    onChange={(e) => setManualWorkDescriptionTitle(e.target.value)}
+                                                    placeholder="Bijv. Dakisolatie woning"
+                                                    className="h-9"
+                                                />
+                                            </div>
                                             <div className="space-y-2">
                                                 {manualWorkDescriptionRows.map((row, index) => (
                                                     <div key={`werkbeschrijving-row-${index}`} className="flex items-center gap-2">

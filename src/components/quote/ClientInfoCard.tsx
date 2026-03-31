@@ -1,17 +1,27 @@
 'use client';
 
 import { KlantInformatie } from '@/lib/quote-calculations';
-import { User, MapPin, Mail, Phone } from 'lucide-react';
+import { User, MapPin, Mail, Phone, Pencil } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface ClientInfoCardProps {
     klantInfo: KlantInformatie | null;
+    onEditClient?: () => void;
 }
 
-export function ClientInfoCard({ klantInfo }: ClientInfoCardProps) {
+export function ClientInfoCard({ klantInfo, onEditClient }: ClientInfoCardProps) {
     if (!klantInfo) {
         return (
             <div className="bg-card rounded-lg border border-border p-6">
-                <h3 className="font-semibold text-muted-foreground text-sm mb-4">KLANTGEGEVENS</h3>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                    <h3 className="font-semibold text-muted-foreground text-sm">KLANTGEGEVENS</h3>
+                    {onEditClient && (
+                        <Button type="button" size="sm" variant="outline" onClick={onEditClient} className="h-8 px-2">
+                            <Pencil size={13} className="mr-1" />
+                            Wijzigen
+                        </Button>
+                    )}
+                </div>
                 <p className="text-muted-foreground">Geen klantgegevens beschikbaar</p>
             </div>
         );
@@ -23,10 +33,18 @@ export function ClientInfoCard({ klantInfo }: ClientInfoCardProps) {
 
     return (
         <div className="bg-card rounded-lg border border-border p-6">
-            <h3 className="font-semibold text-muted-foreground text-sm mb-4 flex items-center gap-2">
-                <User size={14} />
-                KLANTGEGEVENS
-            </h3>
+            <div className="mb-4 flex items-center justify-between gap-3">
+                <h3 className="font-semibold text-muted-foreground text-sm flex items-center gap-2">
+                    <User size={14} />
+                    KLANTGEGEVENS
+                </h3>
+                {onEditClient && (
+                    <Button type="button" size="sm" variant="outline" onClick={onEditClient} className="h-8 px-2">
+                        <Pencil size={13} className="mr-1" />
+                        Wijzigen
+                    </Button>
+                )}
+            </div>
 
             <div className="space-y-1">
                 <p className="font-medium text-foreground">
