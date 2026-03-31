@@ -12,7 +12,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
@@ -47,6 +47,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn, parsePriceToNumber } from '@/lib/utils';
+import { buildAddressString, buildGoogleMapsDirectionsUrl, hasMinimalAddress } from '@/lib/maps';
 import { reportOperationalError } from '@/lib/report-operational-error';
 import {
     defaultQuotePdfTextSettings,
@@ -3208,6 +3209,23 @@ export default function QuotePage() {
         </div>
     );
 
+    const routeDestinationAddress = useMemo(() => {
+        if (!klantInfo) return '';
+        const projectAdres = klantInfo.afwijkendProjectadres ? klantInfo.projectAdres : undefined;
+        const preferred = projectAdres && hasMinimalAddress(projectAdres)
+            ? projectAdres
+            : hasMinimalAddress(klantInfo)
+                ? klantInfo
+                : null;
+        if (!preferred) return '';
+        return buildAddressString(preferred);
+    }, [klantInfo]);
+
+    const routeMapsUrl = useMemo(
+        () => (routeDestinationAddress ? buildGoogleMapsDirectionsUrl(routeDestinationAddress) : ''),
+        [routeDestinationAddress],
+    );
+
     return (
         <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
             <AppNavigation />
@@ -3258,6 +3276,18 @@ export default function QuotePage() {
                                 >
                                     <ReceiptText size={16} /> Maak factuur
                                 </Button>
+                                {routeMapsUrl && (
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1 sm:flex-none gap-2"
+                                        onClick={() => {
+                                            window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
+                                        }}
+                                        title={routeDestinationAddress}
+                                    >
+                                        <Navigation size={16} /> Route
+                                    </Button>
+                                )}
                                 <Button
                                     variant="outline"
                                     className="flex-1 sm:flex-none gap-2"
