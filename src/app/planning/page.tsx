@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ChevronLeft, ChevronRight, Plus, Settings } from 'lucide-react';
 import { useEmployees } from '@/hooks/useEmployees';
 import { usePlanningData } from '@/hooks/usePlanningData';
-import { TimelineView, PlanningEntry } from '@/lib/types-planning';
+import { TimelineView, PlanningEntry, PlanningEntryType } from '@/lib/types-planning';
 import { getDateRangeForView, autoSplitJob, calculateEndDateFromHours } from '@/lib/planning-utils';
 import { PlanningGrid } from '@/components/planning/PlanningGrid';
 import { ScheduleModal } from '@/components/planning/ScheduleModal';
@@ -52,6 +52,8 @@ function PlanningPageContent() {
     const schedulingQuoteId = searchParams?.get('quoteId') || '';
     const schedulingHours = Number(searchParams?.get('hours')) || 0;
     const urlView = searchParams?.get('view') as TimelineView;
+    const urlScheduleType = searchParams?.get('scheduleType');
+    const schedulingType: PlanningEntryType = urlScheduleType === 'werkbespreking' ? 'werkbespreking' : 'job';
 
     const [view, setView] = useState<TimelineView>(urlView || 'week');
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -59,6 +61,7 @@ function PlanningPageContent() {
     const [selectedEntry, setSelectedEntry] = useState<PlanningEntry | null>(null);
     const [modalPreselectedDate, setModalPreselectedDate] = useState<Date | undefined>(undefined);
     const [modalPreselectedEmployee, setModalPreselectedEmployee] = useState<string | undefined>(undefined);
+    const [modalPreselectedPlanningType, setModalPreselectedPlanningType] = useState<PlanningEntryType>('job');
     const [planningSettings, setPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
     const [draftPlanningSettings, setDraftPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
     const [isPlanningSettingsOpen, setIsPlanningSettingsOpen] = useState(false);
@@ -300,7 +303,9 @@ function PlanningPageContent() {
 
                 const cacheData = {
                     clientName,
-                    projectTitle: schedulingQuote.titel || '',
+                    projectTitle: schedulingType === 'werkbespreking'
+                        ? `Werkbespreking${schedulingQuote.titel ? ` · ${schedulingQuote.titel}` : ''}`
+                        : (schedulingQuote.titel || ''),
                     projectAddress: '',
                     totalQuoteHours: schedulingHours
                 };
@@ -321,6 +326,7 @@ function PlanningPageContent() {
                         startDate: entry.startDate,
                         endDate: entry.endDate,
                         scheduledHours: entry.hours,
+                        planningType: schedulingType,
                         isAutoSplit: true,
                         cache: cacheData
                     }));
@@ -348,6 +354,7 @@ function PlanningPageContent() {
                         startDate,
                         endDate,
                         scheduledHours: schedulingHours,
+                        planningType: schedulingType,
                         isAutoSplit: false,
                         cache: cacheData
                     });
@@ -372,6 +379,7 @@ function PlanningPageContent() {
             setSelectedEntry(null);
             setModalPreselectedDate(date);
             setModalPreselectedEmployee(employeeId || undefined);
+            setModalPreselectedPlanningType('job');
             setIsScheduleModalOpen(true);
         }
     };
@@ -542,17 +550,33 @@ function PlanningPageContent() {
                         </Button>
 
                         <Button
+                            variant="outline"
+                            className="gap-2 sm:ml-0 border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/15"
+                            onClick={() => {
+                                setSelectedEntry(null);
+                                setModalPreselectedDate(undefined);
+                                setModalPreselectedEmployee(undefined);
+                                setModalPreselectedPlanningType('werkbespreking');
+                                setIsScheduleModalOpen(true);
+                            }}
+                        >
+                            <Plus className="h-4 w-4" />
+                            <span className="hidden sm:inline">Werkbespreking</span>
+                        </Button>
+
+                        <Button
                             variant="success"
                             className="gap-2 sm:ml-0"
                             onClick={() => {
                                 setSelectedEntry(null);
                                 setModalPreselectedDate(undefined);
                                 setModalPreselectedEmployee(undefined);
+                                setModalPreselectedPlanningType('job');
                                 setIsScheduleModalOpen(true);
                             }}
                         >
                             <Plus className="h-4 w-4" />
-                            <span className="hidden sm:inline">Inplannen</span>
+                            <span className="hidden sm:inline">Klus inplannen</span>
                         </Button>
                     </div>
                 </div>
@@ -584,6 +608,18 @@ function PlanningPageContent() {
                                     <div className="flex items-center justify-between gap-2">
                                         <span className="truncate font-semibold text-foreground">{item.clientName}</span>
                                         <span className="shrink-0 text-xs text-muted-foreground">{item.employeeName}</span>
+                                    </div>
+                                    <div className="mt-1">
+                                        <span
+                                            className={cn(
+                                                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                                                (item.entry.planningType || 'job') === 'werkbespreking'
+                                                    ? "bg-cyan-500/20 text-cyan-300"
+                                                    : "bg-emerald-500/20 text-emerald-300"
+                                            )}
+                                        >
+                                            {(item.entry.planningType || 'job') === 'werkbespreking' ? 'Werkbespreking' : 'Klus'}
+                                        </span>
                                     </div>
                                     {item.projectTitle ? (
                                         <div className="mt-1 truncate text-xs text-muted-foreground">{item.projectTitle}</div>
@@ -626,6 +662,7 @@ function PlanningPageContent() {
                 existingEntry={selectedEntry}
                 preselectedDate={modalPreselectedDate}
                 preselectedEmployee={modalPreselectedEmployee}
+                preselectedPlanningType={modalPreselectedPlanningType}
             />
 
             <Dialog open={isPlanningSettingsOpen} onOpenChange={setIsPlanningSettingsOpen}>

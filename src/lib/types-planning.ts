@@ -3,6 +3,7 @@ import { Timestamp } from "firebase/firestore";
 export type TimelineView = 'day' | 'week' | 'month';
 
 export type PlanningStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+export type PlanningEntryType = 'job' | 'werkbespreking';
 
 export interface PlanningEntry {
     id: string;
@@ -14,6 +15,7 @@ export interface PlanningEntry {
     endDate: Timestamp;
 
     scheduledHours: number;
+    planningType?: PlanningEntryType;
     isAutoSplit: boolean;
     parentEntryId?: string;
 

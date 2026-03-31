@@ -214,13 +214,13 @@ export function AppNavigation() {
     return (
         <>
             {isMobile ? (
-                <div className="fixed left-4 top-4 z-[60]">
+                <div className="fixed left-3 top-3 z-[60]">
                     <Sheet open={menuOpen} onOpenChange={handleMenuOpenChange}>
                         <SheetTrigger asChild>
                             <Button
                                 size="icon"
                                 variant="outline"
-                                className="h-11 w-11 rounded-xl shrink-0 border-border bg-background/90 shadow-lg backdrop-blur-sm"
+                                className="h-9 w-9 rounded-lg shrink-0 border-border bg-background/90 shadow-lg backdrop-blur-sm"
                                 aria-label="Open navigatie"
                             >
                                 <Menu className="h-4 w-4" />

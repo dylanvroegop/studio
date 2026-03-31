@@ -17,7 +17,7 @@ import {
     writeBatch,
     getDocs
 } from 'firebase/firestore';
-import { PlanningEntry, PlanningStatus } from '@/lib/types-planning';
+import { PlanningEntry, PlanningEntryType, PlanningStatus } from '@/lib/types-planning';
 
 interface UsePlanningDataOptions {
     startDate?: Date;
@@ -105,6 +105,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         startDate: Date;
         endDate: Date;
         scheduledHours: number;
+        planningType?: PlanningEntryType;
         isAutoSplit?: boolean;
         parentEntryId?: string;
         notes?: string;
@@ -124,6 +125,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             startDate: Timestamp.fromDate(data.startDate),
             endDate: Timestamp.fromDate(data.endDate),
             scheduledHours: data.scheduledHours,
+            planningType: data.planningType || 'job',
             isAutoSplit: data.isAutoSplit || false,
             parentEntryId: data.parentEntryId || null,
             status: 'scheduled' as PlanningStatus,
@@ -143,6 +145,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         startDate: Date;
         endDate: Date;
         scheduledHours: number;
+        planningType?: PlanningEntryType;
         isAutoSplit?: boolean;
         parentEntryId?: string;
         notes?: string;
@@ -169,6 +172,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
                 startDate: Timestamp.fromDate(data.startDate),
                 endDate: Timestamp.fromDate(data.endDate),
                 scheduledHours: data.scheduledHours,
+                planningType: data.planningType || 'job',
                 isAutoSplit: data.isAutoSplit || false,
                 parentEntryId: data.parentEntryId || null,
                 status: 'scheduled' as PlanningStatus,
@@ -190,6 +194,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             startDate: Date;
             endDate: Date;
             scheduledHours: number;
+            planningType: PlanningEntryType;
             status: PlanningStatus;
             notes: string;
         }>
@@ -206,6 +211,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         if (data.startDate !== undefined) updateData.startDate = Timestamp.fromDate(data.startDate);
         if (data.endDate !== undefined) updateData.endDate = Timestamp.fromDate(data.endDate);
         if (data.scheduledHours !== undefined) updateData.scheduledHours = data.scheduledHours;
+        if (data.planningType !== undefined) updateData.planningType = data.planningType;
         if (data.status !== undefined) updateData.status = data.status;
         if (data.notes !== undefined) updateData.notes = data.notes;
 

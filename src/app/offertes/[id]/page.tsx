@@ -3230,11 +3230,11 @@ export default function QuotePage() {
         <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
             <AppNavigation />
             {/* Header */}
-            <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
-                <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="flex items-center gap-4">
+            <header className="sticky top-0 z-50 border-b border-border bg-background/40 px-4 py-3 backdrop-blur-md sm:px-6 sm:py-4">
+                <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-center sm:flex-row sm:items-center sm:gap-4 sm:text-left">
+                    <div className="flex w-full items-center justify-center sm:w-auto sm:justify-start">
                         <div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center gap-3 sm:justify-start">
                                 <FileText className="h-5 w-5 text-cyan-400" />
                                 <h1 className="text-xl font-bold text-foreground">
                                     Offerte {(quote as any)?.offerteNummer || 'Concept'}
@@ -3242,20 +3242,20 @@ export default function QuotePage() {
                                 {quote?.titel && <span className="text-muted-foreground font-normal hidden sm:inline">• {quote.titel}</span>}
                             </div>
                             {klantInfo && (
-                                <p className="text-muted-foreground text-sm">
+                                <p className="text-sm text-muted-foreground">
                                     {klantInfo.voornaam} {klantInfo.achternaam} • {klantInfo.plaats}
                                 </p>
                             )}
                         </div>
                     </div>
-                    <div className="flex gap-3 w-full sm:w-auto">
+                    <div className="flex w-full gap-2 overflow-x-auto pb-1 sm:w-auto sm:overflow-visible sm:pb-0">
                         <Button
                             type="button"
                             variant="outline"
                             onClick={() => {
                                 void handleDownloadPDF();
                             }}
-                            className="flex-1 sm:flex-none flex items-center justify-center"
+                            className="flex h-10 min-w-10 items-center justify-center px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
                             disabled={!totals || loading || isGeneratingPDF}
                             aria-label="Download"
                             title="Download"
@@ -3271,26 +3271,30 @@ export default function QuotePage() {
                             <>
                                 <Button
                                     variant="outline"
-                                    className="flex-1 sm:flex-none gap-2"
+                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
                                     onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`)}
+                                    aria-label="Maak factuur"
+                                    title="Maak factuur"
                                 >
-                                    <ReceiptText size={16} /> Maak factuur
+                                    <ReceiptText size={16} />
+                                    <span className="hidden sm:inline">Maak factuur</span>
                                 </Button>
                                 {routeMapsUrl && (
                                     <Button
                                         variant="outline"
-                                        className="flex-1 sm:flex-none gap-2"
+                                        className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
                                         onClick={() => {
                                             window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
                                         }}
                                         title={routeDestinationAddress}
                                     >
-                                        <Navigation size={16} /> Route
+                                        <Navigation size={16} />
+                                        <span className="hidden sm:inline">Route</span>
                                     </Button>
                                 )}
                                 <Button
                                     variant="outline"
-                                    className="flex-1 sm:flex-none gap-2"
+                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
                                     onClick={() => {
                                         const params = new URLSearchParams({
                                             mode: 'schedule',
@@ -3300,22 +3304,31 @@ export default function QuotePage() {
                                         });
                                         router.push(`/planning?${params.toString()}`);
                                     }}
+                                    aria-label="Inplannen"
+                                    title="Inplannen"
                                 >
-                                    <CalendarDays size={16} /> Inplannen
+                                    <CalendarDays size={16} />
+                                    <span className="hidden sm:inline">Inplannen</span>
                                 </Button>
                                 <Button
                                     variant="outline"
-                                    className="flex-1 sm:flex-none gap-2"
+                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
                                     onClick={() => router.push(`/offertes/${id}/overzicht`)}
+                                    aria-label="Calculatie"
+                                    title="Calculatie"
                                 >
-                                    <PenTool size={16} /> Calculatie
+                                    <PenTool size={16} />
+                                    <span className="hidden sm:inline">Calculatie</span>
                                 </Button>
                                 <Button
                                     variant="success"
-                                    className="flex-1 sm:flex-none gap-2"
+                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
                                     onClick={() => setIsSendModalOpen(true)}
+                                    aria-label="Versturen"
+                                    title="Versturen"
                                 >
-                                    <Mail size={16} /> Versturen
+                                    <Mail size={16} />
+                                    <span className="hidden sm:inline">Versturen</span>
                                 </Button>
                             </>
                         )}
@@ -3343,28 +3356,35 @@ export default function QuotePage() {
                                             {materialsWithoutPrice}
                                         </div>
                                     )}
-                                    Materialen
+                                    <span className="hidden sm:inline">Materialen</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <Euro size={16} /> Overzicht
+                                    <Euro size={16} />
+                                    <span className="hidden sm:inline">Overzicht</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="nacalculatie" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <ClipboardList size={16} /> Nacalculatie
+                                    <ClipboardList size={16} />
+                                    <span className="hidden sm:inline">Nacalculatie</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="tekeningen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <PenTool size={16} /> Tekeningen
+                                    <PenTool size={16} />
+                                    <span className="hidden sm:inline">Tekeningen</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <FileText size={16} /> PDF Preview
+                                    <FileText size={16} />
+                                    <span className="hidden sm:inline">PDF Preview</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="werkbeschrijving" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <ClipboardList size={16} /> Werkbeschrijving
+                                    <ClipboardList size={16} />
+                                    <span className="hidden sm:inline">Werkbeschrijving</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <MessageSquare size={16} /> Notities
+                                    <MessageSquare size={16} />
+                                    <span className="hidden sm:inline">Notities</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="algemene-voorwaarden" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <FileText size={16} /> Algemene voorwaarden
+                                    <FileText size={16} />
+                                    <span className="hidden sm:inline">Algemene voorwaarden</span>
                                 </TabsTrigger>
                             </TabsList>
 
