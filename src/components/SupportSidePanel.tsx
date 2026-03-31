@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
-import { Globe, Laptop2, Megaphone, MessageCircle } from 'lucide-react';
+import { Globe, Megaphone, MessageCircle } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
@@ -17,12 +17,6 @@ interface SupportNavItem {
 const supportNavItems: SupportNavItem[] = [
   { href: '/feedback', label: 'Feedback', icon: MessageCircle },
   { href: '/prijs-import-aanvragen', label: 'Prijs import aanvragen', icon: Globe },
-  {
-    href: '/website-laten-maken',
-    label: 'Website laten maken',
-    icon: Laptop2,
-    tooltip: 'Website laten maken voor vakbedrijven',
-  },
   { href: '/nieuw', label: 'Nieuw', icon: Megaphone },
 ];
 

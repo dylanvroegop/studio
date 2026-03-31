@@ -22,6 +22,13 @@ interface NavigationItem {
 
 const navItems: NavigationItem[] = [
     {
+        href: '/offertes/nieuw',
+        label: 'Nieuwe calculatie',
+        icon: Plus,
+        iconColorClass: 'text-amber-400',
+        iconColorClassActive: 'text-amber-300',
+    },
+    {
         href: '/dashboard',
         label: 'Dashboard',
         icon: LayoutDashboard,
@@ -102,6 +109,8 @@ const navItems: NavigationItem[] = [
 
 function isActivePath(pathname: string, href: string): boolean {
     if (href === '/dashboard') return pathname === '/dashboard';
+    if (href === '/offertes/nieuw') return pathname === '/offertes/nieuw';
+    if (href === '/offertes') return pathname.startsWith('/offertes') && !pathname.startsWith('/offertes/nieuw');
     return pathname.startsWith(href);
 }
 
@@ -132,24 +141,7 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                 </div>
             </div>
 
-            <div className="px-4 py-5">
-                <Button
-                    asChild
-                    variant="outline"
-                    className="w-full justify-start font-semibold border-amber-500/40 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 dark:text-amber-100 dark:hover:text-amber-50"
-                    onClick={onNavigate}
-                >
-                    <Link href="/offertes/nieuw">
-                        <Plus className="h-4 w-4" />
-                        Nieuwe calculatie maken
-                    </Link>
-                </Button>
-            </div>
-
             <nav className="flex-1 overflow-y-auto px-3 pb-6">
-                <p className="px-3 pb-2 pt-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Algemeen
-                </p>
                 <div className="space-y-1">
                     {navItems.map((item) => {
                         const active = isActivePath(pathname, item.href);

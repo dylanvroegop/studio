@@ -2,9 +2,8 @@
 
 import React from 'react';
 import { TimelineView, PlanningEntry, Employee } from '@/lib/types-planning';
-import { formatHoursDisplay, calculateDayBlockPosition, calculateEndDateFromHours } from '@/lib/planning-utils';
-import { format, isSameDay } from 'date-fns';
-import { nl } from 'date-fns/locale';
+import { calculateDayBlockPosition, calculateEndDateFromHours } from '@/lib/planning-utils';
+import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 import {
     Tooltip,
@@ -75,7 +74,11 @@ export function ScheduleBlock({
 
     const timeLabel = view === 'day'
         ? `${format(startDate, 'HH:mm')} - ${format(displayEndDate, 'HH:mm')}`
-        : formatHoursDisplay(entry.scheduledHours);
+        : format(startDate, 'HH:mm');
+
+    const planningType = entry.planningType || 'job';
+    const planningTypeLabel = planningType === 'werkbespreking' ? 'Werkbespreking' : 'Klus';
+    const planningTypeColor = planningType === 'werkbespreking' ? '#22d3ee' : '#10b981';
 
     const blendWithBackground = (hex: string, alpha: number, base: string = '#0f0f12') => {
         const toRgb = (value: string) => {
@@ -119,9 +122,9 @@ export function ScheduleBlock({
                         )}
                         style={{
                             backgroundColor: view === 'day'
-                                ? blendWithBackground(employee.color, 0.2)
-                                : employee.color + '20',
-                            borderLeft: `3px solid ${employee.color}`,
+                                ? blendWithBackground(planningTypeColor, 0.2)
+                                : planningTypeColor + '20',
+                            borderLeft: `3px solid ${planningTypeColor}`,
                             ...getBlockStyle()
                         }}
                         onClick={(e) => {
@@ -189,6 +192,9 @@ export function ScheduleBlock({
                                 <User className="w-3 h-3 text-zinc-400" />
                                 {employee.name}
                             </div>
+                            <div className="mt-1 text-xs font-medium" style={{ color: planningTypeColor }}>
+                                {planningTypeLabel}
+                            </div>
                         </div>
 
                         <div className="flex items-start gap-2">
@@ -213,13 +219,6 @@ export function ScheduleBlock({
                                 </div>
                             </div>
                         )}
-
-                        <div className="border-t border-zinc-700 pt-2 flex items-center justify-between text-xs">
-                            <span className="text-zinc-400">Ingepland</span>
-                            <span className="text-emerald-400 font-medium">
-                                {formatHoursDisplay(entry.scheduledHours)} van {formatHoursDisplay(entry.cache.totalQuoteHours)}
-                            </span>
-                        </div>
                     </div>
                 </TooltipContent>
             </Tooltip>

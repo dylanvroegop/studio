@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { normalizeDataJson } from '@/lib/quote-calculations';
@@ -12,12 +12,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Calendar, Clock, User, Briefcase, Trash2 } from 'lucide-react';
-import { Employee, PlanningEntry, PlanningSettings, TimelineView } from '@/lib/types-planning';
+import { Employee, PlanningEntry, PlanningEntryType, PlanningSettings, TimelineView } from '@/lib/types-planning';
 import { autoSplitJob, formatHoursDisplay } from '@/lib/planning-utils';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 interface Quote {
     id: string;
@@ -53,6 +54,7 @@ interface ScheduleModalProps {
     existingEntry?: PlanningEntry | null;
     preselectedDate?: Date;
     preselectedEmployee?: string;
+    preselectedPlanningType?: PlanningEntryType;
 }
 
 export function ScheduleModal({
@@ -65,7 +67,8 @@ export function ScheduleModal({
     preselectedHours,
     existingEntry,
     preselectedDate,
-    preselectedEmployee
+    preselectedEmployee,
+    preselectedPlanningType = 'job',
 }: ScheduleModalProps) {
     const { user } = useUser();
     const firestore = useFirestore();
@@ -88,6 +91,8 @@ export function ScheduleModal({
     const [endTime, setEndTime] = useState<string>(planningSettings.defaultEndTime);
     const [totalHours, setTotalHours] = useState<number>(0);
     const [useAutoSplit, setUseAutoSplit] = useState(true);
+    const [selectedPlanningType, setSelectedPlanningType] = useState<PlanningEntryType>(preselectedPlanningType);
+    const initializedForOpenRef = useRef(false);
 
     // Fetch quotes
     useEffect(() => {
@@ -138,12 +143,19 @@ export function ScheduleModal({
             setEndTime(planningSettings.defaultEndTime);
             setTotalHours(0);
             setUseAutoSplit(true);
+            setSelectedPlanningType(preselectedPlanningType);
         }
-    }, [isOpen, preselectedDate, preselectedEmployee, planningSettings]);
+    }, [isOpen, preselectedDate, preselectedEmployee, planningSettings, preselectedPlanningType]);
 
-    // Initialize form when modal opens
+    // Initialize form once per open cycle
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen) {
+            initializedForOpenRef.current = false;
+            return;
+        }
+
+        if (initializedForOpenRef.current) return;
+        initializedForOpenRef.current = true;
 
         if (existingEntry) {
             setSelectedQuoteId(existingEntry.quoteId);
@@ -155,34 +167,43 @@ export function ScheduleModal({
             setEndTime(format(end, 'HH:mm'));
             setTotalHours(existingEntry.scheduledHours);
             setUseAutoSplit(false);
+            setSelectedPlanningType(existingEntry.planningType || 'job');
         } else {
-            // Set quote from preselection
-            if (!selectedQuoteId) setSelectedQuoteId(preselectedQuote?.id || '');
+            setSelectedQuoteId(preselectedQuote?.id || '');
 
-            // Set employee from preselection or auto-select if only one
             if (preselectedEmployee) {
                 setSelectedEmployeeId(preselectedEmployee);
-            } else if (!selectedEmployeeId && employees.length === 1) {
+            } else if (employees.length === 1) {
                 setSelectedEmployeeId(employees[0].id);
+            } else {
+                setSelectedEmployeeId('');
             }
 
-            // Set date from preselection or default to today
             if (preselectedDate) {
                 setStartDate(format(preselectedDate, 'yyyy-MM-dd'));
-            } else if (!startDate) {
+            } else {
                 setStartDate(format(new Date(), 'yyyy-MM-dd'));
             }
 
-            if (!startTime) setStartTime(planningSettings.defaultStartTime);
-            if (!endTime) setEndTime(planningSettings.defaultEndTime);
-
-            // Only set total hours if 0 (initial)
-            if (totalHours === 0) {
-                setTotalHours(preselectedHours || 0);
-                setUseAutoSplit(planningSettings.allowAutoSplit);
-            }
+            setStartTime(planningSettings.defaultStartTime);
+            setEndTime(planningSettings.defaultEndTime);
+            setTotalHours(preselectedHours || 0);
+            setUseAutoSplit(planningSettings.allowAutoSplit);
+            setSelectedPlanningType(preselectedPlanningType);
         }
-    }, [isOpen, existingEntry, preselectedQuote, preselectedHours, preselectedDate, preselectedEmployee, employees, planningSettings, selectedQuoteId, selectedEmployeeId, startDate, startTime, endTime, totalHours]);
+    }, [
+        isOpen,
+        existingEntry,
+        preselectedQuote,
+        preselectedHours,
+        preselectedDate,
+        preselectedEmployee,
+        employees,
+        planningSettings.defaultStartTime,
+        planningSettings.defaultEndTime,
+        planningSettings.allowAutoSplit,
+        preselectedPlanningType,
+    ]);
 
     const syncHoursFromTimes = (nextStart: string, nextEnd: string, baseDate: string) => {
         if (view !== 'day') return;
@@ -264,12 +285,16 @@ export function ScheduleModal({
     };
 
     const splitEntries = useMemo(() => {
+        if (selectedPlanningType === 'werkbespreking') {
+            return null;
+        }
+
         if (!useAutoSplit || totalHours <= planningSettings.defaultWorkdayHours) {
             return null;
         }
 
         return autoSplitJob(totalHours, new Date(startDate), planningSettings);
-    }, [useAutoSplit, totalHours, startDate, planningSettings]);
+    }, [useAutoSplit, totalHours, startDate, planningSettings, selectedPlanningType]);
 
     const performSave = useCallback(async (overrideEmployeeId?: string) => {
         // Validation for single user mode
@@ -280,15 +305,19 @@ export function ScheduleModal({
             return;
         }
 
-        if (!totalHours) {
+        if (selectedPlanningType !== 'werkbespreking' && !totalHours) {
             setIsSaving(false);
             setPendingSave(false);
             toast({ variant: 'destructive', title: 'Vul aantal uren in' });
             return;
         }
 
-        // Auto-assign only in single-employee setups.
-        const finalEmployeeId = overrideEmployeeId || selectedEmployeeId || (employees.length === 1 ? employees[0].id : '');
+        const isWerkbespreking = selectedPlanningType === 'werkbespreking';
+        // For werkbespreking we allow implicit assignment (first employee/current user).
+        const finalEmployeeId = overrideEmployeeId
+            || selectedEmployeeId
+            || (employees.length > 0 ? employees[0].id : '')
+            || (isWerkbespreking && user?.uid ? user.uid : '');
 
         if (!finalEmployeeId) {
             if (employees.length === 0) {
@@ -310,6 +339,7 @@ export function ScheduleModal({
         setIsSaving(true);
 
         try {
+            const werkbesprekingDurationHours = totalHours > 0 ? totalHours : 1;
             const quote = quotes.find(q => q.id === selectedQuoteId) || preselectedQuote;
             if (!quote) {
                 console.error('Quote not found:', selectedQuoteId);
@@ -325,21 +355,28 @@ export function ScheduleModal({
 
             const cache = {
                 clientName,
-                projectTitle: quote.titel || 'Klus',
+                projectTitle: selectedPlanningType === 'werkbespreking'
+                    ? `Werkbespreking${quote.titel ? ` · ${quote.titel}` : ''}`
+                    : (quote.titel || 'Klus'),
                 projectAddress: address,
-                totalQuoteHours: totalHours
+                totalQuoteHours: selectedPlanningType === 'werkbespreking' ? werkbesprekingDurationHours : totalHours
             };
 
             if (existingEntry) {
                 // Update existing entry
                 const entryStart = new Date(`${startDate}T${startTime || planningSettings.defaultStartTime}`);
-                const entryEnd = new Date(`${startDate}T${endTime || planningSettings.defaultEndTime}`);
-                const hours = Math.max(0, (entryEnd.getTime() - entryStart.getTime()) / (1000 * 60 * 60)) || totalHours;
+                const entryEnd = selectedPlanningType === 'werkbespreking'
+                    ? new Date(entryStart.getTime() + werkbesprekingDurationHours * 60 * 60 * 1000)
+                    : new Date(`${startDate}T${endTime || planningSettings.defaultEndTime}`);
+                const hours = selectedPlanningType === 'werkbespreking'
+                    ? werkbesprekingDurationHours
+                    : Math.max(0, (entryEnd.getTime() - entryStart.getTime()) / (1000 * 60 * 60)) || totalHours;
                 await updateEntry(existingEntry.id, {
                     employeeId: finalEmployeeId,
                     startDate: entryStart,
                     endDate: entryEnd,
-                    scheduledHours: hours
+                    scheduledHours: hours,
+                    planningType: selectedPlanningType,
                 });
                 toast({ title: 'Planning bijgewerkt' });
             } else if (splitEntries) {
@@ -350,6 +387,7 @@ export function ScheduleModal({
                     startDate: split.startDate,
                     endDate: split.endDate,
                     scheduledHours: split.hours,
+                    planningType: selectedPlanningType,
                     isAutoSplit: true,
                     cache
                 }));
@@ -362,8 +400,12 @@ export function ScheduleModal({
             } else {
                 // Single entry
                 const entryStart = new Date(`${startDate}T${startTime || planningSettings.defaultStartTime}`);
-                const entryEnd = new Date(`${startDate}T${endTime || planningSettings.defaultEndTime}`);
-                const hours = Math.max(0, (entryEnd.getTime() - entryStart.getTime()) / (1000 * 60 * 60)) || totalHours;
+                const entryEnd = selectedPlanningType === 'werkbespreking'
+                    ? new Date(entryStart.getTime() + werkbesprekingDurationHours * 60 * 60 * 1000)
+                    : new Date(`${startDate}T${endTime || planningSettings.defaultEndTime}`);
+                const hours = selectedPlanningType === 'werkbespreking'
+                    ? werkbesprekingDurationHours
+                    : Math.max(0, (entryEnd.getTime() - entryStart.getTime()) / (1000 * 60 * 60)) || totalHours;
 
                 await addEntry({
                     quoteId: selectedQuoteId,
@@ -371,6 +413,7 @@ export function ScheduleModal({
                     startDate: entryStart,
                     endDate: entryEnd,
                     scheduledHours: hours,
+                    planningType: selectedPlanningType,
                     cache
                 });
                 toast({ title: 'Planning aangemaakt' });
@@ -405,6 +448,7 @@ export function ScheduleModal({
         splitEntries,
         addMultipleEntries,
         addEntry,
+        selectedPlanningType,
         onClose,
     ]);
 
@@ -486,7 +530,11 @@ export function ScheduleModal({
             <DialogContent className="max-w-lg">
                 <DialogHeader>
                     <DialogTitle>
-                        {existingEntry ? 'Planning Bewerken' : 'Klus Inplannen'}
+                        {existingEntry
+                            ? 'Planning Bewerken'
+                            : selectedPlanningType === 'werkbespreking'
+                                ? 'Werkbespreking Inplannen'
+                                : 'Klus Inplannen'}
                     </DialogTitle>
                     <DialogDescription>
                         {existingEntry
@@ -498,6 +546,41 @@ export function ScheduleModal({
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
+                    {/* Quote Selection */}
+                    <div className="space-y-2">
+                        <Label>Type planning</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Button
+                                type="button"
+                                variant={selectedPlanningType === 'werkbespreking' ? 'default' : 'outline'}
+                                className={cn(
+                                    'justify-start',
+                                    selectedPlanningType === 'werkbespreking'
+                                        ? 'bg-cyan-500 hover:bg-cyan-500/90 text-cyan-950'
+                                        : ''
+                                )}
+                                onClick={() => setSelectedPlanningType('werkbespreking')}
+                                disabled={isSaving}
+                            >
+                                Werkbespreking
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={selectedPlanningType === 'job' ? 'default' : 'outline'}
+                                className={cn(
+                                    'justify-start',
+                                    selectedPlanningType === 'job'
+                                        ? 'bg-emerald-500 hover:bg-emerald-500/90 text-emerald-950'
+                                        : ''
+                                )}
+                                onClick={() => setSelectedPlanningType('job')}
+                                disabled={isSaving}
+                            >
+                                Klus
+                            </Button>
+                        </div>
+                    </div>
+
                     {/* Quote Selection */}
                     <div className="space-y-2">
                         <Label className="flex items-center gap-2">
@@ -530,28 +613,30 @@ export function ScheduleModal({
                     </div>
 
                     {/* Employee Selection */}
-                    <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            Uitvoerder
-                        </Label>
-                        <Select
-                            value={selectedEmployeeId}
-                            onValueChange={setSelectedEmployeeId}
-                            disabled={isSaving || employees.length === 0}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder={employees.length === 0 ? 'Geen uitvoerder beschikbaar' : 'Selecteer een uitvoerder'} />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {employees.map((employee) => (
-                                    <SelectItem key={employee.id} value={employee.id}>
-                                        {employee.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    {selectedPlanningType !== 'werkbespreking' && (
+                        <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                                <User className="w-4 h-4" />
+                                Uitvoerder
+                            </Label>
+                            <Select
+                                value={selectedEmployeeId}
+                                onValueChange={setSelectedEmployeeId}
+                                disabled={isSaving || employees.length === 0}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder={employees.length === 0 ? 'Geen uitvoerder beschikbaar' : 'Selecteer een uitvoerder'} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {employees.map((employee) => (
+                                        <SelectItem key={employee.id} value={employee.id}>
+                                            {employee.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
 
 
 
@@ -559,7 +644,7 @@ export function ScheduleModal({
                     <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                             <Calendar className="w-4 h-4" />
-                            Startdatum
+                            {selectedPlanningType === 'werkbespreking' ? 'Datum' : 'Startdatum'}
                         </Label>
                                 <Input
                                     type="date"
@@ -572,12 +657,12 @@ export function ScheduleModal({
                                 />
                             </div>
 
-                    {view === 'day' && (
-                        <div className="grid grid-cols-2 gap-3">
+                    {(view === 'day' || selectedPlanningType === 'werkbespreking') && (
+                        <div className={cn('gap-3', selectedPlanningType === 'werkbespreking' ? 'grid grid-cols-1' : 'grid grid-cols-2')}>
                             <div className="space-y-2">
                                 <Label className="flex items-center gap-2">
                                     <Clock className="w-4 h-4" />
-                                    Starttijd
+                                    {selectedPlanningType === 'werkbespreking' ? 'Tijdstip' : 'Starttijd'}
                                 </Label>
                                 <Input
                                     type="time"
@@ -589,47 +674,51 @@ export function ScheduleModal({
                                     }}
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <Label className="flex items-center gap-2">
-                                    <Clock className="w-4 h-4" />
-                                    Eindtijd
-                                </Label>
-                                <Input
-                                    type="time"
-                                    value={endTime}
-                                    onChange={(e) => {
-                                        const nextEnd = e.target.value;
-                                        setEndTime(nextEnd);
-                                        syncHoursFromTimes(startTime, nextEnd, startDate);
-                                    }}
-                                />
-                            </div>
+                            {selectedPlanningType !== 'werkbespreking' && (
+                                <div className="space-y-2">
+                                    <Label className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4" />
+                                        Eindtijd
+                                    </Label>
+                                    <Input
+                                        type="time"
+                                        value={endTime}
+                                        onChange={(e) => {
+                                            const nextEnd = e.target.value;
+                                            setEndTime(nextEnd);
+                                            syncHoursFromTimes(startTime, nextEnd, startDate);
+                                        }}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {/* Hours */}
-                    <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            Aantal uren
-                        </Label>
-                        <Input
-                            type="number"
-                            step="0.5"
-                            min="0.5"
-                            value={totalHours || ''}
-                            onChange={(e) => setTotalHours(Number(e.target.value))}
-                            placeholder="Bijv. 24"
-                        />
-                        {totalHours > planningSettings.defaultWorkdayHours && (
-                            <p className="text-xs text-muted-foreground">
-                                Dit is meer dan {planningSettings.defaultWorkdayHours} uur (1 werkdag)
-                            </p>
-                        )}
-                    </div>
+                    {selectedPlanningType !== 'werkbespreking' && (
+                        <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                                <Clock className="w-4 h-4" />
+                                Aantal uren
+                            </Label>
+                            <Input
+                                type="number"
+                                step="0.5"
+                                min="0.5"
+                                value={totalHours || ''}
+                                onChange={(e) => setTotalHours(Number(e.target.value))}
+                                placeholder="Bijv. 24"
+                            />
+                            {totalHours > planningSettings.defaultWorkdayHours && (
+                                <p className="text-xs text-muted-foreground">
+                                    Dit is meer dan {planningSettings.defaultWorkdayHours} uur (1 werkdag)
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     {/* Auto-split toggle */}
-                    {totalHours > planningSettings.defaultWorkdayHours && !existingEntry && (
+                    {selectedPlanningType !== 'werkbespreking' && totalHours > planningSettings.defaultWorkdayHours && !existingEntry && (
                         <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50 border border-zinc-700">
                             <div className="space-y-0.5">
                                 <Label>Automatisch opdelen</Label>
@@ -685,10 +774,10 @@ export function ScheduleModal({
                     <Button
                         variant="success"
                         onClick={handleSaveClick}
-                        disabled={isSaving || !selectedQuoteId || !totalHours || (employees.length > 1 && !selectedEmployeeId)}
+                        disabled={isSaving || !selectedQuoteId || (selectedPlanningType !== 'werkbespreking' && !totalHours) || (selectedPlanningType !== 'werkbespreking' && employees.length > 1 && !selectedEmployeeId)}
                     >
                         {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        {existingEntry ? 'Bijwerken' : 'Inplannen'}
+                        {existingEntry ? 'Bijwerken' : selectedPlanningType === 'werkbespreking' ? 'Werkbespreking inplannen' : 'Klus inplannen'}
                     </Button>
                 </DialogFooter>
             </DialogContent>
