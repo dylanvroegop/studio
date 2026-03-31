@@ -386,8 +386,8 @@ export function CostSummaryCard({
                                         </button>
                                     )}
                                     over totaal)
-                                    {settings.extras.winstMarge.basis === 'materiaal' && <span className="text-xs text-muted-foreground ml-1">(over mat.)</span>}
-                                    {settings.extras.winstMarge.basis === 'arbeid' && <span className="text-xs text-muted-foreground ml-1">(over arb.)</span>}
+                                    {settings.extras.winstMarge.basis === 'materiaal' && <span className="text-xs text-muted-foreground ml-1">(over materialen)</span>}
+                                    {settings.extras.winstMarge.basis === 'arbeid' && <span className="text-xs text-muted-foreground ml-1">(over arbeid)</span>}
                                 </>
                             ) : (
                                 <>Winstmarge (vast)</>

@@ -69,11 +69,14 @@ export interface PDFQuoteData {
         uurTarief: number;
         btwPercentage: number;
         margePercentage: number;
+        margeBasis?: 'totaal' | 'arbeid' | 'materiaal';
     };
     settings: QuotePDFSettings;
     drawingImages?: string[];
     onderVoorbehoud?: boolean;
     tekstInstellingen?: QuotePdfTextSettings;
+    algemeneVoorwaardenTekst?: string;
+    algemeneVoorwaardenTitel?: string;
 }
 
 /**
@@ -127,7 +130,7 @@ function buildSummaryLineTotalsWithHiddenMargin(totals: PDFQuoteData['totals']):
     const totalExcl = Math.max(0, Number(totals.totaalExclBtw) || 0);
     const hiddenMargin = Math.max(0, Number(totals.winstMarge) || 0);
 
-    if (baseSum <= 0 || hiddenMargin <= 0) {
+    if (hiddenMargin <= 0) {
         return {
             materialen: roundMoney(materialenBase),
             arbeid: roundMoney(arbeidBase),
@@ -135,8 +138,21 @@ function buildSummaryLineTotalsWithHiddenMargin(totals: PDFQuoteData['totals']):
         };
     }
 
-    const materialenRaw = materialenBase + (hiddenMargin * (materialenBase / baseSum));
-    const arbeidRaw = arbeidBase + (hiddenMargin * (arbeidBase / baseSum));
+    let materialenRaw = materialenBase;
+    let arbeidRaw = arbeidBase;
+    let transportRaw = transportBase;
+
+    if (totals.margeBasis === 'materiaal') {
+        materialenRaw += hiddenMargin;
+    } else if (totals.margeBasis === 'arbeid') {
+        arbeidRaw += hiddenMargin;
+    } else if (baseSum > 0) {
+        materialenRaw += hiddenMargin * (materialenBase / baseSum);
+        arbeidRaw += hiddenMargin * (arbeidBase / baseSum);
+        transportRaw += hiddenMargin * (transportBase / baseSum);
+    } else {
+        materialenRaw += hiddenMargin;
+    }
 
     const materialen = roundMoney(materialenRaw);
     const arbeid = roundMoney(arbeidRaw);
@@ -145,7 +161,7 @@ function buildSummaryLineTotalsWithHiddenMargin(totals: PDFQuoteData['totals']):
     return {
         materialen,
         arbeid,
-        transport: transport >= 0 ? transport : roundMoney(transportBase + (hiddenMargin * (transportBase / baseSum))),
+        transport: transport >= 0 ? transport : roundMoney(transportRaw),
     };
 }
 
@@ -164,6 +180,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const isOnderVoorbehoud = Boolean(data.onderVoorbehoud);
     const prijsAfspraakLabel = isOnderVoorbehoud ? 'Richtprijs op nacalculatie' : 'Vaste aanneemsom';
     const tekstInstellingen = sanitizeQuotePdfTextSettings(data.tekstInstellingen);
+    const offerNumberLabel = `Offerte #${data.offerteNummer}`;
 
     // Helper: draw horizontal line
     const drawLine = (yPos: number, color: number = 200) => {
@@ -180,6 +197,16 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             return true;
         }
         return false;
+    };
+
+    const drawSectionPageHeader = (title: string) => {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 30, 30);
+        doc.text(title, margin, y);
+        y += 8;
+        drawLine(y);
+        y += 10;
     };
 
     // ═══════════════════════════════════════════════════════════════
@@ -244,10 +271,10 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFont('helvetica', 'bold');
     doc.text('OFFERTE', pageWidth - margin, y + 6, { align: 'right' });
 
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
-    doc.text(`#${data.offerteNummer}`, pageWidth - margin, y + 14, { align: 'right' });
+    doc.text(offerNumberLabel, pageWidth - margin, y + 14, { align: 'right' });
 
     if (isOnderVoorbehoud) {
         const badgeWidth = 62;
@@ -341,8 +368,10 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setTextColor(80, 80, 80);
     doc.text('Projectlocatie:', metaCol1, y);
     doc.setTextColor(30, 30, 30);
-    doc.text(data.projectLocatie, metaCol2, y);
-    y += 5;
+    const projectLocatie = String(data.projectLocatie || '').trim();
+    const projectLocatieLines = doc.splitTextToSize(projectLocatie || '-', pageWidth - metaCol2 - margin);
+    doc.text(projectLocatieLines, metaCol2, y);
+    y += Math.max(projectLocatieLines.length * 4.2, 5);
 
     doc.setTextColor(80, 80, 80);
     doc.text('Prijsafspraak:', metaCol1, y);
@@ -370,10 +399,23 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFontSize(9);
     doc.setTextColor(50, 50, 50);
 
-    const descriptionContent = data.korteBeschrijving || data.werkbeschrijving;
-    const descriptionLines = doc.splitTextToSize(descriptionContent, pageWidth - (margin * 2));
-    doc.text(descriptionLines, margin, y);
-    y += descriptionLines.length * 4.5 + 8;
+    const shouldShowDescriptionOnSummaryPage = !(
+        data.settings.showFullWerkbeschrijving &&
+        Array.isArray(data.werkbeschrijvingFull) &&
+        data.werkbeschrijvingFull.length > 0
+    );
+    if (shouldShowDescriptionOnSummaryPage) {
+        const descriptionContent = data.korteBeschrijving || data.werkbeschrijving;
+        if (descriptionContent && descriptionContent.trim().length > 0) {
+            const descriptionLines = doc.splitTextToSize(descriptionContent, pageWidth - (margin * 2));
+            doc.text(descriptionLines, margin, y);
+            y += descriptionLines.length * 4.5 + 8;
+        } else {
+            y += 4;
+        }
+    } else {
+        y += 4;
+    }
 
     drawLine(y);
     y += 10;
@@ -396,8 +438,15 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     }
 
     if (data.settings.showSummaryArbeid) {
-        const arbeidLabel = data.settings.showSummaryArbeidUren
-            ? `Arbeid (${data.totals.totaalUren} uur)`
+        const arbeidLabelParts: string[] = [];
+        if (data.settings.showSummaryArbeidUren) {
+            arbeidLabelParts.push(`${data.totals.totaalUren} uur`);
+        }
+        if (data.settings.showSummaryArbeidTariefPerUurExclBtw) {
+            arbeidLabelParts.push(`${formatCurrency(data.totals.uurTarief)}/uur ex. btw`);
+        }
+        const arbeidLabel = arbeidLabelParts.length > 0
+            ? `Arbeid (${arbeidLabelParts.join(' · ')})`
             : 'Arbeid';
         summaryItems.push([arbeidLabel, formatCurrency(summaryLineTotals.arbeid)]);
     }
@@ -476,19 +525,16 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.addPage();
         y = margin;
 
-        // Header
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 30, 30);
-        doc.text('WERKBESCHRIJVING', margin, y);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, y, { align: 'right' });
+        drawSectionPageHeader('WERKBESCHRIJVING');
 
-        y += 8;
-        drawLine(y);
-        y += 10;
+        if (data.korteTitel && data.korteTitel.trim().length > 0) {
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(40, 40, 40);
+            const titleLines = doc.splitTextToSize(data.korteTitel.trim(), pageWidth - (margin * 2));
+            doc.text(titleLines, margin, y);
+            y += titleLines.length * 5 + 4;
+        }
 
         doc.setFontSize(9);
         doc.setTextColor(50, 50, 50);
@@ -537,19 +583,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.addPage();
         y = margin;
 
-        // Header
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 30, 30);
-        doc.text('MATERIAALSPECIFICATIE', margin, y);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, y, { align: 'right' });
-
-        y += 8;
-        drawLine(y);
-        y += 10;
+        drawSectionPageHeader('MATERIAALSPECIFICATIE');
 
         // GROOTMATERIALEN
         if (data.settings.showGrootmaterialen && data.grootmaterialen.length > 0) {
@@ -670,19 +704,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.addPage();
         y = margin;
 
-        // Header
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 30, 30);
-        doc.text('URENSPECIFICATIE', margin, y);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, y, { align: 'right' });
-
-        y += 8;
-        drawLine(y);
-        y += 10;
+        drawSectionPageHeader('URENSPECIFICATIE');
 
         // Table header
         doc.setFontSize(8);
@@ -740,12 +762,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.addPage();
     y = margin;
 
-    // VOORWAARDEN
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(80, 80, 80);
-    doc.text('VOORWAARDEN', margin, y);
-    y += 8;
+    drawSectionPageHeader('VOORWAARDEN');
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -754,32 +771,79 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const terms = isOnderVoorbehoud
         ? tekstInstellingen.voorwaardenOnderVoorbehoud
         : tekstInstellingen.voorwaardenVastePrijs;
+    const redTerms = new Set(
+        isOnderVoorbehoud
+            ? tekstInstellingen.voorwaardenOnderVoorbehoudRodeRegels || []
+            : tekstInstellingen.voorwaardenVastePrijsRodeRegels || [],
+    );
 
-    terms.forEach((term) => {
+    terms.forEach((term, index) => {
         const clean = (term || '').trim();
         if (!clean) return;
 
-        const line = clean.startsWith('•') ? clean : `• ${clean}`;
-        const wrapped = doc.splitTextToSize(line, pageWidth - (margin * 2));
-        doc.text(wrapped, margin, y);
+        const termText = clean.replace(/^[•\-]\s*/, '');
+        if (!termText) return;
+
+        const shouldBeRed = redTerms.has(index);
+        doc.setTextColor(shouldBeRed ? 185 : 60, shouldBeRed ? 28 : 60, shouldBeRed ? 28 : 60);
+        const bulletIndent = 4;
+        const wrapped = doc.splitTextToSize(termText, pageWidth - (margin * 2) - bulletIndent);
+        if (y + (wrapped.length * 4.4) > pageHeight - 55) {
+            doc.addPage();
+            y = margin;
+            drawSectionPageHeader('VOORWAARDEN');
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+        }
+        doc.text('•', margin, y);
+        doc.text(wrapped, margin + bulletIndent, y);
         y += wrapped.length * 4.4;
     });
 
-    y += 10;
-    drawLine(y);
-    y += 12;
+    // Fixed system line for legal agreement near signing block (non-editable)
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(75, 75, 75);
+    const akkoordUitleg = doc.splitTextToSize(
+        'Door ondertekening gaat opdrachtgever akkoord met deze offerte en bijbehorende voorwaarden.',
+        pageWidth - (margin * 2),
+    );
+    if (y + (akkoordUitleg.length * 4.1) + 36 > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+        drawSectionPageHeader('VOORWAARDEN');
+    } else {
+        y += 8;
+        drawLine(y);
+        y += 8;
+    }
+    doc.text(akkoordUitleg, margin, y);
+    y += akkoordUitleg.length * 4.1 + 5;
 
     // Signature block
+    if (y + 26 > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+    }
+    doc.setDrawColor(205, 205, 205);
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), 24, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(80, 80, 80);
-    doc.text('Voor akkoord:', margin, y);
-    y += 12;
+    doc.text('Voor akkoord', margin + 4, y + 6);
 
-    doc.setTextColor(30, 30, 30);
-    doc.text('Datum: _______________________', margin, y);
-    doc.text('Handtekening: _______________________', pageWidth / 2, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(40, 40, 40);
+    doc.text('Datum:', margin + 4, y + 15);
+    doc.line(margin + 20, y + 15, margin + 78, y + 15);
 
-    y += 25;
+    const handtekeningX = pageWidth / 2 + 2;
+    doc.text('Handtekening:', handtekeningX, y + 15);
+    doc.line(handtekeningX + 24, y + 15, pageWidth - margin - 4, y + 15);
+    y += 31;
+
     drawLine(y);
     y += 10;
 
@@ -794,6 +858,17 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const groetTekst = (tekstInstellingen.groetTekst || '').trim() || defaultQuotePdfTextSettings.groetTekst;
     doc.text(groetTekst, margin, y);
     y += 6;
+
+    if (y + 30 > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+    }
+
+    const ondertekeningNaam = tekstInstellingen.ondertekeningNaam || data.bedrijf.naam;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 30, 30);
+    doc.text(ondertekeningNaam, margin, y);
+    y += 5;
 
     if (data.signatureUrl) {
         try {
@@ -818,9 +893,55 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         }
     }
 
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 30, 30);
-    doc.text(tekstInstellingen.ondertekeningNaam || data.bedrijf.naam, margin, y);
+    // ═══════════════════════════════════════════════════════════════
+    // OPTIONAL PAGE: ALGEMENE VOORWAARDEN
+    // ═══════════════════════════════════════════════════════════════
+
+    const algemeneVoorwaardenTekst = String(data.algemeneVoorwaardenTekst || '').trim();
+    if (data.settings.showAlgemeneVoorwaarden && algemeneVoorwaardenTekst.length > 0) {
+        doc.addPage();
+        y = margin;
+
+        drawSectionPageHeader(String(data.algemeneVoorwaardenTitel || 'ALGEMENE VOORWAARDEN').trim() || 'ALGEMENE VOORWAARDEN');
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(50, 50, 50);
+
+        const blocks = algemeneVoorwaardenTekst
+            .split(/\n\s*\n/g)
+            .map((part) => part.trim())
+            .filter(Boolean);
+
+        const algemeneVoorwaardenTitel =
+            String(data.algemeneVoorwaardenTitel || 'ALGEMENE VOORWAARDEN').trim() || 'ALGEMENE VOORWAARDEN';
+
+        const ensureSpace = (needed: number) => {
+            if (y + needed <= pageHeight - margin) return;
+            doc.addPage();
+            y = margin;
+            drawSectionPageHeader(algemeneVoorwaardenTitel);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.setTextColor(50, 50, 50);
+        };
+
+        if (blocks.length === 0) {
+            const fallback = doc.splitTextToSize(algemeneVoorwaardenTekst, pageWidth - (margin * 2));
+            fallback.forEach((line: string) => {
+                ensureSpace(5);
+                doc.text(line, margin, y);
+                y += 4.5;
+            });
+        } else {
+            blocks.forEach((block) => {
+                const lines = doc.splitTextToSize(block, pageWidth - (margin * 2));
+                ensureSpace((lines.length * 4.5) + 4);
+                doc.text(lines, margin, y);
+                y += (lines.length * 4.5) + 4;
+            });
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // OPTIONAL PAGE: TEKENINGEN (only when enabled and actual drawings exist)
@@ -871,5 +992,20 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     }
 
     // Return as blob
+    const totalPages = doc.getNumberOfPages();
+    for (let page = 1; page <= totalPages; page += 1) {
+        doc.setPage(page);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(120, 120, 120);
+        doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, 8, { align: 'right' });
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(140, 140, 140);
+        doc.text(`${page}/${totalPages}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
+    }
+
     return doc.output('blob');
 }

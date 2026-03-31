@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import {
   Calendar,
+  CheckCircle2,
   FileText,
   Loader2,
   Plus,
@@ -295,6 +296,7 @@ export default function OffertesPage() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<QuoteRow | null>(null);
   const [archiving, setArchiving] = useState(false);
+  const [updatingAcceptanceQuoteId, setUpdatingAcceptanceQuoteId] = useState<string | null>(null);
   const isSyncingTotalsRef = useRef(false);
 
   useEffect(() => {
@@ -633,6 +635,26 @@ export default function OffertesPage() {
     }
   }
 
+  async function setQuoteDecisionStatus(
+    quote: QuoteRow,
+    nextStatus: 'geaccepteerd' | 'afgewezen'
+  ): Promise<void> {
+    if (!firestore) return;
+    setUpdatingAcceptanceQuoteId(quote.id);
+    setError(null);
+    try {
+      await updateDoc(doc(firestore, 'quotes', quote.id), {
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+      } as any);
+    } catch (e: any) {
+      console.error('Kon offerte status niet wijzigen:', e);
+      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon status niet wijzigen.'}`);
+    } finally {
+      setUpdatingAcceptanceQuoteId(null);
+    }
+  }
+
   const handleSelectExistingClient = (clientId: string): void => {
     if (creatingQuoteRef.current) return;
     setSelectedClientId(clientId);
@@ -711,7 +733,7 @@ export default function OffertesPage() {
         <DashboardHeader user={user} title="Offertes" />
 
         <main className="flex flex-col items-center p-4 pb-16 md:px-6 md:pb-10 md:pt-6">
-          <div className="w-full max-w-3xl space-y-6">
+          <div className="w-full max-w-5xl space-y-6">
             <Card>
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
@@ -778,6 +800,10 @@ export default function OffertesPage() {
                   const klant = getKlantNaam(q);
                   const isCalculating = effectiveStatus === 'in_behandeling' && !hasCalculated;
                   const isArchived = !!q.archived;
+                  const isAccepted = effectiveStatus === 'geaccepteerd';
+                  const isRejected = effectiveStatus === 'afgewezen';
+                  const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
+                  const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
 
                   return (
                     <div
@@ -837,7 +863,69 @@ export default function OffertesPage() {
                         </div>
                       </div>
 
-                      <div className="z-20 flex w-full flex-wrap items-center gap-2 opacity-100 transition-opacity sm:w-auto sm:flex-nowrap sm:opacity-70 sm:group-hover:opacity-100">
+                      <div className="z-20 flex w-full flex-wrap items-center gap-2 opacity-100 transition-opacity sm:w-[460px] sm:flex-nowrap sm:justify-end sm:opacity-70 sm:group-hover:opacity-100">
+                        <div className="flex w-full items-center gap-1.5 sm:w-auto">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant={isAccepted ? 'success' : 'outline'}
+                                size="sm"
+                                className={cn(
+                                  'h-9 w-full justify-center gap-2 sm:w-40',
+                                  !isAccepted && 'border-border bg-background/50 text-muted-foreground hover:bg-muted/30'
+                                )}
+                                disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                  void setQuoteDecisionStatus(q, 'geaccepteerd');
+                                }}
+                              >
+                                {isUpdatingAcceptance && isAccepted ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                )}
+                                <span className="hidden sm:inline">Geaccepteerd</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {acceptedByInvoice ? 'Geaccepteerd via factuurstatus' : 'Markeer als geaccepteerd'}
+                            </TooltipContent>
+                          </Tooltip>
+
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant={isRejected ? 'destructiveSoft' : 'outline'}
+                                size="sm"
+                                className={cn(
+                                  'h-9 w-full justify-center gap-2 sm:w-40',
+                                  !isRejected && 'border-border bg-background/50 text-muted-foreground hover:bg-muted/30'
+                                )}
+                                disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                  void setQuoteDecisionStatus(q, 'afgewezen');
+                                }}
+                              >
+                                {isUpdatingAcceptance && isRejected ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                )}
+                                <span className="hidden sm:inline">Niet geaccepteerd</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {acceptedByInvoice ? 'Geaccepteerd via factuurstatus' : 'Markeer als niet geaccepteerd'}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -895,9 +983,9 @@ export default function OffertesPage() {
         </main>
 
         <div className="overview-sticky-footer fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),0px)] z-40 md:bottom-0">
-          <div className="mx-auto w-full max-w-3xl px-0 md:px-6">
+          <div className="mx-auto w-full px-0">
             <div className="rounded-t-2xl border-t border-border/70 bg-card/95 px-4 py-3 shadow-2xl backdrop-blur-md sm:rounded-2xl sm:border sm:p-2 sm:shadow-xl">
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+              <div className="flex w-full items-center justify-start gap-2 overflow-x-auto pb-1 sm:justify-center sm:overflow-visible sm:pb-0">
                 <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                   <DialogTrigger asChild>
                     <Button

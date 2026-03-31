@@ -3,12 +3,23 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { FileText } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface PDFPreviewProps {
     pdfData: PDFQuoteData | null;
+    className?: string;
+    contentClassName?: string;
+    iframeClassName?: string;
+    loadingHeightClassName?: string;
 }
 
-export function PDFPreview({ pdfData }: PDFPreviewProps) {
+export function PDFPreview({
+    pdfData,
+    className,
+    contentClassName,
+    iframeClassName,
+    loadingHeightClassName = 'h-[600px]',
+}: PDFPreviewProps) {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -74,7 +85,7 @@ export function PDFPreview({ pdfData }: PDFPreviewProps) {
 
     if (!pdfData) {
         return (
-            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-12 text-center">
+            <div className={cn('bg-zinc-900 rounded-lg border border-zinc-800 p-12 text-center', className)}>
                 <FileText size={48} className="mx-auto text-zinc-600 mb-4" />
                 <h3 className="text-lg font-medium text-zinc-300 mb-2">Geen PDF preview</h3>
                 <p className="text-zinc-500">
@@ -84,28 +95,30 @@ export function PDFPreview({ pdfData }: PDFPreviewProps) {
         );
     }
 
+    const viewerSrc = previewUrl ? `${previewUrl}#zoom=page-width` : null;
+
     return (
-        <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
+        <div className={cn('bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden', className)}>
             {/* Header removed as requested */}
 
             {/* Preview Area */}
-            <div className="p-4 relative">
+            <div className={cn('p-4 relative', contentClassName)}>
                 {loading && !previewUrl && (
-                    <div className="h-[600px] flex items-center justify-center">
+                    <div className={cn('flex items-center justify-center', loadingHeightClassName)}>
                         <div className="text-zinc-400">PDF genereren...</div>
                     </div>
                 )}
 
                 {error && (
-                    <div className="h-[600px] flex items-center justify-center">
+                    <div className={cn('flex items-center justify-center', loadingHeightClassName)}>
                         <div className="text-red-400">{error}</div>
                     </div>
                 )}
 
-                {!error && previewUrl && (
+                {!error && viewerSrc && (
                     <iframe
-                        src={previewUrl}
-                        className="w-full h-[850px] rounded border border-zinc-700"
+                        src={viewerSrc}
+                        className={cn('w-full h-[850px] rounded border border-zinc-700', iframeClassName)}
                         title="PDF Preview"
                     />
                 )}
