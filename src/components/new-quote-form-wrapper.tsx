@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 'use client';
 
-import { useEffect, useId, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import { z } from 'zod';
 import {
@@ -136,6 +135,10 @@ export function NewQuoteForm({
   const [isMounted, setIsMounted] = useState(false);
   const resolvedBackHref = backHref ?? (quoteId ? '/offertes' : '/');
   const requiresWorkDescriptionPrompt = Boolean(successHref);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDraftSnapshotRef = useRef<string>('');
+  const isFlushingDraftRef = useRef(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -248,6 +251,83 @@ export function NewQuoteForm({
       console.error('Auto-save error:', error);
     }
   };
+
+  const collectDraftClientDataFromForm = useCallback((formEl: HTMLFormElement): Record<string, unknown> => {
+    const formData = new FormData(formEl);
+    const raw: Record<string, unknown> = Object.fromEntries(formData.entries());
+
+    const get = (key: string) => (typeof raw[key] === 'string' ? String(raw[key]).trim() : '');
+    const afwijkendProjectadres = raw.afwijkendProjectadres === 'on';
+
+    const voornaam = formatCapitalize(get('voornaam'));
+    const achternaam = formatCapitalize(get('achternaam'));
+    const straat = formatCapitalize(get('straat'));
+    const plaats = formatCapitalize(get('plaats'));
+    const postcode = formatPostcode(get('postcode'));
+    const projectStraat = formatCapitalize(get('projectStraat'));
+    const projectPlaats = formatCapitalize(get('projectPlaats'));
+    const projectPostcode = formatPostcode(get('projectPostcode'));
+    const klanttypeRaw = get('klanttype');
+
+    return {
+      klanttype: klanttypeRaw === 'zakelijk' ? 'Zakelijk' : 'Particulier',
+      bedrijfsnaam: get('bedrijfsnaam'),
+      contactpersoon: get('contactpersoon'),
+      voornaam,
+      achternaam,
+      emailadres: get('emailadres'),
+      telefoonnummer: get('telefoonnummer'),
+      straat,
+      huisnummer: get('huisnummer'),
+      postcode,
+      plaats,
+      afwijkendProjectadres,
+      ...(afwijkendProjectadres
+        ? {
+            projectStraat,
+            projectHuisnummer: get('projectHuisnummer'),
+            projectPostcode,
+            projectPlaats,
+          }
+        : {}),
+    };
+  }, []);
+
+  const persistDraftClientData = useCallback(async (force = false) => {
+    if (!quoteId || !firestore || !formRef.current || isFlushingDraftRef.current) return;
+    const draft = collectDraftClientDataFromForm(formRef.current);
+    const cleanDraft = cleanFirestoreData(draft);
+    const snapshot = JSON.stringify(cleanDraft);
+
+    if (!force && snapshot === lastDraftSnapshotRef.current) return;
+
+    try {
+      isFlushingDraftRef.current = true;
+      await updateDoc(doc(firestore, 'quotes', quoteId), {
+        klantinformatie: cleanDraft,
+        updatedAt: serverTimestamp(),
+      });
+      lastDraftSnapshotRef.current = snapshot;
+    } catch (error) {
+      console.error('Draft auto-save error:', error);
+    } finally {
+      isFlushingDraftRef.current = false;
+    }
+  }, [collectDraftClientDataFromForm, firestore, quoteId]);
+
+  const scheduleDraftSave = useCallback(() => {
+    if (!quoteId || !firestore) return;
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    draftSaveTimerRef.current = setTimeout(() => {
+      void persistDraftClientData();
+    }, 450);
+  }, [firestore, persistDraftClientData, quoteId]);
+
+  useEffect(() => {
+    return () => {
+      if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    };
+  }, []);
 
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -364,6 +444,13 @@ export function NewQuoteForm({
     });
   };
 
+  const handleBackClick = async () => {
+    if (quoteId && firestore) {
+      await persistDraftClientData(true);
+    }
+    router.push(resolvedBackHref);
+  };
+
   if (isLoading) {
     return (
       <div className="p-8 text-center">
@@ -456,7 +543,14 @@ export function NewQuoteForm({
         </CardHeader>
 
         <CardContent>
-          <form id={formId} key={formKey} onSubmit={handleFormSubmit} className="space-y-8">
+          <form
+            id={formId}
+            key={formKey}
+            ref={formRef}
+            onSubmit={handleFormSubmit}
+            onInput={scheduleDraftSave}
+            className="space-y-8"
+          >
           {showProjectAddress && <input type="hidden" name="afwijkendProjectadres" value="on" />}
 
           <RadioGroup
@@ -718,8 +812,8 @@ export function NewQuoteForm({
         ? createPortal(
             <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
               <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
-                <Button variant="outline" asChild>
-                  <Link href={resolvedBackHref}>Terug</Link>
+                <Button variant="outline" type="button" onClick={handleBackClick}>
+                  Terug
                 </Button>
                 <Button form={formId} type="submit" variant="success" disabled={isPending}>
                   {isPending ? 'Opslaan...' : 'Opslaan'}
