@@ -4117,8 +4117,7 @@ export default function QuotePage() {
                                 <>
                                     <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
                                         <div
-                                            className="grid w-full items-stretch"
-                                            style={{ gridTemplateColumns: '84% 15%', columnGap: '1%' }}
+                                            className="grid w-full items-stretch grid-cols-[minmax(0,1fr)_auto] gap-2"
                                         >
                                             <Button
                                                 type="button"
@@ -4152,10 +4151,10 @@ export default function QuotePage() {
                                             <Button
                                                 type="button"
                                                 variant="outline"
-                                                className="h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border font-semibold"
+                                                className="h-10 min-w-[88px] rounded-xl border-border/70 bg-card/40 px-3 text-foreground hover:bg-muted/40 hover:border-border font-semibold sm:min-w-[108px]"
                                                 onClick={handleRequestResetMaterialPackageToNieuw}
                                             >
-                                                <Sparkles className="h-4 w-4 mr-2 text-muted-foreground" />
+                                                <Sparkles className="mr-2 hidden h-4 w-4 text-muted-foreground sm:inline-block" />
                                                 Nieuw
                                             </Button>
                                         </div>

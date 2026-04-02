@@ -131,6 +131,29 @@ function getTitel(q: QuoteRow): string {
   );
 }
 
+function getHoofdtitel(q: QuoteRow): string | null {
+  const directeTitel = String((q as any)?.korteTitel || '').trim();
+  if (directeTitel) return directeTitel;
+
+  const rawDataJson = (q as any)?.data_json;
+  if (rawDataJson && typeof rawDataJson === 'object') {
+    const nested = String((rawDataJson as any)?.korteTitel || '').trim();
+    if (nested) return nested;
+  }
+
+  if (typeof rawDataJson === 'string') {
+    try {
+      const parsed = JSON.parse(rawDataJson);
+      const nested = String(parsed?.korteTitel || '').trim();
+      if (nested) return nested;
+    } catch {
+      // ignore malformed json
+    }
+  }
+
+  return null;
+}
+
 type OfferteStatusStyles = {
   label: string;
   badgeClass: string;
@@ -257,6 +280,25 @@ function haalTotaalUitCalculatie(dataJson: unknown): number | null {
   return null;
 }
 
+function haalHoofdtitelUitCalculatie(dataJson: unknown): string | null {
+  if (!dataJson) return null;
+
+  const normalized = normalizeDataJson(dataJson as any) as any;
+  const candidates = [
+    normalized?.korteTitel,
+    normalized?.korte_titel,
+    (dataJson as any)?.korteTitel,
+    (dataJson as any)?.korte_titel,
+  ];
+
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim();
+    if (value) return value;
+  }
+
+  return null;
+}
+
 function toQuoteKlantinformatie(client: Client): Record<string, unknown> {
   const projectStraat = (client.projectStraat || '').trim();
   const projectHuisnummer = (client.projectHuisnummer || '').trim();
@@ -305,6 +347,8 @@ export default function OffertesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
+  const [hoofdtitelsByQuoteId, setHoofdtitelsByQuoteId] = useState<Record<string, string>>({});
+  const [isInitialHoofdtitelSyncDone, setIsInitialHoofdtitelSyncDone] = useState(false);
   const [invoices, setInvoices] = useState<InvoiceSyncRow[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('alle');
@@ -321,6 +365,9 @@ export default function OffertesPage() {
   const [archiving, setArchiving] = useState(false);
   const [updatingAcceptanceQuoteId, setUpdatingAcceptanceQuoteId] = useState<string | null>(null);
   const isSyncingTotalsRef = useRef(false);
+  const isSyncingHoofdtitelsRef = useRef(false);
+  const fetchedHoofdtitelIdsRef = useRef<Set<string>>(new Set());
+  const didCompleteInitialHoofdtitelSyncRef = useRef(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -548,6 +595,90 @@ export default function OffertesPage() {
     };
   }, [acceptedQuoteIdsFromInvoices, firestore, quotes]);
 
+  useEffect(() => {
+    if (!user || quotes.length === 0) return;
+
+    let cancelled = false;
+
+    const quoteIdsToCheck = quotes
+      .filter((q) => {
+        if (getHoofdtitel(q)) return false;
+        if (hoofdtitelsByQuoteId[q.id]) return false;
+        if (fetchedHoofdtitelIdsRef.current.has(q.id)) return false;
+        return true;
+      })
+      .map((q) => q.id);
+
+    if (quoteIdsToCheck.length === 0) {
+      if (!didCompleteInitialHoofdtitelSyncRef.current) {
+        didCompleteInitialHoofdtitelSyncRef.current = true;
+        setIsInitialHoofdtitelSyncDone(true);
+      }
+      return;
+    }
+
+    const syncHoofdtitels = async () => {
+      if (isSyncingHoofdtitelsRef.current || cancelled) return;
+      isSyncingHoofdtitelsRef.current = true;
+
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/quotes/get-calculations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ quoteIds: quoteIdsToCheck }),
+        });
+
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || payload?.ok !== true) return;
+
+        const data = Array.isArray(payload.rows)
+          ? (payload.rows as Array<{ quoteid: string; data_json: unknown }>)
+          : [];
+
+        if (cancelled) return;
+
+        const nextTitles: Record<string, string> = {};
+        for (const row of data) {
+          if (!row?.quoteid) continue;
+          const title = haalHoofdtitelUitCalculatie(row.data_json);
+          if (title) nextTitles[row.quoteid] = title;
+        }
+
+        quoteIdsToCheck.forEach((id) => fetchedHoofdtitelIdsRef.current.add(id));
+
+        if (Object.keys(nextTitles).length > 0) {
+          setHoofdtitelsByQuoteId((prev) => ({ ...prev, ...nextTitles }));
+        }
+
+        if (!didCompleteInitialHoofdtitelSyncRef.current) {
+          didCompleteInitialHoofdtitelSyncRef.current = true;
+          setIsInitialHoofdtitelSyncDone(true);
+        }
+      } finally {
+        isSyncingHoofdtitelsRef.current = false;
+      }
+    };
+
+    void syncHoofdtitels();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [quotes, user, hoofdtitelsByQuoteId]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (didCompleteInitialHoofdtitelSyncRef.current) return;
+    if (!user || quotes.length === 0) {
+      didCompleteInitialHoofdtitelSyncRef.current = true;
+      setIsInitialHoofdtitelSyncDone(true);
+    }
+  }, [loading, quotes.length, user]);
+
   const filteredQuotes = useMemo(() => {
     const s = search.trim().toLowerCase();
     let result = [...quotes];
@@ -566,10 +697,10 @@ export default function OffertesPage() {
     return result.filter((q) => {
       const klant = getKlantNaam(q).toLowerCase();
       const nr = typeof q.offerteNummer === 'number' ? String(q.offerteNummer) : '';
-      const titel = getTitel(q).toLowerCase();
+      const titel = (getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || getTitel(q)).toLowerCase();
       return klant.includes(s) || nr.includes(s) || titel.includes(s);
     });
-  }, [filter, quotes, search, acceptedQuoteIdsFromInvoices]);
+  }, [filter, quotes, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId]);
 
   const filteredClients = useMemo(() => {
     const s = clientSearch.trim().toLowerCase();
@@ -773,7 +904,7 @@ export default function OffertesPage() {
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
         <div className="w-full max-w-5xl space-y-5">
           <div className="sm:hidden space-y-3">
-            <div className="flex items-center justify-between px-1 pt-1">
+            <div className="flex items-center justify-between pl-12 pr-1 pt-1">
               <h1 className="text-xl font-semibold text-foreground">Offertes</h1>
               <div className="h-8 w-8 rounded-full border border-border/80 bg-card/70 text-xs font-medium text-muted-foreground flex items-center justify-center">
                 {((user?.displayName || user?.email || 'U').trim().charAt(0) || 'U').toUpperCase()}
@@ -928,7 +1059,7 @@ export default function OffertesPage() {
             </CardContent>
           </Card>
 
-          {loading ? (
+          {loading || !isInitialHoofdtitelSyncDone ? (
             <Card>
               <CardContent className="p-6">
                 <LoadingListPanel />
@@ -963,6 +1094,8 @@ export default function OffertesPage() {
                 const datum = q.updatedAtDate ?? q.createdAtDate;
                 const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
                 const klant = getKlantNaam(q);
+                const hoofdTitel = getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || null;
+                const fallbackTitel = getTitel(q);
                 const isArchived = !!q.archived;
                 const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
                 const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
@@ -999,6 +1132,11 @@ export default function OffertesPage() {
                         <span className="opacity-40">•</span>
                         <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
                       </div>
+                      {hoofdTitel ? (
+                        <div className="truncate text-xs text-muted-foreground/90">{hoofdTitel}</div>
+                      ) : fallbackTitel !== '—' ? (
+                        <div className="truncate text-xs text-muted-foreground/90">{fallbackTitel}</div>
+                      ) : null}
                       <div className="flex items-end justify-between gap-2">
                         <div className={cn('text-xl font-bold tabular-nums', showUncalculatedPlaceholder ? 'text-muted-foreground/75' : 'text-emerald-400')}>
                           {amountLabel}
@@ -1007,7 +1145,7 @@ export default function OffertesPage() {
                           <Button
                             variant="default"
                             size="sm"
-                            className="h-9 gap-2 border border-cyan-400/40 bg-cyan-500/28 px-3 text-cyan-50 shadow-sm transition-all duration-150 hover:bg-cyan-500/38 active:scale-[0.98]"
+                            className="h-9 gap-2 border border-emerald-400/40 bg-emerald-500/25 px-3 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.22)] transition-all duration-150 hover:bg-emerald-500/35 hover:text-white active:scale-[0.98]"
                             aria-label="Open offerte"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1105,6 +1243,8 @@ export default function OffertesPage() {
                 const datum = q.updatedAtDate ?? q.createdAtDate;
                 const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
                 const klant = getKlantNaam(q);
+                const hoofdTitel = getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || null;
+                const fallbackTitel = getTitel(q);
                 const isArchived = !!q.archived;
                 const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
                 const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
@@ -1150,15 +1290,17 @@ export default function OffertesPage() {
                           <span className="opacity-40">•</span>
                           <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
                         </div>
-                        {getTitel(q) !== '—' && (
-                          <div className="mt-1 truncate text-xs text-muted-foreground/90">{getTitel(q)}</div>
-                        )}
+                        {hoofdTitel ? (
+                          <div className="mt-1 truncate text-xs text-muted-foreground/90">{hoofdTitel}</div>
+                        ) : fallbackTitel !== '—' ? (
+                          <div className="mt-1 truncate text-xs text-muted-foreground/90">{fallbackTitel}</div>
+                        ) : null}
                         <div className={cn('sm:hidden', amountMobileClass)}>
                           {amountLabel}
                         </div>
                       </div>
 
-                      <div className="relative z-20 flex items-center gap-1 sm:gap-1">
+                      <div className="relative z-20 flex items-center gap-1 sm:gap-4">
                         <div className="hidden min-w-[140px] text-right sm:block">
                           <div className={amountClass}>{amountLabel}</div>
                         </div>
@@ -1166,7 +1308,7 @@ export default function OffertesPage() {
                         <Button
                           variant="default"
                           size="sm"
-                          className="h-9 gap-2 border border-cyan-400/40 bg-cyan-500/28 text-cyan-50 shadow-sm transition-all duration-150 hover:bg-cyan-500/38 active:scale-[0.98]"
+                          className="h-9 gap-2 border border-emerald-400/40 bg-emerald-500/25 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.22)] transition-all duration-150 hover:bg-emerald-500/35 hover:text-white active:scale-[0.98]"
                           aria-label="Open offerte"
                           onClick={(e) => {
                             e.stopPropagation();

@@ -170,7 +170,7 @@ function MaterialRow({
     return (
         <>
             <tr className={`group transition-all duration-200 ${needsPrice ? 'bg-amber-500/[0.03]' : 'hover:bg-zinc-800/20'}`}>
-                <td className="px-6 py-3">
+                <td className="px-2 py-2 sm:px-6 sm:py-3">
                     <div className="space-y-1">
                         {sourceCategoryLabel && (
                             <span className="inline-flex rounded-md border border-zinc-700/60 bg-zinc-900/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-400">
@@ -188,7 +188,7 @@ function MaterialRow({
                         />
                     </div>
                 </td>
-                <td className="px-6 py-3">
+                <td className="px-2 py-2 sm:px-6 sm:py-3">
                     <input
                         type="number"
                         value={localAantal}
@@ -206,11 +206,11 @@ function MaterialRow({
                             }
                         }}
                         placeholder="0"
-                        className="w-12 bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold hover:bg-zinc-800/50 hover:border-zinc-600 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-10 bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold hover:bg-zinc-800/50 hover:border-zinc-600 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none sm:w-12"
                     />
                 </td>
-                <td className="px-6 py-3 text-right">
-                    <label className={`flex items-center justify-end w-28 bg-zinc-900/40 border rounded px-2 py-1 hover:bg-zinc-800/50 transition-all focus-within:ring-1 focus-within:ring-emerald-500/50 focus-within:border-emerald-500/50 hover:border-zinc-600 cursor-text ${needsPrice ? 'border-amber-500/50' : 'border-zinc-700/60'}`}>
+                <td className="px-2 py-2 text-right sm:px-6 sm:py-3">
+                    <label className={`flex items-center justify-end w-24 bg-zinc-900/40 border rounded px-2 py-1 hover:bg-zinc-800/50 transition-all focus-within:ring-1 focus-within:ring-emerald-500/50 focus-within:border-emerald-500/50 hover:border-zinc-600 cursor-text sm:w-28 ${needsPrice ? 'border-amber-500/50' : 'border-zinc-700/60'}`}>
                         <div className="flex items-center gap-1.5">
                             <span className="text-zinc-400 text-sm pointer-events-none">€</span>
                             <input
@@ -226,28 +226,31 @@ function MaterialRow({
                             />
                         </div>
                     </label>
+                    <p className="mt-1 text-[10px] font-medium text-zinc-400 sm:hidden">
+                        {formatCurrency(itemTotal)}
+                    </p>
                 </td>
-                <td className="px-6 py-3">
+                <td className="px-2 py-2 sm:px-6 sm:py-3">
                     <select
                         value={localEenheid}
                         onChange={(e) => handleEenheidChange(e.target.value)}
-                        className="bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-300 text-xs hover:bg-zinc-800/50 hover:border-zinc-600 transition-all font-medium appearance-none min-w-[60px] text-center"
+                        className="bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1 py-1 text-zinc-300 text-[11px] hover:bg-zinc-800/50 hover:border-zinc-600 transition-all font-medium appearance-none min-w-[50px] text-center sm:min-w-[60px] sm:px-1.5 sm:text-xs"
                     >
                         {UNITS.map(u => (
                             <option key={u} value={u}>{u}</option>
                         ))}
                     </select>
                 </td>
-                <td className="px-6 py-3 text-right text-zinc-300 text-sm">
+                <td className="hidden px-6 py-3 text-right text-zinc-300 text-sm sm:table-cell">
                     {formatCurrency(itemTotal)}
                 </td>
                 {showLineTotalInclBtw && (
-                    <td className="px-6 py-3 text-right text-zinc-400 text-sm font-medium">
+                    <td className="hidden px-6 py-3 text-right text-zinc-400 text-sm font-medium sm:table-cell">
                         {formatCurrency(itemTotal * (1 + vatRate / 100))}
                     </td>
                 )}
                 {onRemoveItem && (
-                    <td className="px-6 py-3 text-right">
+                    <td className="px-2 py-2 text-right sm:px-6 sm:py-3">
                         <DropdownMenu modal={false}>
                             <DropdownMenuTrigger asChild>
                                 <Button
@@ -617,31 +620,31 @@ export function MaterialEditor({
             )}
 
             {/* Table */}
-            <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+            <div className="overflow-x-hidden">
+                <table className="w-full table-fixed border-collapse sm:table-auto">
                     <thead>
                         <tr className="bg-muted/20 text-left">
-                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider">
+                            <th className="px-2 py-2 text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:px-6 sm:py-3 sm:text-[11px]">
                                 Product
                             </th>
-                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-24">
+                            <th className="w-12 px-2 py-2 text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:w-24 sm:px-6 sm:py-3 sm:text-[11px]">
                                 Aantal
                             </th>
-                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-36">
+                            <th className="w-28 px-2 py-2 text-right text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:w-36 sm:px-6 sm:py-3 sm:text-[11px]">
                                 Prijs <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(excl. btw)</span>
                             </th>
-                            <th className="px-6 py-3 text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-24">
+                            <th className="w-14 px-2 py-2 text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:w-24 sm:px-6 sm:py-3 sm:text-[11px]">
                                 Eenheid
                             </th>
-                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-32">
+                            <th className="hidden w-32 px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:table-cell">
                                 Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(excl. btw)</span>
                             </th>
                             {showLineTotalInclBtw && (
-                                <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-32">
+                                <th className="hidden w-32 px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:table-cell">
                                     Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(incl. btw)</span>
                                 </th>
                             )}
-                            {onRemoveItem && <th className="px-6 py-3 w-12" />}
+                            {onRemoveItem && <th className="w-10 px-2 py-2 sm:w-12 sm:px-6 sm:py-3" />}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border">

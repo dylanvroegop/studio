@@ -19,7 +19,7 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { buildGoogleMapsDirectionsUrl } from '@/lib/maps';
+import { buildAddressString, buildGoogleMapsDirectionsUrl, hasMinimalAddress } from '@/lib/maps';
 
 interface Quote {
     id: string;
@@ -28,7 +28,22 @@ interface Quote {
         voornaam?: string;
         achternaam?: string;
         bedrijfsnaam?: string;
+        straat?: string;
+        huisnummer?: string;
+        postcode?: string;
+        plaats?: string;
+        projectStraat?: string;
+        projectHuisnummer?: string;
+        projectPostcode?: string;
+        projectPlaats?: string;
+        afwijkendProjectadres?: boolean;
         projectadres?: {
+            straat?: string;
+            huisnummer?: string;
+            postcode?: string;
+            plaats?: string;
+        };
+        projectAdres?: {
             straat?: string;
             huisnummer?: string;
             postcode?: string;
@@ -271,18 +286,30 @@ export function ScheduleModal({
     };
 
     const getProjectAddress = (quote: Quote) => {
-        const info = quote.klantinformatie;
-        const addr = info?.projectadres || info?.factuuradres;
-        if (!addr) return '';
+        const info = quote.klantinformatie as any;
+        if (!info) return '';
 
-        const parts = [
-            addr.straat,
-            addr.huisnummer,
-            addr.postcode,
-            addr.plaats
-        ].filter(Boolean);
+        const projectAddressCandidate = info?.projectAdres
+            || info?.projectadres
+            || {
+                straat: info?.projectStraat,
+                huisnummer: info?.projectHuisnummer,
+                postcode: info?.projectPostcode,
+                plaats: info?.projectPlaats,
+            };
 
-        return parts.join(' ');
+        const factuurAddressCandidate = info?.factuuradres || {
+            straat: info?.straat,
+            huisnummer: info?.huisnummer,
+            postcode: info?.postcode,
+            plaats: info?.plaats,
+        };
+
+        const hasProjectAddress = hasMinimalAddress(projectAddressCandidate);
+        const preferredAddress = hasProjectAddress ? projectAddressCandidate : factuurAddressCandidate;
+
+        if (!hasMinimalAddress(preferredAddress)) return '';
+        return buildAddressString(preferredAddress);
     };
 
     const getClientName = (quote: Quote) => {

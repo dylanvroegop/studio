@@ -242,7 +242,6 @@ export function AppNavigation() {
                                 <NavigationContent
                                     pathname={pathname}
                                     onNavigate={() => handleMenuOpenChange(false)}
-                                    onClose={() => handleMenuOpenChange(false)}
                                 />
                             )}
                         </SheetContent>

@@ -264,7 +264,28 @@ function PlanningPageContent() {
             .sort((a, b) => a.start.getTime() - b.start.getTime());
     }, [entries, employeeNameById]);
 
-    const showMobileList = isMobile && !schedulingMode;
+    const showMobileLayout = isMobile;
+    const mobileScheduleDays = useMemo(() => {
+        const base = new Date(currentDate);
+        base.setHours(0, 0, 0, 0);
+        return Array.from({ length: 18 }, (_, idx) => {
+            const date = addDays(base, idx);
+            const dayEntries = entries.filter((entry) => {
+                const start = typeof (entry.startDate as any)?.toDate === 'function'
+                    ? (entry.startDate as any).toDate()
+                    : new Date(entry.startDate as any);
+                return (
+                    start.getFullYear() === date.getFullYear()
+                    && start.getMonth() === date.getMonth()
+                    && start.getDate() === date.getDate()
+                );
+            });
+            return {
+                date,
+                entriesCount: dayEntries.length,
+            };
+        });
+    }, [currentDate, entries]);
 
     const handleEntryClick = (entry: PlanningEntry) => {
         setSelectedEntry(entry);
@@ -490,13 +511,14 @@ function PlanningPageContent() {
                 <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                     <div className="flex items-center gap-2">
                         {/* View Toggle */}
-                        <div className="flex bg-muted rounded-lg p-1">
+                        <div className={cn("flex bg-muted rounded-lg p-1", isMobile && "w-full")}>
                             {(['day', 'week'] as TimelineView[]).map((v) => (
                                 <button
                                     key={v}
                                     onClick={() => setView(v)}
                                     className={cn(
                                         "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+                                        isMobile && "flex-1",
                                         view === v
                                             ? "bg-background text-foreground"
                                             : "text-muted-foreground hover:text-foreground"
@@ -549,34 +571,36 @@ function PlanningPageContent() {
                             <Settings className="h-4 w-4" />
                         </Button>
 
-                        <Button
-                            variant="outline"
-                            className="gap-2 sm:ml-0 border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/15"
-                            onClick={() => {
-                                setSelectedEntry(null);
-                                setModalPreselectedDate(undefined);
-                                setModalPreselectedEmployee(undefined);
-                                setModalPreselectedPlanningType('werkbespreking');
-                                setIsScheduleModalOpen(true);
-                            }}
-                        >
-                            <Plus className="h-4 w-4" />
-                            <span className="hidden sm:inline">Werkbespreking</span>
-                        </Button>
+                        {!isMobile && (
+                            <Button
+                                variant="outline"
+                                className="gap-2 sm:ml-0 border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/15"
+                                onClick={() => {
+                                    setSelectedEntry(null);
+                                    setModalPreselectedDate(undefined);
+                                    setModalPreselectedEmployee(undefined);
+                                    setModalPreselectedPlanningType('werkbespreking');
+                                    setIsScheduleModalOpen(true);
+                                }}
+                            >
+                                <Plus className="h-4 w-4" />
+                                <span className="hidden sm:inline">Werkbespreking</span>
+                            </Button>
+                        )}
 
                         <Button
                             variant="success"
-                            className="gap-2 sm:ml-0"
+                            className={cn("gap-2 sm:ml-0", isMobile && "ml-auto")}
                             onClick={() => {
                                 setSelectedEntry(null);
                                 setModalPreselectedDate(undefined);
                                 setModalPreselectedEmployee(undefined);
-                                setModalPreselectedPlanningType('job');
+                                setModalPreselectedPlanningType(schedulingMode ? schedulingType : 'job');
                                 setIsScheduleModalOpen(true);
                             }}
                         >
                             <Plus className="h-4 w-4" />
-                            <span className="hidden sm:inline">Klus inplannen</span>
+                            <span>{isMobile ? 'Nieuw' : 'Klus inplannen'}</span>
                         </Button>
                     </div>
                 </div>
@@ -591,9 +615,32 @@ function PlanningPageContent() {
                     <div className="flex-1 flex items-center justify-center">
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     </div>
-                ) : showMobileList ? (
+                ) : showMobileLayout ? (
                     <div className="flex-1 space-y-3 overflow-y-auto pb-2">
-                        {mobilePlanningEntries.length === 0 ? (
+                        {schedulingMode ? (
+                            <div className="space-y-2">
+                                <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+                                    Kies een dag om direct in te plannen.
+                                </div>
+                                {mobileScheduleDays.map((day) => (
+                                    <button
+                                        key={day.date.toISOString()}
+                                        type="button"
+                                        onClick={() => handleEmptyCellClick(day.date, '')}
+                                        className="w-full rounded-xl border border-border/70 bg-card/70 px-4 py-3 text-left transition-colors active:scale-[0.99]"
+                                    >
+                                        <div className="flex items-center justify-between gap-3">
+                                            <span className="font-semibold text-foreground">
+                                                {format(day.date, 'EEEE d MMMM', { locale: nl })}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground">
+                                                {day.entriesCount > 0 ? `${day.entriesCount} gepland` : 'Vrij'}
+                                            </span>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : mobilePlanningEntries.length === 0 ? (
                             <div className="rounded-xl border border-border bg-card/60 p-5 text-sm text-muted-foreground">
                                 Geen planning in deze periode. Voeg een planning toe met de knop rechtsboven.
                             </div>
