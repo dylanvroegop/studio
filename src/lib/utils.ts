@@ -32,6 +32,12 @@ export function parsePriceToNumber(raw: unknown): number | null {
   return Number.isNaN(num) ? null : num;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (Object.prototype.toString.call(value) !== '[object Object]') return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
 /**
  * Recursively removes empty fields from an object or array.
  * - Removes null, undefined, "", [], {} (unless specified otherwise)
@@ -46,6 +52,8 @@ export function removeEmptyFields(obj: any): any {
   }
 
   if (typeof obj === 'object') {
+    if (!isPlainObject(obj)) return obj;
+
     const cleaned: Record<string, any> = {};
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {

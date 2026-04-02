@@ -24,6 +24,7 @@ interface ScheduleBlockProps {
     onClick: () => void;
     onDragStart?: (e: React.PointerEvent, entryId: string, type: 'move' | 'resize-start' | 'resize-end') => void;
     pauseMinutes?: number;
+    showDailyEarnings?: boolean;
 }
 
 export function ScheduleBlock({
@@ -35,7 +36,8 @@ export function ScheduleBlock({
     stackIndex = 0,
     onClick,
     onDragStart,
-    pauseMinutes = 0
+    pauseMinutes = 0,
+    showDailyEarnings = false,
 }: ScheduleBlockProps) {
     const startDate = entry.startDate instanceof Timestamp
         ? entry.startDate.toDate()
@@ -72,13 +74,46 @@ export function ScheduleBlock({
         };
     };
 
-    const timeLabel = view === 'day'
-        ? `${format(startDate, 'HH:mm')} - ${format(displayEndDate, 'HH:mm')}`
-        : format(startDate, 'HH:mm');
-
+    const timeLabel = `${format(startDate, 'HH:mm')} - ${format(displayEndDate, 'HH:mm')}`;
     const planningType = entry.planningType || 'job';
+    const dailyEarnings = (() => {
+        if (!showDailyEarnings) return null;
+        if (planningType !== 'job') return null;
+        const totalEarnings = Number(entry.cache?.totalQuoteEarnings || 0);
+        const totalHours = Number(entry.cache?.totalQuoteHours || 0);
+        const hoursForThisEntry = Number(entry.scheduledHours || 0);
+        if (!Number.isFinite(totalEarnings) || totalEarnings <= 0) return null;
+        if (!Number.isFinite(totalHours) || totalHours <= 0) return null;
+        if (!Number.isFinite(hoursForThisEntry) || hoursForThisEntry <= 0) return null;
+        const value = (totalEarnings / totalHours) * hoursForThisEntry;
+        if (!Number.isFinite(value) || value <= 0) return null;
+        return value;
+    })();
+    const dailyEarningsLabel = dailyEarnings !== null
+        ? new Intl.NumberFormat('nl-NL', {
+            style: 'currency',
+            currency: 'EUR',
+            maximumFractionDigits: 0,
+        }).format(dailyEarnings)
+        : null;
+
     const planningTypeLabel = planningType === 'werkbespreking' ? 'Werkbespreking' : 'Klus';
     const planningTypeColor = planningType === 'werkbespreking' ? '#22d3ee' : '#10b981';
+    const projectTitleRaw = entry.cache.projectTitle || '';
+    const projectTitle = planningType === 'werkbespreking'
+        ? projectTitleRaw
+            .replace(/^werkbespreking\s*[·-]?\s*/i, '')
+            .trim()
+        : projectTitleRaw;
+    const clientName = entry.cache.clientName || '';
+    const hasProjectTitle = Boolean(projectTitle && projectTitle !== 'Klus');
+    const displayTitle = planningType === 'werkbespreking' && clientName
+        ? hasProjectTitle
+            ? `${clientName} · ${projectTitle}`
+            : clientName
+        : hasProjectTitle
+            ? projectTitle
+            : clientName;
 
     const blendWithBackground = (hex: string, alpha: number, base: string = '#0f0f12') => {
         const toRgb = (value: string) => {
@@ -111,70 +146,79 @@ export function ScheduleBlock({
         }
     };
 
+    const block = (
+        <div
+            className={cn(
+                "rounded-sm px-2 py-1 cursor-pointer transition-colors group relative box-border min-w-0 overflow-hidden",
+                view === 'day' ? 'flex items-center gap-2' : 'text-xs w-full leading-tight'
+            )}
+            style={{
+                backgroundColor: view === 'day'
+                    ? blendWithBackground(planningTypeColor, 0.2)
+                    : planningTypeColor + '14',
+                borderLeft: `2px solid ${planningTypeColor}`,
+                ...getBlockStyle()
+            }}
+            onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+            }}
+            onPointerDown={handlePointerDown}
+        >
+            {/* Resize Handles for Day View */}
+            {view === 'day' && onDragStart && (
+                <>
+                    <div
+                        className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize hover:bg-white/20 z-10"
+                        onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onDragStart(e, entry.id, 'resize-start');
+                        }}
+                    />
+                    <div
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize hover:bg-white/20 z-10"
+                        onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onDragStart(e, entry.id, 'resize-end');
+                        }}
+                    />
+                </>
+            )}
+
+            <div className="min-w-0 flex-1 overflow-hidden">
+                <span className="block font-medium truncate text-white/80 select-none">
+                    {displayTitle}
+                </span>
+            </div>
+            {view === 'day' && (
+                <span className="text-xs text-white/60 shrink-0 select-none">
+                    {timeLabel}
+                </span>
+            )}
+            {view !== 'day' && (
+                <div className="text-[11px] text-white/45 truncate select-none mt-0.5">
+                    {timeLabel}
+                    {dailyEarningsLabel ? ` · ${dailyEarningsLabel}` : ''}
+                </div>
+            )}
+            {view === 'day' && dailyEarningsLabel && (
+                <span className="text-[11px] text-white/55 shrink-0 select-none">
+                    {dailyEarningsLabel}
+                </span>
+            )}
+        </div>
+    );
+
+    if (view !== 'day') {
+        return block;
+    }
+
     return (
         <TooltipProvider delayDuration={200}>
             <Tooltip>
-                <TooltipTrigger asChild>
-                    <div
-                        className={cn(
-                            "rounded-md px-2 py-1 cursor-pointer transition-all hover:opacity-90 hover:shadow-md group relative box-border",
-                            view === 'day' ? 'flex items-center gap-2' : 'text-xs w-full'
-                        )}
-                        style={{
-                            backgroundColor: view === 'day'
-                                ? blendWithBackground(planningTypeColor, 0.2)
-                                : planningTypeColor + '20',
-                            borderLeft: `3px solid ${planningTypeColor}`,
-                            ...getBlockStyle()
-                        }}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onClick();
-                        }}
-                        onPointerDown={handlePointerDown}
-                    >
-                        {/* Resize Handles for Day View */}
-                        {view === 'day' && onDragStart && (
-                            <>
-                                <div
-                                    className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize hover:bg-white/20 z-10"
-                                    onPointerDown={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        onDragStart(e, entry.id, 'resize-start');
-                                    }}
-                                />
-                                <div
-                                    className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize hover:bg-white/20 z-10"
-                                    onPointerDown={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        onDragStart(e, entry.id, 'resize-end');
-                                    }}
-                                />
-                            </>
-                        )}
-
-                        <span className="font-medium truncate text-white/90 select-none">
-                            {entry.cache.projectTitle && entry.cache.projectTitle !== 'Klus'
-                                ? entry.cache.projectTitle
-                                : entry.cache.clientName || ''}
-                            {entry.cache.projectTitle && entry.cache.projectTitle !== 'Klus' && entry.cache.clientName
-                                ? ` · ${entry.cache.clientName}`
-                                : ''}
-                        </span>
-                        {view === 'day' && (
-                            <span className="text-xs text-white/60 shrink-0 select-none">
-                                {timeLabel}
-                            </span>
-                        )}
-                        {view !== 'day' && (
-                            <div className="text-white/60 truncate select-none">
-                                {timeLabel}
-                            </div>
-                        )}
-                    </div>
-                </TooltipTrigger>
+                <TooltipTrigger asChild>{block}</TooltipTrigger>
                 <TooltipContent
                     side="right"
                     className="bg-zinc-900 border-zinc-700 p-0 w-64"

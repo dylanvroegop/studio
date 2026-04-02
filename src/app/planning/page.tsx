@@ -4,7 +4,7 @@
 import React, { Suspense, useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
@@ -27,10 +27,14 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getPlanningQuoteMetrics } from '@/lib/planning-earnings';
 
 interface Quote {
     id: string;
     titel?: string;
+    amount?: number;
+    totaalbedrag?: number;
+    totaal_uren?: number;
     klantinformatie?: {
         voornaam?: string;
         achternaam?: string;
@@ -68,6 +72,7 @@ function PlanningPageContent() {
     const [isSavingPlanningSettings, setIsSavingPlanningSettings] = useState(false);
     const [schedulingQuote, setSchedulingQuote] = useState<Quote | null>(null);
     const [isLoadingSchedulingQuote, setIsLoadingSchedulingQuote] = useState(false);
+    const [quoteFinanceById, setQuoteFinanceById] = useState<Record<string, { amount: number; totalHours: number | null; totalEarnings: number | null }>>({});
 
     const { employees, isLoading: isLoadingEmployees, autoCreateSelf, isAutoCreating } = useEmployees();
 
@@ -99,6 +104,96 @@ function PlanningPageContent() {
 
         fetchSettings();
     }, [user, firestore]);
+
+    useEffect(() => {
+        if (!user || !firestore) return;
+
+        const fetchQuoteFinance = async () => {
+            try {
+                const q = query(collection(firestore, 'quotes'), where('userId', '==', user.uid));
+                const snap = await getDocs(q);
+                const mapped: Record<string, { amount: number; totalHours: number | null; totalEarnings: number | null }> = {};
+                snap.docs.forEach((quoteDoc) => {
+                    const raw = quoteDoc.data() as any;
+                    const amount = Number(raw?.totaalbedrag || raw?.amount || 0) || 0;
+                    const totalHoursRaw = Number(raw?.totaal_uren);
+                    const earningsExcl = Number(raw?.totals?.arbeidTotaal || 0) + Number(raw?.totals?.winstMarge || 0);
+                    const btwTarief = Number(raw?.totals?.btwPercentage || raw?.instellingen?.btwTarief || 21) || 21;
+                    const earningsRaw = earningsExcl > 0 ? earningsExcl * (1 + (btwTarief / 100)) : 0;
+                    mapped[quoteDoc.id] = {
+                        amount,
+                        totalHours: Number.isFinite(totalHoursRaw) && totalHoursRaw > 0 ? totalHoursRaw : null,
+                        totalEarnings: Number.isFinite(earningsRaw) && earningsRaw > 0 ? earningsRaw : null,
+                    };
+                });
+                setQuoteFinanceById(mapped);
+            } catch (err) {
+                console.error('Error fetching quote finance for planning:', err);
+            }
+        };
+
+        void fetchQuoteFinance();
+    }, [user, firestore]);
+
+    const activeQuoteIds = useMemo(() => {
+        const ids = new Set<string>();
+        entries.forEach((entry) => {
+            if (entry.quoteId) ids.add(entry.quoteId);
+        });
+        if (schedulingQuoteId) ids.add(schedulingQuoteId);
+        return Array.from(ids);
+    }, [entries, schedulingQuoteId]);
+
+    useEffect(() => {
+        if (!user || activeQuoteIds.length === 0) return;
+
+        const fetchQuoteMetrics = async () => {
+            try {
+                const token = await user.getIdToken();
+                const response = await fetch('/api/quotes/get-calculations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        quoteIds: activeQuoteIds,
+                        status: 'completed',
+                    }),
+                });
+
+                const payload = await response.json();
+                if (!response.ok || !payload.ok || !Array.isArray(payload.rows)) {
+                    return;
+                }
+
+                const latestByQuoteId = new Map<string, any>();
+                payload.rows.forEach((row: any) => {
+                    if (!row?.quoteid || latestByQuoteId.has(row.quoteid)) return;
+                    latestByQuoteId.set(row.quoteid, row);
+                });
+
+                setQuoteFinanceById((prev) => {
+                    const next = { ...prev };
+                    latestByQuoteId.forEach((row, quoteId) => {
+                        if (!row?.data_json) return;
+                        const metrics = getPlanningQuoteMetrics(row.data_json);
+                        const existing = next[quoteId] || { amount: 0, totalHours: null, totalEarnings: null };
+                        next[quoteId] = {
+                            ...existing,
+                            totalHours: metrics.totalHours > 0 ? metrics.totalHours : existing.totalHours,
+                            totalEarnings: metrics.totalEarnings > 0 ? metrics.totalEarnings : existing.totalEarnings,
+                        };
+                    });
+                    return next;
+                });
+            } catch (err) {
+                console.error('Error fetching quote metrics for planning:', err);
+            }
+        };
+
+        void fetchQuoteMetrics();
+    }, [user, activeQuoteIds]);
 
     // Fetch quote when in scheduling mode
     useEffect(() => {
@@ -153,7 +248,8 @@ function PlanningPageContent() {
             workDays: normalizedWorkDays.length > 0 ? normalizedWorkDays : [...DEFAULT_PLANNING_SETTINGS.workDays],
             pauzeMinuten: input.pauzeMinuten === undefined || input.pauzeMinuten === null
                 ? undefined
-                : Math.max(0, Math.round(Number(input.pauzeMinuten) || 0))
+                : Math.max(0, Math.round(Number(input.pauzeMinuten) || 0)),
+            showDailyEarnings: input.showDailyEarnings ?? DEFAULT_PLANNING_SETTINGS.showDailyEarnings,
         };
     };
 
@@ -240,6 +336,28 @@ function PlanningPageContent() {
         [employees]
     );
 
+    const hydratedEntries = useMemo(() => {
+        return entries.map((entry) => {
+            const quoteFinance = quoteFinanceById[entry.quoteId];
+            const existingAmount = Number((entry.cache as any)?.totalQuoteAmount || 0);
+            const existingTotalHours = Number((entry.cache as any)?.totalQuoteHours || 0);
+            const existingEarnings = Number((entry.cache as any)?.totalQuoteEarnings || 0);
+            return {
+                ...entry,
+                cache: {
+                    ...entry.cache,
+                    totalQuoteAmount: existingAmount > 0 ? existingAmount : (quoteFinance?.amount || 0),
+                    totalQuoteHours: existingTotalHours > 0
+                        ? existingTotalHours
+                        : (quoteFinance?.totalHours && quoteFinance.totalHours > 0 ? quoteFinance.totalHours : entry.scheduledHours),
+                    totalQuoteEarnings: existingEarnings > 0
+                        ? existingEarnings
+                        : (quoteFinance?.totalEarnings && quoteFinance.totalEarnings > 0 ? quoteFinance.totalEarnings : 0),
+                },
+            };
+        });
+    }, [entries, quoteFinanceById]);
+
     const mobilePlanningEntries = useMemo(() => {
         const toDate = (value: any): Date => {
             if (!value) return new Date();
@@ -248,7 +366,7 @@ function PlanningPageContent() {
             return new Date(value);
         };
 
-        return entries
+        return hydratedEntries
             .map((entry) => {
                 const start = toDate(entry.startDate);
                 const end = toDate(entry.endDate);
@@ -262,7 +380,7 @@ function PlanningPageContent() {
                 };
             })
             .sort((a, b) => a.start.getTime() - b.start.getTime());
-    }, [entries, employeeNameById]);
+    }, [hydratedEntries, employeeNameById]);
 
     const showMobileLayout = isMobile;
     const mobileScheduleDays = useMemo(() => {
@@ -270,7 +388,7 @@ function PlanningPageContent() {
         base.setHours(0, 0, 0, 0);
         return Array.from({ length: 18 }, (_, idx) => {
             const date = addDays(base, idx);
-            const dayEntries = entries.filter((entry) => {
+            const dayEntries = hydratedEntries.filter((entry) => {
                 const start = typeof (entry.startDate as any)?.toDate === 'function'
                     ? (entry.startDate as any).toDate()
                     : new Date(entry.startDate as any);
@@ -285,7 +403,7 @@ function PlanningPageContent() {
                 entriesCount: dayEntries.length,
             };
         });
-    }, [currentDate, entries]);
+    }, [currentDate, hydratedEntries]);
 
     const handleEntryClick = (entry: PlanningEntry) => {
         setSelectedEntry(entry);
@@ -297,7 +415,7 @@ function PlanningPageContent() {
     const handleEmptyCellClick = async (date: Date, employeeId: string) => {
         if (schedulingMode) {
             // In scheduling mode: directly create the planning entry
-            if (!schedulingQuote || !schedulingHours) {
+            if (!schedulingQuote || (schedulingType !== 'werkbespreking' && !schedulingHours)) {
                 toast({
                     title: 'Fout',
                     description: 'Offerte gegevens ontbreken',
@@ -321,6 +439,9 @@ function PlanningPageContent() {
                 const clientName = schedulingQuote.klantinformatie?.bedrijfsnaam ||
                     `${schedulingQuote.klantinformatie?.voornaam || ''} ${schedulingQuote.klantinformatie?.achternaam || ''}`.trim() ||
                     'Onbekend';
+                const schedulingDurationHours = schedulingType === 'werkbespreking'
+                    ? 1
+                    : schedulingHours;
 
                 const cacheData = {
                     clientName,
@@ -328,14 +449,15 @@ function PlanningPageContent() {
                         ? `Werkbespreking${schedulingQuote.titel ? ` · ${schedulingQuote.titel}` : ''}`
                         : (schedulingQuote.titel || ''),
                     projectAddress: '',
-                    totalQuoteHours: schedulingHours
+                    totalQuoteHours: schedulingDurationHours,
+                    totalQuoteAmount: Number((schedulingQuote as any)?.totaalbedrag || (schedulingQuote as any)?.amount || 0) || 0,
+                    totalQuoteEarnings: quoteFinanceById[schedulingQuote.id]?.totalEarnings || 0,
                 };
 
-                // Check if we need to auto-split
-                if (schedulingHours > planningSettings.defaultWorkdayHours && planningSettings.allowAutoSplit) {
+                if (schedulingType !== 'werkbespreking' && schedulingDurationHours > planningSettings.defaultWorkdayHours && planningSettings.allowAutoSplit) {
                     // Auto-split the job
                     const splitEntries = autoSplitJob(
-                        schedulingHours,
+                        schedulingDurationHours,
                         date,
                         planningSettings
                     );
@@ -356,25 +478,27 @@ function PlanningPageContent() {
 
                     toast({
                         title: 'Ingepland',
-                        description: `${schedulingHours}u verdeeld over ${splitEntries.length} werkdagen`
+                        description: `${schedulingDurationHours}u verdeeld over ${splitEntries.length} werkdagen`
                     });
                 } else {
                     // Single entry
                     const startTime = planningSettings.defaultStartTime.split(':');
                     const startDate = new Date(date);
                     startDate.setHours(parseInt(startTime[0]), parseInt(startTime[1]), 0);
-                    const endDate = calculateEndDateFromHours(
-                        startDate,
-                        schedulingHours,
-                        planningSettings.pauzeMinuten ?? 0
-                    );
+                    const endDate = schedulingType === 'werkbespreking'
+                        ? new Date(startDate.getTime() + 60 * 60 * 1000)
+                        : calculateEndDateFromHours(
+                            startDate,
+                            schedulingDurationHours,
+                            planningSettings.pauzeMinuten ?? 0
+                        );
 
                     await addEntry({
                         quoteId: schedulingQuote.id,
                         employeeId: targetEmployeeId,
                         startDate,
                         endDate,
-                        scheduledHours: schedulingHours,
+                        scheduledHours: schedulingDurationHours,
                         planningType: schedulingType,
                         isAutoSplit: false,
                         cache: cacheData
@@ -382,7 +506,7 @@ function PlanningPageContent() {
 
                     toast({
                         title: 'Ingepland',
-                        description: `${schedulingHours}u ingepland op ${format(date, 'd MMMM yyyy', { locale: nl })}`
+                        description: `${schedulingDurationHours}u ingepland op ${format(date, 'd MMMM yyyy', { locale: nl })}`
                     });
                 }
 
@@ -683,7 +807,7 @@ function PlanningPageContent() {
                         view={view}
                         dateRange={dateRange}
                         employees={employees}
-                        entries={entries}
+                        entries={hydratedEntries}
                         onEntryClick={handleEntryClick}
                         onEntryDrop={handleEntryDrop}
                         onEntryResize={handleEntryResize}
@@ -691,6 +815,7 @@ function PlanningPageContent() {
                         schedulingMode={schedulingMode}
                         currentDate={currentDate}
                         pauseMinutes={planningSettings.pauzeMinuten ?? 0}
+                        showDailyEarnings={!!planningSettings.showDailyEarnings}
                     />
                 )}
             </div>
@@ -706,7 +831,11 @@ function PlanningPageContent() {
                 employees={employees}
                 planningSettings={planningSettings}
                 view={view}
-                existingEntry={selectedEntry}
+                existingEntry={
+                    selectedEntry
+                        ? (hydratedEntries.find((entry) => entry.id === selectedEntry.id) || selectedEntry)
+                        : null
+                }
                 preselectedDate={modalPreselectedDate}
                 preselectedEmployee={modalPreselectedEmployee}
                 preselectedPlanningType={modalPreselectedPlanningType}
@@ -803,6 +932,19 @@ function PlanningPageContent() {
                             <Switch
                                 checked={draftPlanningSettings.allowAutoSplit}
                                 onCheckedChange={(checked) => updateDraftPlanningSetting('allowAutoSplit', checked)}
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between rounded-md border border-border p-3">
+                            <div className="space-y-0.5">
+                                <Label className="text-sm">Dagopbrengst tonen</Label>
+                                <p className="text-xs text-muted-foreground">
+                                    Toon verwachte opbrengst per geplande dag in planningblokken.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={!!draftPlanningSettings.showDailyEarnings}
+                                onCheckedChange={(checked) => updateDraftPlanningSetting('showDailyEarnings', checked)}
                             />
                         </div>
                     </div>

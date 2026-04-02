@@ -158,6 +158,7 @@ type OfferteStatusStyles = {
   label: string;
   badgeClass: string;
   sideBorderClass: string;
+  rowTintClass: string;
 };
 
 function getOfferteStatusStyles(
@@ -170,6 +171,7 @@ function getOfferteStatusStyles(
       label: 'Archief',
       badgeClass: 'bg-zinc-500/8 text-zinc-300/85 border-zinc-500/25',
       sideBorderClass: 'border-l-zinc-600/55',
+      rowTintClass: 'bg-zinc-500/[0.04]',
     };
   }
 
@@ -178,6 +180,7 @@ function getOfferteStatusStyles(
       label: 'Geaccepteerd',
       badgeClass: 'bg-emerald-500/10 text-emerald-300/90 border-emerald-500/25',
       sideBorderClass: 'border-l-emerald-400/70',
+      rowTintClass: 'bg-emerald-500/[0.08]',
     };
   }
 
@@ -186,6 +189,7 @@ function getOfferteStatusStyles(
       label: 'Afgewezen',
       badgeClass: 'bg-red-500/10 text-red-300/90 border-red-500/25',
       sideBorderClass: 'border-l-red-400/70',
+      rowTintClass: 'bg-red-500/[0.07]',
     };
   }
 
@@ -194,6 +198,7 @@ function getOfferteStatusStyles(
       label: 'Verstuurd',
       badgeClass: 'bg-blue-500/10 text-blue-300/90 border-blue-500/25',
       sideBorderClass: 'border-l-blue-400/70',
+      rowTintClass: 'bg-blue-500/[0.07]',
     };
   }
 
@@ -203,11 +208,13 @@ function getOfferteStatusStyles(
         label: 'Berekend',
         badgeClass: 'bg-violet-500/10 text-violet-200/90 border-violet-500/25',
         sideBorderClass: 'border-l-violet-400/70',
+        rowTintClass: 'bg-violet-500/[0.08]',
       }
       : {
         label: 'Berekenen',
         badgeClass: 'bg-amber-500/10 text-amber-200/90 border-amber-500/25',
         sideBorderClass: 'border-l-amber-400/70',
+        rowTintClass: 'bg-amber-500/[0.08]',
       };
   }
 
@@ -215,6 +222,7 @@ function getOfferteStatusStyles(
     label: 'Concept',
     badgeClass: 'bg-zinc-500/8 text-zinc-300/90 border-zinc-500/25',
     sideBorderClass: 'border-l-zinc-500/55',
+    rowTintClass: 'bg-zinc-500/[0.05]',
   };
 }
 
@@ -1107,8 +1115,9 @@ export default function OffertesPage() {
                   <div
                     key={`mobile-${q.id}`}
                     className={cn(
-                      'group relative cursor-pointer rounded-xl border border-l-[3px] border-border/80 bg-card/75 px-4 py-3.5 shadow-sm transition-all duration-150 active:scale-[0.995]',
-                      statusStyles.sideBorderClass
+                      'group relative cursor-pointer rounded-xl border border-l-[3px] border-border/80 px-4 py-3.5 shadow-sm transition-all duration-150 active:scale-[0.995]',
+                      statusStyles.sideBorderClass,
+                      statusStyles.rowTintClass
                     )}
                     role="link"
                     tabIndex={0}
@@ -1264,8 +1273,9 @@ export default function OffertesPage() {
                   <div
                     key={`desktop-${q.id}`}
                     className={cn(
-                      'group relative cursor-pointer rounded-xl border border-l-[3px] border-border/80 bg-card/75 px-4 py-3 shadow-sm transition-all duration-150 hover:bg-card/90 hover:border-border hover:shadow-md active:scale-[0.997] sm:px-5',
-                      statusStyles.sideBorderClass
+                      'group relative cursor-pointer rounded-xl border border-l-[3px] border-border/80 px-4 py-3 shadow-sm transition-all duration-150 hover:border-border hover:shadow-md active:scale-[0.997] sm:px-5',
+                      statusStyles.sideBorderClass,
+                      statusStyles.rowTintClass
                     )}
                     role="link"
                     tabIndex={0}

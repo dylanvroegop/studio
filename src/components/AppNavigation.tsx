@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, LayoutDashboard, FileText, ReceiptText, TrendingUp, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote } from 'lucide-react';
+import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, TrendingUp, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -55,6 +55,13 @@ const navItems: NavigationItem[] = [
         icon: FileText,
         iconColorClass: 'text-amber-400',
         iconColorClassActive: 'text-amber-300',
+    },
+    {
+        href: '/kosten',
+        label: 'Kosten',
+        icon: Receipt,
+        iconColorClass: 'text-teal-400',
+        iconColorClassActive: 'text-teal-300',
     },
     {
         href: '/winst',

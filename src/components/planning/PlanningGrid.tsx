@@ -22,6 +22,7 @@ interface PlanningGridProps {
     schedulingMode?: boolean;
     currentDate?: Date;
     pauseMinutes?: number;
+    showDailyEarnings?: boolean;
 }
 
 export function PlanningGrid({
@@ -35,7 +36,8 @@ export function PlanningGrid({
     onEmptyCellClick,
     schedulingMode = false,
     currentDate = new Date(),
-    pauseMinutes = 0
+    pauseMinutes = 0,
+    showDailyEarnings = false,
 }: PlanningGridProps) {
     const days = useMemo(() => getDaysInRange(dateRange.start, dateRange.end), [dateRange]);
     const hours = useMemo(() => getHoursInDay(6, 20), []);
@@ -50,7 +52,7 @@ export function PlanningGrid({
     });
 
     const getEntriesForEmployeeAndDay = (employeeId: string, day: Date) => {
-        return entries.filter(entry => {
+        const filtered = entries.filter(entry => {
             if (entry.employeeId !== employeeId) return false;
 
             const entryStart = entry.startDate instanceof Timestamp
@@ -63,10 +65,16 @@ export function PlanningGrid({
             return isSameDay(entryStart, day) || isSameDay(entryEnd, day) ||
                 (entryStart < day && entryEnd > day);
         });
+
+        return filtered.sort((a, b) => {
+            const aStart = a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate as unknown as string);
+            const bStart = b.startDate instanceof Timestamp ? b.startDate.toDate() : new Date(b.startDate as unknown as string);
+            return aStart.getTime() - bStart.getTime();
+        });
     };
 
     const getEntriesForDay = (day: Date) => {
-        return entries.filter(entry => {
+        const filtered = entries.filter(entry => {
             const entryStart = entry.startDate instanceof Timestamp
                 ? entry.startDate.toDate()
                 : new Date(entry.startDate as unknown as string);
@@ -77,6 +85,26 @@ export function PlanningGrid({
             return isSameDay(entryStart, day) || isSameDay(entryEnd, day) ||
                 (entryStart < day && entryEnd > day);
         });
+
+        return filtered.sort((a, b) => {
+            const aStart = a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate as unknown as string);
+            const bStart = b.startDate instanceof Timestamp ? b.startDate.toDate() : new Date(b.startDate as unknown as string);
+            return aStart.getTime() - bStart.getTime();
+        });
+    };
+
+    const getEntryEarnings = (entry: PlanningEntry): number => {
+        const planningType = entry.planningType || 'job';
+        if (planningType !== 'job') return 0;
+        if (!showDailyEarnings) return 0;
+        const totalQuoteEarnings = Number((entry.cache as any)?.totalQuoteEarnings || 0);
+        const totalQuoteHours = Number((entry.cache as any)?.totalQuoteHours || 0);
+        const scheduledHours = Number(entry.scheduledHours || 0);
+        if (!Number.isFinite(totalQuoteEarnings) || totalQuoteEarnings <= 0) return 0;
+        if (!Number.isFinite(totalQuoteHours) || totalQuoteHours <= 0) return 0;
+        if (!Number.isFinite(scheduledHours) || scheduledHours <= 0) return 0;
+        const value = (totalQuoteEarnings / totalQuoteHours) * scheduledHours;
+        return Number.isFinite(value) && value > 0 ? value : 0;
     };
 
     if (view === 'day') {
@@ -174,6 +202,7 @@ export function PlanningGrid({
                                                     day={day}
                                                     hours={hours}
                                                     pauseMinutes={pauseMinutes}
+                                                    showDailyEarnings={showDailyEarnings}
                                                     onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
                                                     onDragStart={onDragStart}
                                                 />
@@ -264,6 +293,7 @@ export function PlanningGrid({
                                                             hours={hours}
                                                             pauseMinutes={pauseMinutes}
                                                             stackIndex={idx}
+                                                            showDailyEarnings={showDailyEarnings}
                                                             onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
                                                             onDragStart={onDragStart}
                                                         />
@@ -290,22 +320,27 @@ export function PlanningGrid({
 
         // Days header (Mon - Sun) - just use the first week to get names
         const headerDays = weeks[0] || [];
+        const weekGridStyle: React.CSSProperties = { gridTemplateColumns: '100px repeat(7, minmax(0, 1fr))' };
 
         return (
-            <div className="flex-1 bg-card rounded-lg border border-border overflow-auto">
-                <div className="min-w-[800px]">
+            <div className="flex-1 bg-card rounded-lg border border-zinc-700/50 overflow-auto">
+                <div className="min-w-[740px]">
                     {/* Header: Month + Mon - Sun */}
                     <div
-                        className="sticky top-0 z-10 bg-card border-b border-border grid"
-                        style={{ gridTemplateColumns: `60px repeat(7, 1fr)` }}
+                        className="sticky top-0 z-10 bg-card/95 backdrop-blur border-b border-zinc-700/50 grid"
+                        style={weekGridStyle}
                     >
-                        <div className="p-2 border-r border-border"></div>
+                        <div className="min-w-0 p-2 text-center border-r border-zinc-700/50">
+                            <span className="text-[10px] text-emerald-200/70 font-medium uppercase tracking-wide">
+                                Winst
+                            </span>
+                        </div>
                         {headerDays.map(day => (
                             <div
                                 key={format(day, 'EEE')}
-                                className="p-2 text-center border-r border-border last:border-r-0"
+                                className="min-w-0 p-2 text-center border-r border-zinc-700/50 last:border-r-0"
                             >
-                                <span className="text-xs text-muted-foreground font-medium">
+                                <span className="text-xs text-muted-foreground/80 font-medium">
                                     {format(day, 'EEEE', { locale: nl })}
                                 </span>
                             </div>
@@ -314,21 +349,39 @@ export function PlanningGrid({
 
                     {/* Employee Rows */}
                     {employees.map(employee => (
-                        <div key={employee.id} className="border-b border-border last:border-b-0">
-                            <div
-                                className="grid"
-                                style={{ gridTemplateColumns: `60px repeat(7, 1fr)` }}
-                            >
-                                {/* Weeks */}
-                                {weeks.map((weekDays, weekIdx) => (
-                                    <React.Fragment key={weekIdx}>
-                                        {/* Month label for this week */}
-                                        <div className="p-2 border-r border-border border-b border-border flex items-start justify-center bg-card/50">
-                                            <span className="text-xs font-medium text-muted-foreground">
-                                                {format(weekDays[0], 'MMM', { locale: nl })}
-                                            </span>
+                        <div key={employee.id} className="border-b border-zinc-700/50 last:border-b-0">
+                            {/* Weeks */}
+                            {weeks.map((weekDays, weekIdx) => {
+                                const weekEntryIds = new Set<string>();
+                                const weekEarnings = weekDays.reduce((sum, day) => {
+                                    const dayEntries = getEntriesForEmployeeAndDay(employee.id, day);
+                                    return dayEntries.reduce((daySum, entry) => {
+                                        if (weekEntryIds.has(entry.id)) return daySum;
+                                        weekEntryIds.add(entry.id);
+                                        return daySum + getEntryEarnings(entry);
+                                    }, sum);
+                                }, 0);
+
+                                const weekEarningsLabel = new Intl.NumberFormat('nl-NL', {
+                                    style: 'currency',
+                                    currency: 'EUR',
+                                    maximumFractionDigits: 0,
+                                }).format(Math.max(0, weekEarnings));
+
+                                return (
+                                <div key={`${employee.id}-week-${weekIdx}`} className="border-b border-zinc-700/50 last:border-b-0">
+                                    <div className="grid" style={weekGridStyle}>
+                                        <div className="border-r border-zinc-700/50 border-b border-zinc-700/50 px-2 py-1.5">
+                                            <div className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2 py-1">
+                                                <div className="truncate text-[10px] leading-none text-emerald-200/75">
+                                                    Week
+                                                </div>
+                                                <div className="mt-1 truncate text-xs font-semibold leading-none text-emerald-300">
+                                                    {weekEarningsLabel}
+                                                </div>
+                                            </div>
                                         </div>
-                                        {weekDays.map(day => {
+                                        {weekDays.map((day, dayIdx) => {
                                             const dayEntries = getEntriesForEmployeeAndDay(employee.id, day);
                                             const dayOfWeek = day.getDay();
                                             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
@@ -337,46 +390,55 @@ export function PlanningGrid({
                                                 <div
                                                     key={day.toISOString()}
                                                     className={cn(
-                                                        "relative min-h-[100px] border-r border-border border-b border-border p-1",
+                                                        "relative min-h-[108px] min-w-0 overflow-hidden border-r border-zinc-700/50 border-b border-zinc-700/50 px-1 pt-1",
                                                         "last:border-r-0",
-                                                        isWeekend && "bg-muted/30",
+                                                        isWeekend && "bg-muted/20",
                                                         schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
-                                                        !schedulingMode && "cursor-default"
+                                                        !schedulingMode && "cursor-default hover:bg-zinc-900/12 transition-colors"
                                                     )}
                                                     onClick={() => !suppressClick && onEmptyCellClick(day, employee.id)}
                                                     data-date={day.toISOString()}
                                                     data-employee-id={employee.id}
                                                     data-role="week-slot"
                                                 >
-                                                    <div className={cn(
-                                                        "text-xs mb-1 text-right px-1",
-                                                        isCurrentMonth ? "text-foreground" : "text-muted-foreground"
-                                                    )}>
+                                                    {dayIdx === 0 && (
+                                                        <div className="absolute left-1 top-1 z-[1] text-[9px] font-medium uppercase tracking-wide text-zinc-600">
+                                                            {format(day, 'MMM', { locale: nl })}
+                                                        </div>
+                                                    )}
+                                                    <div
+                                                        className={cn(
+                                                            "absolute right-1 top-1 z-[1] text-[11px] leading-none font-medium",
+                                                            isCurrentMonth ? "text-zinc-400" : "text-zinc-600"
+                                                        )}
+                                                    >
                                                         {format(day, 'd', { locale: nl })}
                                                     </div>
 
-                                                    <div className="flex flex-col gap-1">
+                                                    <div className="relative z-0 mt-5 flex min-w-0 flex-col gap-1">
                                                         {dayEntries.map((entry, idx) => (
-                                                            <ScheduleBlock
-                                                                key={entry.id}
-                                                                entry={entry}
-                                                                employee={employee}
-                                                                view={view}
-                                                                day={day}
-                                                                hours={hours}
-                                                                pauseMinutes={pauseMinutes}
-                                                                stackIndex={idx}
-                                                                onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
-                                                                onDragStart={onDragStart}
-                                                            />
+                                                            <div key={entry.id} className="min-w-0">
+                                                                <ScheduleBlock
+                                                                    entry={entry}
+                                                                    employee={employee}
+                                                                    view={view}
+                                                                    day={day}
+                                                                    hours={hours}
+                                                                    pauseMinutes={pauseMinutes}
+                                                                    stackIndex={idx}
+                                                                    showDailyEarnings={showDailyEarnings}
+                                                                    onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
+                                                                    onDragStart={onDragStart}
+                                                                />
+                                                            </div>
                                                         ))}
                                                     </div>
                                                 </div>
                                             );
                                         })}
-                                    </React.Fragment>
-                                ))}
-                            </div>
+                                    </div>
+                                </div>
+                            )})}
                         </div>
                     ))}
                 </div>
@@ -459,6 +521,7 @@ export function PlanningGrid({
                                             hours={hours}
                                             pauseMinutes={pauseMinutes}
                                             stackIndex={idx}
+                                            showDailyEarnings={showDailyEarnings}
                                         onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
                                         onDragStart={onDragStart}
                                     />

@@ -27,6 +27,8 @@ export interface PlanningEntry {
         projectTitle: string;
         projectAddress: string;
         totalQuoteHours: number;
+        totalQuoteAmount?: number;
+        totalQuoteEarnings?: number;
     };
 
     createdAt: Timestamp;
@@ -61,6 +63,7 @@ export interface PlanningSettings {
     defaultEndTime: string;
     workDays: number[];
     pauzeMinuten?: number;
+    showDailyEarnings?: boolean;
 }
 
 export const DEFAULT_PLANNING_SETTINGS: PlanningSettings = {
@@ -68,7 +71,8 @@ export const DEFAULT_PLANNING_SETTINGS: PlanningSettings = {
     allowAutoSplit: true,
     defaultStartTime: "08:00",
     defaultEndTime: "17:00",
-    workDays: [1, 2, 3, 4, 5]
+    workDays: [1, 2, 3, 4, 5],
+    showDailyEarnings: true,
 };
 
 export const EMPLOYEE_COLORS = [

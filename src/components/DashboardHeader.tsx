@@ -10,6 +10,7 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
+  Receipt,
   ReceiptText,
   Settings,
   StickyNote,
@@ -195,6 +196,12 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
       return {
         icon: FileText,
         iconClassName: 'text-amber-400',
+      };
+    }
+    if (pathname.startsWith('/kosten')) {
+      return {
+        icon: Receipt,
+        iconClassName: 'text-teal-400',
       };
     }
     if (pathname.startsWith('/winst')) {

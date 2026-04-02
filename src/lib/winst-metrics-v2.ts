@@ -63,6 +63,7 @@ export interface WinstInvoiceSource {
   id: string;
   quoteIds: string[];
   status?: string;
+  invoiceType?: string;
   createdAt: Date | null;
   dueDate: Date | null;
   totalIncl: number;
@@ -81,6 +82,18 @@ export interface WinstNacalculatieSource {
   data: unknown | null;
 }
 
+export interface WinstProjectCostSource {
+  quoteId: string;
+  category: 'materiaal' | 'brandstof' | 'gereedschap' | 'overig';
+  amountExcl: number;
+}
+
+export interface WinstLaborCostSource {
+  quoteId: string;
+  costExcl: number;
+  hours?: number;
+}
+
 export interface BuildWinstMetricsInput {
   filters: WinstMetricsFiltersInput;
   quotes: WinstQuoteSource[];
@@ -88,6 +101,8 @@ export interface BuildWinstMetricsInput {
   invoices: WinstInvoiceSource[];
   payments: WinstPaymentSource[];
   nacalculaties: WinstNacalculatieSource[];
+  projectCosts?: WinstProjectCostSource[];
+  laborCosts?: WinstLaborCostSource[];
   userId: string;
   now?: Date;
 }
@@ -119,6 +134,13 @@ interface ActualSnapshot {
     name: string;
     totalExcl: number;
   }>;
+}
+
+interface ExternalProjectCostSnapshot {
+  materiaal: number;
+  brandstof: number;
+  gereedschap: number;
+  overig: number;
 }
 
 function safeNumber(value: unknown): number {
@@ -285,7 +307,9 @@ function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<st
 function getActualSnapshot(
   quote: WinstQuoteSource,
   userId: string,
-  nacalculatieByQuoteId: Map<string, WinstNacalculatieSource>
+  nacalculatieByQuoteId: Map<string, WinstNacalculatieSource>,
+  projectCostsByQuoteId: Map<string, ExternalProjectCostSnapshot>,
+  laborCostsByQuoteId: Map<string, { costExcl: number; hours: number }>
 ): { doc: NacalculatieDoc; snapshot: ActualSnapshot } {
   const source = nacalculatieByQuoteId.get(quote.id);
   const normalized = normalizeNacalculatieDoc({
@@ -293,6 +317,51 @@ function getActualSnapshot(
     userId,
     source: source?.data ?? null,
   });
+
+  const externalProjectCosts = projectCostsByQuoteId.get(quote.id);
+  const externalLabor = laborCostsByQuoteId.get(quote.id);
+  const externalCostsTotal =
+    safeNumber(externalProjectCosts?.materiaal)
+    + safeNumber(externalProjectCosts?.brandstof)
+    + safeNumber(externalProjectCosts?.gereedschap)
+    + safeNumber(externalProjectCosts?.overig);
+  const externalLaborCost = safeNumber(externalLabor?.costExcl);
+  const externalLaborHours = safeNumber(externalLabor?.hours);
+  const hasExternalCosts = externalCostsTotal > 0 || externalLaborCost > 0 || externalLaborHours > 0;
+
+  if (hasExternalCosts) {
+    const mappedMaterial = safeNumber(externalProjectCosts?.materiaal);
+    const mappedTransport = safeNumber(externalProjectCosts?.brandstof);
+    const mappedTools = safeNumber(externalProjectCosts?.gereedschap);
+    const mappedOther = safeNumber(externalProjectCosts?.overig);
+
+    const externalSnapshot: ActualSnapshot = {
+      materialenGroot: mappedMaterial,
+      materialenVerbruik: 0,
+      arbeid: externalLaborCost,
+      transport: mappedTransport,
+      materieel: mappedTools,
+      overhead: mappedOther,
+      actualHours: externalLaborHours,
+      actualTransportKm: 0,
+      transportRevenueExcl: 0,
+      hasAnyActualData: mappedMaterial > 0 || mappedTransport > 0 || mappedTools > 0 || mappedOther > 0 || externalLaborCost > 0 || externalLaborHours > 0,
+      topCostItems: mappedMaterial > 0
+        ? [
+          {
+            category: 'groot',
+            name: 'Inkoopkosten (materiaal)',
+            totalExcl: mappedMaterial,
+          },
+        ]
+        : [],
+    };
+
+    return {
+      doc: normalized,
+      snapshot: externalSnapshot,
+    };
+  }
 
   const grootTopItems = normalized.materials.groot.entries
     .map((entry) => ({
@@ -441,8 +510,7 @@ function buildTrend(
 
 function buildSmartInsights(
   projects: WinstProjectPerformance[],
-  leakDetection: WinstLeakInsight[],
-  totals: WinstMetricsResponse['totals']
+  leakDetection: WinstLeakInsight[]
 ): string[] {
   const insights: string[] = [];
 
@@ -588,7 +656,32 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     nacalculatieByQuoteId.set(row.quoteId, row);
   });
 
+  const projectCostsByQuoteId = new Map<string, ExternalProjectCostSnapshot>();
+  (input.projectCosts || []).forEach((row) => {
+    if (!row.quoteId) return;
+    const current = projectCostsByQuoteId.get(row.quoteId) || {
+      materiaal: 0,
+      brandstof: 0,
+      gereedschap: 0,
+      overig: 0,
+    };
+    current[row.category] = safeNumber(current[row.category]) + safeNumber(row.amountExcl);
+    projectCostsByQuoteId.set(row.quoteId, current);
+  });
+
+  const laborCostsByQuoteId = new Map<string, { costExcl: number; hours: number }>();
+  (input.laborCosts || []).forEach((row) => {
+    if (!row.quoteId) return;
+    const current = laborCostsByQuoteId.get(row.quoteId) || { costExcl: 0, hours: 0 };
+    laborCostsByQuoteId.set(row.quoteId, {
+      costExcl: safeNumber(current.costExcl) + safeNumber(row.costExcl),
+      hours: safeNumber(current.hours) + safeNumber(row.hours),
+    });
+  });
+
   const relevantQuotes = input.quotes.filter((quote) => {
+    const quoteStatus = String(quote.status || '').trim().toLowerCase();
+    if (quoteStatus !== 'geaccepteerd') return false;
     const baseDate = quote.updatedAt || quote.createdAt;
     if (!isDateWithinRange(baseDate, range)) return false;
     if (normalizedFilters.projectIds.length > 0 && !normalizedFilters.projectIds.includes(quote.id)) return false;
@@ -625,7 +718,21 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
 
   const quotePaymentsInPeriod = new Map<string, number>();
   relevantInvoices.forEach((invoice) => {
-    const paid = paymentByInvoice.get(invoice.id) || 0;
+    let paid = paymentByInvoice.get(invoice.id) || 0;
+    const invoiceCreatedInRange = isDateWithinRange(invoice.createdAt, range);
+    if (paid <= 0 && invoiceCreatedInRange) {
+      const paidFromSummary = Math.max(0, safeNumber(invoice.paidAmount));
+      if (paidFromSummary > 0) {
+        paid = paidFromSummary;
+      } else {
+        const invoiceType = String(invoice.invoiceType || '').trim().toLowerCase();
+        if (invoiceType === 'voorschot') {
+          // In Calvora workflow, voorschotfacturen represent already received cash
+          // unless explicit payment records indicate otherwise.
+          paid = Math.max(0, safeNumber(invoice.totalIncl));
+        }
+      }
+    }
     const allocations = buildInvoiceAllocation(
       invoice.quoteIds.filter((quoteId) => relevantQuoteIds.has(quoteId)),
       paid,
@@ -663,7 +770,13 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
 
   const projects = relevantQuotes.map((quote): WinstProjectPerformance => {
     const quoted = getQuotedSnapshot(quote, calculationByQuoteId);
-    const { snapshot: actual } = getActualSnapshot(quote, input.userId, nacalculatieByQuoteId);
+    const { snapshot: actual } = getActualSnapshot(
+      quote,
+      input.userId,
+      nacalculatieByQuoteId,
+      projectCostsByQuoteId,
+      laborCostsByQuoteId
+    );
     const breakdown = toCategoryRows(quoted, actual);
     const quotedRevenueIncl = Math.max(0, safeNumber(quote.quotedRevenueIncl));
     const receivedCashIncl = Math.max(0, quotePaymentsInPeriod.get(quote.id) || 0);
@@ -871,7 +984,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
   materialAnalysis.markupVsRealPct = toPercent(quotedMaterialTotal - actualMaterialTotal, actualMaterialTotal);
 
   const trend = buildTrend(projects, range, normalizedFilters.periodType);
-  const smartInsights = buildSmartInsights(projects, leakDetection, totals);
+  const smartInsights = buildSmartInsights(projects, leakDetection);
 
   const uniqueFilterOptions = {
     jobTypes: Array.from(

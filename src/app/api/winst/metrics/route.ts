@@ -1,8 +1,21 @@
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { fetchLaborCostsByQuoteId } from '@/lib/labor-costs';
+import { normalizeProjectCostCategory } from '@/lib/project-costs';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { buildWinstMetrics, extractQuoteCostFromExtras, type WinstCalculationSource, type WinstInvoiceSource, type WinstMetricsFiltersInput, type WinstNacalculatieSource, type WinstPaymentSource, type WinstQuoteSource } from '@/lib/winst-metrics-v2';
+import {
+  buildWinstMetrics,
+  extractQuoteCostFromExtras,
+  type WinstCalculationSource,
+  type WinstInvoiceSource,
+  type WinstLaborCostSource,
+  type WinstMetricsFiltersInput,
+  type WinstNacalculatieSource,
+  type WinstPaymentSource,
+  type WinstProjectCostSource,
+  type WinstQuoteSource,
+} from '@/lib/winst-metrics-v2';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -119,6 +132,64 @@ function chunkArray<T>(input: T[], size: number): T[][] {
   return output;
 }
 
+function invoiceStatusImpliesPaid(status: unknown): boolean {
+  const normalized = safeString(status).toLowerCase();
+  return normalized === 'gedeeltelijk_betaald' || normalized === 'betaald';
+}
+
+function isMissingRelationError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('does not exist')
+    || lower.includes('relation')
+    || lower.includes('not found')
+  );
+}
+
+function isMissingUserIdColumnError(message: string): boolean {
+  return message.toLowerCase().includes('column project_costs.user_id does not exist');
+}
+
+async function fetchProjectCosts(uid: string, quoteIds: string[]): Promise<WinstProjectCostSource[]> {
+  if (quoteIds.length === 0) return [];
+
+  const output: WinstProjectCostSource[] = [];
+  const chunks = chunkArray(quoteIds, 100);
+
+  for (const chunk of chunks) {
+    const { data, error } = await supabaseAdmin
+      .from('project_costs')
+      .select('offerte_id, category, amount_excl_btw')
+      .eq('user_id', uid)
+      .in('offerte_id', chunk);
+
+    if (error) {
+      if (isMissingUserIdColumnError(error.message)) {
+        throw new Error(
+          'Database migratie ontbreekt: voer staging_sql/20260402_add_user_id_to_existing_project_costs.sql uit.'
+        );
+      }
+      if (isMissingRelationError(error.message)) return [];
+      throw new Error(`Kon projectkosten niet laden: ${error.message}`);
+    }
+
+    if (!Array.isArray(data)) continue;
+    data.forEach((row) => {
+      if (!row || typeof row !== 'object') return;
+      const mapped = row as Record<string, unknown>;
+      const quoteId = safeString(mapped.offerte_id);
+      if (!quoteId) return;
+      output.push({
+        quoteId,
+        category: normalizeProjectCostCategory(mapped.category),
+        amountExcl: safeNumber(mapped.amount_excl_btw),
+      });
+    });
+  }
+
+  return output;
+}
+
 async function fetchCalculations(uid: string, quoteIds: string[]): Promise<WinstCalculationSource[]> {
   if (quoteIds.length === 0) return [];
 
@@ -224,7 +295,8 @@ export async function POST(req: Request) {
     const quotes: WinstQuoteSource[] = quoteSnapshot.docs
       .filter((docSnap) => {
         const data = docSnap.data();
-        return data.archived !== true;
+        const rawStatus = safeString(data.status).toLowerCase();
+        return data.archived !== true && rawStatus !== 'concept';
       })
       .map((docSnap) => {
         const data = docSnap.data();
@@ -263,7 +335,12 @@ export async function POST(req: Request) {
           id: docSnap.id,
           quoteIds: quoteIdsForInvoice,
           status: safeString(data.status) || undefined,
-          createdAt: parseDate(data.createdAt),
+          invoiceType: safeString(data.invoiceType) || undefined,
+          createdAt:
+            parseDate(data.createdAt) ||
+            parseDate(data.issueDate) ||
+            parseDate(data.updatedAt) ||
+            parseDate(docSnap.createTime),
           dueDate: parseDate(data.dueDate),
           totalIncl: safeNumber((data.totalsSnapshot as { totaalInclBtw?: unknown } | undefined)?.totaalInclBtw),
           paidAmount: safeNumber((data.paymentSummary as { paidAmount?: unknown } | undefined)?.paidAmount),
@@ -284,7 +361,12 @@ export async function POST(req: Request) {
         paymentSnapshot.docs.forEach((paymentDoc) => {
           const paymentData = paymentDoc.data();
           const amount = Math.max(0, safeNumber(paymentData.amount));
-          const date = parseDate(paymentData.date) || parseDate(paymentData.createdAt) || parseDate(data.updatedAt) || new Date();
+          const date =
+            parseDate(paymentData.date) ||
+            parseDate(paymentData.createdAt) ||
+            parseDate(data.updatedAt) ||
+            parseDate(docSnap.createTime) ||
+            new Date();
           totalFromDocs += amount;
           payments.push({
             invoiceId: docSnap.id,
@@ -294,21 +376,39 @@ export async function POST(req: Request) {
         });
 
         const paidAmount = Math.max(0, safeNumber((data.paymentSummary as { paidAmount?: unknown } | undefined)?.paidAmount));
+        const totalIncl = Math.max(0, safeNumber((data.totalsSnapshot as { totaalInclBtw?: unknown } | undefined)?.totaalInclBtw));
+        const openAmount = Math.max(0, safeNumber((data.paymentSummary as { openAmount?: unknown } | undefined)?.openAmount));
         const missingPaidAmount = paidAmount - totalFromDocs;
-        if (missingPaidAmount > 0.0001) {
+        const hasRealPaymentSignal = paidAmount > 0 && (totalIncl <= 0 || openAmount < totalIncl - 0.0001);
+        const allowSummaryFallback = invoiceStatusImpliesPaid(data.status) || hasRealPaymentSignal;
+        if (allowSummaryFallback && missingPaidAmount > 0.0001) {
           payments.push({
             invoiceId: docSnap.id,
             amount: missingPaidAmount,
-            date: parseDate(data.paidAt) || parseDate((data.paymentSummary as { lastPaymentAt?: unknown } | undefined)?.lastPaymentAt) || parseDate(data.updatedAt) || new Date(),
+            date:
+              parseDate(data.paidAt) ||
+              parseDate((data.paymentSummary as { lastPaymentAt?: unknown } | undefined)?.lastPaymentAt) ||
+              parseDate(data.updatedAt) ||
+              parseDate(docSnap.updateTime) ||
+              parseDate(docSnap.createTime) ||
+              new Date(),
           });
         }
       })
     );
 
-    const [calculations, nacalculaties] = await Promise.all([
+    const [calculations, nacalculaties, projectCosts, laborByQuote] = await Promise.all([
       fetchCalculations(uid, quoteIds),
       fetchNacalculaties(quoteSnapshot.docs),
+      fetchProjectCosts(uid, quoteIds),
+      fetchLaborCostsByQuoteId({ uid, quoteIds }),
     ]);
+
+    const laborCosts: WinstLaborCostSource[] = Array.from(laborByQuote.entries()).map(([quoteId, bucket]) => ({
+      quoteId,
+      costExcl: safeNumber(bucket.costExcl),
+      hours: safeNumber(bucket.hours),
+    }));
 
     const metrics = buildWinstMetrics({
       filters,
@@ -317,6 +417,8 @@ export async function POST(req: Request) {
       invoices,
       payments,
       nacalculaties,
+      projectCosts,
+      laborCosts,
       userId: uid,
     });
 

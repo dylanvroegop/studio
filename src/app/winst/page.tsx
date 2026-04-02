@@ -2,28 +2,35 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, BarChart3, Loader2 } from 'lucide-react';
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
+import { Loader2 } from 'lucide-react';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import type { WinstCostCategoryKey, WinstMetricsResponse, WinstVarianceStatus } from '@/lib/winst-types';
+import type { WinstCostCategoryKey, WinstMetricsResponse } from '@/lib/winst-types';
 import { cn } from '@/lib/utils';
 
 type PeriodType = 'month' | 'week';
+type KPIItemTone = 'neutral' | 'positive' | 'negative' | 'warning' | 'unknown';
+type ProjectRowData = WinstMetricsResponse['projectPerformances'][number] & {
+  actualProjectProfit: number | null;
+  actualProjectMargin: number | null;
+};
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(Number.isFinite(amount) ? amount : 0);
+  return new Intl.NumberFormat('nl-NL', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(amount) ? amount : 0);
 }
 
 function formatPercent(value: number): string {
@@ -42,25 +49,19 @@ function formatSignedCurrency(value: number): string {
   return `${sign}${formatCurrency(numeric)}`;
 }
 
-function varianceStatusClass(status: WinstVarianceStatus): string {
-  if (status === 'green') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
-  if (status === 'orange') return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
-  return 'bg-red-500/15 text-red-300 border-red-500/30';
+function formatProjectDate(value: string | null): string {
+  if (!value) return 'Onbekende datum';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Onbekende datum';
+  return new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
 }
 
-function varianceLabel(status: WinstVarianceStatus): string {
-  if (status === 'green') return 'Onder budget';
-  if (status === 'orange') return 'Waarschuwing';
-  return 'Over budget';
-}
-
-function issueLabelFromCategoryKey(key: WinstCostCategoryKey): string {
-  if (key === 'arbeid') return 'arbeid overschreden';
-  if (key === 'materialenGroot') return 'groot materiaal overschreden';
-  if (key === 'materialenVerbruik') return 'verbruiksmateriaal overschreden';
-  if (key === 'transport') return 'transport onderschat';
-  if (key === 'materieel') return 'materieel onderschat';
-  return 'overhead onderschat';
+function kpiValueClass(tone: KPIItemTone): string {
+  if (tone === 'positive') return 'text-emerald-300';
+  if (tone === 'negative') return 'text-red-300';
+  if (tone === 'warning') return 'text-amber-300';
+  if (tone === 'unknown') return 'text-muted-foreground';
+  return 'text-foreground';
 }
 
 function FilterPopover(props: {
@@ -75,7 +76,7 @@ function FilterPopover(props: {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="justify-between gap-2">
+        <Button variant="outline" className="justify-between gap-2 border-border/60 bg-background/40">
           <span>{title}</span>
           <span className="text-xs text-muted-foreground">{selectedCount > 0 ? `${selectedCount} geselecteerd` : 'Alle'}</span>
         </Button>
@@ -110,6 +111,107 @@ function FilterPopover(props: {
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function KPIItem(props: {
+  label: string;
+  value: string;
+  tone?: KPIItemTone;
+  className?: string;
+}) {
+  const { label, value, tone = 'neutral', className } = props;
+  return (
+    <div className={cn('flex-1 px-5 py-4 sm:px-6 sm:py-5', className)}>
+      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">{label}</p>
+      <p className={cn('mt-2 text-3xl font-semibold leading-none drop-shadow-[0_0_16px_rgba(16,185,129,0.08)]', kpiValueClass(tone))}>{value}</p>
+    </div>
+  );
+}
+
+function EmptyStateBlock(props: {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  const { title, description, actionLabel, onAction } = props;
+  return (
+    <div className="rounded-2xl bg-muted/20 px-6 py-12 text-center">
+      <h3 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h3>
+      <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground">{description}</p>
+      {actionLabel && onAction ? (
+        <Button onClick={onAction} className="mt-6 bg-emerald-500 text-black hover:bg-emerald-400">
+          {actionLabel}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function ProjectRow(props: {
+  project: ProjectRowData;
+}) {
+  const { project } = props;
+
+  const status = !project.hasActualData
+    ? { label: 'Geen nacalculatie', className: 'border-amber-500/30 bg-amber-500/10 text-amber-200' }
+    : (project.actualProjectProfit ?? 0) < 0
+      ? { label: 'Verlies', className: 'border-red-500/30 bg-red-500/10 text-red-200' }
+      : { label: 'Winstgevend', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' };
+
+  const winstText =
+    project.actualProjectProfit === null
+      ? 'Onbekend'
+      : formatCurrency(project.actualProjectProfit);
+
+  const winstTextClass =
+    project.actualProjectProfit === null
+      ? 'text-muted-foreground'
+      : project.actualProjectProfit < 0
+        ? 'text-red-300'
+        : 'text-emerald-300';
+  const margeText =
+    project.actualProjectMargin === null
+      ? 'Onbekend'
+      : formatPercent(project.actualProjectMargin);
+  const margeTextClass =
+    project.actualProjectMargin === null
+      ? 'text-muted-foreground'
+      : project.actualProjectMargin < 0
+        ? 'text-red-300'
+        : 'text-emerald-300';
+
+  return (
+    <div className="rounded-2xl bg-card/35 px-4 py-4 transition-all duration-200 hover:bg-card/55 hover:shadow-[0_12px_30px_-20px_rgba(16,185,129,0.35)] md:px-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] xl:items-center">
+        <div className="min-w-0">
+          <p className="truncate text-base font-semibold text-foreground">{project.title}</p>
+          <p className="mt-1 truncate text-sm text-muted-foreground">
+            {project.clientName} • {formatProjectDate(project.createdAt)}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+          <p className="text-muted-foreground">
+            Omzet <span className="ml-1 font-semibold text-foreground">{formatCurrency(project.quotedRevenueIncl)}</span>
+          </p>
+          <p className="text-muted-foreground">
+            Kosten <span className="ml-1 font-semibold text-foreground">{project.hasActualData ? formatCurrency(project.actualCostExcl) : '—'}</span>
+          </p>
+          <p className={cn('text-muted-foreground', winstTextClass)}>
+            Winst <span className={cn('ml-1 font-semibold', winstTextClass)}>{winstText}</span>
+          </p>
+          <p className={cn('text-muted-foreground', margeTextClass)}>
+            Marge <span className={cn('ml-1 font-semibold', margeTextClass)}>{margeText}</span>
+          </p>
+        </div>
+
+        <div className="flex items-center xl:justify-end">
+          <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-xs font-medium', status.className)}>{status.label}</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -174,13 +276,17 @@ export default function WinstPage() {
             projectIds: selectedProjectIds,
           }),
         });
-        const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string; data?: WinstMetricsResponse } | null;
+        const payload = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          message?: string;
+          data?: WinstMetricsResponse;
+        } | null;
+
         if (!response.ok || !payload?.ok || !payload.data) {
           throw new Error(payload?.message || `HTTP ${response.status}`);
         }
-        if (!cancelled) {
-          setMetrics(payload.data);
-        }
+
+        if (!cancelled) setMetrics(payload.data);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Onbekende fout';
         if (!cancelled) {
@@ -204,19 +310,161 @@ export default function WinstPage() {
     };
   }, [firestore, periodRange, periodType, selectedClientIds, selectedJobTypes, selectedProjectIds, toast, user]);
 
+  const derived = useMemo(() => {
+    const projects = metrics?.projectPerformances ?? [];
+    const withActual = projects.filter((project) => project.hasActualData);
+
+    const sumQuotedRevenue = projects.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
+    const sumQuotedCost = projects.reduce(
+      (sum, project) => sum + project.costBreakdown.reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
+      0
+    );
+    const estimatedProfit = sumQuotedRevenue - sumQuotedCost;
+
+    const sumActualCostKnown = withActual.reduce((sum, project) => sum + project.actualCostExcl, 0);
+    const sumActualRevenueScope = withActual.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
+    const actualProfitKnown = withActual.length > 0 ? sumActualRevenueScope - sumActualCostKnown : null;
+    const actualMarginKnown =
+      withActual.length > 0 && sumActualRevenueScope > 0 && actualProfitKnown !== null
+        ? actualProfitKnown / sumActualRevenueScope
+        : null;
+
+    const bucketDefs = [
+      {
+        id: 'arbeid',
+        label: 'Arbeid',
+        keys: new Set<WinstCostCategoryKey>(['arbeid']),
+      },
+      {
+        id: 'materiaal',
+        label: 'Materiaal',
+        keys: new Set<WinstCostCategoryKey>(['materialenGroot', 'materialenVerbruik']),
+      },
+      {
+        id: 'transport',
+        label: 'Transport',
+        keys: new Set<WinstCostCategoryKey>(['transport']),
+      },
+      {
+        id: 'overhead',
+        label: 'Overhead',
+        keys: new Set<WinstCostCategoryKey>(['overhead', 'materieel']),
+      },
+    ];
+
+    const deviations = bucketDefs
+      .map((bucket) => {
+        const quoted = withActual.reduce(
+          (sum, project) =>
+            sum +
+            project.costBreakdown
+              .filter((row) => bucket.keys.has(row.key))
+              .reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
+          0
+        );
+        const actual = withActual.reduce(
+          (sum, project) =>
+            sum +
+            project.costBreakdown
+              .filter((row) => bucket.keys.has(row.key))
+              .reduce((rowSum, row) => rowSum + row.actualExcl, 0),
+          0
+        );
+        const diff = actual - quoted;
+        const diffPct = quoted > 0 ? diff / quoted : null;
+        return {
+          id: bucket.id,
+          label: bucket.label,
+          quoted,
+          actual,
+          diff,
+          diffPct,
+        };
+      })
+      .filter((row) => row.quoted > 0 || row.actual > 0)
+      .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+
+    const totalQuotedHours = withActual.reduce((sum, project) => sum + project.quotedHours, 0);
+    const totalActualHours = withActual.reduce((sum, project) => sum + project.actualHours, 0);
+    const hoursDiffPct = totalQuotedHours > 0 ? (totalActualHours - totalQuotedHours) / totalQuotedHours : null;
+
+    const recommendationItems: string[] = [];
+    if (withActual.length >= 2) {
+      const arbeid = deviations.find((item) => item.id === 'arbeid');
+      const materiaal = deviations.find((item) => item.id === 'materiaal');
+      const transport = deviations.find((item) => item.id === 'transport');
+
+      if (arbeid && arbeid.diffPct !== null && arbeid.diffPct > 0.1) {
+        recommendationItems.push(
+          `Arbeid ligt gemiddeld ${formatSignedPercent(arbeid.diffPct)} boven offerte.`
+        );
+      }
+
+      if (materiaal && materiaal.diffPct !== null && materiaal.diffPct > 0.1) {
+        recommendationItems.push(
+          `Materiaalkosten lopen gemiddeld ${formatSignedPercent(materiaal.diffPct)} op.`
+        );
+      }
+
+      if (transport && transport.diffPct !== null && transport.diffPct > 0.1) {
+        recommendationItems.push(
+          `Transport wordt gemiddeld ${formatSignedPercent(transport.diffPct)} onderschat.`
+        );
+      }
+
+      if (hoursDiffPct !== null && hoursDiffPct > 0.1) {
+        recommendationItems.push(
+          `Werkelijke uren liggen ${formatSignedPercent(hoursDiffPct)} boven planning.`
+        );
+      }
+    }
+
+    const projectRows: ProjectRowData[] = projects.map((project) => {
+      const actualProjectProfit = project.hasActualData ? project.quotedRevenueIncl - project.actualCostExcl : null;
+      const actualProjectMargin =
+        actualProjectProfit !== null && project.quotedRevenueIncl > 0
+          ? actualProjectProfit / project.quotedRevenueIncl
+          : null;
+      return {
+        ...project,
+        actualProjectProfit,
+        actualProjectMargin,
+      };
+    });
+
+    return {
+      projects,
+      withActual,
+      sumQuotedRevenue,
+      estimatedProfit,
+      sumActualCostKnown,
+      actualProfitKnown,
+      actualMarginKnown,
+      deviations,
+      recommendationItems,
+      projectRows,
+    };
+  }, [metrics]);
+
   const filteredProjects = useMemo(() => {
-    if (!metrics?.projectPerformances) return [];
     const term = projectSearch.trim().toLowerCase();
-    if (!term) return metrics.projectPerformances;
-    return metrics.projectPerformances.filter((project) => {
+    if (!term) return derived.projectRows;
+    return derived.projectRows.filter((project) => {
       const target = `${project.title} ${project.clientName} ${project.offerteNummer || ''}`.toLowerCase();
       return target.includes(term);
     });
-  }, [metrics?.projectPerformances, projectSearch]);
+  }, [derived.projectRows, projectSearch]);
 
   if (isUserLoading || !user || loadingMetrics || !metrics) {
     return <PageSkeleton />;
   }
+
+  const hasActualComparison = derived.withActual.length > 0;
+  const hasEnoughInsightData = derived.withActual.length >= 2;
+  const hasInsightContent =
+    hasEnoughInsightData && (derived.deviations.length > 0 || derived.recommendationItems.length > 0);
+  const shouldShowCashflow =
+    metrics.totals.receivedCashIncl > 0 || metrics.cashflow.openAmount > 0 || metrics.cashflow.overdueAmount > 0;
 
   return (
     <div className="app-shell min-h-screen bg-background">
@@ -224,463 +472,207 @@ export default function WinstPage() {
       <DashboardHeader user={user} title="Winst" />
 
       <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
-        <div className="w-full max-w-7xl space-y-6">
-          <Card className="border-amber-500/20">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <CardTitle className="flex items-center gap-2 text-amber-300">
-                    <BarChart3 className="h-5 w-5" />
-                    Winst 2.0 - Offerte vs Werkelijk
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">{metrics.periodLabel}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Tabs value={periodType} onValueChange={(value) => setPeriodType(value as PeriodType)}>
-                    <TabsList>
-                      <TabsTrigger value="month">Per maand</TabsTrigger>
-                      <TabsTrigger value="week">Per week</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                  <Select value={String(periodRange)} onValueChange={(value) => setPeriodRange(Number(value))}>
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Periode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {periodType === 'month' ? (
-                        <>
-                          <SelectItem value="3">3 maanden</SelectItem>
-                          <SelectItem value="6">6 maanden</SelectItem>
-                          <SelectItem value="12">12 maanden</SelectItem>
-                        </>
-                      ) : (
-                        <>
-                          <SelectItem value="4">4 weken</SelectItem>
-                          <SelectItem value="8">8 weken</SelectItem>
-                          <SelectItem value="12">12 weken</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-
-                  <FilterPopover
-                    title="Type klus"
-                    options={metrics.filterOptions.jobTypes}
-                    selected={selectedJobTypes}
-                    onChange={setSelectedJobTypes}
-                  />
-                  <FilterPopover
-                    title="Klant"
-                    options={metrics.filterOptions.clients}
-                    selected={selectedClientIds}
-                    onChange={setSelectedClientIds}
-                  />
-                  <FilterPopover
-                    title="Project"
-                    options={metrics.filterOptions.projects}
-                    selected={selectedProjectIds}
-                    onChange={setSelectedProjectIds}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
+        <div className="w-full max-w-7xl space-y-12">
+          <section className="rounded-2xl bg-card/30 p-4 md:p-5">
+            <div className="flex justify-end">
+              <p className="text-sm text-muted-foreground">{metrics.periodLabel}</p>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Tabs value={periodType} onValueChange={(value) => setPeriodType(value as PeriodType)}>
+                <TabsList>
+                  <TabsTrigger value="month">Per maand</TabsTrigger>
+                  <TabsTrigger value="week">Per week</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Select value={String(periodRange)} onValueChange={(value) => setPeriodRange(Number(value))}>
+                <SelectTrigger className="w-[140px] border-border/60 bg-background/40">
+                  <SelectValue placeholder="Periode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {periodType === 'month' ? (
+                    <>
+                      <SelectItem value="3">3 maanden</SelectItem>
+                      <SelectItem value="6">6 maanden</SelectItem>
+                      <SelectItem value="12">12 maanden</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="4">4 weken</SelectItem>
+                      <SelectItem value="8">8 weken</SelectItem>
+                      <SelectItem value="12">12 weken</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+              <FilterPopover
+                title="Type klus"
+                options={metrics.filterOptions.jobTypes}
+                selected={selectedJobTypes}
+                onChange={setSelectedJobTypes}
+              />
+              <FilterPopover
+                title="Klant"
+                options={metrics.filterOptions.clients}
+                selected={selectedClientIds}
+                onChange={setSelectedClientIds}
+              />
+              <FilterPopover
+                title="Project"
+                options={metrics.filterOptions.projects}
+                selected={selectedProjectIds}
+                onChange={setSelectedProjectIds}
+              />
+            </div>
+          </section>
 
           {metricsError ? (
-            <Card className="border-red-500/30 bg-red-500/10">
-              <CardContent className="pt-6 text-sm text-red-200">Metrics fout: {metricsError}</CardContent>
-            </Card>
+            <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+              Metrics fout: {metricsError}
+            </div>
           ) : null}
 
-          {metrics.dataQuality.projectsMissingActual > 0 ? (
-            <Card className="border-amber-500/25 bg-amber-500/10">
-              <CardContent className="pt-6 text-sm text-amber-200">
-                {metrics.dataQuality.projectsMissingActual} van {metrics.dataQuality.projectsTotal} projecten hebben nog geen nacalculatie.
-                Deze projecten blijven zichtbaar met datakwaliteit-waarschuwing.
-              </CardContent>
-            </Card>
-          ) : null}
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <Card className="border-amber-500/20 bg-amber-500/5">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">Omzet geoffreerd (incl.)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold text-amber-300">{formatCurrency(metrics.totals.quotedRevenueIncl)}</div>
-              </CardContent>
-            </Card>
-            <Card className="border-emerald-500/20 bg-emerald-500/5">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">Ontvangen cash (incl.)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold text-emerald-300">{formatCurrency(metrics.totals.receivedCashIncl)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">Werkelijke kosten (excl.)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold">{formatCurrency(metrics.totals.actualCostExcl)}</div>
-              </CardContent>
-            </Card>
-            <Card className={cn(metrics.totals.netProfitQuoteBasis >= 0 ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-red-500/20 bg-red-500/5')}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">Netto winst (quote basis)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={cn('text-2xl font-semibold', metrics.totals.netProfitQuoteBasis >= 0 ? 'text-emerald-300' : 'text-red-300')}>
-                  {formatCurrency(metrics.totals.netProfitQuoteBasis)}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">Winstmarge</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold">{formatPercent(metrics.totals.marginPct)}</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Trend: Omzet vs Kosten vs Netto winst</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={metrics.trend} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="trendQuoted" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.03} />
-                    </linearGradient>
-                    <linearGradient id="trendActual" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ef4444" stopOpacity={0.24} />
-                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0.02} />
-                    </linearGradient>
-                    <linearGradient id="trendProfit" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.03} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fill: '#a1a1aa', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <RechartsTooltip
-                    contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 10 }}
-                    formatter={(value: number) => formatCurrency(value)}
-                  />
-                  <Area type="monotone" dataKey="quotedRevenueIncl" name="Geoffreerd" stroke="#f59e0b" fill="url(#trendQuoted)" />
-                  <Area type="monotone" dataKey="actualCostExcl" name="Werkelijke kosten" stroke="#ef4444" fill="url(#trendActual)" />
-                  <Area type="monotone" dataKey="netProfitQuoteBasis" name="Netto winst" stroke="#10b981" fill="url(#trendProfit)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">1) Cost Breakdown (Werkelijk vs Geoffreerd)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {metrics.costBreakdown.categories.map((row) => (
-                <div key={row.key} className="grid grid-cols-12 items-center gap-2 rounded-md border border-border/60 p-2 text-sm">
-                  <div className="col-span-12 font-medium md:col-span-3">{row.label}</div>
-                  <div className="col-span-6 md:col-span-2">{formatCurrency(row.actualExcl)}</div>
-                  <div className="col-span-6 md:col-span-2">{formatCurrency(row.quotedExcl)}</div>
-                  <div className="col-span-6 md:col-span-2">{formatSignedCurrency(row.diffEuro)}</div>
-                  <div className="col-span-6 md:col-span-1">{formatSignedPercent(row.diffPct)}</div>
-                  <div className="col-span-12 md:col-span-2">
-                    <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-xs font-medium', varianceStatusClass(row.status))}>
-                      {varianceLabel(row.status)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              <div className="grid grid-cols-12 items-center gap-2 rounded-md border border-border p-2 text-sm font-semibold">
-                <div className="col-span-12 md:col-span-3">Totaal</div>
-                <div className="col-span-6 md:col-span-2">{formatCurrency(metrics.costBreakdown.total.actualExcl)}</div>
-                <div className="col-span-6 md:col-span-2">{formatCurrency(metrics.costBreakdown.total.quotedExcl)}</div>
-                <div className="col-span-6 md:col-span-2">{formatSignedCurrency(metrics.costBreakdown.total.diffEuro)}</div>
-                <div className="col-span-6 md:col-span-1">{formatSignedPercent(metrics.costBreakdown.total.diffPct)}</div>
-                <div className="col-span-12 md:col-span-2">
-                  <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-xs font-medium', varianceStatusClass(metrics.costBreakdown.total.status))}>
-                    {varianceLabel(metrics.costBreakdown.total.status)}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">2) Margin Analysis</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex items-center justify-between"><span>Gemiddelde marge per klus</span><span>{formatPercent(metrics.marginAnalysis.avgMarginPct)}</span></div>
-                <div className="flex items-center justify-between"><span>Hoogste marge klus</span><span>{metrics.marginAnalysis.bestProject ? `${formatPercent(metrics.marginAnalysis.bestProject.marginPct)} (${metrics.marginAnalysis.bestProject.title})` : '—'}</span></div>
-                <div className="flex items-center justify-between"><span>Slechtste klus</span><span>{metrics.marginAnalysis.worstProject ? `${formatPercent(metrics.marginAnalysis.worstProject.marginPct)} (${metrics.marginAnalysis.worstProject.title})` : '—'}</span></div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">3) Leak Detection</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {metrics.leakDetection.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nog geen structurele lekken gedetecteerd (of te weinig data).</p>
-                ) : (
-                  metrics.leakDetection.map((leak) => (
-                    <div key={leak.id} className={cn('rounded-md border px-3 py-2 text-sm', leak.severity === 'critical' ? 'border-red-500/30 bg-red-500/10 text-red-200' : 'border-amber-500/30 bg-amber-500/10 text-amber-200')}>
-                      {leak.message}
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">4) Time Tracking Insights</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex items-center justify-between"><span>Gecalculeerde uren</span><span>{metrics.timeTracking.quotedHours.toFixed(1)} u</span></div>
-                <div className="flex items-center justify-between"><span>Gewerkte uren</span><span>{metrics.timeTracking.actualHours.toFixed(1)} u</span></div>
-                <div className="flex items-center justify-between"><span>Verschil</span><span>{metrics.timeTracking.hoursDiff.toFixed(1)} u ({formatSignedPercent(metrics.timeTracking.hoursDiffPct)})</span></div>
-                <div className="flex items-center justify-between"><span>€ / uur verwacht</span><span>{formatCurrency(metrics.timeTracking.expectedEuroPerHour)}</span></div>
-                <div className="flex items-center justify-between"><span>€ / uur gerealiseerd</span><span>{formatCurrency(metrics.timeTracking.realizedEuroPerHour)}</span></div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">5) Transport Analysis</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex items-center justify-between"><span>Werkelijk transport</span><span>{formatCurrency(metrics.transportAnalysis.actualExcl)}</span></div>
-                <div className="flex items-center justify-between"><span>Geoffreerd transport</span><span>{formatCurrency(metrics.transportAnalysis.quotedExcl)}</span></div>
-                <div className="flex items-center justify-between"><span>Verschil</span><span>{formatSignedCurrency(metrics.transportAnalysis.diffEuro)} ({formatSignedPercent(metrics.transportAnalysis.diffPct)})</span></div>
-                <div className="flex items-center justify-between"><span>Gem. km per klus</span><span>{metrics.transportAnalysis.avgKmPerProject.toFixed(1)} km</span></div>
-                <div className="flex items-center justify-between"><span>Opbrengst/kosten ratio</span><span>{metrics.transportAnalysis.avgRevenueVsCost.toFixed(2)}</span></div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">6) Material Analysis</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="rounded border border-border/60 p-2">
-                  <div className="font-medium">Groot materiaal</div>
-                  <div>{formatCurrency(metrics.materialAnalysis.groot.actualExcl)} vs {formatCurrency(metrics.materialAnalysis.groot.quotedExcl)}</div>
-                  <div className={cn(metrics.materialAnalysis.groot.diffEuro <= 0 ? 'text-emerald-300' : 'text-red-300')}>
-                    {formatSignedCurrency(metrics.materialAnalysis.groot.diffEuro)} ({formatSignedPercent(metrics.materialAnalysis.groot.diffPct)})
-                  </div>
-                </div>
-                <div className="rounded border border-border/60 p-2">
-                  <div className="font-medium">Verbruiksmateriaal</div>
-                  <div>{formatCurrency(metrics.materialAnalysis.verbruik.actualExcl)} vs {formatCurrency(metrics.materialAnalysis.verbruik.quotedExcl)}</div>
-                  <div className={cn(metrics.materialAnalysis.verbruik.diffEuro <= 0 ? 'text-emerald-300' : 'text-red-300')}>
-                    {formatSignedCurrency(metrics.materialAnalysis.verbruik.diffEuro)} ({formatSignedPercent(metrics.materialAnalysis.verbruik.diffPct)})
-                  </div>
-                </div>
-                <div className="rounded border border-border/60 p-2">
-                  <div className="font-medium">Materiaalmarge (markup vs real)</div>
-                  <div className={cn(metrics.materialAnalysis.markupVsRealPct >= 0 ? 'text-emerald-300' : 'text-red-300')}>
-                    {formatSignedPercent(metrics.materialAnalysis.markupVsRealPct)}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Top 5 duurste materiaalposten (werkelijk)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {metrics.materialAnalysis.topCostItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nog geen materiaalposten uit nacalculatie.</p>
-              ) : (
-                metrics.materialAnalysis.topCostItems.map((item, index) => (
-                  <div key={`${item.projectId}-${item.name}-${index}`} className="flex items-center justify-between rounded border border-border/60 px-3 py-2 text-sm">
-                    <div className="truncate pr-3">
-                      {index + 1}. {item.name} <span className="text-muted-foreground">({item.projectLabel})</span>
-                    </div>
-                    <div className="font-semibold">{formatCurrency(item.totalExcl)}</div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">7) Smart Insights</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {metrics.smartInsights.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nog geen inzichten beschikbaar.</p>
-              ) : (
-                metrics.smartInsights.map((insight, index) => (
-                  <div key={`${index}-${insight}`} className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
-                    {insight}
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">8) Cashflow vs Profit</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-3">
-              <div className="rounded border border-border/60 p-3">
-                <div className="text-xs text-muted-foreground">Winst (boekhoudkundig)</div>
-                <div className={cn('text-lg font-semibold', metrics.cashflow.profitQuoteBasis >= 0 ? 'text-emerald-300' : 'text-red-300')}>
-                  {formatCurrency(metrics.cashflow.profitQuoteBasis)}
-                </div>
-              </div>
-              <div className="rounded border border-border/60 p-3">
-                <div className="text-xs text-muted-foreground">Ontvangen geld</div>
-                <div className="text-lg font-semibold">{formatCurrency(metrics.cashflow.receivedCashIncl)}</div>
-                <div className="text-xs text-muted-foreground mt-1">Cash-in ratio: {formatPercent(metrics.cashflow.cashInRatio)}</div>
-              </div>
-              <div className="rounded border border-border/60 p-3">
-                <div className="text-xs text-muted-foreground">Openstaand / Te laat risico</div>
-                <div className="text-lg font-semibold">{formatCurrency(metrics.cashflow.openAmount)}</div>
-                <div className="text-xs text-red-300 mt-1">Te laat: {formatCurrency(metrics.cashflow.overdueAmount)} ({metrics.cashflow.overdueCount} facturen)</div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base text-emerald-300">10) Top 5 winstgevende klussen</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {metrics.topPerformers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nog niet genoeg nacalculatie-data.</p>
-                ) : (
-                  metrics.topPerformers.map((project, index) => (
-                    <div key={project.projectId} className="rounded-md border border-border/60 p-2 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate">{index + 1}. {project.title}</span>
-                        <span className="font-semibold text-emerald-300">{formatCurrency(project.netProfitQuoteBasis)}</span>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Marge: {formatPercent(project.marginPct)}</span>
-                        <span>Issue: {project.keyIssue}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base text-red-300">10) Slechtste 5 klussen</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {metrics.worstPerformers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nog niet genoeg nacalculatie-data.</p>
-                ) : (
-                  metrics.worstPerformers.map((project, index) => (
-                    <div key={project.projectId} className="rounded-md border border-border/60 p-2 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate">{index + 1}. {project.title}</span>
-                        <span className={cn('font-semibold', project.netProfitQuoteBasis >= 0 ? 'text-amber-300' : 'text-red-300')}>
-                          {formatCurrency(project.netProfitQuoteBasis)}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Marge: {formatPercent(project.marginPct)}</span>
-                        <span>Issue: {project.keyIssue}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Project prestaties (geoffreerd vs werkelijk)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="projectSearch" className="text-xs text-muted-foreground">Zoek project</Label>
-                <Input
-                  id="projectSearch"
-                  value={projectSearch}
-                  onChange={(event) => setProjectSearch(event.target.value)}
-                  placeholder="Zoek op klant of project"
-                  className="max-w-xs"
+          <section className="overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500/[0.10] via-background/95 to-cyan-500/[0.06]">
+            <div className="overflow-x-auto">
+              <div className="flex min-w-[620px] divide-x divide-white/10">
+                <KPIItem label="Geoffreerde omzet" value={formatCurrency(derived.sumQuotedRevenue)} tone="warning" />
+                <KPIItem
+                  label="Werkelijke winst"
+                  value={derived.actualProfitKnown === null ? 'Onbekend' : formatCurrency(derived.actualProfitKnown)}
+                  tone={
+                    derived.actualProfitKnown === null
+                      ? 'unknown'
+                      : derived.actualProfitKnown >= 0
+                        ? 'positive'
+                        : 'negative'
+                  }
                 />
+                <KPIItem label="Ontvangen cash" value={formatCurrency(metrics.totals.receivedCashIncl)} tone="positive" />
               </div>
-              <div className="space-y-2">
-                {filteredProjects.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Geen projecten in deze selectie.</p>
-                ) : (
-                  filteredProjects.map((project) => {
-                    const topOverrun = project.costBreakdown
-                      .filter((row) => row.diffEuro > 0)
-                      .sort((a, b) => b.diffEuro - a.diffEuro)[0];
+            </div>
+          </section>
 
-                    return (
-                      <div key={project.projectId} className="rounded-md border border-border/60 p-3">
-                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                          <div className="min-w-0">
-                            <div className="truncate font-medium">
-                              {project.offerteNummer ? `#${project.offerteNummer} • ` : ''}
-                              {project.title}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {project.clientName} • {project.jobTypes.join(', ') || 'Onbekend type'}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className={cn('text-sm font-semibold', project.netProfitQuoteBasis >= 0 ? 'text-emerald-300' : 'text-red-300')}>
-                              {formatCurrency(project.netProfitQuoteBasis)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Marge {formatPercent(project.marginPct)}</div>
-                          </div>
-                        </div>
-
-                        <div className="mt-2 grid gap-2 text-xs md:grid-cols-4">
-                          <div>Omzet: {formatCurrency(project.quotedRevenueIncl)}</div>
-                          <div>Werkelijke kosten: {formatCurrency(project.actualCostExcl)}</div>
-                          <div>Uren: {project.actualHours.toFixed(1)} / {project.quotedHours.toFixed(1)}</div>
-                          <div className={cn(!project.hasActualData ? 'text-amber-300' : 'text-muted-foreground')}>
-                            {project.hasActualData
-                              ? `Issue: ${topOverrun ? issueLabelFromCategoryKey(topOverrun.key) : 'Binnen budget'}`
-                              : 'Waarschuwing: geen nacalculatie'}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold tracking-tight">Winst status</h2>
+            {!hasActualComparison ? (
+              <EmptyStateBlock
+                title="Nog geen kosten geregistreerd"
+                description="Voeg kosten toe via Kosten om werkelijke winst en marge per project te berekenen."
+                actionLabel="Ga naar kosten"
+                onAction={() => router.push('/kosten')}
+              />
+            ) : (
+              <div className="rounded-2xl bg-card/30 px-6 py-10">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Werkelijke winst (ingevulde projecten)</p>
+                <p
+                  className={cn(
+                    'mt-3 text-5xl font-semibold leading-none',
+                    (derived.actualProfitKnown ?? 0) >= 0 ? 'text-emerald-300' : 'text-red-300'
+                  )}
+                >
+                  {formatCurrency(derived.actualProfitKnown ?? 0)}
+                </p>
+                <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-3 text-sm">
+                  <p className="text-muted-foreground">
+                    Werkelijke kosten <span className="ml-1 font-semibold text-foreground">{formatCurrency(derived.sumActualCostKnown)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Marge{' '}
+                    <span className="ml-1 font-semibold text-foreground">
+                      {derived.actualMarginKnown === null ? 'Onbekend' : formatPercent(derived.actualMarginKnown)}
+                    </span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Ingevulde projecten <span className="ml-1 font-semibold text-foreground">{derived.withActual.length}</span>
+                  </p>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </section>
 
-          <Card className="border-border/60 bg-card/70">
-            <CardContent className="pt-6 text-xs text-muted-foreground">
-              Elk getal is bedoeld als offerte-feedback voor je volgende klus: waar zat je ernaast, en welke opslag of ureninschatting moet je aanpassen.
-            </CardContent>
-          </Card>
+          <section className="space-y-5">
+            <h2 className="text-xl font-semibold tracking-tight">Inzichten</h2>
+            {!hasEnoughInsightData ? (
+              <EmptyStateBlock title="Geen inzichten beschikbaar" description="Minimaal 2 projecten met nacalculatie nodig." />
+            ) : hasInsightContent ? (
+              <div className="space-y-8">
+                {derived.deviations.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">Belangrijkste afwijkingen</p>
+                    <div className="space-y-1">
+                      {derived.deviations.map((row) => (
+                        <div key={row.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/50 py-3 text-sm last:border-0">
+                          <p className="font-medium text-foreground">{row.label}</p>
+                          <p className={cn('font-semibold', row.diff > 0 ? 'text-red-300' : row.diff < 0 ? 'text-emerald-300' : 'text-muted-foreground')}>
+                            {formatSignedCurrency(row.diff)}
+                            {row.diffPct !== null ? ` • ${formatSignedPercent(row.diffPct)}` : ''}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {derived.recommendationItems.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">Aanbevelingen voor volgende offertes</p>
+                    <ul className="space-y-2">
+                      {derived.recommendationItems.map((item, index) => (
+                        <li key={`${index}-${item}`} className="text-sm text-foreground/90">
+                          • {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <EmptyStateBlock title="Geen inzichten beschikbaar" description="Nog geen duidelijke afwijkingen in de huidige selectie." />
+            )}
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-xl font-semibold tracking-tight">Project prestaties</h2>
+              <Input
+                value={projectSearch}
+                onChange={(event) => setProjectSearch(event.target.value)}
+                placeholder="Zoek project of klant"
+                className="sm:w-72 border-border/60 bg-background/40"
+              />
+            </div>
+
+            <div className="space-y-2">
+              {filteredProjects.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Geen projecten in deze selectie.</p>
+              ) : (
+                filteredProjects.map((project) => (
+                  <ProjectRow
+                    key={project.projectId}
+                    project={project}
+                  />
+                ))
+              )}
+            </div>
+          </section>
+
+          {shouldShowCashflow ? (
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold tracking-tight">Cashflow</h2>
+              <div className="rounded-2xl bg-card/25 px-5 py-4">
+                <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-sm">
+                  <p className="text-muted-foreground">
+                    Ontvangen <span className="ml-1 font-semibold text-emerald-300">{formatCurrency(metrics.totals.receivedCashIncl)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Openstaand <span className="ml-1 font-semibold text-foreground">{formatCurrency(metrics.cashflow.openAmount)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Te laat risico <span className="ml-1 font-semibold text-red-300">{formatCurrency(metrics.cashflow.overdueAmount)}</span>
+                  </p>
+                </div>
+              </div>
+            </section>
+          ) : null}
         </div>
       </main>
     </div>
