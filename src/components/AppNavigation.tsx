@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, LayoutDashboard, FileText, ReceiptText, TrendingUp, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote } from 'lucide-react';
+import { Menu, X, LayoutDashboard, FileText, ReceiptText, TrendingUp, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -122,11 +122,11 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                     <Button
                         variant="outline"
                         size="icon"
-                        className="absolute right-4 top-4 h-11 w-11 rounded-xl shrink-0 border-border bg-background/90 shadow-lg backdrop-blur-sm"
+                        className="absolute right-3 top-3 h-8 w-8 rounded-lg shrink-0 border-border bg-background/90 shadow-lg backdrop-blur-sm"
                         onClick={onClose}
                         aria-label="Navigatie sluiten"
                     >
-                        <Menu className="h-4 w-4" />
+                        <X className="h-4 w-4" />
                     </Button>
                 )}
                 <div className="flex items-center">
@@ -221,16 +221,18 @@ export function AppNavigation() {
             {isMobile ? (
                 <div className="fixed left-3 top-3 z-[60]">
                     <Sheet open={menuOpen} onOpenChange={handleMenuOpenChange}>
-                        <SheetTrigger asChild>
-                            <Button
-                                size="icon"
-                                variant="outline"
-                                className="h-9 w-9 rounded-lg shrink-0 border-border bg-background/90 shadow-lg backdrop-blur-sm"
-                                aria-label="Open navigatie"
-                            >
-                                <Menu className="h-4 w-4" />
-                            </Button>
-                        </SheetTrigger>
+                        {!menuOpen && (
+                            <SheetTrigger asChild>
+                                <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-9 w-9 rounded-lg shrink-0 border-border bg-background/90 shadow-lg backdrop-blur-sm"
+                                    aria-label="Open navigatie"
+                                >
+                                    <Menu className="h-4 w-4" />
+                                </Button>
+                            </SheetTrigger>
+                        )}
                         <SheetContent side="left" className="w-[85vw] max-w-[350px] p-0">
                             <SheetHeader className="sr-only">
                                 <SheetTitle>Navigatie</SheetTitle>

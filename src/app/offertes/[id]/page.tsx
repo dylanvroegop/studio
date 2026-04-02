@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -369,6 +370,8 @@ export default function QuotePage() {
     const [isSavingMaterialPackage, setIsSavingMaterialPackage] = useState(false);
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+    const [isMobileMoreActionsOpen, setIsMobileMoreActionsOpen] = useState(false);
+    const [isMobileMoreSectionsOpen, setIsMobileMoreSectionsOpen] = useState(false);
     const [voorschotIngeschakeld, setVoorschotIngeschakeld] = useState(true);
     const [voorschotPercentage, setVoorschotPercentage] = useState<number>(50);
     const [onderVoorbehoud, setOnderVoorbehoud] = useState(false);
@@ -3362,6 +3365,11 @@ export default function QuotePage() {
         [routeDestinationAddress],
     );
 
+    const isSecondarySectionActive = useMemo(
+        () => ['nacalculatie', 'tekeningen', 'notities', 'algemene-voorwaarden'].includes(activeTab),
+        [activeTab],
+    );
+
     return (
         <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
             <AppNavigation />
@@ -3384,7 +3392,57 @@ export default function QuotePage() {
                             )}
                         </div>
                     </div>
-                    <div className="flex w-full gap-2 overflow-x-auto pb-1 sm:w-auto sm:overflow-visible sm:pb-0">
+                    {!loading && (
+                        <div className="grid w-full grid-cols-2 gap-2 sm:hidden">
+                            <Button
+                                variant="outline"
+                                className="h-11 justify-start gap-2 px-4"
+                                onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`)}
+                            >
+                                <ReceiptText size={16} />
+                                Maak factuur
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="h-11 justify-start gap-2 px-4"
+                                onClick={() => {
+                                    const params = new URLSearchParams({
+                                        mode: 'schedule',
+                                        quoteId: id,
+                                        hours: String(normalizedData?.totaal_uren || 0),
+                                        view: 'week'
+                                    });
+                                    router.push(`/planning?${params.toString()}`);
+                                }}
+                            >
+                                <CalendarDays size={16} />
+                                Inplannen
+                            </Button>
+                            {routeMapsUrl && (
+                                <Button
+                                    variant="outline"
+                                    className="h-11 justify-start gap-2 px-4"
+                                    onClick={() => {
+                                        window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
+                                    }}
+                                    title={routeDestinationAddress}
+                                >
+                                    <Navigation size={16} />
+                                    Route openen
+                                </Button>
+                            )}
+                            <Button
+                                variant="outline"
+                                className={cn('h-11 justify-start gap-2 px-4', !routeMapsUrl && 'col-span-1')}
+                                onClick={() => setIsMobileMoreActionsOpen(true)}
+                            >
+                                <ChevronDown size={16} />
+                                Meer acties
+                            </Button>
+                        </div>
+                    )}
+
+                    <div className="hidden w-full gap-2 overflow-x-auto pb-1 sm:flex sm:w-auto sm:overflow-visible sm:pb-0">
                         <Button
                             type="button"
                             variant="outline"
@@ -3401,7 +3459,7 @@ export default function QuotePage() {
                             ) : (
                                 <Download size={18} />
                             )}
-                            <span className="hidden sm:inline">Download</span>
+                            Download
                         </Button>
 
                         {!loading && (
@@ -3414,7 +3472,7 @@ export default function QuotePage() {
                                     title="Maak factuur"
                                 >
                                     <ReceiptText size={16} />
-                                    <span className="hidden sm:inline">Maak factuur</span>
+                                    Maak factuur
                                 </Button>
                                 {routeMapsUrl && (
                                     <Button
@@ -3426,7 +3484,7 @@ export default function QuotePage() {
                                         title={routeDestinationAddress}
                                     >
                                         <Navigation size={16} />
-                                        <span className="hidden sm:inline">Route</span>
+                                        Route
                                     </Button>
                                 )}
                                 <Button
@@ -3445,7 +3503,7 @@ export default function QuotePage() {
                                     title="Inplannen"
                                 >
                                     <CalendarDays size={16} />
-                                    <span className="hidden sm:inline">Inplannen</span>
+                                    Inplannen
                                 </Button>
                                 <Button
                                     variant="outline"
@@ -3455,16 +3513,17 @@ export default function QuotePage() {
                                     title="Calculatie"
                                 >
                                     <PenTool size={16} />
-                                    <span className="hidden sm:inline">Calculatie</span>
+                                    Calculatie
                                 </Button>
                                 <Button
                                     variant="outline"
-                                    className="flex h-10 min-w-10 items-center justify-center px-3 sm:h-9 sm:min-w-0 sm:px-4"
+                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:px-4"
                                     aria-label="PDF instellingen"
                                     title="PDF instellingen"
                                     onClick={() => setIsPdfSettingsOpen(true)}
                                 >
                                     <Settings size={16} />
+                                    PDF instellingen
                                 </Button>
                                 <Button
                                     variant="success"
@@ -3474,7 +3533,7 @@ export default function QuotePage() {
                                     title="Versturen"
                                 >
                                     <Mail size={16} />
-                                    <span className="hidden sm:inline">Versturen</span>
+                                    Versturen
                                 </Button>
                             </>
                         )}
@@ -3482,7 +3541,7 @@ export default function QuotePage() {
                 </div>
             </header>
 
-            <main className="mobile-calm mx-auto max-w-7xl p-4 pb-10 sm:p-6">
+            <main className="mobile-calm mx-auto max-w-7xl p-4 pb-28 sm:p-6 sm:pb-10">
                 {error ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
                         <div className="text-red-400 font-medium">Fout bij laden: {error}</div>
@@ -3492,50 +3551,83 @@ export default function QuotePage() {
                     </div>
                 ) : (
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                        <div className="flex items-center gap-2 bg-card border border-border p-1 rounded-lg w-full">
-                            <TabsList className="bg-transparent border-0 p-0 h-auto w-full flex-nowrap gap-1 overflow-x-auto justify-start">
-                                <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <Package size={16} />
-                                    {materialsWithoutPrice > 0 && (
-                                        <div className="flex items-center gap-0.5 text-[10px] font-semibold text-red-500">
-                                            <AlertCircle size={10} />
-                                            {materialsWithoutPrice}
-                                        </div>
-                                    )}
-                                    <span className="hidden sm:inline">Materialen</span>
+                        <div className="sm:hidden space-y-2 rounded-xl border border-border bg-card p-2">
+                            <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto bg-transparent p-0">
+                                <TabsTrigger value="overzicht" className="h-11 shrink-0 px-4 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    Overzicht
                                 </TabsTrigger>
-                                <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <Euro size={16} />
-                                    <span className="hidden sm:inline">Overzicht</span>
-                                </TabsTrigger>
-                                <TabsTrigger value="nacalculatie" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <ClipboardList size={16} />
-                                    <span className="hidden sm:inline">Nacalculatie</span>
-                                </TabsTrigger>
-                                <TabsTrigger value="tekeningen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <PenTool size={16} />
-                                    <span className="hidden sm:inline">Tekeningen</span>
-                                </TabsTrigger>
-                                <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <FileText size={16} />
-                                    <span className="hidden sm:inline">PDF</span>
+                                <TabsTrigger value="materialen" className="h-11 shrink-0 px-4 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    Materialen
                                 </TabsTrigger>
                                 <TabsTrigger
                                     value="werkbeschrijving"
                                     className={cn(
-                                        "flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground",
+                                        "h-11 shrink-0 px-4 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground",
+                                        showWerkbeschrijvingWarning && "text-red-400 data-[state=active]:text-red-400"
+                                    )}
+                                >
+                                    Werkbeschrijving
+                                </TabsTrigger>
+                                <TabsTrigger value="pdf" className="h-11 shrink-0 px-4 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                    PDF
+                                </TabsTrigger>
+                            </TabsList>
+                            <Button
+                                type="button"
+                                variant={isSecondarySectionActive ? 'secondary' : 'outline'}
+                                className="h-11 w-full justify-between px-4"
+                                onClick={() => setIsMobileMoreSectionsOpen(true)}
+                            >
+                                <span>Meer</span>
+                                <ChevronDown size={16} />
+                            </Button>
+                        </div>
+
+                        <div className="hidden w-full items-center gap-2 rounded-lg border border-border bg-card p-1 sm:flex">
+                            <TabsList className="h-auto w-full justify-start gap-1 bg-transparent p-0">
+                                <TabsTrigger value="materialen" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <Package size={16} />
+                                    Materialen
+                                    {materialsWithoutPrice > 0 && (
+                                        <div className="ml-1 flex items-center gap-0.5 text-[10px] font-semibold text-red-500">
+                                            <AlertCircle size={10} />
+                                            {materialsWithoutPrice}
+                                        </div>
+                                    )}
+                                </TabsTrigger>
+                                <TabsTrigger value="overzicht" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <Euro size={16} />
+                                    Overzicht
+                                </TabsTrigger>
+                                <TabsTrigger value="nacalculatie" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <ClipboardList size={16} />
+                                    Nacalculatie
+                                </TabsTrigger>
+                                <TabsTrigger value="tekeningen" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <PenTool size={16} />
+                                    Tekeningen
+                                </TabsTrigger>
+                                <TabsTrigger value="pdf" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <FileText size={16} />
+                                    PDF
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="werkbeschrijving"
+                                    className={cn(
+                                        "items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground",
                                         showWerkbeschrijvingWarning && "text-red-400 data-[state=active]:text-red-400"
                                     )}
                                 >
                                     <ClipboardList size={16} />
-                                    {showWerkbeschrijvingWarning && <AlertCircle size={10} className="text-red-500" />}
-                                    <span className="hidden sm:inline">Werkbeschrijving</span>
+                                    Werkbeschrijving
+                                    {showWerkbeschrijvingWarning && <AlertCircle size={12} className="text-red-500" />}
                                 </TabsTrigger>
-                                <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                <TabsTrigger value="notities" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <MessageSquare size={16} />
-                                    <span className="hidden sm:inline">Notities</span>
+                                    Notities
                                 </TabsTrigger>
                             </TabsList>
+                        </div>
 
                             <Dialog open={isPdfSettingsOpen} onOpenChange={(open) => {
                                 setIsPdfSettingsOpen(open);
@@ -4648,6 +4740,113 @@ export default function QuotePage() {
                             </div>
                         )}
                     </Tabs>
+
+                    <Sheet open={isMobileMoreActionsOpen} onOpenChange={setIsMobileMoreActionsOpen}>
+                        <SheetContent side="bottom" className="rounded-t-2xl border-border bg-background sm:hidden">
+                            <SheetHeader>
+                                <SheetTitle>Meer acties</SheetTitle>
+                            </SheetHeader>
+                            <div className="grid gap-2 py-4">
+                                <Button
+                                    variant="outline"
+                                    className="h-11 justify-start gap-2"
+                                    onClick={() => {
+                                        setIsMobileMoreActionsOpen(false);
+                                        void handleDownloadPDF();
+                                    }}
+                                    disabled={!totals || loading || isGeneratingPDF}
+                                >
+                                    {isGeneratingPDF ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                    Download PDF
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="h-11 justify-start gap-2"
+                                    onClick={() => {
+                                        setIsMobileMoreActionsOpen(false);
+                                        router.push(`/offertes/${id}/overzicht`);
+                                    }}
+                                >
+                                    <PenTool className="h-4 w-4" />
+                                    Naar calculatie
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="h-11 justify-start gap-2"
+                                    onClick={() => {
+                                        setIsMobileMoreActionsOpen(false);
+                                        setIsPdfSettingsOpen(true);
+                                    }}
+                                >
+                                    <Settings className="h-4 w-4" />
+                                    PDF instellingen
+                                </Button>
+                            </div>
+                        </SheetContent>
+                    </Sheet>
+
+                    <Sheet open={isMobileMoreSectionsOpen} onOpenChange={setIsMobileMoreSectionsOpen}>
+                        <SheetContent side="bottom" className="rounded-t-2xl border-border bg-background sm:hidden">
+                            <SheetHeader>
+                                <SheetTitle>Meer onderdelen</SheetTitle>
+                            </SheetHeader>
+                            <div className="grid gap-2 py-4">
+                                <Button
+                                    variant={activeTab === 'nacalculatie' ? 'secondary' : 'outline'}
+                                    className="h-11 justify-start"
+                                    onClick={() => {
+                                        setActiveTab('nacalculatie');
+                                        setIsMobileMoreSectionsOpen(false);
+                                    }}
+                                >
+                                    Nacalculatie
+                                </Button>
+                                <Button
+                                    variant={activeTab === 'tekeningen' ? 'secondary' : 'outline'}
+                                    className="h-11 justify-start"
+                                    onClick={() => {
+                                        setActiveTab('tekeningen');
+                                        setIsMobileMoreSectionsOpen(false);
+                                    }}
+                                >
+                                    Tekeningen
+                                </Button>
+                                <Button
+                                    variant={activeTab === 'notities' ? 'secondary' : 'outline'}
+                                    className="h-11 justify-start"
+                                    onClick={() => {
+                                        setActiveTab('notities');
+                                        setIsMobileMoreSectionsOpen(false);
+                                    }}
+                                >
+                                    Notities
+                                </Button>
+                                <Button
+                                    variant={activeTab === 'algemene-voorwaarden' ? 'secondary' : 'outline'}
+                                    className="h-11 justify-start"
+                                    onClick={() => {
+                                        setActiveTab('algemene-voorwaarden');
+                                        setIsMobileMoreSectionsOpen(false);
+                                    }}
+                                >
+                                    Algemene voorwaarden
+                                </Button>
+                            </div>
+                        </SheetContent>
+                    </Sheet>
+                )}
+
+                {!error && !loading && activeTab !== 'materialen' && (
+                    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:hidden">
+                        <Button
+                            variant="success"
+                            className="h-12 w-full justify-center text-base font-semibold"
+                            onClick={() => setIsSendModalOpen(true)}
+                        >
+                            <Mail className="mr-2 h-4 w-4" />
+                            Versturen offerte
+                        </Button>
+                    </div>
                 )}
 
                 {isPdfFocusMode && (
