@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Timestamp, collection, doc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { Calendar, FileSignature, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Archive, FileSignature, Loader2, MoreHorizontal, Plus, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,7 +27,13 @@ import { useFirestore, useUser } from '@/firebase';
 import type { Meerwerkbon, MeerwerkbonStatus } from '@/lib/types';
 import { formatCurrency } from '@/lib/meerwerkbon-utils';
 import { MeerwerkbonStatusBadge } from '@/components/meerwerk/MeerwerkbonStatusBadge';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 type FilterMode = 'alle' | MeerwerkbonStatus;
@@ -154,35 +160,63 @@ export default function MeerwerkbonPage() {
     );
   }
 
+  const filterOptions: Array<{ value: FilterMode; label: string }> = [
+    { value: 'alle', label: 'Alle' },
+    { value: 'concept', label: 'Concept' },
+    { value: 'akkoord', label: 'Akkoord' },
+    { value: 'verzonden', label: 'Verzonden' },
+  ];
+
   return (
-    <div className="app-shell min-h-screen bg-background pb-36 md:pb-28">
+    <div className="app-shell min-h-screen bg-background">
       <AppNavigation />
       <DashboardHeader user={user} title="Meerwerkbon" />
 
       <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
-        <div className="w-full max-w-3xl space-y-6">
+        <div className="w-full max-w-5xl space-y-5">
           <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2">
-                <FileSignature className="h-5 w-5 text-amber-400" />
-                Overzicht
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-5">
               {error && (
                 <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
                   {error}
                 </div>
               )}
 
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Zoek op klant, bonnummer of offerte-id..."
-                  className="pl-9"
-                />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Zoek op klant, bonnummer of offerte-id..."
+                    className="pl-9"
+                  />
+                </div>
+                <Button asChild type="button" className="h-10 shrink-0 gap-2 px-4">
+                  <Link href="/meerwerkbon/nieuw">
+                    <Plus className="h-4 w-4" />
+                    Nieuwe meerwerkbon
+                  </Link>
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap gap-2.5">
+                {filterOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant={filter === option.value ? 'default' : 'ghost'}
+                    onClick={() => setFilter(option.value)}
+                    className={cn(
+                      'h-9 rounded-full px-4 transition-all duration-200',
+                      filter === option.value
+                        ? 'bg-amber-500 text-black hover:bg-amber-400'
+                        : 'border border-border/70 bg-transparent text-muted-foreground hover:border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-200'
+                    )}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -202,74 +236,95 @@ export default function MeerwerkbonPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {filtered.map((item) => (
                 <div
                   key={item.id}
                   className={cn(
-                    'group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-border bg-card/60 px-5 py-4 hover:bg-card hover:border-border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both',
+                    'group relative cursor-pointer rounded-xl border border-l-4 border-border/80 bg-card/75 px-4 py-3 shadow-sm transition-all duration-200 hover:bg-card hover:border-border hover:shadow-md active:scale-[0.998] sm:px-5',
                     getMeerwerkbonSideBorderClass(item.status)
                   )}
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => router.push(`/meerwerkbon/${item.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      router.push(`/meerwerkbon/${item.id}`);
+                    }
+                  }}
                 >
-                  <Link href={`/meerwerkbon/${item.id}`} className="absolute inset-0 z-0" />
-
-                  <div className="flex-1 min-w-0 z-10 pointer-events-none space-y-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-bold text-foreground truncate text-base transition-colors">
+                  <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1 pointer-events-none">
+                      <div className="truncate text-base font-semibold text-foreground sm:text-lg">
                         {item.clientSnapshot?.naam || 'Onbekende klant'}
-                      </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground shrink-0">
-                        {item.numbering?.label || item.id.slice(0, 8)}
-                      </span>
-                      <MeerwerkbonStatusBadge status={item.status} />
-                    </div>
-
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <span className="truncate max-w-[220px] text-muted-foreground font-medium">
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:text-sm">
+                        <span className="truncate">{item.numbering?.label || item.id.slice(0, 8)}</span>
+                        <span className="opacity-40">•</span>
+                        <span>{item.updatedAtDate ? format(item.updatedAtDate, 'd MMM yyyy', { locale: nl }) : '—'}</span>
+                        <span>
+                          <MeerwerkbonStatusBadge status={item.status} className="h-6 px-2.5 text-[11px]" />
+                        </span>
+                      </div>
+                      <div className="mt-1 truncate text-xs text-muted-foreground/90">
                         {(item.linkedQuoteIds || []).length} gekoppelde offerte(s)
-                      </span>
-                      <span className="opacity-20">•</span>
-                      <span className="flex items-center gap-1.5 transition-colors">
-                        <Calendar className="h-3.5 w-3.5 opacity-70" />
-                        {item.updatedAtDate ? format(item.updatedAtDate, 'd MMM yyyy', { locale: nl }) : '—'}
-                      </span>
-                      <span className="opacity-20">•</span>
-                      <span className="font-semibold tracking-wide text-emerald-600 dark:text-emerald-400">
+                      </div>
+                      <div className="mt-2 text-xl font-bold tabular-nums text-emerald-400 sm:hidden">
                         {formatCurrency(item.totals?.totaalInclBtw || 0)}
-                      </span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 z-20 opacity-100 sm:opacity-70 sm:group-hover:opacity-100 transition-opacity">
-                    <Button
-                      asChild
-                      variant="secondary"
-                      size="sm"
-                      className="gap-2 h-9 bg-muted/60 hover:bg-muted border border-border shadow-sm"
-                    >
-                      <Link href={`/meerwerkbon/${item.id}`}>
-                        <Pencil className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Openen</span>
-                      </Link>
-                    </Button>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 rounded-lg text-destructive transition-all hover:bg-destructive/10"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            openArchiveDialog(item);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Verwijderen</span>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Verwijderen</TooltipContent>
-                    </Tooltip>
+                    <div className="relative z-20 flex items-center gap-1.5 sm:gap-2">
+                      <div className="hidden min-w-[140px] text-right sm:block">
+                        <div className="text-2xl font-bold tabular-nums text-emerald-400">
+                          {formatCurrency(item.totals?.totaalInclBtw || 0)}
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="h-9 gap-2 border border-amber-400/40 bg-amber-500/25 text-amber-100 hover:bg-amber-500/35 hover:text-white"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          router.push(`/meerwerkbon/${item.id}`);
+                        }}
+                      >
+                        <FileSignature className="h-3.5 w-3.5" />
+                        Bekijk bon
+                      </Button>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0 rounded-lg border border-border/70 bg-background/40 hover:bg-muted/50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                            }}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Meer acties</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuLabel>Meerwerkbon acties</DropdownMenuLabel>
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              openArchiveDialog(item);
+                            }}
+                          >
+                            <Archive className="mr-2 h-4 w-4" />
+                            Archiveren
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -277,57 +332,6 @@ export default function MeerwerkbonPage() {
           )}
         </div>
       </main>
-
-      <div className="overview-sticky-footer fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),0px)] z-40 md:bottom-0">
-        <div className="mx-auto w-full max-w-3xl px-0 md:px-6">
-          <div className="rounded-t-2xl border-t border-border/70 bg-card/95 px-4 py-3 shadow-2xl backdrop-blur-md sm:rounded-2xl sm:border sm:p-2 sm:shadow-xl">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
-              <Button
-                asChild
-                variant="default"
-                className="h-10 shrink-0 gap-2 px-4"
-              >
-                <Link href="/meerwerkbon/nieuw">
-                  <Plus className="h-4 w-4" />
-                  Nieuwe meerwerkbon
-                </Link>
-              </Button>
-              <Button
-                type="button"
-                variant={filter === 'alle' ? 'outline' : 'ghost'}
-                onClick={() => setFilter('alle')}
-                className={cn('h-10 shrink-0', filter === 'alle' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
-              >
-                Alle
-              </Button>
-              <Button
-                type="button"
-                variant={filter === 'concept' ? 'outline' : 'ghost'}
-                onClick={() => setFilter('concept')}
-                className={cn('h-10 shrink-0', filter === 'concept' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
-              >
-                Concept
-              </Button>
-              <Button
-                type="button"
-                variant={filter === 'akkoord' ? 'outline' : 'ghost'}
-                onClick={() => setFilter('akkoord')}
-                className={cn('h-10 shrink-0', filter === 'akkoord' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
-              >
-                Akkoord
-              </Button>
-              <Button
-                type="button"
-                variant={filter === 'verzonden' ? 'outline' : 'ghost'}
-                onClick={() => setFilter('verzonden')}
-                className={cn('h-10 shrink-0', filter === 'verzonden' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200')}
-              >
-                Verzonden
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
         <AlertDialogContent className="rounded-2xl">

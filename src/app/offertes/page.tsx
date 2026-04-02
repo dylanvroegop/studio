@@ -131,67 +131,68 @@ function getTitel(q: QuoteRow): string {
   );
 }
 
-function getStatusMeta(
-  status: Quote['status'] | undefined,
-  isCalculated?: boolean
-): { label: string; className: string; sideBorderClass: string } {
-  const map: Record<string, { label: string; className: string; sideBorderClass: string }> = {
-    concept: {
-      label: 'Concept',
-      className: 'bg-muted text-foreground border-border',
-      sideBorderClass: 'border-l-zinc-500/70',
-    },
-    in_behandeling: isCalculated
-      ? {
-        label: 'Berekend',
-        className: 'bg-violet-500/15 text-violet-200 border-violet-500/30',
-        sideBorderClass: 'border-l-emerald-500',
-      }
-      : {
-        label: 'Berekenen',
-        className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30',
-        sideBorderClass: 'border-l-amber-500',
-      },
-    verzonden: {
-      label: 'Verstuurd',
-      className: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30',
-      sideBorderClass: 'border-l-blue-500',
-    },
-    geaccepteerd: {
-      label: 'Geaccepteerd',
-      className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-      sideBorderClass: 'border-l-emerald-500',
-    },
-    afgewezen: {
-      label: 'Afgewezen',
-      className: 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30',
-      sideBorderClass: 'border-l-red-500',
-    },
-    verlopen: {
-      label: 'Verlopen',
-      className: 'bg-muted text-muted-foreground border-border',
-      sideBorderClass: 'border-l-zinc-700',
-    },
-  };
+type OfferteStatusStyles = {
+  label: string;
+  badgeClass: string;
+  sideBorderClass: string;
+};
 
-  return map[status || 'concept'] || map.concept;
-}
-
-function getStatusBadgeClass(
+function getOfferteStatusStyles(
   status: Quote['status'] | undefined,
   isCalculated: boolean,
   isArchived: boolean
-): string {
-  if (isArchived) return 'bg-zinc-500/10 text-zinc-300 border-zinc-500/30';
-  if (status === 'geaccepteerd') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
-  if (status === 'afgewezen') return 'bg-red-500/15 text-red-300 border-red-500/30';
-  if (status === 'verzonden') return 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+): OfferteStatusStyles {
+  if (isArchived) {
+    return {
+      label: 'Archief',
+      badgeClass: 'bg-zinc-500/8 text-zinc-300/85 border-zinc-500/25',
+      sideBorderClass: 'border-l-zinc-600/55',
+    };
+  }
+
+  if (status === 'geaccepteerd') {
+    return {
+      label: 'Geaccepteerd',
+      badgeClass: 'bg-emerald-500/10 text-emerald-300/90 border-emerald-500/25',
+      sideBorderClass: 'border-l-emerald-400/70',
+    };
+  }
+
+  if (status === 'afgewezen') {
+    return {
+      label: 'Afgewezen',
+      badgeClass: 'bg-red-500/10 text-red-300/90 border-red-500/25',
+      sideBorderClass: 'border-l-red-400/70',
+    };
+  }
+
+  if (status === 'verzonden') {
+    return {
+      label: 'Verstuurd',
+      badgeClass: 'bg-blue-500/10 text-blue-300/90 border-blue-500/25',
+      sideBorderClass: 'border-l-blue-400/70',
+    };
+  }
+
   if (status === 'in_behandeling') {
     return isCalculated
-      ? 'bg-violet-500/15 text-violet-200 border-violet-500/30'
-      : 'bg-amber-500/15 text-amber-200 border-amber-500/30';
+      ? {
+        label: 'Berekend',
+        badgeClass: 'bg-violet-500/10 text-violet-200/90 border-violet-500/25',
+        sideBorderClass: 'border-l-violet-400/70',
+      }
+      : {
+        label: 'Berekenen',
+        badgeClass: 'bg-amber-500/10 text-amber-200/90 border-amber-500/25',
+        sideBorderClass: 'border-l-amber-400/70',
+      };
   }
-  return 'bg-zinc-500/10 text-zinc-300 border-zinc-500/30';
+
+  return {
+    label: 'Concept',
+    badgeClass: 'bg-zinc-500/8 text-zinc-300/90 border-zinc-500/25',
+    sideBorderClass: 'border-l-zinc-500/55',
+  };
 }
 
 function hasCalculatedAmount(value: unknown): value is number {
@@ -765,11 +766,59 @@ export default function OffertesPage() {
   return (
     <div className="app-shell min-h-screen bg-background">
       <AppNavigation />
-      <DashboardHeader user={user} title="Offertes" />
+      <div className="hidden sm:block">
+        <DashboardHeader user={user} title="Offertes" />
+      </div>
 
-      <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
+      <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
         <div className="w-full max-w-5xl space-y-5">
-          <Card>
+          <div className="sm:hidden space-y-3">
+            <div className="flex items-center justify-between px-1 pt-1">
+              <h1 className="text-xl font-semibold text-foreground">Offertes</h1>
+              <div className="h-8 w-8 rounded-full border border-border/80 bg-card/70 text-xs font-medium text-muted-foreground flex items-center justify-center">
+                {((user?.displayName || user?.email || 'U').trim().charAt(0) || 'U').toUpperCase()}
+              </div>
+            </div>
+
+            {error && (
+              <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+                {error}
+              </div>
+            )}
+
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Zoek op klant, offertennummer of titel..."
+                className="h-11 rounded-xl pl-10"
+              />
+            </div>
+
+            <div className="-mx-1 overflow-x-auto pb-1">
+              <div className="flex w-max items-center gap-2 px-1">
+                {filterOptions.map((option) => (
+                  <Button
+                    key={`mobile-${option.value}`}
+                    type="button"
+                    variant={filter === option.value ? 'default' : 'ghost'}
+                    onClick={() => setFilter(option.value)}
+                    className={cn(
+                      'h-9 rounded-full px-4 transition-all duration-200 active:scale-[0.98]',
+                      filter === option.value
+                        ? 'bg-cyan-500/90 text-black hover:bg-cyan-400'
+                        : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
+                    )}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <Card className="hidden sm:block">
             <CardContent className="space-y-4 pt-5">
               {error && (
                 <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
@@ -790,7 +839,7 @@ export default function OffertesPage() {
 
                 <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                   <DialogTrigger asChild>
-                    <Button type="button" className="h-10 shrink-0 gap-2 px-4">
+                    <Button type="button" className="h-10 shrink-0 gap-2 px-4 hidden sm:inline-flex">
                       <Plus className="h-4 w-4" />
                       Nieuwe offerte
                     </Button>
@@ -866,10 +915,10 @@ export default function OffertesPage() {
                     variant={filter === option.value ? 'default' : 'ghost'}
                     onClick={() => setFilter(option.value)}
                     className={cn(
-                      'h-9 rounded-full px-4 transition-all duration-200',
+                      'h-9 rounded-full px-4 transition-all duration-200 active:scale-[0.98]',
                       filter === option.value
-                        ? 'bg-cyan-500 text-black hover:bg-cyan-400'
-                        : 'border border-border/70 bg-transparent text-muted-foreground hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-200'
+                        ? 'bg-cyan-500/90 text-black hover:bg-cyan-400'
+                        : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
                     )}
                   >
                     {option.label}
@@ -905,27 +954,178 @@ export default function OffertesPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
+            <>
+            <div className="space-y-3 sm:hidden">
               {filteredQuotes.map((q) => {
                 const totaal = q.totaalbedrag || q.amount || 0;
                 const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
                 const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
-                const statusMeta = getStatusMeta(effectiveStatus, hasCalculated);
                 const datum = q.updatedAtDate ?? q.createdAtDate;
                 const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
                 const klant = getKlantNaam(q);
                 const isArchived = !!q.archived;
                 const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
                 const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
-                const statusLabel = isArchived ? 'Archief' : statusMeta.label;
-                const statusBadgeClass = getStatusBadgeClass(effectiveStatus, hasCalculated, isArchived);
+                const statusStyles = getOfferteStatusStyles(effectiveStatus, hasCalculated, isArchived);
+                const showUncalculatedPlaceholder = !hasCalculated && (effectiveStatus === 'in_behandeling' || effectiveStatus === 'concept');
+                const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
 
                 return (
                   <div
-                    key={q.id}
+                    key={`mobile-${q.id}`}
                     className={cn(
-                      'group relative cursor-pointer rounded-xl border border-l-4 border-border/80 bg-card/75 px-4 py-3 shadow-sm transition-all duration-200 hover:bg-card hover:border-border hover:shadow-md active:scale-[0.998] sm:px-5',
-                      statusMeta.sideBorderClass
+                      'group relative cursor-pointer rounded-xl border border-l-[3px] border-border/80 bg-card/75 px-4 py-3.5 shadow-sm transition-all duration-150 active:scale-[0.995]',
+                      statusStyles.sideBorderClass
+                    )}
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => router.push(`/offertes/${q.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        router.push(`/offertes/${q.id}`);
+                      }
+                    }}
+                  >
+                    <div className="relative z-10 space-y-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="truncate text-base font-bold text-foreground">{klant}</div>
+                        <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium', statusStyles.badgeClass)}>
+                          {statusStyles.label}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground/70">
+                        <span className="truncate">{nrLabel}</span>
+                        <span className="opacity-40">•</span>
+                        <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-2">
+                        <div className={cn('text-xl font-bold tabular-nums', showUncalculatedPlaceholder ? 'text-muted-foreground/75' : 'text-emerald-400')}>
+                          {amountLabel}
+                        </div>
+                        <div className="relative z-20 flex items-center gap-1">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-9 gap-2 border border-cyan-400/40 bg-cyan-500/28 px-3 text-cyan-50 shadow-sm transition-all duration-150 hover:bg-cyan-500/38 active:scale-[0.98]"
+                            aria-label="Open offerte"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              router.push(`/offertes/${q.id}`);
+                            }}
+                          >
+                            Bekijk
+                          </Button>
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9 shrink-0 rounded-lg border border-border/70 bg-background/40 transition-all duration-150 hover:bg-muted/50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                }}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Meer acties</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenuLabel>Offerte acties</DropdownMenuLabel>
+                              <DropdownMenuItem
+                                disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                  void setQuoteDecisionStatus(q, 'geaccepteerd');
+                                }}
+                              >
+                                Status: Geaccepteerd
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                  void setQuoteDecisionStatus(q, 'afgewezen');
+                                }}
+                              >
+                                Status: Afgewezen
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                  void setQuoteDecisionStatus(q, 'concept');
+                                }}
+                              >
+                                Status: Concept
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              {isArchived ? (
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    void restoreQuote(q);
+                                  }}
+                                >
+                                  <RotateCcw className="mr-2 h-4 w-4" />
+                                  Herstellen
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    openArchiveDialog(q);
+                                  }}
+                                >
+                                  <Archive className="mr-2 h-4 w-4" />
+                                  Archiveren
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden space-y-2 sm:block">
+              {filteredQuotes.map((q) => {
+                const totaal = q.totaalbedrag || q.amount || 0;
+                const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
+                const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
+                const datum = q.updatedAtDate ?? q.createdAtDate;
+                const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
+                const klant = getKlantNaam(q);
+                const isArchived = !!q.archived;
+                const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
+                const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
+                const statusStyles = getOfferteStatusStyles(effectiveStatus, hasCalculated, isArchived);
+                const showUncalculatedPlaceholder = !hasCalculated && (effectiveStatus === 'in_behandeling' || effectiveStatus === 'concept');
+                const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
+                const amountClass = cn(
+                  'text-2xl font-bold tabular-nums',
+                  showUncalculatedPlaceholder ? 'text-muted-foreground/75' : 'text-emerald-400'
+                );
+                const amountMobileClass = cn(
+                  'mt-2 text-xl font-bold tabular-nums',
+                  showUncalculatedPlaceholder ? 'text-muted-foreground/75' : 'text-emerald-400'
+                );
+
+                return (
+                  <div
+                    key={`desktop-${q.id}`}
+                    className={cn(
+                      'group relative cursor-pointer rounded-xl border border-l-[3px] border-border/80 bg-card/75 px-4 py-3 shadow-sm transition-all duration-150 hover:bg-card/90 hover:border-border hover:shadow-md active:scale-[0.997] sm:px-5',
+                      statusStyles.sideBorderClass
                     )}
                     role="link"
                     tabIndex={0}
@@ -939,32 +1139,34 @@ export default function OffertesPage() {
                   >
                     <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0 flex-1 pointer-events-none">
-                        <div className="truncate text-base font-semibold text-foreground sm:text-lg">{klant}</div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:text-sm">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div className="truncate text-base font-bold text-foreground sm:text-lg">{klant}</div>
+                          <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium', statusStyles.badgeClass)}>
+                            {statusStyles.label}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground/70 sm:text-sm">
                           <span className="truncate">{nrLabel}</span>
                           <span className="opacity-40">•</span>
                           <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
-                          <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium', statusBadgeClass)}>
-                            {statusLabel}
-                          </span>
                         </div>
                         {getTitel(q) !== '—' && (
                           <div className="mt-1 truncate text-xs text-muted-foreground/90">{getTitel(q)}</div>
                         )}
-                        <div className="mt-2 text-xl font-bold tabular-nums text-emerald-400 sm:hidden">
-                          {formatCurrency(totaal)}
+                        <div className={cn('sm:hidden', amountMobileClass)}>
+                          {amountLabel}
                         </div>
                       </div>
 
-                      <div className="relative z-20 flex items-center gap-1.5 sm:gap-2">
+                      <div className="relative z-20 flex items-center gap-1 sm:gap-1">
                         <div className="hidden min-w-[140px] text-right sm:block">
-                          <div className="text-2xl font-bold tabular-nums text-emerald-400">{formatCurrency(totaal)}</div>
+                          <div className={amountClass}>{amountLabel}</div>
                         </div>
 
                         <Button
                           variant="default"
                           size="sm"
-                          className="h-9 gap-2 border border-cyan-400/40 bg-cyan-500/25 text-cyan-100 hover:bg-cyan-500/35 hover:text-white"
+                          className="h-9 gap-2 border border-cyan-400/40 bg-cyan-500/28 text-cyan-50 shadow-sm transition-all duration-150 hover:bg-cyan-500/38 active:scale-[0.98]"
                           aria-label="Open offerte"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -981,7 +1183,7 @@ export default function OffertesPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-9 w-9 shrink-0 rounded-lg border border-border/70 bg-background/40 hover:bg-muted/50"
+                              className="h-9 w-9 shrink-0 rounded-lg border border-border/70 bg-background/40 transition-all duration-150 hover:bg-muted/50"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
@@ -1053,9 +1255,19 @@ export default function OffertesPage() {
                 );
               })}
             </div>
+            </>
           )}
         </div>
       </main>
+
+      <Button
+        type="button"
+        className="fixed bottom-5 right-4 z-40 h-12 gap-2 rounded-full px-4 shadow-lg shadow-cyan-900/30 sm:hidden"
+        onClick={() => setCreateOpen(true)}
+      >
+        <Plus className="h-4 w-4" />
+        Nieuwe offerte
+      </Button>
 
       <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
           <AlertDialogContent className="rounded-2xl">
