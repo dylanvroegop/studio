@@ -3548,31 +3548,22 @@ export default function QuotePage() {
                 ) : (
                     <>
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                        <div className="sm:hidden space-y-2 rounded-xl border border-border bg-card p-2">
-                            <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto bg-transparent p-0">
-                                <TabsTrigger value="overzicht" className="h-11 shrink-0 px-4 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                        <div className="sm:hidden space-y-1.5 rounded-xl border border-border bg-card p-2">
+                            <TabsList className="h-auto w-full justify-between gap-1 bg-transparent p-0">
+                                <TabsTrigger value="overzicht" className="h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     Overzicht
                                 </TabsTrigger>
-                                <TabsTrigger value="materialen" className="h-11 shrink-0 px-4 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                <TabsTrigger value="materialen" className="h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     Materialen
                                 </TabsTrigger>
-                                <TabsTrigger
-                                    value="werkbeschrijving"
-                                    className={cn(
-                                        "h-11 shrink-0 px-4 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground",
-                                        showWerkbeschrijvingWarning && "text-red-400 data-[state=active]:text-red-400"
-                                    )}
-                                >
-                                    Werkbeschrijving
-                                </TabsTrigger>
-                                <TabsTrigger value="pdf" className="h-11 shrink-0 px-4 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                <TabsTrigger value="pdf" className="h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     PDF
                                 </TabsTrigger>
                             </TabsList>
                             <Button
                                 type="button"
                                 variant={isSecondarySectionActive ? 'secondary' : 'outline'}
-                                className="h-11 w-full justify-between px-4"
+                                className="h-9 w-full justify-between px-3 text-sm"
                                 onClick={() => setIsMobileMoreSectionsOpen(true)}
                             >
                                 <span>Meer</span>
@@ -4691,9 +4682,9 @@ export default function QuotePage() {
 
                         {activeTab === 'materialen' && !!calculation?.data_json && (
                             <div className="quote-materials-sticky-footer mobile-calm-pane fixed bottom-0 left-0 right-0 z-30 border border-border/80 bg-background/95 backdrop-blur-sm md:bottom-0">
-                                <div className="mx-auto max-w-7xl px-4 py-2 sm:px-6">
-                                    <div className="mobile-calm-card rounded-xl border border-border/70 bg-card/90 px-4 py-2 shadow-lg">
-                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                                <div className="mx-auto max-w-7xl px-3 py-1.5 sm:px-6 sm:py-2">
+                                    <div className="mobile-calm-card rounded-xl border border-border/70 bg-card/90 px-3 py-1.5 shadow-lg sm:px-4 sm:py-2">
+                                        <div className="hidden sm:flex sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                                             <Button
                                                 variant="outline"
                                                 onClick={() => setIsMaterialExportOpen(true)}
@@ -4727,6 +4718,27 @@ export default function QuotePage() {
                                                     <span className="text-primary font-bold tracking-tight">
                                                         {formatCurrency(footerQuoteTotalIncl)}
                                                     </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2 sm:hidden">
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => setIsMaterialExportOpen(true)}
+                                                disabled={materialExportItems.length === 0}
+                                                className="h-8 gap-1.5 px-2.5 text-[11px]"
+                                            >
+                                                <Share2 className="h-3.5 w-3.5" />
+                                                Delen
+                                            </Button>
+                                            <div className="grid grid-cols-2 gap-3 text-right">
+                                                <div className="leading-tight">
+                                                    <div className="text-[10px] uppercase text-zinc-400 font-medium">Excl.</div>
+                                                    <div className="text-sm font-bold text-primary">{formatCurrency(footerQuoteTotalExcl)}</div>
+                                                </div>
+                                                <div className="leading-tight">
+                                                    <div className="text-[10px] uppercase text-zinc-400 font-medium">Incl.</div>
+                                                    <div className="text-sm font-bold text-primary">{formatCurrency(footerQuoteTotalIncl)}</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -4786,6 +4798,17 @@ export default function QuotePage() {
                                 <SheetTitle>Meer onderdelen</SheetTitle>
                             </SheetHeader>
                             <div className="grid gap-2 py-4">
+                                <Button
+                                    variant={activeTab === 'werkbeschrijving' ? 'secondary' : 'outline'}
+                                    className={cn('h-11 justify-start', showWerkbeschrijvingWarning && 'text-red-400')}
+                                    onClick={() => {
+                                        setActiveTab('werkbeschrijving');
+                                        setIsMobileMoreSectionsOpen(false);
+                                    }}
+                                >
+                                    Werkbeschrijving
+                                    {showWerkbeschrijvingWarning && <AlertCircle size={12} className="ml-2 text-red-500" />}
+                                </Button>
                                 <Button
                                     variant={activeTab === 'nacalculatie' ? 'secondary' : 'outline'}
                                     className="h-11 justify-start"
