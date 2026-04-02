@@ -1807,11 +1807,9 @@ export default function QuotePage() {
         });
     };
 
-    const handleUpdateWinstMargeAmountIncl = async (amountIncl: number) => {
+    const handleUpdateWinstMargeAmountExcl = async (amountExcl: number) => {
         if (!quoteSettings) return;
-        const safeIncl = Math.max(0, Number(amountIncl) || 0);
-        const btwFactor = 1 + ((quoteSettings.btwTarief || 21) / 100);
-        const exclAmount = roundMoney(safeIncl / btwFactor);
+        const safeExcl = roundMoney(Math.max(0, Number(amountExcl) || 0));
         await handleUpdateSettings({
             ...quoteSettings,
             extras: {
@@ -1819,7 +1817,7 @@ export default function QuotePage() {
                 winstMarge: {
                     ...quoteSettings.extras.winstMarge,
                     mode: 'fixed',
-                    fixedAmount: exclAmount,
+                    fixedAmount: safeExcl,
                 },
             },
         });
@@ -3351,24 +3349,22 @@ export default function QuotePage() {
     const routeDestinationAddress = useMemo(() => {
         if (!klantInfo) return '';
         const projectAdres = klantInfo.afwijkendProjectadres ? klantInfo.projectAdres : undefined;
-        const preferred = projectAdres && hasMinimalAddress(projectAdres)
+        const preferredAddress = projectAdres && hasMinimalAddress(projectAdres)
             ? projectAdres
             : hasMinimalAddress(klantInfo)
                 ? klantInfo
                 : null;
-        if (!preferred) return '';
-        return buildAddressString(preferred);
+        return preferredAddress ? buildAddressString(preferredAddress) : '';
     }, [klantInfo]);
 
-    const routeMapsUrl = useMemo(
-        () => (routeDestinationAddress ? buildGoogleMapsDirectionsUrl(routeDestinationAddress) : ''),
-        [routeDestinationAddress],
-    );
+    const routeMapsUrl = useMemo(() => {
+        return routeDestinationAddress
+            ? buildGoogleMapsDirectionsUrl(routeDestinationAddress)
+            : '';
+    }, [routeDestinationAddress]);
 
-    const isSecondarySectionActive = useMemo(
-        () => ['nacalculatie', 'tekeningen', 'notities', 'algemene-voorwaarden'].includes(activeTab),
-        [activeTab],
-    );
+    const secondaryTabs = ['nacalculatie', 'tekeningen', 'notities', 'algemene-voorwaarden'];
+    const isSecondarySectionActive = secondaryTabs.includes(activeTab);
 
     return (
         <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
@@ -3550,6 +3546,7 @@ export default function QuotePage() {
                         </Button>
                     </div>
                 ) : (
+                    <>
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                         <div className="sm:hidden space-y-2 rounded-xl border border-border bg-card p-2">
                             <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto bg-transparent p-0">
@@ -4039,7 +4036,6 @@ export default function QuotePage() {
                                         </div>
                                 </DialogContent>
                             </Dialog>
-                        </div>
 
                         {/* Overzicht Tab */}
                         <TabsContent value="overzicht" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -4089,97 +4085,10 @@ export default function QuotePage() {
                                                 onUpdateMaterialenSubtotal={handleUpdateMaterialenSubtotal}
                                                 onUpdateTransportTotal={handleUpdateTransportTotal}
                                                 onUpdateWinstMargePercentage={handleUpdateWinstMargePercentage}
-                                                onUpdateWinstMargeAmountIncl={handleUpdateWinstMargeAmountIncl}
+                                                onUpdateWinstMargeAmountExcl={handleUpdateWinstMargeAmountExcl}
                                             />
                                         </div>
                                     </div>
-
-                                    {/* Facturatie (Voorschot) */}
-                                    {totals && (
-                                        <Card className="border border-border bg-card/50">
-                                            <CardHeader className="pb-3">
-                                                <CardTitle className="text-base">Facturatie</CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="space-y-4">
-                                                <div className="flex items-center justify-between gap-4">
-                                                    <div className="space-y-1">
-                                                        <div className="font-medium text-foreground">Voorschot gebruiken</div>
-                                                        <div className="text-sm text-muted-foreground">
-                                                            Gebruik een voorschotpercentage voor de eindfactuur.
-                                                        </div>
-                                                    </div>
-                                                    <Switch
-                                                        checked={voorschotIngeschakeld}
-                                                        onCheckedChange={(checked) => {
-                                                            const wasOn = voorschotIngeschakeld;
-                                                            setVoorschotIngeschakeld(checked);
-                                                            if (checked && !wasOn) {
-                                                                const defaultPct = Number(userProfile?.settings?.standaardVoorschotPercentage);
-                                                                if (Number.isFinite(defaultPct)) {
-                                                                    setVoorschotPercentage(defaultPct);
-                                                                }
-                                                            }
-                                                        }}
-                                                    />
-                                                </div>
-
-                                                <div className="grid gap-4 md:grid-cols-3">
-                                                    <div className="space-y-2">
-                                                        <Label>Voorschot (%)</Label>
-                                                        <div className="relative">
-                                                            <input
-                                                                type="number"
-                                                                min={0}
-                                                                max={100}
-                                                                value={voorschotPercentage}
-                                                                onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
-                                                                onKeyDown={(e) => {
-                                                                    if (['e', 'E', '+', '-'].includes(e.key)) {
-                                                                        e.preventDefault();
-                                                                    }
-                                                                }}
-                                                                onPaste={(e) => {
-                                                                    if (/[eE+-]/.test(e.clipboardData.getData('text'))) {
-                                                                        e.preventDefault();
-                                                                    }
-                                                                }}
-                                                                disabled={!voorschotIngeschakeld}
-                                                                className="w-full h-10 rounded-md border border-border bg-background px-3 pr-8 text-sm disabled:opacity-60"
-                                                            />
-                                                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="space-y-2 md:col-span-2">
-                                                        <Label>Preview (incl. BTW)</Label>
-                                                        <div className="h-10 rounded-md border border-border bg-background px-3 flex items-center justify-between">
-                                                            <span className="text-sm text-muted-foreground">Voorschotbedrag</span>
-                                                            <span className="text-sm font-semibold text-foreground">
-                                                                {formatCurrency(
-                                                                    Math.round((totals.totaalInclBtw * (Math.max(0, Math.min(100, voorschotPercentage)) / 100)) * 100) / 100
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-                                                    Onder voorbehoud instellen? Gebruik <span className="font-medium text-foreground">PDF Instellingen</span> in de tab <span className="font-medium text-foreground">PDF Preview</span>.
-                                                </div>
-
-                                                <div className="flex flex-wrap gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        onClick={() => existingVoorschotInvoiceId && router.push(`/facturen/${existingVoorschotInvoiceId}`)}
-                                                        disabled={!existingVoorschotInvoiceId}
-                                                    >
-                                                        Open voorschotfactuur
-                                                    </Button>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    )}
 
                                 </div>
                             )}
@@ -4548,6 +4457,92 @@ export default function QuotePage() {
                                 </Button>
                             </div>
 
+                            {totals && (
+                                <Card className="border border-border bg-card/50">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-base">Facturatie</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="space-y-1">
+                                                <div className="font-medium text-foreground">Voorschot gebruiken</div>
+                                                <div className="text-sm text-muted-foreground">
+                                                    Gebruik een voorschotpercentage voor de eindfactuur.
+                                                </div>
+                                            </div>
+                                            <Switch
+                                                checked={voorschotIngeschakeld}
+                                                onCheckedChange={(checked) => {
+                                                    const wasOn = voorschotIngeschakeld;
+                                                    setVoorschotIngeschakeld(checked);
+                                                    if (checked && !wasOn) {
+                                                        const defaultPct = Number(userProfile?.settings?.standaardVoorschotPercentage);
+                                                        if (Number.isFinite(defaultPct)) {
+                                                            setVoorschotPercentage(defaultPct);
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+
+                                        <div className="grid gap-4 md:grid-cols-3">
+                                            <div className="space-y-2">
+                                                <Label>Voorschot (%)</Label>
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        max={100}
+                                                        value={voorschotPercentage}
+                                                        onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
+                                                        onKeyDown={(e) => {
+                                                            if (['e', 'E', '+', '-'].includes(e.key)) {
+                                                                e.preventDefault();
+                                                            }
+                                                        }}
+                                                        onPaste={(e) => {
+                                                            if (/[eE+-]/.test(e.clipboardData.getData('text'))) {
+                                                                e.preventDefault();
+                                                            }
+                                                        }}
+                                                        disabled={!voorschotIngeschakeld}
+                                                        className="w-full h-10 rounded-md border border-border bg-background px-3 pr-8 text-sm disabled:opacity-60"
+                                                    />
+                                                    <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2 md:col-span-2">
+                                                <Label>Preview (incl. BTW)</Label>
+                                                <div className="h-10 rounded-md border border-border bg-background px-3 flex items-center justify-between">
+                                                    <span className="text-sm text-muted-foreground">Voorschotbedrag</span>
+                                                    <span className="text-sm font-semibold text-foreground">
+                                                        {formatCurrency(
+                                                            Math.round((totals.totaalInclBtw * (Math.max(0, Math.min(100, voorschotPercentage)) / 100)) * 100) / 100
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+                                            Onder voorbehoud instellen? Gebruik <span className="font-medium text-foreground">PDF Instellingen</span> in de tab <span className="font-medium text-foreground">PDF Preview</span>.
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => existingVoorschotInvoiceId && router.push(`/facturen/${existingVoorschotInvoiceId}`)}
+                                                disabled={!existingVoorschotInvoiceId}
+                                            >
+                                                Open voorschotfactuur
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+
                             {loading ? (
                                 <LoadingPanel />
                             ) : !isDrawingsReady ? (
@@ -4834,6 +4829,7 @@ export default function QuotePage() {
                             </div>
                         </SheetContent>
                     </Sheet>
+                    </>
                 )}
 
                 {!error && !loading && activeTab !== 'materialen' && (

@@ -14,7 +14,7 @@ interface CostSummaryCardProps {
     onUpdateMaterialenSubtotal?: (value: number) => void;
     onUpdateTransportTotal?: (value: number) => void;
     onUpdateWinstMargePercentage?: (value: number) => void;
-    onUpdateWinstMargeAmountIncl?: (value: number) => void;
+    onUpdateWinstMargeAmountExcl?: (value: number) => void;
 }
 
 import { useState, type FocusEvent } from 'react';
@@ -32,7 +32,7 @@ export function CostSummaryCard({
     onUpdateMaterialenSubtotal,
     onUpdateTransportTotal,
     onUpdateWinstMargePercentage,
-    onUpdateWinstMargeAmountIncl,
+    onUpdateWinstMargeAmountExcl,
 }: CostSummaryCardProps) {
     const [isEditingRate, setIsEditingRate] = useState(false);
     const [tempRate, setTempRate] = useState<string>('');
@@ -122,8 +122,8 @@ export function CostSummaryCard({
             onUpdateTransportTotal(parsed);
         } else if (editingField === 'margePct' && onUpdateWinstMargePercentage) {
             onUpdateWinstMargePercentage(parsed);
-        } else if (editingField === 'margeAmount' && onUpdateWinstMargeAmountIncl) {
-            onUpdateWinstMargeAmountIncl(parsed);
+        } else if (editingField === 'margeAmount' && onUpdateWinstMargeAmountExcl) {
+            onUpdateWinstMargeAmountExcl(parsed);
         }
 
         cancelEditingAmount();
@@ -131,10 +131,9 @@ export function CostSummaryCard({
 
     const totalTravelMinutesPerKlus = totals ? totals.transportDurationPerDagMinutes * totals.transportAantalDagen : 0;
     const totalTravelHoursPerKlus = totalTravelMinutesPerKlus / 60;
-    const btwFactor = settings ? settings.btwTarief / 100 : 0;
     const totaalExclZonderMarge = totals ? totals.subtotaalExclBtw : 0;
-    const btwZonderMarge = totaalExclZonderMarge * btwFactor;
-    const winstMargeInclBtw = totals ? totals.winstMarge * (1 + btwFactor) : 0;
+    const winstMargeExclBtw = totals ? totals.winstMarge : 0;
+    const btwMetMarge = totals ? totals.btw : 0;
 
     if (!totals || !settings) {
         return (
@@ -353,10 +352,6 @@ export function CostSummaryCard({
                         <span className="text-foreground">{formatCurrency(totaalExclZonderMarge)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
-                        <span className="text-foreground">{formatCurrency(btwZonderMarge)}</span>
-                    </div>
-                    <div className="border-t border-border pt-2 flex justify-between text-sm">
                         <span className="text-muted-foreground">
                             {settings.extras.winstMarge.mode === 'percentage' ? (
                                 <>
@@ -411,12 +406,16 @@ export function CostSummaryCard({
                             <button
                                 type="button"
                                 className="text-foreground flex items-center gap-1 hover:text-primary transition-colors"
-                                onClick={() => startEditingAmount('margeAmount', winstMargeInclBtw)}
+                                onClick={() => startEditingAmount('margeAmount', winstMargeExclBtw)}
                             >
-                                {formatCurrency(winstMargeInclBtw)}
+                                {formatCurrency(winstMargeExclBtw)}
                                 <Pencil size={12} className="text-muted-foreground" />
                             </button>
                         )}
+                    </div>
+                    <div className="border-t border-border pt-2 flex justify-between text-sm">
+                        <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
+                        <span className="text-foreground">{formatCurrency(btwMetMarge)}</span>
                     </div>
                 </div>
 
