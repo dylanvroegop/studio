@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   collection,
@@ -17,14 +16,13 @@ import {
   where,
 } from 'firebase/firestore';
 import {
-  Calendar,
-  CheckCircle2,
+  Archive,
   FileText,
   Loader2,
+  MoreHorizontal,
   Plus,
+  RotateCcw,
   Search,
-  Trash2,
-  Undo2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -32,9 +30,17 @@ import { nl } from 'date-fns/locale';
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -44,7 +50,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFirestore, useUser } from '@/firebase';
 import { createEmptyQuote } from '@/lib/firestore-actions';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
@@ -52,7 +57,7 @@ import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-sta
 import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-type FilterMode = 'alle' | 'concept' | 'verzonden' | 'berekend' | 'archief';
+type FilterMode = 'alle' | 'concept' | 'verzonden' | 'geaccepteerd' | 'berekend' | 'archief';
 
 type QuoteRow = Quote & {
   id: string;
@@ -139,7 +144,7 @@ function getStatusMeta(
     in_behandeling: isCalculated
       ? {
         label: 'Berekend',
-        className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+        className: 'bg-violet-500/15 text-violet-200 border-violet-500/30',
         sideBorderClass: 'border-l-emerald-500',
       }
       : {
@@ -170,6 +175,23 @@ function getStatusMeta(
   };
 
   return map[status || 'concept'] || map.concept;
+}
+
+function getStatusBadgeClass(
+  status: Quote['status'] | undefined,
+  isCalculated: boolean,
+  isArchived: boolean
+): string {
+  if (isArchived) return 'bg-zinc-500/10 text-zinc-300 border-zinc-500/30';
+  if (status === 'geaccepteerd') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+  if (status === 'afgewezen') return 'bg-red-500/15 text-red-300 border-red-500/30';
+  if (status === 'verzonden') return 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+  if (status === 'in_behandeling') {
+    return isCalculated
+      ? 'bg-violet-500/15 text-violet-200 border-violet-500/30'
+      : 'bg-amber-500/15 text-amber-200 border-amber-500/30';
+  }
+  return 'bg-zinc-500/10 text-zinc-300 border-zinc-500/30';
 }
 
 function hasCalculatedAmount(value: unknown): value is number {
@@ -535,6 +557,7 @@ export default function OffertesPage() {
       result = result.filter((q) => !q.archived);
       if (filter === 'concept') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'concept');
       if (filter === 'verzonden') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden');
+      if (filter === 'geaccepteerd') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'geaccepteerd');
       if (filter === 'berekend') result = result.filter((q) => q.status === 'in_behandeling' && hasCalculatedAmount(q.totaalbedrag || q.amount || 0));
     }
 
@@ -730,280 +753,44 @@ export default function OffertesPage() {
     </div>
   );
 
+  const filterOptions: Array<{ value: FilterMode; label: string }> = [
+    { value: 'alle', label: 'Alle' },
+    { value: 'concept', label: 'Concept' },
+    { value: 'verzonden', label: 'Verzonden' },
+    { value: 'geaccepteerd', label: 'Geaccepteerd' },
+    { value: 'berekend', label: 'Berekend' },
+    { value: 'archief', label: 'Archief' },
+  ];
+
   return (
-    <TooltipProvider>
-      <div className="app-shell min-h-screen bg-background pb-36 md:pb-28">
-        <AppNavigation />
-        <DashboardHeader user={user} title="Offertes" />
+    <div className="app-shell min-h-screen bg-background">
+      <AppNavigation />
+      <DashboardHeader user={user} title="Offertes" />
 
-        <main className="flex flex-col items-center p-4 pb-16 md:px-6 md:pb-10 md:pt-6">
-          <div className="w-full max-w-5xl space-y-6">
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-cyan-400" />
-                  Overzicht
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {error && (
-                  <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-                    {error}
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Zoek op klant, offertenummer of titel..."
-                      className="pl-9"
-                    />
-                  </div>
-
+      <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
+        <div className="w-full max-w-5xl space-y-5">
+          <Card>
+            <CardContent className="space-y-4 pt-5">
+              {error && (
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+                  {error}
                 </div>
-              </CardContent>
-            </Card>
+              )}
 
-            {loading ? (
-              <Card>
-                <CardContent className="p-6">
-                  <LoadingListPanel />
-                </CardContent>
-              </Card>
-            ) : filteredQuotes.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center space-y-3">
-                  <div className="font-semibold">{filter === 'archief' ? 'Geen gearchiveerde offertes gevonden' : 'Geen offertes gevonden'}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {filter === 'archief' ? 'Archiveer een offerte om die hier te zien.' : 'Maak een nieuwe lege offerte om te starten.'}
-                  </div>
-                  {filter !== 'archief' && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="mt-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-200"
-                      onClick={() => setCreateOpen(true)}
-                    >
-                      Nieuwe offerte
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {filteredQuotes.map((q) => {
-                  const totaal = q.totaalbedrag || q.amount || 0;
-                  const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
-                  const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
-                  const statusMeta = getStatusMeta(effectiveStatus, hasCalculated);
-                  const datum = q.updatedAtDate ?? q.createdAtDate;
-                  const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : null;
-                  const klant = getKlantNaam(q);
-                  const isCalculating = effectiveStatus === 'in_behandeling' && !hasCalculated;
-                  const isArchived = !!q.archived;
-                  const isAccepted = effectiveStatus === 'geaccepteerd';
-                  const isRejected = effectiveStatus === 'afgewezen';
-                  const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
-                  const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Zoek op klant, offertenummer of titel..."
+                    className="pl-9"
+                  />
+                </div>
 
-                  return (
-                    <div
-                      key={q.id}
-                      className={cn(
-                        'group relative flex flex-col gap-3 rounded-xl border border-l-4 border-border bg-card/60 px-4 py-4 transition-all duration-300 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both hover:bg-card hover:border-border hover:shadow-lg sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:hover:-translate-y-0.5',
-                        statusMeta.sideBorderClass
-                      )}
-                    >
-                      <Link
-                        href={`/offertes/${q.id}`}
-                        aria-label={nrLabel ? `${nrLabel} openen voor ${klant}` : `Offerte openen voor ${klant}`}
-                        className="absolute inset-0 z-0"
-                      />
-
-                      <div className="z-10 min-w-0 flex-1 pointer-events-none space-y-1">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
-                          <span className="font-bold text-foreground truncate text-base transition-colors">
-                            {klant}
-                          </span>
-
-                          {nrLabel && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground shrink-0">
-                              {nrLabel}
-                            </span>
-                          )}
-
-                          <span
-                            className={cn(
-                              'text-[10px] font-semibold px-2 py-1 rounded-full border shrink-0 inline-flex items-center gap-1.5',
-                              statusMeta.className
-                            )}
-                          >
-                            {isCalculating && <Loader2 className="h-3 w-3 animate-spin" />}
-                            {statusMeta.label}
-                          </span>
-                          {isArchived && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200 shrink-0">
-                              Gearchiveerd
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground sm:gap-3 sm:text-sm">
-                          <span className="max-w-full truncate text-muted-foreground font-medium">
-                            {getTitel(q)}
-                          </span>
-                          <span className="hidden opacity-20 sm:inline">•</span>
-                          <span className="flex items-center gap-1.5 transition-colors">
-                            <Calendar className="h-3.5 w-3.5 opacity-70" />
-                            {datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}
-                          </span>
-                          <span className="hidden opacity-20 sm:inline">•</span>
-                          <span className={cn('font-semibold tracking-wide', totaal > 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-muted-foreground')}>
-                            {formatCurrency(totaal)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="z-20 flex w-full flex-wrap items-center gap-2 opacity-100 transition-opacity sm:w-[460px] sm:flex-nowrap sm:justify-end sm:opacity-70 sm:group-hover:opacity-100">
-                        <div className="flex w-full items-center gap-1.5 sm:w-auto">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant={isAccepted ? 'success' : 'outline'}
-                                size="sm"
-                                className={cn(
-                                  'h-9 w-full justify-center gap-2 sm:w-40',
-                                  !isAccepted && 'border-border bg-background/50 text-muted-foreground hover:bg-muted/30'
-                                )}
-                                disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
-                                  void setQuoteDecisionStatus(q, isAccepted ? 'concept' : 'geaccepteerd');
-                                }}
-                              >
-                                {isUpdatingAcceptance && isAccepted ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <CheckCircle2 className="h-3.5 w-3.5" />
-                                )}
-                                <span className="hidden sm:inline">Geaccepteerd</span>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {acceptedByInvoice
-                                ? 'Geaccepteerd via factuurstatus'
-                                : isAccepted
-                                  ? 'Maak geaccepteerd ongedaan'
-                                  : 'Markeer als geaccepteerd'}
-                            </TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant={isRejected ? 'destructiveSoft' : 'outline'}
-                                size="sm"
-                                className={cn(
-                                  'h-9 w-full justify-center gap-2 sm:w-40',
-                                  !isRejected && 'border-border bg-background/50 text-muted-foreground hover:bg-muted/30'
-                                )}
-                                disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
-                                  void setQuoteDecisionStatus(q, isRejected ? 'concept' : 'afgewezen');
-                                }}
-                              >
-                                {isUpdatingAcceptance && isRejected ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <CheckCircle2 className="h-3.5 w-3.5" />
-                                )}
-                                <span className="hidden sm:inline">Niet geaccepteerd</span>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {acceptedByInvoice
-                                ? 'Geaccepteerd via factuurstatus'
-                                : isRejected
-                                  ? 'Maak niet geaccepteerd ongedaan'
-                                  : 'Markeer als niet geaccepteerd'}
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-9 flex-1 gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-200 dark:hover:text-cyan-100 sm:flex-none"
-                              aria-label="Open offerte"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                router.push(`/offertes/${q.id}`);
-                              }}
-                            >
-                              <FileText className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">Offerte</span>
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Open de offerte</TooltipContent>
-                        </Tooltip>
-
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={cn(
-                                'h-9 w-9 shrink-0 rounded-lg transition-all',
-                                isArchived
-                                  ? 'text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-300 hover:bg-emerald-500/10'
-                                  : 'text-destructive hover:bg-destructive/10'
-                              )}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                if (isArchived) {
-                                  void restoreQuote(q);
-                                  return;
-                                }
-                                openArchiveDialog(q);
-                              }}
-                            >
-                              {isArchived ? <Undo2 className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
-                              <span className="sr-only">{isArchived ? 'Herstellen' : 'Verwijderen'}</span>
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>{isArchived ? 'Herstellen' : 'Verwijderen'}</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </main>
-
-        <div className="overview-sticky-footer fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),0px)] z-40 md:bottom-0">
-          <div className="mx-auto w-full px-0">
-            <div className="rounded-t-2xl border-t border-border/70 bg-card/95 px-4 py-3 shadow-2xl backdrop-blur-md sm:rounded-2xl sm:border sm:p-2 sm:shadow-xl">
-              <div className="flex w-full items-center justify-start gap-2 overflow-x-auto pb-1 sm:justify-center sm:overflow-visible sm:pb-0">
                 <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                   <DialogTrigger asChild>
-                    <Button
-                      type="button"
-                      className="h-10 shrink-0 gap-2 px-4"
-                    >
+                    <Button type="button" className="h-10 shrink-0 gap-2 px-4">
                       <Plus className="h-4 w-4" />
                       Nieuwe offerte
                     </Button>
@@ -1069,53 +856,208 @@ export default function OffertesPage() {
                     </div>
                   </DialogContent>
                 </Dialog>
-
-                <Button
-                  type="button"
-                  variant={filter === 'alle' ? 'outline' : 'ghost'}
-                  onClick={() => setFilter('alle')}
-                  className={cn('h-10 shrink-0', filter === 'alle' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
-                >
-                  Alle
-                </Button>
-                <Button
-                  type="button"
-                  variant={filter === 'concept' ? 'outline' : 'ghost'}
-                  onClick={() => setFilter('concept')}
-                  className={cn('h-10 shrink-0', filter === 'concept' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
-                >
-                  Concept
-                </Button>
-                <Button
-                  type="button"
-                  variant={filter === 'verzonden' ? 'outline' : 'ghost'}
-                  onClick={() => setFilter('verzonden')}
-                  className={cn('h-10 shrink-0', filter === 'verzonden' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
-                >
-                  Verzonden
-                </Button>
-                <Button
-                  type="button"
-                  variant={filter === 'berekend' ? 'outline' : 'ghost'}
-                  onClick={() => setFilter('berekend')}
-                  className={cn('h-10 shrink-0', filter === 'berekend' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
-                >
-                  Berekend
-                </Button>
-                <Button
-                  type="button"
-                  variant={filter === 'archief' ? 'outline' : 'ghost'}
-                  onClick={() => setFilter('archief')}
-                  className={cn('h-10 shrink-0', filter === 'archief' && 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200')}
-                >
-                  Archief
-                </Button>
               </div>
-            </div>
-          </div>
-        </div>
 
-        <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+              <div className="flex flex-wrap gap-2.5">
+                {filterOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant={filter === option.value ? 'default' : 'ghost'}
+                    onClick={() => setFilter(option.value)}
+                    className={cn(
+                      'h-9 rounded-full px-4 transition-all duration-200',
+                      filter === option.value
+                        ? 'bg-cyan-500 text-black hover:bg-cyan-400'
+                        : 'border border-border/70 bg-transparent text-muted-foreground hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-200'
+                    )}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {loading ? (
+            <Card>
+              <CardContent className="p-6">
+                <LoadingListPanel />
+              </CardContent>
+            </Card>
+          ) : filteredQuotes.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center space-y-3">
+                <div className="font-semibold">{filter === 'archief' ? 'Geen gearchiveerde offertes gevonden' : 'Geen offertes gevonden'}</div>
+                <div className="text-sm text-muted-foreground">
+                  {filter === 'archief' ? 'Archiveer een offerte om die hier te zien.' : 'Maak een nieuwe lege offerte om te starten.'}
+                </div>
+                {filter !== 'archief' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/20 dark:text-cyan-200"
+                    onClick={() => setCreateOpen(true)}
+                  >
+                    Nieuwe offerte
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {filteredQuotes.map((q) => {
+                const totaal = q.totaalbedrag || q.amount || 0;
+                const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
+                const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
+                const statusMeta = getStatusMeta(effectiveStatus, hasCalculated);
+                const datum = q.updatedAtDate ?? q.createdAtDate;
+                const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
+                const klant = getKlantNaam(q);
+                const isArchived = !!q.archived;
+                const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
+                const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
+                const statusLabel = isArchived ? 'Archief' : statusMeta.label;
+                const statusBadgeClass = getStatusBadgeClass(effectiveStatus, hasCalculated, isArchived);
+
+                return (
+                  <div
+                    key={q.id}
+                    className={cn(
+                      'group relative cursor-pointer rounded-xl border border-l-4 border-border/80 bg-card/75 px-4 py-3 shadow-sm transition-all duration-200 hover:bg-card hover:border-border hover:shadow-md active:scale-[0.998] sm:px-5',
+                      statusMeta.sideBorderClass
+                    )}
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => router.push(`/offertes/${q.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        router.push(`/offertes/${q.id}`);
+                      }
+                    }}
+                  >
+                    <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 flex-1 pointer-events-none">
+                        <div className="truncate text-base font-semibold text-foreground sm:text-lg">{klant}</div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:text-sm">
+                          <span className="truncate">{nrLabel}</span>
+                          <span className="opacity-40">•</span>
+                          <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
+                          <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium', statusBadgeClass)}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                        {getTitel(q) !== '—' && (
+                          <div className="mt-1 truncate text-xs text-muted-foreground/90">{getTitel(q)}</div>
+                        )}
+                        <div className="mt-2 text-xl font-bold tabular-nums text-emerald-400 sm:hidden">
+                          {formatCurrency(totaal)}
+                        </div>
+                      </div>
+
+                      <div className="relative z-20 flex items-center gap-1.5 sm:gap-2">
+                        <div className="hidden min-w-[140px] text-right sm:block">
+                          <div className="text-2xl font-bold tabular-nums text-emerald-400">{formatCurrency(totaal)}</div>
+                        </div>
+
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="h-9 gap-2 border border-cyan-400/40 bg-cyan-500/25 text-cyan-100 hover:bg-cyan-500/35 hover:text-white"
+                          aria-label="Open offerte"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            router.push(`/offertes/${q.id}`);
+                          }}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          Bekijk offerte
+                        </Button>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 shrink-0 rounded-lg border border-border/70 bg-background/40 hover:bg-muted/50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                              }}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Meer acties</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuLabel>Offerte acties</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                void setQuoteDecisionStatus(q, 'geaccepteerd');
+                              }}
+                            >
+                              Status: Geaccepteerd
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                void setQuoteDecisionStatus(q, 'afgewezen');
+                              }}
+                            >
+                              Status: Afgewezen
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                void setQuoteDecisionStatus(q, 'concept');
+                              }}
+                            >
+                              Status: Concept
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {isArchived ? (
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  void restoreQuote(q);
+                                }}
+                              >
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Herstellen
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  openArchiveDialog(q);
+                                }}
+                              >
+                                <Archive className="mr-2 h-4 w-4" />
+                                Archiveren
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </main>
+
+      <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
           <AlertDialogContent className="rounded-2xl">
             <AlertDialogHeader>
               <AlertDialogTitle>Offerte archiveren?</AlertDialogTitle>
@@ -1146,8 +1088,7 @@ export default function OffertesPage() {
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </TooltipProvider>
+      </AlertDialog>
+    </div>
   );
 }

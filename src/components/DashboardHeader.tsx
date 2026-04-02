@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   Boxes,
@@ -24,6 +24,53 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
+interface DashboardProfileCache {
+  logoUrl: string | null;
+  name: string;
+}
+
+const PROFILE_CACHE_PREFIX = 'dashboard-profile:';
+
+function getProfileCacheKey(userId: string): string {
+  return `${PROFILE_CACHE_PREFIX}${userId}`;
+}
+
+function readProfileCache(userId: string): DashboardProfileCache | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(getProfileCacheKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as DashboardProfileCache;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const logoUrl = typeof parsed.logoUrl === 'string' && parsed.logoUrl.trim().length > 0 ? parsed.logoUrl : null;
+    const name = typeof parsed.name === 'string' ? parsed.name : '';
+    return { logoUrl, name };
+  } catch {
+    return null;
+  }
+}
+
+function writeProfileCache(userId: string, cache: DashboardProfileCache): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(getProfileCacheKey(userId), JSON.stringify(cache));
+  } catch {
+    // Ignore localStorage failures.
+  }
+}
+
+function normalizeLogoUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function withRetryToken(url: string, retryCount: number): string {
+  if (retryCount <= 0) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}avatar_retry=${retryCount}`;
+}
+
 export function DashboardHeader({ user, title }: { user: User | null; title?: string }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -32,6 +79,8 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
   const firestore = useFirestore();
   const [profileLogoUrl, setProfileLogoUrl] = useState<string | null>(null);
   const [profileName, setProfileName] = useState<string>('');
+  const [avatarRetryCount, setAvatarRetryCount] = useState(0);
+  const latestResolvedLogoRef = useRef<string | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -40,11 +89,34 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
       if (!user || !firestore) {
         setProfileLogoUrl(null);
         setProfileName('');
+        latestResolvedLogoRef.current = null;
         return;
       }
 
+      const cachedProfile = readProfileCache(user.uid);
+      if (cachedProfile) {
+        setProfileLogoUrl(cachedProfile.logoUrl);
+        setProfileName(cachedProfile.name || user.displayName || '');
+        latestResolvedLogoRef.current = cachedProfile.logoUrl;
+      } else {
+        setProfileName(user.displayName || '');
+      }
+
       try {
-        const userSnap = await getDoc(doc(firestore, 'users', user.uid));
+        let userSnap: Awaited<ReturnType<typeof getDoc>> | null = null;
+        let lastError: unknown = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            userSnap = await getDoc(doc(firestore, 'users', user.uid));
+            break;
+          } catch (err) {
+            lastError = err;
+            if (attempt < 2) {
+              await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
+            }
+          }
+        }
+        if (!userSnap) throw lastError || new Error('Kon gebruikersprofiel niet laden');
         if (!userSnap.exists() || isCancelled) return;
 
         const data = userSnap.data() as {
@@ -56,12 +128,22 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
           logoUrl?: string;
         };
         const settings = data?.settings || {};
-        setProfileLogoUrl(settings.logoUrl || data.logoUrl || null);
-        setProfileName(settings.contactNaam || settings.bedrijfsnaam || user.displayName || '');
-      } catch (err) {
+        const resolvedLogo = normalizeLogoUrl(settings.logoUrl) || normalizeLogoUrl(data.logoUrl);
+        const resolvedName = settings.contactNaam || settings.bedrijfsnaam || user.displayName || '';
+        setProfileLogoUrl(resolvedLogo);
+        setProfileName(resolvedName);
+        latestResolvedLogoRef.current = resolvedLogo;
+        setAvatarRetryCount(0);
+        writeProfileCache(user.uid, {
+          logoUrl: resolvedLogo,
+          name: resolvedName,
+        });
+      } catch {
         if (!isCancelled) {
-          setProfileLogoUrl(null);
-          setProfileName(user?.displayName || '');
+          const fallbackCache = readProfileCache(user.uid);
+          setProfileLogoUrl(fallbackCache?.logoUrl || null);
+          setProfileName(fallbackCache?.name || user?.displayName || '');
+          latestResolvedLogoRef.current = fallbackCache?.logoUrl || null;
         }
       }
     };
@@ -76,6 +158,20 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
     const base = profileName || user?.displayName || user?.email || 'U';
     return base.trim().charAt(0).toUpperCase() || 'U';
   }, [profileName, user?.displayName, user?.email]);
+  const avatarSrc = useMemo(() => {
+    if (!profileLogoUrl) return null;
+    return withRetryToken(profileLogoUrl, avatarRetryCount);
+  }, [profileLogoUrl, avatarRetryCount]);
+
+  const handleAvatarImageError = () => {
+    const originalLogo = latestResolvedLogoRef.current || profileLogoUrl;
+    if (!originalLogo) return;
+    if (avatarRetryCount < 2) {
+      setAvatarRetryCount((prev) => prev + 1);
+      return;
+    }
+    setProfileLogoUrl(null);
+  };
   const titleIconMeta = useMemo(() => {
     if (pathname.startsWith('/dashboard')) {
       return {
@@ -204,8 +300,22 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
                 aria-label="Account menu"
               >
                 <Avatar className="h-9 w-9">
-                  {profileLogoUrl && <AvatarImage src={profileLogoUrl} alt="Gebruikerslogo" className="object-cover" />}
-                  <AvatarFallback className="bg-zinc-500 text-white font-semibold">
+                  {avatarSrc && (
+                    <AvatarImage
+                      src={avatarSrc}
+                      alt="Gebruikerslogo"
+                      className="object-cover"
+                      onLoadingStatusChange={(status) => {
+                        if (status === 'loaded') {
+                          setAvatarRetryCount(0);
+                        }
+                        if (status === 'error') {
+                          handleAvatarImageError();
+                        }
+                      }}
+                    />
+                  )}
+                  <AvatarFallback delayMs={500} className="bg-zinc-500 text-white font-semibold">
                     {fallbackInitial}
                   </AvatarFallback>
                 </Avatar>
