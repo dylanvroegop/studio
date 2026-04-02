@@ -579,16 +579,20 @@ export default function OffertesPage() {
     }
   }
 
-  async function handleCreateEmptyQuote(options?: { withSelectedClient?: boolean }): Promise<void> {
+  async function handleCreateEmptyQuote(options?: { withSelectedClient?: boolean; selectedClientId?: string }): Promise<void> {
     if (!user || !firestore || creatingQuoteRef.current) return;
     const withSelectedClient = !!options?.withSelectedClient;
+    const explicitSelectedClientId = options?.selectedClientId || null;
     creatingQuoteRef.current = true;
     setCreatingQuote(true);
     try {
       const quoteId = await createEmptyQuote(firestore, user.uid);
 
-      if (withSelectedClient && selectedClientId) {
-        const selectedClient = clients.find((client) => client.id === selectedClientId);
+      if (withSelectedClient) {
+        const clientIdToUse = explicitSelectedClientId || selectedClientId;
+        const selectedClient = clientIdToUse
+          ? clients.find((client) => client.id === clientIdToUse)
+          : null;
         if (selectedClient) {
           await updateDoc(doc(firestore, 'quotes', quoteId), {
             klantinformatie: toQuoteKlantinformatie(selectedClient),
@@ -637,7 +641,7 @@ export default function OffertesPage() {
 
   async function setQuoteDecisionStatus(
     quote: QuoteRow,
-    nextStatus: 'geaccepteerd' | 'afgewezen'
+    nextStatus: 'geaccepteerd' | 'afgewezen' | 'concept'
   ): Promise<void> {
     if (!firestore) return;
     setUpdatingAcceptanceQuoteId(quote.id);
@@ -658,7 +662,7 @@ export default function OffertesPage() {
   const handleSelectExistingClient = (clientId: string): void => {
     if (creatingQuoteRef.current) return;
     setSelectedClientId(clientId);
-    void handleCreateEmptyQuote({ withSelectedClient: true });
+    void handleCreateEmptyQuote({ withSelectedClient: true, selectedClientId: clientId });
   };
 
   function openArchiveDialog(quote: QuoteRow): void {
@@ -879,7 +883,7 @@ export default function OffertesPage() {
                                   e.stopPropagation();
                                   e.preventDefault();
                                   if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
-                                  void setQuoteDecisionStatus(q, 'geaccepteerd');
+                                  void setQuoteDecisionStatus(q, isAccepted ? 'concept' : 'geaccepteerd');
                                 }}
                               >
                                 {isUpdatingAcceptance && isAccepted ? (
@@ -891,7 +895,11 @@ export default function OffertesPage() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              {acceptedByInvoice ? 'Geaccepteerd via factuurstatus' : 'Markeer als geaccepteerd'}
+                              {acceptedByInvoice
+                                ? 'Geaccepteerd via factuurstatus'
+                                : isAccepted
+                                  ? 'Maak geaccepteerd ongedaan'
+                                  : 'Markeer als geaccepteerd'}
                             </TooltipContent>
                           </Tooltip>
 
@@ -909,7 +917,7 @@ export default function OffertesPage() {
                                   e.stopPropagation();
                                   e.preventDefault();
                                   if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
-                                  void setQuoteDecisionStatus(q, 'afgewezen');
+                                  void setQuoteDecisionStatus(q, isRejected ? 'concept' : 'afgewezen');
                                 }}
                               >
                                 {isUpdatingAcceptance && isRejected ? (
@@ -921,7 +929,11 @@ export default function OffertesPage() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              {acceptedByInvoice ? 'Geaccepteerd via factuurstatus' : 'Markeer als niet geaccepteerd'}
+                              {acceptedByInvoice
+                                ? 'Geaccepteerd via factuurstatus'
+                                : isRejected
+                                  ? 'Maak niet geaccepteerd ongedaan'
+                                  : 'Markeer als niet geaccepteerd'}
                             </TooltipContent>
                           </Tooltip>
                         </div>

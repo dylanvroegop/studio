@@ -93,6 +93,12 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
         standaardTransport: { vasteTransportkosten: 45.00 }
     };
     let defaultPdfTeksten: ReturnType<typeof sanitizeQuotePdfTextSettings> | null = null;
+    let defaultAlgemeneVoorwaarden: {
+        titel?: string;
+        tekst?: string;
+        pdfUrl?: string;
+        pdfBestandsnaam?: string;
+    } | null = null;
 
     try {
         const userDocRef = doc(firestore, 'users', userId);
@@ -105,6 +111,14 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
             settings = { ...settings, ...legacySettings, ...nieuweInstellingen };
             if (data?.defaultPdfTeksten) {
                 defaultPdfTeksten = sanitizeQuotePdfTextSettings(data.defaultPdfTeksten);
+            }
+            if (data?.defaultAlgemeneVoorwaarden && typeof data.defaultAlgemeneVoorwaarden === 'object') {
+                defaultAlgemeneVoorwaarden = {
+                    titel: String((data.defaultAlgemeneVoorwaarden as any).titel || 'ALGEMENE VOORWAARDEN'),
+                    tekst: String((data.defaultAlgemeneVoorwaarden as any).tekst || ''),
+                    pdfUrl: String((data.defaultAlgemeneVoorwaarden as any).pdfUrl || ''),
+                    pdfBestandsnaam: String((data.defaultAlgemeneVoorwaarden as any).pdfBestandsnaam || ''),
+                };
             }
         }
     } catch (e) {
@@ -136,7 +150,8 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
                 percentage: 10
             },
         },
-        ...(defaultPdfTeksten ? { pdfTeksten: defaultPdfTeksten } : {})
+        ...(defaultPdfTeksten ? { pdfTeksten: defaultPdfTeksten } : {}),
+        ...(defaultAlgemeneVoorwaarden ? { algemeneVoorwaarden: defaultAlgemeneVoorwaarden } : {})
     });
 
     return docRef.id;

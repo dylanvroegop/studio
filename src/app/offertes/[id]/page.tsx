@@ -14,7 +14,7 @@ import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation } from 'lucide-react';
 
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -294,6 +294,11 @@ export default function QuotePage() {
     const [isSavingPdfSettings, setIsSavingPdfSettings] = useState(false);
     const [pdfSettingsSavedAt, setPdfSettingsSavedAt] = useState<number | null>(null);
     const pdfSettingsShownOnceRef = useRef(false);
+    const [quoteNotes, setQuoteNotes] = useState('');
+    const [isAutoSavingQuoteNotes, setIsAutoSavingQuoteNotes] = useState(false);
+    const [quoteNotesSavedAt, setQuoteNotesSavedAt] = useState<Date | null>(null);
+    const quoteNotesSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastSyncedQuoteNotesRef = useRef('');
 
     const [materials, setMaterials] = useState<{
         groot: MaterialItem[];
@@ -336,6 +341,15 @@ export default function QuotePage() {
             document.documentElement.style.overflow = previousHtmlOverflow;
         };
     }, [isPdfFocusMode]);
+
+    useEffect(() => {
+        return () => {
+            if (quoteNotesSaveTimerRef.current) {
+                clearTimeout(quoteNotesSaveTimerRef.current);
+                quoteNotesSaveTimerRef.current = null;
+            }
+        };
+    }, []);
 
     // State for Material Selection Modal
     const [alleMaterialen, setAlleMaterialen] = useState<any[]>([]);
@@ -510,10 +524,18 @@ export default function QuotePage() {
             setAlgemeneVoorwaardenPdfUrl(String(quoteAlgemeneVoorwaarden.pdfUrl || ''));
             setAlgemeneVoorwaardenPdfBestandsnaam(String(quoteAlgemeneVoorwaarden.pdfBestandsnaam || ''));
         } else {
-            setAlgemeneVoorwaardenTitel('ALGEMENE VOORWAARDEN');
-            setAlgemeneVoorwaardenTekst('');
-            setAlgemeneVoorwaardenPdfUrl('');
-            setAlgemeneVoorwaardenPdfBestandsnaam('');
+            const userDefaultAlgemeneVoorwaarden = (userProfile as any)?.defaultAlgemeneVoorwaarden;
+            if (userDefaultAlgemeneVoorwaarden && typeof userDefaultAlgemeneVoorwaarden === 'object') {
+                setAlgemeneVoorwaardenTitel(String(userDefaultAlgemeneVoorwaarden.titel || 'ALGEMENE VOORWAARDEN'));
+                setAlgemeneVoorwaardenTekst(String(userDefaultAlgemeneVoorwaarden.tekst || ''));
+                setAlgemeneVoorwaardenPdfUrl(String(userDefaultAlgemeneVoorwaarden.pdfUrl || ''));
+                setAlgemeneVoorwaardenPdfBestandsnaam(String(userDefaultAlgemeneVoorwaarden.pdfBestandsnaam || ''));
+            } else {
+                setAlgemeneVoorwaardenTitel('ALGEMENE VOORWAARDEN');
+                setAlgemeneVoorwaardenTekst('');
+                setAlgemeneVoorwaardenPdfUrl('');
+                setAlgemeneVoorwaardenPdfBestandsnaam('');
+            }
         }
     }, [quote, userProfile]);
 
@@ -536,6 +558,7 @@ export default function QuotePage() {
     useEffect(() => {
         if (!user || !firestore || !id) return;
         if (!quote) return;
+        if (!userProfile) return;
         const timer = setTimeout(async () => {
             try {
                 const quoteRef = doc(firestore, 'quotes', id);
@@ -561,10 +584,30 @@ export default function QuotePage() {
                         userRef,
                         {
                             defaultPdfTeksten: pdfTextSettings,
+                            defaultAlgemeneVoorwaarden: {
+                                titel: algemeneVoorwaardenTitel,
+                                tekst: algemeneVoorwaardenTekst,
+                                pdfUrl: algemeneVoorwaardenPdfUrl,
+                                pdfBestandsnaam: algemeneVoorwaardenPdfBestandsnaam,
+                            },
                         },
                         { merge: true }
                     );
                     hasEditedPdfTextSettingsRef.current = false;
+                } else {
+                    const userRef = doc(firestore, 'users', user.uid);
+                    await setDoc(
+                        userRef,
+                        {
+                            defaultAlgemeneVoorwaarden: {
+                                titel: algemeneVoorwaardenTitel,
+                                tekst: algemeneVoorwaardenTekst,
+                                pdfUrl: algemeneVoorwaardenPdfUrl,
+                                pdfBestandsnaam: algemeneVoorwaardenPdfBestandsnaam,
+                            },
+                        },
+                        { merge: true }
+                    );
                 }
             } catch (e) {
                 console.error('Fout bij opslaan facturatie:', e);
@@ -584,6 +627,7 @@ export default function QuotePage() {
         firestore,
         id,
         quote,
+        userProfile,
     ]);
 
     // Fetch Materials for Modal
@@ -830,6 +874,52 @@ export default function QuotePage() {
 
         fetchData();
     }, [id, user, isUserLoading, firestore]);
+
+    useEffect(() => {
+        if (!quote) return;
+        const rawNotes = (quote as any)?.notities;
+        const nextNotes = typeof rawNotes === 'string' ? rawNotes : '';
+        lastSyncedQuoteNotesRef.current = nextNotes;
+        setQuoteNotes(nextNotes);
+    }, [quote]);
+
+    useEffect(() => {
+        if (!firestore || !id || firebaseLoading) return;
+        if (quoteNotes === lastSyncedQuoteNotesRef.current) return;
+
+        if (quoteNotesSaveTimerRef.current) {
+            clearTimeout(quoteNotesSaveTimerRef.current);
+        }
+
+        quoteNotesSaveTimerRef.current = setTimeout(async () => {
+            setIsAutoSavingQuoteNotes(true);
+            try {
+                await updateDoc(doc(firestore, 'quotes', id), {
+                    notities: quoteNotes,
+                    updatedAt: serverTimestamp(),
+                } as any);
+                lastSyncedQuoteNotesRef.current = quoteNotes;
+                setQuote((prev) => (prev ? ({ ...prev, notities: quoteNotes } as any) : prev));
+                setQuoteNotesSavedAt(new Date());
+            } catch (error) {
+                console.error('Error auto-saving quote notes:', error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Notities opslaan mislukt',
+                    description: 'Probeer het opnieuw.',
+                });
+            } finally {
+                setIsAutoSavingQuoteNotes(false);
+            }
+        }, 500);
+
+        return () => {
+            if (quoteNotesSaveTimerRef.current) {
+                clearTimeout(quoteNotesSaveTimerRef.current);
+                quoteNotesSaveTimerRef.current = null;
+            }
+        };
+    }, [quoteNotes, firestore, id, firebaseLoading, toast]);
 
     // Helper to update master price via API
     const updateMasterPrice = async (materiaalnaam: string, priceExclBtw: number, priceInclBtw: number, rowId?: string) => {
@@ -2185,6 +2275,12 @@ export default function QuotePage() {
             .slice(0, 80);
     };
 
+    const getQuotePdfFileName = (klantNaam: unknown, offerteNummer: unknown): string => {
+        const safeKlantNaam = sanitizeFileNamePart(klantNaam) || 'Klant';
+        const safeOfferteNummer = sanitizeFileNamePart(offerteNummer || 'CONCEPT');
+        return `${safeKlantNaam} - ${safeOfferteNummer}.pdf`;
+    };
+
     const captureDrawingsForPdf = async (): Promise<string[]> => {
         if (isGeneratingPDF) {
             throw new Error('PDF generatie is al bezig.');
@@ -2417,7 +2513,7 @@ export default function QuotePage() {
         setIsUploadingAlgemeneVoorwaardenPdf(true);
         try {
             const storage = getStorage();
-            const path = `users/${user.uid}/quotes/${id}/algemene-voorwaarden-${Date.now()}.pdf`;
+            const path = `users/${user.uid}/algemene-voorwaarden/algemene-voorwaarden-${Date.now()}.pdf`;
             const fileRef = storageRef(storage, path);
             await uploadBytes(fileRef, file, { contentType: 'application/pdf' });
             const url = await getDownloadURL(fileRef);
@@ -2485,7 +2581,7 @@ export default function QuotePage() {
                     },
                 };
                 const offerteBlob = await generateQuotePDF(offerteData);
-                downloadBlobWithName(offerteBlob, `Offerte-${offerteNummer}.pdf`);
+                downloadBlobWithName(offerteBlob, getQuotePdfFileName(klantNaam, offerteNummer));
             }
 
             if (attachments.includeTekeningen) {
@@ -2519,7 +2615,8 @@ export default function QuotePage() {
             (data as any).drawingImages = images;
             const pdfBlob = await generateQuotePDF(data);
             const offerteNummer = sanitizeFileNamePart(data.offerteNummer || 'CONCEPT');
-            downloadBlobWithName(pdfBlob, `Offerte-${offerteNummer}.pdf`);
+            const klantNaam = sanitizeFileNamePart(data.klant?.naam || '');
+            downloadBlobWithName(pdfBlob, getQuotePdfFileName(klantNaam, offerteNummer));
         } catch (err) {
             console.error("Error generating PDF:", err);
             const error = err instanceof Error ? err : new Error('Kon PDF niet genereren');
@@ -2568,10 +2665,27 @@ export default function QuotePage() {
     };
 
     const preparePDFData = (): PDFQuoteData => {
+        const resolvedProjectLocatie =
+            normalizedData?.projectLocatie?.trim()
+            || (
+                klantInfo?.afwijkendProjectadres && klantInfo?.projectAdres
+                    ? `${klantInfo.projectAdres.straat || ''} ${klantInfo.projectAdres.huisnummer || ''}, ${klantInfo.projectAdres.plaats || ''}`.trim().replace(/\s+,/g, ',')
+                    : `${klantInfo?.straat || ''} ${klantInfo?.huisnummer || ''}, ${klantInfo?.plaats || ''}`.trim().replace(/\s+,/g, ',')
+            )
+            || '';
+
         return {
             offerteNummer: (quote as any)?.offerteNummer || 'CONCEPT',
-            datum: new Date().toLocaleDateString('nl-NL'),
-            geldigTot: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL'),
+            datum: new Date().toLocaleDateString('nl-NL', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+            }),
+            geldigTot: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+            }),
             logoUrl: userProfile?.settings?.logoUrl || userProfile?.logoUrl || undefined,
             signatureUrl: userProfile?.settings?.signatureUrl || userProfile?.signatureUrl || undefined,
             logoScale: userProfile?.settings?.logoScale || userProfile?.logoScale || 1.0,
@@ -2606,7 +2720,7 @@ export default function QuotePage() {
                 telefoon: klantInfo?.telefoonnummer || '',
                 email: klantInfo?.emailadres || '',
             },
-            projectLocatie: normalizedData?.projectLocatie || '',
+            projectLocatie: resolvedProjectLocatie,
             korteTitel: normalizedData?.korteTitel,
             korteBeschrijving: normalizedData?.korteBeschrijving,
             werkbeschrijving: generateWorkSummary(normalizedData?.werkbeschrijving || []),
@@ -2698,6 +2812,12 @@ export default function QuotePage() {
                 userRef,
                 {
                     defaultPdfTeksten: pdfTextSettings,
+                    defaultAlgemeneVoorwaarden: {
+                        titel: algemeneVoorwaardenTitel,
+                        tekst: algemeneVoorwaardenTekst,
+                        pdfUrl: algemeneVoorwaardenPdfUrl,
+                        pdfBestandsnaam: algemeneVoorwaardenPdfBestandsnaam,
+                    },
                 },
                 { merge: true }
             );
@@ -2988,6 +3108,14 @@ export default function QuotePage() {
         [normalizedData?.korteTitel],
     );
 
+    const isWerkbeschrijvingEmpty = useMemo(() => {
+        const hasTitle = manualWorkDescriptionTitle.trim().length > 0;
+        const hasRows = manualWorkDescriptionRows.some((line) => line.trim().length > 0);
+        return !hasTitle && !hasRows;
+    }, [manualWorkDescriptionTitle, manualWorkDescriptionRows]);
+
+    const showWerkbeschrijvingWarning = !loading && isWerkbeschrijvingEmpty;
+
     useEffect(() => {
         const serialized = JSON.stringify({
             title: currentWerkbeschrijvingTitle,
@@ -3135,6 +3263,14 @@ export default function QuotePage() {
         setManualWorkDescriptionRows((prev) => [...prev, '']);
     };
 
+    const handleInsertWorkDescriptionRow = (index: number) => {
+        setManualWorkDescriptionRows((prev) => {
+            const next = [...prev];
+            next.splice(index + 1, 0, '');
+            return next;
+        });
+    };
+
     const handleRemoveWorkDescriptionRow = (index: number) => {
         setManualWorkDescriptionRows((prev) => {
             const next = prev.filter((_, i) => i !== index);
@@ -3255,7 +3391,7 @@ export default function QuotePage() {
                             onClick={() => {
                                 void handleDownloadPDF();
                             }}
-                            className="flex h-10 min-w-10 items-center justify-center px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
+                            className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
                             disabled={!totals || loading || isGeneratingPDF}
                             aria-label="Download"
                             title="Download"
@@ -3265,6 +3401,7 @@ export default function QuotePage() {
                             ) : (
                                 <Download size={18} />
                             )}
+                            <span className="hidden sm:inline">Download</span>
                         </Button>
 
                         {!loading && (
@@ -3321,6 +3458,15 @@ export default function QuotePage() {
                                     <span className="hidden sm:inline">Calculatie</span>
                                 </Button>
                                 <Button
+                                    variant="outline"
+                                    className="flex h-10 min-w-10 items-center justify-center px-3 sm:h-9 sm:min-w-0 sm:px-4"
+                                    aria-label="PDF instellingen"
+                                    title="PDF instellingen"
+                                    onClick={() => setIsPdfSettingsOpen(true)}
+                                >
+                                    <Settings size={16} />
+                                </Button>
+                                <Button
                                     variant="success"
                                     className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
                                     onClick={() => setIsSendModalOpen(true)}
@@ -3346,8 +3492,8 @@ export default function QuotePage() {
                     </div>
                 ) : (
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
-                            <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
+                        <div className="flex items-center gap-2 bg-card border border-border p-1 rounded-lg w-full">
+                            <TabsList className="bg-transparent border-0 p-0 h-auto w-full flex-nowrap gap-1 overflow-x-auto justify-start">
                                 <TabsTrigger value="materialen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <Package size={16} />
                                     {materialsWithoutPrice > 0 && (
@@ -3372,19 +3518,22 @@ export default function QuotePage() {
                                 </TabsTrigger>
                                 <TabsTrigger value="pdf" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <FileText size={16} />
-                                    <span className="hidden sm:inline">PDF Preview</span>
+                                    <span className="hidden sm:inline">PDF</span>
                                 </TabsTrigger>
-                                <TabsTrigger value="werkbeschrijving" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                <TabsTrigger
+                                    value="werkbeschrijving"
+                                    className={cn(
+                                        "flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground",
+                                        showWerkbeschrijvingWarning && "text-red-400 data-[state=active]:text-red-400"
+                                    )}
+                                >
                                     <ClipboardList size={16} />
+                                    {showWerkbeschrijvingWarning && <AlertCircle size={10} className="text-red-500" />}
                                     <span className="hidden sm:inline">Werkbeschrijving</span>
                                 </TabsTrigger>
                                 <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     <MessageSquare size={16} />
                                     <span className="hidden sm:inline">Notities</span>
-                                </TabsTrigger>
-                                <TabsTrigger value="algemene-voorwaarden" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    <FileText size={16} />
-                                    <span className="hidden sm:inline">Algemene voorwaarden</span>
                                 </TabsTrigger>
                             </TabsList>
 
@@ -3399,17 +3548,6 @@ export default function QuotePage() {
                                     handlePdfSettingsChange(pdfSettings);
                                 }
                             }}>
-                                <DialogTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        aria-label="PDF instellingen"
-                                        title="PDF instellingen"
-                                        className="bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground mr-1 sm:ml-auto"
-                                    >
-                                        <Settings size={16} />
-                                    </Button>
-                                </DialogTrigger>
                                 <DialogContent className="w-[96vw] sm:max-w-6xl p-0 overflow-hidden bg-background border-border shadow-2xl">
                                         <DialogHeader className="px-6 pt-5 pb-4 border-b border-border/70">
                                             <DialogTitle>PDF Instellingen</DialogTitle>
@@ -4365,6 +4503,15 @@ export default function QuotePage() {
                                                             type="button"
                                                             variant="ghost"
                                                             size="icon"
+                                                            onClick={() => handleInsertWorkDescriptionRow(index)}
+                                                            aria-label="Voeg regel hieronder toe"
+                                                        >
+                                                            <Plus className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
                                                             onClick={() => handleRemoveWorkDescriptionRow(index)}
                                                             aria-label="Verwijder regel"
                                                         >
@@ -4374,15 +4521,28 @@ export default function QuotePage() {
                                                 ))}
                                             </div>
                                             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    className="h-9"
-                                                    onClick={handleAddWorkDescriptionRow}
-                                                >
-                                                    <Plus className="mr-2 h-4 w-4" />
-                                                    Bullet toevoegen
-                                                </Button>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        className="h-9"
+                                                        onClick={handleAddWorkDescriptionRow}
+                                                    >
+                                                        <Plus className="mr-2 h-4 w-4" />
+                                                        Bullet toevoegen
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        className="h-9"
+                                                        onClick={() => {
+                                                            setManualWorkDescriptionRows((prev) => [...prev, '', '', '', '', '']);
+                                                        }}
+                                                    >
+                                                        <Plus className="mr-2 h-4 w-4" />
+                                                        Add 5 bullet points
+                                                    </Button>
+                                                </div>
                                                 <div className="text-xs text-muted-foreground">
                                                     {isAutoSavingWorkDescription ? 'Automatisch opslaan...' : 'Wordt automatisch opgeslagen'}
                                                 </div>
@@ -4415,168 +4575,30 @@ export default function QuotePage() {
                             )}
                         </TabsContent>
 
-                        {/* Notities Tab - Reusing logic could be added here involving firestore update or specific Notes component from elsewhere */}
                         <TabsContent value="notities" className="mt-6">
                             {loading ? (
                                 <LoadingPanel />
                             ) : (
-                                <div className="bg-card rounded-lg border border-border p-6">
-                                    <div className="flex-1 bg-muted/50 border border-border/50 rounded-2xl p-8 relative">
-                                        <h3 className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
-                                            <MessageSquare className="w-4 h-4" /> Veldnotities
+                                <div className="space-y-4 rounded-lg border border-border bg-card p-6">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                                            <MessageSquare className="w-4 h-4" /> Notities bij deze offerte
                                         </h3>
-                                        {/*  Ideally we would iterate over jobs to show all notes, or show quote level notes.
-                                         The original code showed activeJob.notities.
-                                         Since we don't have activeJob selector here yet (simplified view),
-                                         we might just show a placeholder or aggregates.
-                                     */}
-                                        <p className="text-muted-foreground italic">Notities functionaliteit wordt bijgewerkt.</p>
+                                        <div className="text-xs text-muted-foreground">
+                                            {isAutoSavingQuoteNotes
+                                                ? 'Automatisch opslaan...'
+                                                : quoteNotesSavedAt
+                                                    ? `Opgeslagen ${formatDistanceToNow(quoteNotesSavedAt, { addSuffix: true, locale: nl })}`
+                                                    : 'Wordt automatisch opgeslagen'}
+                                        </div>
                                     </div>
+                                    <textarea
+                                        value={quoteNotes}
+                                        onChange={(e) => setQuoteNotes(e.target.value)}
+                                        placeholder="Voeg notities toe voor deze offerte..."
+                                        className="min-h-[280px] w-full rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:border-border focus:bg-background"
+                                    />
                                 </div>
-                            )}
-                        </TabsContent>
-
-                        <TabsContent value="algemene-voorwaarden" className="mt-6 space-y-4">
-                            {loading ? (
-                                <LoadingPanel />
-                            ) : (
-                                <>
-                                    <Card className="border border-border bg-card/50">
-                                        <CardHeader className="pb-3">
-                                            <CardTitle className="text-base">Algemene voorwaarden</CardTitle>
-                                            <p className="text-sm text-muted-foreground">
-                                                Upload een bestaande PDF of stel je voorwaarden op met tekst. Je kunt deze apart downloaden als PDF.
-                                            </p>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/40 p-3">
-                                                <div>
-                                                    <div className="text-sm font-medium">Op offerte tonen</div>
-                                                    <p className="text-xs text-muted-foreground">Voeg een extra pagina met algemene voorwaarden toe aan de offerte-PDF.</p>
-                                                </div>
-                                                <Switch
-                                                    checked={pdfSettings.showAlgemeneVoorwaarden}
-                                                    onCheckedChange={(checked) =>
-                                                        void handlePdfSettingsChange({
-                                                            ...pdfSettings,
-                                                            showAlgemeneVoorwaarden: checked,
-                                                        })
-                                                    }
-                                                    aria-label="Algemene voorwaarden tonen in offerte"
-                                                />
-                                            </div>
-
-                                            <div className="grid gap-4 lg:grid-cols-2">
-                                                <div className="rounded-lg border border-border/70 bg-muted/40 p-4 space-y-3">
-                                                    <h4 className="text-sm font-semibold">Upload bestaande PDF</h4>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Upload je eigen document met algemene voorwaarden (PDF).
-                                                    </p>
-                                                    <input
-                                                        ref={algemeneVoorwaardenInputRef}
-                                                        type="file"
-                                                        accept="application/pdf"
-                                                        className="hidden"
-                                                        onChange={(event) => {
-                                                            const file = event.target.files?.[0];
-                                                            if (file) {
-                                                                void handleAlgemeneVoorwaardenPdfUpload(file);
-                                                            }
-                                                        }}
-                                                    />
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            onClick={() => algemeneVoorwaardenInputRef.current?.click()}
-                                                            disabled={isUploadingAlgemeneVoorwaardenPdf}
-                                                        >
-                                                            {isUploadingAlgemeneVoorwaardenPdf ? (
-                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                            ) : (
-                                                                <Upload className="mr-2 h-4 w-4" />
-                                                            )}
-                                                            PDF uploaden
-                                                        </Button>
-                                                        {algemeneVoorwaardenPdfUrl && (
-                                                            <>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    onClick={() => window.open(algemeneVoorwaardenPdfUrl, '_blank', 'noopener,noreferrer')}
-                                                                >
-                                                                    <Download className="mr-2 h-4 w-4" />
-                                                                    Download upload
-                                                                </Button>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="destructiveSoft"
-                                                                    onClick={() => {
-                                                                        setAlgemeneVoorwaardenPdfUrl('');
-                                                                        setAlgemeneVoorwaardenPdfBestandsnaam('');
-                                                                    }}
-                                                                >
-                                                                    <Trash2 className="mr-2 h-4 w-4" />
-                                                                    Verwijderen
-                                                                </Button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {algemeneVoorwaardenPdfBestandsnaam
-                                                            ? `Bestand: ${algemeneVoorwaardenPdfBestandsnaam}`
-                                                            : 'Nog geen PDF geüpload.'}
-                                                    </p>
-                                                </div>
-
-                                                <div className="rounded-lg border border-border/70 bg-muted/40 p-4 space-y-3">
-                                                    <h4 className="text-sm font-semibold">Voorwaarden opstellen</h4>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Vul tekst in die je als aparte voorwaarden-PDF kunt downloaden en (optioneel) op de offerte kunt tonen.
-                                                    </p>
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="algemene-voorwaarden-titel">Titel</Label>
-                                                        <Input
-                                                            id="algemene-voorwaarden-titel"
-                                                            value={algemeneVoorwaardenTitel}
-                                                            onChange={(event) => setAlgemeneVoorwaardenTitel(event.target.value)}
-                                                            placeholder="ALGEMENE VOORWAARDEN"
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="algemene-voorwaarden-tekst">Tekst</Label>
-                                                        <textarea
-                                                            id="algemene-voorwaarden-tekst"
-                                                            value={algemeneVoorwaardenTekst}
-                                                            onChange={(event) => setAlgemeneVoorwaardenTekst(event.target.value)}
-                                                            rows={12}
-                                                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                                            placeholder="Bijv.&#10;1. Deze offerte is 30 dagen geldig...&#10;&#10;2. Betaling binnen 14 dagen..."
-                                                        />
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            onClick={async () => {
-                                                                const offerteNummer = sanitizeFileNamePart((quote as any)?.offerteNummer || 'CONCEPT');
-                                                                const blob = await generateAlgemeneVoorwaardenOnlyPdf(
-                                                                    algemeneVoorwaardenTitel,
-                                                                    algemeneVoorwaardenTekst,
-                                                                    offerteNummer,
-                                                                );
-                                                                downloadBlobWithName(blob, `Algemene-voorwaarden-${offerteNummer}.pdf`);
-                                                            }}
-                                                        >
-                                                            <Download className="mr-2 h-4 w-4" />
-                                                            Download als PDF
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </>
                             )}
                         </TabsContent>
 

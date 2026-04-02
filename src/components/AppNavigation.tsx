@@ -202,6 +202,11 @@ export function AppNavigation() {
         return () => rootElement.classList.remove('app-nav-open');
     }, [menuOpen, hideNavigation]);
 
+    useEffect(() => {
+        if (hideNavigation || !isMobile) return;
+        setMenuOpen(false);
+    }, [pathname, hideNavigation, isMobile]);
+
     const handleMenuOpenChange = (open: boolean) => {
         setMenuOpen(open);
         window.localStorage.setItem('app_navigation_open', String(open));
@@ -231,7 +236,13 @@ export function AppNavigation() {
                                 <SheetTitle>Navigatie</SheetTitle>
                                 <SheetDescription>Navigatiemenu van de applicatie.</SheetDescription>
                             </SheetHeader>
-                            {isReady && <NavigationContent pathname={pathname} />}
+                            {isReady && (
+                                <NavigationContent
+                                    pathname={pathname}
+                                    onNavigate={() => handleMenuOpenChange(false)}
+                                    onClose={() => handleMenuOpenChange(false)}
+                                />
+                            )}
                         </SheetContent>
                     </Sheet>
                 </div>

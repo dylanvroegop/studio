@@ -392,8 +392,18 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
-    doc.text(data.korteTitel?.toUpperCase() || 'PROJECTOMSCHRIJVING', margin, y);
-    y += 7;
+    doc.text('PROJECTOMSCHRIJVING', margin, y);
+    y += 6;
+
+    const projectSubTitle = String(data.korteTitel || '').trim();
+    if (projectSubTitle) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(110, 110, 110);
+        const subtitleLines = doc.splitTextToSize(projectSubTitle, pageWidth - (margin * 2));
+        doc.text(subtitleLines, margin, y);
+        y += subtitleLines.length * 3.8 + 2;
+    }
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);

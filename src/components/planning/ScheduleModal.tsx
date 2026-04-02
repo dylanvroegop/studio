@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Calendar, Clock, User, Briefcase, Trash2 } from 'lucide-react';
+import { Loader2, Calendar, Clock, User, Briefcase, Trash2, Navigation } from 'lucide-react';
 import { Employee, PlanningEntry, PlanningEntryType, PlanningSettings, TimelineView } from '@/lib/types-planning';
 import { autoSplitJob, formatHoursDisplay } from '@/lib/planning-utils';
 import { usePlanningData } from '@/hooks/usePlanningData';
@@ -19,6 +19,7 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { buildGoogleMapsDirectionsUrl } from '@/lib/maps';
 
 interface Quote {
     id: string;
@@ -283,6 +284,30 @@ export function ScheduleModal({
 
         return parts.join(' ');
     };
+
+    const getClientName = (quote: Quote) => {
+        const info = quote.klantinformatie;
+        const fullName = [info?.voornaam, info?.achternaam].filter(Boolean).join(' ').trim();
+        return info?.bedrijfsnaam || fullName || 'Onbekende klant';
+    };
+
+    const selectedQuote = useMemo(() => {
+        if (selectedQuoteId) {
+            return quotes.find((quote) => quote.id === selectedQuoteId)
+                || (preselectedQuote?.id === selectedQuoteId ? preselectedQuote : undefined);
+        }
+        return preselectedQuote?.id ? preselectedQuote : undefined;
+    }, [selectedQuoteId, quotes, preselectedQuote]);
+
+    const routeDestinationAddress = useMemo(
+        () => (selectedQuote ? getProjectAddress(selectedQuote) : ''),
+        [selectedQuote]
+    );
+
+    const routeMapsUrl = useMemo(
+        () => (routeDestinationAddress ? buildGoogleMapsDirectionsUrl(routeDestinationAddress) : ''),
+        [routeDestinationAddress]
+    );
 
     const splitEntries = useMemo(() => {
         if (selectedPlanningType === 'werkbespreking') {
@@ -611,6 +636,35 @@ export function ScheduleModal({
                             </Select>
                         )}
                     </div>
+
+                    {selectedQuote && (
+                        <div className="rounded-lg border border-border bg-muted/30 p-3">
+                            <div className="space-y-1">
+                                <p className="text-sm font-medium text-foreground">{getClientName(selectedQuote)}</p>
+                                {routeDestinationAddress ? (
+                                    <p className="text-xs text-muted-foreground">{routeDestinationAddress}</p>
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">Geen projectadres beschikbaar.</p>
+                                )}
+                            </div>
+                            {routeMapsUrl && (
+                                <div className="mt-3">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-8 gap-2"
+                                        onClick={() => {
+                                            window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
+                                        }}
+                                        title={routeDestinationAddress}
+                                    >
+                                        <Navigation className="h-4 w-4" />
+                                        Route
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Employee Selection */}
                     {selectedPlanningType !== 'werkbespreking' && (

@@ -1084,9 +1084,9 @@ export function MaterialSelectionModal({
       if (!naamRaw) throw new Error('Materiaalnaam is verplicht.');
       const baseName = naamRaw.charAt(0).toUpperCase() + naamRaw.slice(1);
 
-      const prijsNumLocal = parsePriceToNumber(customPrijs);
-      if (prijsNumLocal == null || prijsNumLocal < 0) throw new Error('Vul een geldige prijs in.');
-      const prijsExclBtwLocal = parsePriceToNumber(customPrijsExclBtw) ?? Number((prijsNumLocal / 1.21).toFixed(2));
+      const prijsInclBtwLocal = parsePriceToNumber(customPrijs);
+      if (prijsInclBtwLocal == null || prijsInclBtwLocal < 0) throw new Error('Vul een geldige prijs in.');
+      const prijsExclBtwLocal = parsePriceToNumber(customPrijsExclBtw) ?? Number((prijsInclBtwLocal / 1.21).toFixed(2));
 
       const eenheid = (customEenheid || '').trim();
       if (!eenheid) throw new Error('Kies een eenheid.');
@@ -1099,16 +1099,17 @@ export function MaterialSelectionModal({
       const finalNameToSend = constructFinalName(baseName);
 
       // Calculate price per piece if possible
-      const calculatedPiecePrice = prijsNumLocal;
+      const calculatedPiecePrice = prijsExclBtwLocal;
 
       // 3. Prepare Payload
       const payload: any = {
         materiaalnaam: finalNameToSend,
         eenheid,
-        prijs: prijsNumLocal, // Unit price
+        // Canonical unit price in quote flow is excl. btw.
+        prijs: prijsExclBtwLocal,
         prijs_excl_btw: prijsExclBtwLocal,
-        prijs_incl_btw: prijsNumLocal,
-        prijs_per_stuk: calculatedPiecePrice, // Calculated piece price (same as unit price for simple items)
+        prijs_incl_btw: prijsInclBtwLocal,
+        prijs_per_stuk: calculatedPiecePrice,
       };
       if (safetyAnswerFinal) {
         payload.safety_confirmed = true;
@@ -1207,7 +1208,7 @@ export function MaterialSelectionModal({
           : payload;
         const resolvedExclPrice =
           parsePriceToNumber((mergedRow as any).prijs_excl_btw ?? (mergedRow as any).prijs) ??
-          prijsNumLocal;
+          prijsExclBtwLocal;
         const resolvedPiecePrice =
           parsePriceToNumber((mergedRow as any).prijs_per_stuk ?? (mergedRow as any).prijs_excl_btw ?? (mergedRow as any).prijs) ??
           calculatedPiecePrice;
@@ -1227,7 +1228,7 @@ export function MaterialSelectionModal({
           : payload;
         const resolvedExclPrice =
           parsePriceToNumber((mergedRow as any).prijs_excl_btw ?? (mergedRow as any).prijs) ??
-          prijsNumLocal;
+          prijsExclBtwLocal;
         const resolvedPiecePrice =
           parsePriceToNumber((mergedRow as any).prijs_per_stuk ?? (mergedRow as any).prijs_excl_btw ?? (mergedRow as any).prijs) ??
           calculatedPiecePrice;
