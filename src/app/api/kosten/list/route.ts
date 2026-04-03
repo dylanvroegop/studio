@@ -14,8 +14,9 @@ function extractBearerToken(authHeader: string | null): string | null {
   return token || null;
 }
 
-function isMissingUserIdColumnError(message: string): boolean {
-  return message.toLowerCase().includes('column project_costs.user_id does not exist');
+function isProjectCostsSchemaMismatchError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return lower.includes('project_costs.') && lower.includes('does not exist');
 }
 
 export async function GET(request: Request) {
@@ -43,12 +44,12 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      if (isMissingUserIdColumnError(error.message)) {
+      if (isProjectCostsSchemaMismatchError(error.message)) {
         return NextResponse.json(
           {
             ok: false,
             message:
-              'Database migratie ontbreekt: voer staging_sql/20260402_add_user_id_to_existing_project_costs.sql uit.',
+              'Database migratie ontbreekt: voer staging_sql/20260402_repair_project_costs_schema.sql uit.',
           },
           { status: 500 }
         );

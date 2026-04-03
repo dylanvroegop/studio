@@ -60,6 +60,31 @@ function looksLikePdf(contentType: string, filename: string): boolean {
   return contentType === 'application/pdf' || filename.toLowerCase().endsWith('.pdf');
 }
 
+function isBucketNotFoundError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return lower.includes('bucket not found') || lower.includes('bucket') && lower.includes('not found');
+}
+
+async function ensureReceiptsBucketExists(): Promise<void> {
+  const create = await supabaseAdmin.storage.createBucket('receipts', {
+    public: true,
+    fileSizeLimit: 15728640,
+    allowedMimeTypes: [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/heic',
+      'image/heif',
+    ],
+  });
+
+  if (!create.error) return;
+  const message = safeString(create.error.message);
+  if (message.toLowerCase().includes('already exists')) return;
+  throw new Error(message || 'Kon receipts-bucket niet aanmaken.');
+}
+
 function extractResponseText(payload: unknown): string {
   if (!payload || typeof payload !== 'object') return '';
   const row = payload as Record<string, unknown>;
@@ -252,13 +277,24 @@ export async function POST(request: Request) {
     const bytes = Buffer.from(await sourceFile.arrayBuffer());
     const storagePath = `${uid}/${Date.now()}-${filename || 'receipt'}`;
 
-    const upload = await supabaseAdmin
+    let upload = await supabaseAdmin
       .storage
       .from('receipts')
       .upload(storagePath, bytes, {
         contentType,
         upsert: false,
       });
+
+    if (upload.error && isBucketNotFoundError(upload.error.message)) {
+      await ensureReceiptsBucketExists();
+      upload = await supabaseAdmin
+        .storage
+        .from('receipts')
+        .upload(storagePath, bytes, {
+          contentType,
+          upsert: false,
+        });
+    }
 
     if (upload.error) {
       return NextResponse.json({ ok: false, message: upload.error.message }, { status: 500 });

@@ -146,8 +146,9 @@ function isMissingRelationError(message: string): boolean {
   );
 }
 
-function isMissingUserIdColumnError(message: string): boolean {
-  return message.toLowerCase().includes('column project_costs.user_id does not exist');
+function isProjectCostsSchemaMismatchError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return lower.includes('project_costs.') && lower.includes('does not exist');
 }
 
 async function fetchProjectCosts(uid: string, quoteIds: string[]): Promise<WinstProjectCostSource[]> {
@@ -164,9 +165,9 @@ async function fetchProjectCosts(uid: string, quoteIds: string[]): Promise<Winst
       .in('offerte_id', chunk);
 
     if (error) {
-      if (isMissingUserIdColumnError(error.message)) {
+      if (isProjectCostsSchemaMismatchError(error.message)) {
         throw new Error(
-          'Database migratie ontbreekt: voer staging_sql/20260402_add_user_id_to_existing_project_costs.sql uit.'
+          'Database migratie ontbreekt: voer staging_sql/20260402_repair_project_costs_schema.sql uit.'
         );
       }
       if (isMissingRelationError(error.message)) return [];

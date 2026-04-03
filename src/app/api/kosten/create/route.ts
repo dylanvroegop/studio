@@ -45,8 +45,39 @@ function isMissingRelationError(message: string): boolean {
   );
 }
 
-function isMissingUserIdColumnError(message: string): boolean {
-  return message.toLowerCase().includes('column project_costs.user_id does not exist');
+function isProjectCostsSchemaMismatchError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return lower.includes('project_costs.') && lower.includes('does not exist');
+}
+
+function getProjectCostsNotNullColumn(message: string): string | null {
+  const match = message.match(
+    /null value in column "([^"]+)" of relation "project_costs" violates not-null constraint/i
+  );
+  return match?.[1] || null;
+}
+
+function fallbackValueForLegacyRequiredColumn(params: {
+  column: string;
+  input: Record<string, unknown>;
+}): unknown {
+  const explicit = params.input[params.column];
+  if (typeof explicit === 'string' && explicit.trim()) return explicit.trim();
+
+  const fallbackRef = String(Date.now());
+  const column = params.column.toLowerCase();
+
+  if (
+    column === 'supplier_order_number'
+    || column === 'order_number'
+    || column === 'supplier_invoice_number'
+    || column === 'invoice_number'
+    || column.endsWith('_number')
+  ) {
+    return fallbackRef;
+  }
+
+  return null;
 }
 
 async function validateQuoteOwnership(params: {
@@ -89,7 +120,7 @@ async function upsertProfitOverview(params: {
     .eq('offerte_id', params.offerteId);
 
   if (costsError) {
-    if (isMissingUserIdColumnError(costsError.message)) return;
+    if (isProjectCostsSchemaMismatchError(costsError.message)) return;
     if (isMissingRelationError(costsError.message)) return;
     throw new Error(costsError.message);
   }
@@ -208,37 +239,77 @@ export async function POST(request: Request) {
     const receiptUrl = safeString(input.receipt_url) || null;
     const status = safeString(input.status) || 'confirmed';
 
-    const { data, error } = await supabaseAdmin
+    const insertPayload: Record<string, unknown> = {
+      user_id: uid,
+      offerte_id: offerteId,
+      category,
+      supplier_name: supplierName,
+      description,
+      line_items: lineItems,
+      amount_excl_btw: amountExcl,
+      btw_percentage: btwPercentage,
+      btw_amount: btwAmount,
+      amount_incl_btw: amountIncl,
+      date,
+      receipt_url: receiptUrl,
+      status,
+    };
+
+    let { data, error } = await supabaseAdmin
       .from('project_costs')
-      .insert({
-        user_id: uid,
-        offerte_id: offerteId,
-        category,
-        supplier_name: supplierName,
-        description,
-        line_items: lineItems,
-        amount_excl_btw: amountExcl,
-        btw_percentage: btwPercentage,
-        btw_amount: btwAmount,
-        amount_incl_btw: amountIncl,
-        date,
-        receipt_url: receiptUrl,
-        status,
-      })
+      .insert(insertPayload)
       .select('*')
       .single();
 
     if (error) {
-      if (isMissingUserIdColumnError(error.message)) {
+      const notNullColumn = getProjectCostsNotNullColumn(error.message);
+      if (notNullColumn) {
+        const fallback = fallbackValueForLegacyRequiredColumn({
+          column: notNullColumn,
+          input,
+        });
+
+        if (fallback !== null && fallback !== undefined) {
+          const retry = await supabaseAdmin
+            .from('project_costs')
+            .insert({
+              ...insertPayload,
+              [notNullColumn]: fallback,
+            })
+            .select('*')
+            .single();
+
+          data = retry.data;
+          error = retry.error;
+        }
+      }
+    }
+
+    if (error) {
+      if (isProjectCostsSchemaMismatchError(error.message)) {
         return NextResponse.json(
           {
             ok: false,
             message:
-              'Database migratie ontbreekt: voer staging_sql/20260402_add_user_id_to_existing_project_costs.sql uit.',
+              'Database migratie ontbreekt: voer staging_sql/20260402_repair_project_costs_schema.sql uit.',
           },
           { status: 500 }
         );
       }
+
+      const notNullColumn = getProjectCostsNotNullColumn(error.message);
+      if (notNullColumn) {
+        return NextResponse.json(
+          {
+            ok: false,
+            message:
+              `Database schema mismatch: kolom "${notNullColumn}" is verplicht in project_costs. ` +
+              'Maak die kolom optioneel of geef een default in Supabase.',
+          },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
     }
 
