@@ -67,6 +67,10 @@ function fallbackValueForLegacyRequiredColumn(params: {
   const fallbackRef = String(Date.now());
   const column = params.column.toLowerCase();
 
+  if (column === 'offerte_id') {
+    return `unlinked-${fallbackRef}`;
+  }
+
   if (
     column === 'supplier_order_number'
     || column === 'order_number'
@@ -262,26 +266,35 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      const notNullColumn = getProjectCostsNotNullColumn(error.message);
-      if (notNullColumn) {
+      const retryPayload: Record<string, unknown> = { ...insertPayload };
+      let attempts = 0;
+      while (error && attempts < 5) {
+        const notNullColumn = getProjectCostsNotNullColumn(error.message);
+        if (!notNullColumn) break;
+
+        const existingValue = retryPayload[notNullColumn];
+        if (existingValue !== null && existingValue !== undefined && `${existingValue}`.trim() !== '') {
+          break;
+        }
+
         const fallback = fallbackValueForLegacyRequiredColumn({
           column: notNullColumn,
           input,
         });
-
-        if (fallback !== null && fallback !== undefined) {
-          const retry = await supabaseAdmin
-            .from('project_costs')
-            .insert({
-              ...insertPayload,
-              [notNullColumn]: fallback,
-            })
-            .select('*')
-            .single();
-
-          data = retry.data;
-          error = retry.error;
+        if (fallback === null || fallback === undefined || `${fallback}`.trim() === '') {
+          break;
         }
+
+        retryPayload[notNullColumn] = fallback;
+        const retry = await supabaseAdmin
+          .from('project_costs')
+          .insert(retryPayload)
+          .select('*')
+          .single();
+
+        data = retry.data;
+        error = retry.error;
+        attempts += 1;
       }
     }
 

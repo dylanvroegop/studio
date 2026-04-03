@@ -16,7 +16,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const EXTRACTION_PROMPT =
-  'You are an expert at extracting data from Dutch supplier invoices and receipts for construction/carpentry materials. Extract: supplier_name, date (YYYY-MM-DD), line_items (array of {description, quantity, unit, unit_price, total_price}), subtotal_excl_btw, btw_percentage, btw_amount, total_incl_btw, and any project/offerte reference number. Return ONLY valid JSON, no markdown.';
+  'You are an expert at extracting data from Dutch supplier invoices and receipts for construction/carpentry materials. Extract: supplier_name, date (YYYY-MM-DD), receipt_description (short Dutch summary of the entire receipt/invoice, not just one line item), line_items (array of {description, quantity, unit, unit_price, total_price}), subtotal_excl_btw, btw_percentage, btw_amount, total_incl_btw, and any project/offerte reference number. Return ONLY valid JSON, no markdown.';
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -31,6 +31,79 @@ function safeString(value: unknown): string {
 function safeNumber(value: unknown): number {
   const numeric = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function compactWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function truncate(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function normalizeComparableText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function createReceiptDescription(params: {
+  extractedSummary: string;
+  extractedDescription: string;
+  supplierName: string;
+  lineItems: Array<{ description?: string }>;
+}): string {
+  const explicitSummary = compactWhitespace(params.extractedSummary);
+  if (explicitSummary) {
+    return truncate(explicitSummary, 140);
+  }
+
+  const explicitDescription = compactWhitespace(params.extractedDescription);
+  const descriptions = params.lineItems
+    .map((item) => compactWhitespace(safeString(item.description)))
+    .filter(Boolean);
+  const uniqueDescriptions: string[] = [];
+  const seen = new Set<string>();
+  descriptions.forEach((description) => {
+    const key = normalizeComparableText(description);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    uniqueDescriptions.push(description);
+  });
+
+  const firstItem = uniqueDescriptions[0] || '';
+  const firstItemComparable = normalizeComparableText(firstItem);
+  const explicitComparable = normalizeComparableText(explicitDescription);
+  const explicitLooksLikeSingleLine =
+    Boolean(explicitComparable)
+    && Boolean(firstItemComparable)
+    && explicitComparable === firstItemComparable
+    && uniqueDescriptions.length > 1;
+
+  if (explicitDescription && !explicitLooksLikeSingleLine) {
+    return truncate(explicitDescription, 140);
+  }
+
+  if (uniqueDescriptions.length === 0) {
+    if (explicitDescription) return truncate(explicitDescription, 140);
+    if (params.supplierName) return `Bon ${params.supplierName}`;
+    return 'Inkomende kost';
+  }
+
+  if (uniqueDescriptions.length === 1) {
+    return truncate(uniqueDescriptions[0], 140);
+  }
+
+  const preview = uniqueDescriptions
+    .slice(0, 3)
+    .map((description) => truncate(description, 26))
+    .join(', ');
+  const extraCount = uniqueDescriptions.length - 3;
+  const extraSuffix = extraCount > 0 ? ` +${extraCount} meer` : '';
+
+  return truncate(`Bon met ${uniqueDescriptions.length} regels: ${preview}${extraSuffix}`, 140);
 }
 
 function normalizeDate(input: unknown): string {
@@ -376,10 +449,15 @@ export async function POST(request: Request) {
       || safeString(parsedExtraction.supplier)
       || safeString(parsedExtraction.vendor_name)
       || 'Onbekende leverancier';
-    const description =
-      safeString(parsedExtraction.description)
-      || normalizedLineItems[0]?.description
-      || 'Inkomende kost';
+    const description = createReceiptDescription({
+      extractedSummary:
+        safeString(parsedExtraction.receipt_description)
+        || safeString(parsedExtraction.invoice_description)
+        || safeString(parsedExtraction.summary),
+      extractedDescription: safeString(parsedExtraction.description),
+      supplierName,
+      lineItems: normalizedLineItems,
+    });
     const extractedDate = normalizeDate(parsedExtraction.date);
 
     const offerteReference = extractOfferteReference(

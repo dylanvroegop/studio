@@ -153,6 +153,7 @@ function ProjectRow(props: {
   project: ProjectRowData;
 }) {
   const { project } = props;
+  const projectLabel = project.offerteNummer ? `#${project.offerteNummer}` : project.title;
 
   const status = !project.hasActualData
     ? { label: 'Geen nacalculatie', className: 'border-amber-500/30 bg-amber-500/10 text-amber-200' }
@@ -186,7 +187,7 @@ function ProjectRow(props: {
     <div className="rounded-2xl bg-card/35 px-4 py-4 transition-all duration-200 hover:bg-card/55 hover:shadow-[0_12px_30px_-20px_rgba(16,185,129,0.35)] md:px-5">
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] xl:items-center">
         <div className="min-w-0">
-          <p className="truncate text-base font-semibold text-foreground">{project.title}</p>
+          <p className="truncate text-base font-semibold text-foreground">{projectLabel}</p>
           <p className="mt-1 truncate text-sm text-muted-foreground">
             {project.clientName} • {formatProjectDate(project.createdAt)}
           </p>

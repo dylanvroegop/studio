@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   CalendarDays,
+  ExternalLink,
   Link2,
   Loader2,
   Plus,
@@ -219,12 +220,14 @@ export default function KostenPage() {
   const [filter, setFilter] = useState<CostFilterMode>('alle');
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [entryMode, setEntryMode] = useState<EntryMode>('manual');
+  const [entryMode, setEntryMode] = useState<EntryMode>('upload');
   const [saving, setSaving] = useState(false);
+  const [deletingCostId, setDeletingCostId] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [quoteSearch, setQuoteSearch] = useState('');
+  const [activeCost, setActiveCost] = useState<ProjectCostRow | null>(null);
 
   const [form, setForm] = useState<KostenFormState>(createDefaultFormState());
   const [lineItems, setLineItems] = useState<ProjectCostLineItem[]>([
@@ -285,6 +288,7 @@ export default function KostenPage() {
     const token = await user.getIdToken();
     const response = await fetch('/api/kosten/list', {
       method: 'GET',
+      cache: 'no-store',
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -376,6 +380,11 @@ export default function KostenPage() {
     return quotes.filter((quote) => quote.searchable.includes(term)).slice(0, 40);
   }, [quoteSearch, quotes]);
 
+  const activeCostQuote = useMemo(() => {
+    if (!activeCost?.offerte_id) return null;
+    return quoteById.get(activeCost.offerte_id) || null;
+  }, [activeCost, quoteById]);
+
   const normalizedLineItems = useMemo(
     () => lineItems.map((item) => normalizeLineItem(item)),
     [lineItems]
@@ -395,7 +404,7 @@ export default function KostenPage() {
     setLineItems([createEmptyLineItem()]);
     setQuoteSearch('');
     setSelectedFile(null);
-    setEntryMode('manual');
+    setEntryMode('upload');
     setDragActive(false);
   };
 
@@ -503,14 +512,15 @@ export default function KostenPage() {
     }
   };
 
-  const handleExtract = async () => {
-    if (!user || !selectedFile) return;
+  const handleExtract = async (fileOverride?: File | null) => {
+    const fileToExtract = fileOverride ?? selectedFile;
+    if (!user || !fileToExtract || extracting) return;
     setExtracting(true);
 
     try {
       const token = await user.getIdToken();
       const body = new FormData();
-      body.append('file', selectedFile);
+      body.append('file', fileToExtract);
 
       const response = await fetch('/api/kosten/extract', {
         method: 'POST',
@@ -582,6 +592,58 @@ export default function KostenPage() {
     }
   };
 
+  const handleOpenCost = (cost: ProjectCostRow) => {
+    setActiveCost(cost);
+  };
+
+  const handleDeleteCost = async (cost: ProjectCostRow) => {
+    if (!user || deletingCostId) return;
+
+    const confirmed = window.confirm(
+      `Weet je zeker dat je deze kost van "${cost.supplier_name}" wilt verwijderen?`
+    );
+    if (!confirmed) return;
+
+    setDeletingCostId(cost.id);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/kosten/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: cost.id }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        message?: string;
+      } | null;
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || `HTTP ${response.status}`);
+      }
+
+      setCosts((prev) => prev.filter((row) => row.id !== cost.id));
+      setActiveCost((prev) => (prev?.id === cost.id ? null : prev));
+
+      toast({
+        title: 'Kost verwijderd',
+        description: `${safeString(cost.supplier_name) || 'De kost'} is verwijderd.`,
+      });
+    } catch (deleteError) {
+      const message = deleteError instanceof Error ? deleteError.message : 'Kon kost niet verwijderen.';
+      toast({
+        title: 'Verwijderen mislukt',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingCostId(null);
+    }
+  };
+
   if (isUserLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -643,19 +705,19 @@ export default function KostenPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <Button
                               type="button"
-                              variant={entryMode === 'manual' ? 'default' : 'outline'}
-                              className="h-9 rounded-full px-4"
-                              onClick={() => setEntryMode('manual')}
-                            >
-                              Handmatig
-                            </Button>
-                            <Button
-                              type="button"
                               variant={entryMode === 'upload' ? 'default' : 'outline'}
                               className="h-9 rounded-full px-4"
                               onClick={() => setEntryMode('upload')}
                             >
                               Upload + AI
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={entryMode === 'manual' ? 'default' : 'outline'}
+                              className="h-9 rounded-full px-4"
+                              onClick={() => setEntryMode('manual')}
+                            >
+                              Handmatig
                             </Button>
                           </div>
 
@@ -680,7 +742,10 @@ export default function KostenPage() {
                                     event.preventDefault();
                                     setDragActive(false);
                                     const file = event.dataTransfer.files?.[0];
-                                    if (file) setSelectedFile(file);
+                                    if (file) {
+                                      setSelectedFile(file);
+                                      void handleExtract(file);
+                                    }
                                   }}
                                   onClick={() => fileInputRef.current?.click()}
                                   onKeyDown={(event) => {
@@ -703,6 +768,10 @@ export default function KostenPage() {
                                   onChange={(event) => {
                                     const file = event.target.files?.[0] || null;
                                     setSelectedFile(file);
+                                    if (file) {
+                                      void handleExtract(file);
+                                    }
+                                    event.currentTarget.value = '';
                                   }}
                                 />
 
@@ -1094,10 +1163,39 @@ export default function KostenPage() {
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Incl. BTW</div>
-                        <div className="text-2xl font-bold tabular-nums text-emerald-300">
-                          {formatCurrency(cost.amount_incl_btw || 0)}
+                      <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+                        <div className="text-right">
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground">Incl. BTW</div>
+                          <div className="text-2xl font-bold tabular-nums text-emerald-300">
+                            {formatCurrency(cost.amount_incl_btw || 0)}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            onClick={() => handleOpenCost(cost)}
+                            title="Open kost"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground hover:text-red-300"
+                            onClick={() => void handleDeleteCost(cost)}
+                            disabled={deletingCostId === cost.id}
+                            title="Verwijder kost"
+                          >
+                            {deletingCostId === cost.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -1108,6 +1206,117 @@ export default function KostenPage() {
           )}
         </div>
       </main>
+
+      <Dialog
+        open={Boolean(activeCost)}
+        onOpenChange={(open) => {
+          if (!open) setActiveCost(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          {activeCost ? (
+            <div className="space-y-5">
+              <DialogHeader>
+                <DialogTitle>{activeCost.supplier_name || 'Kost details'}</DialogTitle>
+                <DialogDescription>
+                  Bekijk details, open de gekoppelde offerte en verwijder indien nodig.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid grid-cols-1 gap-3 rounded-xl border border-border/70 bg-card/50 p-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Categorie</p>
+                  <p className="mt-1 text-sm font-medium">
+                    {PROJECT_COST_CATEGORY_LABELS[normalizeProjectCostCategory(activeCost.category)]}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Datum</p>
+                  <p className="mt-1 text-sm font-medium">{formatDateLabel(activeCost.date)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Excl. BTW</p>
+                  <p className="mt-1 text-sm font-medium">{formatCurrency(activeCost.amount_excl_btw)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Incl. BTW</p>
+                  <p className="mt-1 text-sm font-medium text-emerald-300">
+                    {formatCurrency(activeCost.amount_incl_btw)}
+                  </p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">Omschrijving</p>
+                  <p className="mt-1 text-sm font-medium">{activeCost.description || '—'}</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">Offerte</p>
+                  <p className="mt-1 text-sm font-medium">
+                    {activeCostQuote
+                      ? (activeCostQuote.offerteNummer
+                        ? `Offerte #${activeCostQuote.offerteNummer}`
+                        : activeCostQuote.label)
+                      : 'Niet gekoppeld'}
+                  </p>
+                </div>
+              </div>
+
+              {activeCost.line_items.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold">Regels</div>
+                  <div className="space-y-2 rounded-xl border border-border/70 bg-card/50 p-3">
+                    {activeCost.line_items.map((item, index) => (
+                      <div
+                        key={`${activeCost.id}-line-${index}`}
+                        className="flex items-center justify-between gap-4 border-b border-border/60 pb-2 last:border-b-0 last:pb-0"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{item.description || 'Regel zonder omschrijving'}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.quantity} {item.unit} x {formatCurrency(item.unit_price)}
+                          </p>
+                        </div>
+                        <p className="text-sm font-semibold tabular-nums">{formatCurrency(item.total_price)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <DialogFooter className="flex flex-wrap gap-2 sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  {activeCostQuote ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        router.push(`/offertes/${activeCostQuote.id}`);
+                        setActiveCost(null);
+                      }}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Open offerte
+                    </Button>
+                  ) : null}
+                  {activeCost.receipt_url ? (
+                    <a
+                      href={activeCost.receipt_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-10 items-center rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <Receipt className="mr-2 h-4 w-4" />
+                      Open bon
+                    </a>
+                  ) : null}
+                </div>
+                <Button type="button" variant="outline" onClick={() => setActiveCost(null)}>
+                  Sluiten
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Button
         type="button"
