@@ -27,6 +27,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -228,6 +238,7 @@ export default function KostenPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [quoteSearch, setQuoteSearch] = useState('');
   const [activeCost, setActiveCost] = useState<ProjectCostRow | null>(null);
+  const [costPendingDelete, setCostPendingDelete] = useState<ProjectCostRow | null>(null);
 
   const [form, setForm] = useState<KostenFormState>(createDefaultFormState());
   const [lineItems, setLineItems] = useState<ProjectCostLineItem[]>([
@@ -484,14 +495,8 @@ export default function KostenPage() {
         throw new Error(payload?.message || `HTTP ${response.status}`);
       }
 
-      setCosts((prev) => {
-        const next = [payload.data!, ...prev];
-        return next.sort((a, b) => {
-          const left = new Date(a.date || a.created_at).getTime();
-          const right = new Date(b.date || b.created_at).getTime();
-          return right - left;
-        });
-      });
+      const refreshedCosts = await loadCosts();
+      setCosts(refreshedCosts);
 
       toast({
         title: 'Kost opgeslagen',
@@ -596,13 +601,15 @@ export default function KostenPage() {
     setActiveCost(cost);
   };
 
-  const handleDeleteCost = async (cost: ProjectCostRow) => {
-    if (!user || deletingCostId) return;
+  const requestDeleteCost = (cost: ProjectCostRow) => {
+    if (deletingCostId) return;
+    setCostPendingDelete(cost);
+  };
 
-    const confirmed = window.confirm(
-      `Weet je zeker dat je deze kost van "${cost.supplier_name}" wilt verwijderen?`
-    );
-    if (!confirmed) return;
+  const handleDeleteCost = async (costArg?: ProjectCostRow | null) => {
+    const cost = costArg || costPendingDelete;
+    if (!cost) return;
+    if (!user || deletingCostId) return;
 
     setDeletingCostId(cost.id);
     try {
@@ -625,8 +632,10 @@ export default function KostenPage() {
         throw new Error(payload?.message || `HTTP ${response.status}`);
       }
 
-      setCosts((prev) => prev.filter((row) => row.id !== cost.id));
+      const refreshedCosts = await loadCosts();
+      setCosts(refreshedCosts);
       setActiveCost((prev) => (prev?.id === cost.id ? null : prev));
+      setCostPendingDelete((prev) => (prev?.id === cost.id ? null : prev));
 
       toast({
         title: 'Kost verwijderd',
@@ -641,6 +650,7 @@ export default function KostenPage() {
       });
     } finally {
       setDeletingCostId(null);
+      setCostPendingDelete(null);
     }
   };
 
@@ -1186,7 +1196,7 @@ export default function KostenPage() {
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8 text-muted-foreground hover:text-red-300"
-                            onClick={() => void handleDeleteCost(cost)}
+                            onClick={() => requestDeleteCost(cost)}
                             disabled={deletingCostId === cost.id}
                             title="Verwijder kost"
                           >
@@ -1206,6 +1216,36 @@ export default function KostenPage() {
           )}
         </div>
       </main>
+
+      <AlertDialog
+        open={Boolean(costPendingDelete)}
+        onOpenChange={(open) => {
+          if (!open && !deletingCostId) setCostPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Kost verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je deze kost van "{costPendingDelete?.supplier_name || 'de leverancier'}" wilt verwijderen?
+              Deze actie kan je niet ongedaan maken.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button type="button" variant="outline" disabled={Boolean(deletingCostId)}>
+                Annuleren
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild onClick={() => void handleDeleteCost(costPendingDelete)}>
+              <Button type="button" variant="destructive" disabled={Boolean(deletingCostId)}>
+                {deletingCostId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {deletingCostId ? 'Verwijderen...' : 'Verwijderen'}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={Boolean(activeCost)}

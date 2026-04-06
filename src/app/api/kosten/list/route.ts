@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { mapProjectCostRow } from '@/lib/project-costs';
-import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,6 +19,45 @@ function safeString(value: unknown): string {
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
+}
+
+async function fetchProjectCostsViaRest(uid: string): Promise<unknown[]> {
+  const supabaseUrl = safeString(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const serviceKey = safeString(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.');
+  }
+
+  const url = new URL('/rest/v1/project_costs', supabaseUrl);
+  url.searchParams.set('select', '*');
+  url.searchParams.set('user_id', `eq.${uid}`);
+  url.searchParams.append('order', 'date.desc');
+  url.searchParams.append('order', 'created_at.desc');
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      'Cache-Control': 'no-store',
+    },
+    cache: 'no-store',
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = safeString(
+      (payload as { message?: unknown; error?: unknown } | null)?.message
+      || (payload as { error?: unknown } | null)?.error
+    );
+    throw new Error(message || `Supabase REST HTTP ${response.status}`);
+  }
+
+  if (!Array.isArray(payload)) {
+    throw new Error('Supabase REST gaf geen geldige array terug.');
+  }
+
+  return payload;
 }
 
 function extractBearerToken(authHeader: string | null): string | null {
@@ -43,7 +81,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const { auth, firestore } = initFirebaseAdmin();
+    const { auth } = initFirebaseAdmin();
     const decoded = await auth.verifyIdToken(token);
     const uid = decoded?.uid || '';
     if (!uid) {
@@ -59,94 +97,22 @@ export async function GET(request: Request) {
       return trialBlockedResponse;
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('project_costs')
-      .select('*')
-      .eq('user_id', uid)
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      if (isProjectCostsSchemaMismatchError(error.message)) {
-        return NextResponse.json(
-          {
-            ok: false,
-            message:
-              'Database migratie ontbreekt: voer staging_sql/20260402_repair_project_costs_schema.sql uit.',
-          },
-          { status: 500, headers: noStoreHeaders() }
-        );
-      }
-      return NextResponse.json(
-        { ok: false, message: error.message },
-        { status: 500, headers: noStoreHeaders() }
+    const rows = await fetchProjectCostsViaRest(uid);
+    const mappedRows = rows.map((row) => mapProjectCostRow(row));
+    if (process.env.NODE_ENV !== 'production') {
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+      console.log(
+        '[kosten/list]',
+        JSON.stringify({
+          uid,
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
+          serviceKeyPrefix: serviceKey ? serviceKey.slice(0, 14) : null,
+          source: 'rest',
+          rowCount: mappedRows.length,
+          rowIds: mappedRows.map((row) => row.id),
+        })
       );
     }
-
-    let rows = Array.isArray(data) ? data : [];
-
-    // Legacy recovery path: costs may be linked to the user's quotes but carry an outdated user_id.
-    if (rows.length === 0) {
-      const quoteSnapshot = await firestore
-        .collection('quotes')
-        .where('userId', '==', uid)
-        .get();
-
-      const ownedQuoteIds = uniqueStrings(quoteSnapshot.docs.map((doc) => doc.id));
-      if (ownedQuoteIds.length > 0) {
-        const fallbackResult = await supabaseAdmin
-          .from('project_costs')
-          .select('*')
-          .in('offerte_id', ownedQuoteIds)
-          .order('date', { ascending: false })
-          .order('created_at', { ascending: false });
-
-        if (!fallbackResult.error && Array.isArray(fallbackResult.data)) {
-          rows = fallbackResult.data;
-
-          const mismatchedIds = uniqueStrings(
-            rows
-              .filter((row) => safeString((row as { user_id?: unknown }).user_id) !== uid)
-              .map((row) => safeString((row as { id?: unknown }).id))
-          );
-
-          if (mismatchedIds.length > 0) {
-            const repair = await supabaseAdmin
-              .from('project_costs')
-              .update({ user_id: uid })
-              .in('id', mismatchedIds)
-              .select('*');
-
-            if (!repair.error && Array.isArray(repair.data)) {
-              const repairedById = new Map(
-                repair.data.map((row) => [safeString((row as { id?: unknown }).id), row])
-              );
-              rows = rows.map((row) => {
-                const id = safeString((row as { id?: unknown }).id);
-                return repairedById.get(id) || row;
-              });
-            }
-          }
-        }
-      }
-    }
-
-    // Local-dev safety net: if user scoping still yields nothing, expose existing rows
-    // so costs don't appear "lost" while auth/session identity is being debugged.
-    if (rows.length === 0 && process.env.NODE_ENV !== 'production') {
-      const devFallback = await supabaseAdmin
-        .from('project_costs')
-        .select('*')
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(200);
-
-      if (!devFallback.error && Array.isArray(devFallback.data)) {
-        rows = devFallback.data;
-      }
-    }
-
-    const mappedRows = rows.map((row) => mapProjectCostRow(row));
     return NextResponse.json({ ok: true, data: mappedRows }, { headers: noStoreHeaders() });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Kon kosten niet laden.';
