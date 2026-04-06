@@ -230,13 +230,19 @@ export default function FactuurDetailPage() {
 
   const issueDate = useMemo(() => naarDate(invoice?.issueDate), [invoice?.issueDate]);
   const dueDate = useMemo(() => naarDate(invoice?.dueDate), [invoice?.dueDate]);
+  const invoiceType: 'voorschot' | 'eind' = invoice?.invoiceType === 'voorschot' ? 'voorschot' : 'eind';
+  const isVoorschotInvoice = invoiceType === 'voorschot';
 
   useEffect(() => {
     if (!invoice || pdfSettingsInitialized) return;
 
     const fallbackIssueDate = issueDate || new Date();
-    const fallbackDueDate = dueDate
-      || addDays(fallbackIssueDate, Math.max(1, settings?.standaardBetaaltermijnDagen || 14));
+    const fallbackDueDate = isVoorschotInvoice
+      ? fallbackIssueDate
+      : (
+        dueDate
+        || addDays(fallbackIssueDate, Math.max(1, settings?.standaardBetaaltermijnDagen || 14))
+      );
     const inferredTerm = clampPaymentTermDays(
       Math.max(1, differenceInDays(fallbackDueDate, fallbackIssueDate))
     );
@@ -272,6 +278,7 @@ export default function FactuurDetailPage() {
     pdfSettingsInitialized,
     issueDate,
     dueDate,
+    isVoorschotInvoice,
     settings?.standaardBetaaltermijnDagen,
     settings?.standaardFactuurTekst,
   ]);
@@ -282,15 +289,15 @@ export default function FactuurDetailPage() {
     return issueDate || new Date();
   }, [invoicePdfSettings?.issueDateISO, issueDate]);
 
-  const effectivePaymentTermDays = useMemo(
-    () => clampPaymentTermDays(Number(invoicePdfSettings?.paymentTermDays ?? settings?.standaardBetaaltermijnDagen ?? 14)),
-    [invoicePdfSettings?.paymentTermDays, settings?.standaardBetaaltermijnDagen]
-  );
+  const effectivePaymentTermDays = useMemo(() => {
+    if (isVoorschotInvoice) return 0;
+    return clampPaymentTermDays(Number(invoicePdfSettings?.paymentTermDays ?? settings?.standaardBetaaltermijnDagen ?? 14));
+  }, [isVoorschotInvoice, invoicePdfSettings?.paymentTermDays, settings?.standaardBetaaltermijnDagen]);
 
-  const effectiveDueDate = useMemo(
-    () => addDays(effectiveIssueDate, effectivePaymentTermDays),
-    [effectiveIssueDate, effectivePaymentTermDays]
-  );
+  const effectiveDueDate = useMemo(() => {
+    if (isVoorschotInvoice) return effectiveIssueDate;
+    return addDays(effectiveIssueDate, effectivePaymentTermDays);
+  }, [isVoorschotInvoice, effectiveIssueDate, effectivePaymentTermDays]);
 
   useEffect(() => {
     if (!invoicePdfSettings || !pdfSettingsInitialized || !firestore || !invoiceId) return;
@@ -343,7 +350,6 @@ export default function FactuurDetailPage() {
     const klant = invoice.sourceQuote?.klantSnapshot;
     if (!bedrijfNaam || !klant) return null;
 
-    const invoiceType = (invoice as any)?.invoiceType ?? 'eind';
     const originalTotalInclBtw = Number(invoice.financialAdjustments?.originalTotalInclBtw ?? invoice.totalsSnapshot?.totaalInclBtw ?? 0);
     const voorschotAftrekInclBtw = Number(invoice.financialAdjustments?.voorschotAftrekInclBtw ?? 0);
     const voorschotFactuurPaidAmount = typeof invoice.financialAdjustments?.voorschotFactuur?.paidAmount === 'number'
@@ -355,7 +361,7 @@ export default function FactuurDetailPage() {
       invoiceNumberLabel: invoice.invoiceNumberLabel,
       issueDate: effectiveIssueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }),
       dueDate: effectiveDueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }),
-      paymentTermDays: effectivePaymentTermDays,
+      paymentTermDays: isVoorschotInvoice ? 0 : effectivePaymentTermDays,
       betreftOfferte: invoicePdfSettings?.showQuoteReference !== false
         ? (invoice.sourceQuote?.offerteNummer ? `Offerte #${invoice.sourceQuote.offerteNummer}` : undefined)
         : undefined,
@@ -397,7 +403,7 @@ export default function FactuurDetailPage() {
       standaardFactuurTekst: (invoicePdfSettings?.customPaymentText || settings.standaardFactuurTekst || '').trim(),
       calculationSnapshot: invoice.calculationSnapshot ?? null,
     };
-  }, [invoice, settings, businessData, effectiveIssueDate, effectiveDueDate, invoicePdfSettings]);
+  }, [invoice, settings, businessData, invoiceType, isVoorschotInvoice, effectiveIssueDate, effectiveDueDate, effectivePaymentTermDays, invoicePdfSettings]);
 
   const handleDownloadPdf = async () => {
     if (!pdfData) return;
@@ -588,7 +594,6 @@ export default function FactuurDetailPage() {
   const paid = invoice.paymentSummary?.paidAmount ?? 0;
   const open = invoice.paymentSummary?.openAmount ?? Math.max(0, totaalIncl - paid);
   const klantNaam = invoice.sourceQuote?.klantSnapshot?.naam || 'Onbekende klant';
-  const invoiceType = (invoice as any)?.invoiceType ?? 'eind';
   const typeLabel = invoiceType === 'voorschot' ? 'Voorschotfactuur' : 'Eindfactuur';
 
   return (
@@ -694,18 +699,22 @@ export default function FactuurDetailPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Betalingstermijn (dagen)</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={365}
-                          value={invoicePdfSettings.paymentTermDays}
-                          onChange={(event) =>
-                            setInvoicePdfSettings((prev) => prev
-                              ? ({ ...prev, paymentTermDays: clampPaymentTermDays(Number(event.target.value)) })
-                              : prev)
-                          }
-                        />
+                        <Label>Betalingstermijn</Label>
+                        {isVoorschotInvoice ? (
+                          <Input type="text" value="Direct" disabled readOnly />
+                        ) : (
+                          <Input
+                            type="number"
+                            min={1}
+                            max={365}
+                            value={invoicePdfSettings.paymentTermDays}
+                            onChange={(event) =>
+                              setInvoicePdfSettings((prev) => prev
+                                ? ({ ...prev, paymentTermDays: clampPaymentTermDays(Number(event.target.value)) })
+                                : prev)
+                            }
+                          />
+                        )}
                       </div>
                     </div>
 
@@ -806,7 +815,7 @@ export default function FactuurDetailPage() {
             </CardHeader>
             <CardContent className="text-sm space-y-2">
               <div><span className="text-muted-foreground">Factuurdatum:</span> {effectiveIssueDate.toLocaleDateString('nl-NL')}</div>
-              <div><span className="text-muted-foreground">Vervaldatum:</span> {effectiveDueDate.toLocaleDateString('nl-NL')}</div>
+              <div><span className="text-muted-foreground">Vervaldatum:</span> {isVoorschotInvoice ? 'Direct' : effectiveDueDate.toLocaleDateString('nl-NL')}</div>
               {Array.isArray((invoice as any)?.combinedContext?.quoteIds) && (invoice as any).combinedContext.quoteIds.length > 1 ? (
                 <div>
                   <span className="text-muted-foreground">Gecombineerde offertes:</span>{' '}
@@ -1059,7 +1068,8 @@ export default function FactuurDetailPage() {
         klantEmail={invoice.sourceQuote?.klantSnapshot?.email || ''}
         klantAanhef={invoice.sourceQuote?.klantSnapshot?.naam || ''}
         factuurNummer={invoice.invoiceNumberLabel}
-        vervaldatum={effectiveDueDate.toLocaleDateString('nl-NL')}
+        vervaldatum={isVoorschotInvoice ? 'Direct' : effectiveDueDate.toLocaleDateString('nl-NL')}
+        invoiceType={invoiceType}
         totaalInclBtw={totaalIncl}
         bedrijfsnaam={settings?.bedrijfsnaam || businessData?.bedrijfsnaam || ''}
         iban={settings?.iban || undefined}

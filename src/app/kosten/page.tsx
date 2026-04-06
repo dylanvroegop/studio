@@ -170,19 +170,113 @@ function createEmptyLineItem(): ProjectCostLineItem {
     unit: 'st',
     unit_price: 0,
     total_price: 0,
+    category: 'materiaal',
+    offerte_id: null,
   };
 }
 
 function normalizeLineItem(item: ProjectCostLineItem): ProjectCostLineItem {
   const quantity = Math.max(0, safeNumber(item.quantity));
   const unitPrice = Math.max(0, safeNumber(item.unit_price));
+  const explicitTotal = roundEuro(safeNumber(item.total_price));
+  const category = normalizeProjectCostCategory(item.category || 'materiaal');
+  const offerteId = safeString(item.offerte_id) || null;
   return {
     description: safeString(item.description),
     quantity,
     unit: safeString(item.unit) || 'st',
     unit_price: roundEuro(unitPrice),
-    total_price: roundEuro(quantity * unitPrice),
+    total_price: explicitTotal > 0 ? explicitTotal : roundEuro(quantity * unitPrice),
+    category,
+    offerte_id: category === 'materiaal' ? offerteId : null,
   };
+}
+
+function euroToCents(value: number): number {
+  return Math.max(0, Math.round(roundEuro(value) * 100));
+}
+
+function centsToEuro(value: number): number {
+  return roundEuro(value / 100);
+}
+
+function rebalanceLineItemsToAmount(lineItems: ProjectCostLineItem[], targetAmountExcl: number): ProjectCostLineItem[] {
+  if (lineItems.length === 0) return lineItems;
+  const targetCents = euroToCents(targetAmountExcl);
+  if (targetCents <= 0) return lineItems;
+
+  const working = lineItems.map((rawItem) => {
+    const item = normalizeLineItem(rawItem);
+    const quantity = Math.max(0, safeNumber(item.quantity));
+    const unitCents = Math.max(0, Math.round(roundEuro(item.unit_price) * 100));
+    const totalCents = euroToCents(roundEuro((unitCents / 100) * quantity));
+    return {
+      item,
+      quantity,
+      unitCents,
+      totalCents,
+    };
+  });
+
+  const sumCents = (): number => working.reduce((sum, line) => sum + line.totalCents, 0);
+  let diff = targetCents - sumCents();
+  if (diff === 0) {
+    return working.map((line) =>
+      normalizeLineItem({
+        ...line.item,
+        unit_price: centsToEuro(line.unitCents),
+        total_price: centsToEuro(line.totalCents),
+      })
+    );
+  }
+
+  const maxIterations = 2000;
+  let iteration = 0;
+
+  while (diff !== 0 && iteration < maxIterations) {
+    iteration += 1;
+    const direction = diff > 0 ? 1 : -1;
+    let bestIndex = -1;
+    let bestDelta = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index < working.length; index += 1) {
+      const line = working[index];
+      const nextUnitCents = line.unitCents + direction;
+      if (nextUnitCents < 0) continue;
+
+      const nextTotalCents = euroToCents(roundEuro((nextUnitCents / 100) * line.quantity));
+      const delta = nextTotalCents - line.totalCents;
+      if (delta === 0) continue;
+      if (Math.sign(delta) !== Math.sign(diff)) continue;
+      if (Math.abs(delta) > Math.abs(diff)) continue;
+
+      const absDelta = Math.abs(delta);
+      if (absDelta < bestDelta) {
+        bestDelta = absDelta;
+        bestIndex = index;
+      }
+    }
+
+    if (bestIndex < 0) break;
+
+    const selected = working[bestIndex];
+    const nextUnitCents = selected.unitCents + direction;
+    const nextTotalCents = euroToCents(roundEuro((nextUnitCents / 100) * selected.quantity));
+    const delta = nextTotalCents - selected.totalCents;
+    if (delta === 0) break;
+
+    selected.unitCents = nextUnitCents;
+    selected.totalCents = nextTotalCents;
+    diff -= delta;
+  }
+
+  return working.map((line) =>
+    normalizeLineItem({
+      ...line.item,
+      unit_price: centsToEuro(line.unitCents),
+      total_price: centsToEuro(line.totalCents),
+    })
+  );
 }
 
 function categoryBadgeClass(category: ProjectCostCategory): string {
@@ -237,7 +331,7 @@ export default function KostenPage() {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [quoteSearch, setQuoteSearch] = useState('');
-  const [activeCost, setActiveCost] = useState<ProjectCostRow | null>(null);
+  const [editingCostId, setEditingCostId] = useState<string | null>(null);
   const [costPendingDelete, setCostPendingDelete] = useState<ProjectCostRow | null>(null);
 
   const [form, setForm] = useState<KostenFormState>(createDefaultFormState());
@@ -391,11 +485,6 @@ export default function KostenPage() {
     return quotes.filter((quote) => quote.searchable.includes(term)).slice(0, 40);
   }, [quoteSearch, quotes]);
 
-  const activeCostQuote = useMemo(() => {
-    if (!activeCost?.offerte_id) return null;
-    return quoteById.get(activeCost.offerte_id) || null;
-  }, [activeCost, quoteById]);
-
   const normalizedLineItems = useMemo(
     () => lineItems.map((item) => normalizeLineItem(item)),
     [lineItems]
@@ -409,8 +498,10 @@ export default function KostenPage() {
   const amountExcl = form.manualOverride ? roundEuro(form.amountExcl) : lineItemsTotal;
   const btwAmount = roundEuro((amountExcl * form.btwPercentage) / 100);
   const amountIncl = roundEuro(amountExcl + btwAmount);
+  const isEditingCost = Boolean(editingCostId);
 
   const resetForm = () => {
+    setEditingCostId(null);
     setForm(createDefaultFormState());
     setLineItems([createEmptyLineItem()]);
     setQuoteSearch('');
@@ -419,24 +510,48 @@ export default function KostenPage() {
     setDragActive(false);
   };
 
+  const openCreateDialog = () => {
+    resetForm();
+    setCreateOpen(true);
+  };
+
   const updateLineItem = (
     index: number,
     patch: Partial<ProjectCostLineItem>
   ) => {
+    const shouldRecalculateTotal =
+      Object.prototype.hasOwnProperty.call(patch, 'quantity')
+      || Object.prototype.hasOwnProperty.call(patch, 'unit_price');
+
     setLineItems((prev) =>
-      prev.map((item, currentIndex) =>
-        currentIndex === index
-          ? {
-            ...item,
-            ...patch,
-          }
-          : item
-      )
+      prev.map((item, currentIndex) => {
+        if (currentIndex !== index) return item;
+
+        const merged: ProjectCostLineItem = {
+          ...item,
+          ...patch,
+        };
+
+        if (shouldRecalculateTotal) {
+          const quantity = Math.max(0, safeNumber(merged.quantity));
+          const unitPrice = Math.max(0, safeNumber(merged.unit_price));
+          merged.total_price = roundEuro(quantity * unitPrice);
+        }
+
+        return merged;
+      })
     );
   };
 
   const addLineItem = () => {
-    setLineItems((prev) => [...prev, createEmptyLineItem()]);
+    setLineItems((prev) => [
+      ...prev,
+      normalizeLineItem({
+        ...createEmptyLineItem(),
+        category: form.category,
+        offerte_id: form.category === 'materiaal' ? (form.offerteId || null) : null,
+      }),
+    ]);
   };
 
   const removeLineItem = (index: number) => {
@@ -444,6 +559,35 @@ export default function KostenPage() {
       const next = prev.filter((_, currentIndex) => currentIndex !== index);
       return next.length > 0 ? next : [createEmptyLineItem()];
     });
+  };
+
+  const applyMainOfferteToMaterialLines = (nextOfferteIdRaw: string) => {
+    const nextOfferteId = safeString(nextOfferteIdRaw);
+    const previousMainOfferteId = safeString(form.offerteId);
+
+    setLineItems((prev) =>
+      prev.map((rawLine) => {
+        const line = normalizeLineItem(rawLine);
+        const lineCategory = normalizeProjectCostCategory(line.category || 'materiaal');
+        if (lineCategory !== 'materiaal') return line;
+
+        const currentLineOfferteId = safeString(line.offerte_id);
+        const followsMain =
+          !currentLineOfferteId
+          || currentLineOfferteId === previousMainOfferteId;
+
+        if (!followsMain) return line;
+        return {
+          ...line,
+          offerte_id: nextOfferteId || null,
+        };
+      })
+    );
+
+    setForm((prev) => ({
+      ...prev,
+      offerteId: nextOfferteId,
+    }));
   };
 
   const handleSave = async () => {
@@ -464,13 +608,14 @@ export default function KostenPage() {
     setSaving(true);
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/kosten/create', {
+      const response = await fetch(isEditingCost ? '/api/kosten/update' : '/api/kosten/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          id: editingCostId,
           offerte_id: form.offerteId || null,
           category: form.category,
           supplier_name: form.supplierName,
@@ -499,8 +644,10 @@ export default function KostenPage() {
       setCosts(refreshedCosts);
 
       toast({
-        title: 'Kost opgeslagen',
-        description: `${safeString(form.supplierName)} is toegevoegd.`,
+        title: isEditingCost ? 'Kost bijgewerkt' : 'Kost opgeslagen',
+        description: isEditingCost
+          ? `${safeString(form.supplierName)} is bijgewerkt.`
+          : `${safeString(form.supplierName)} is toegevoegd.`,
       });
 
       setCreateOpen(false);
@@ -546,6 +693,7 @@ export default function KostenPage() {
           btw_percentage?: number;
           btw_amount?: number;
           amount_incl_btw?: number;
+          manual_amount_override?: boolean;
           date?: string;
           offerte_reference?: string | null;
           suggested_category?: ProjectCostCategory;
@@ -558,14 +706,33 @@ export default function KostenPage() {
       }
 
       const extracted = payload.data;
-      const extractedLineItems = Array.isArray(extracted.line_items) && extracted.line_items.length > 0
-        ? extracted.line_items.map((item) => normalizeLineItem(item))
-        : [createEmptyLineItem()];
       const matchedOfferteId = parseOfferteReferenceToQuoteId(
         extracted.offerte_reference || null,
         quotes
       );
-
+      const extractedLineItems = Array.isArray(extracted.line_items) && extracted.line_items.length > 0
+        ? extracted.line_items.map((item) =>
+          normalizeLineItem({
+            ...item,
+            category: item.category || extracted.suggested_category || 'materiaal',
+            offerte_id:
+              normalizeProjectCostCategory(item.category || extracted.suggested_category || 'materiaal') === 'materiaal'
+                ? (safeString(item.offerte_id) || matchedOfferteId || null)
+                : null,
+          })
+        )
+        : [createEmptyLineItem()];
+      const extractedLineItemsTotal = roundEuro(
+        extractedLineItems.reduce((sum, item) => sum + roundEuro(item.total_price), 0)
+      );
+      const extractedAmountExcl = roundEuro(safeNumber(extracted.amount_excl_btw));
+      const shouldEnableManualOverride =
+        extracted.manual_amount_override === true
+        || (
+          extractedAmountExcl > 0
+          && extractedLineItemsTotal > 0
+          && Math.abs(extractedAmountExcl - extractedLineItemsTotal) > 0.05
+        );
       setLineItems(extractedLineItems);
       setForm((prev) => ({
         ...prev,
@@ -575,8 +742,8 @@ export default function KostenPage() {
         offerteId: matchedOfferteId || prev.offerteId,
         date: safeString(extracted.date) || prev.date,
         btwPercentage: safeNumber(extracted.btw_percentage) || prev.btwPercentage,
-        amountExcl: roundEuro(safeNumber(extracted.amount_excl_btw)),
-        manualOverride: false,
+        amountExcl: extractedAmountExcl,
+        manualOverride: shouldEnableManualOverride,
         receiptUrl: safeString(extracted.receipt_url) || prev.receiptUrl,
       }));
       setEntryMode('manual');
@@ -598,7 +765,53 @@ export default function KostenPage() {
   };
 
   const handleOpenCost = (cost: ProjectCostRow) => {
-    setActiveCost(cost);
+    const rowCategory = normalizeProjectCostCategory(cost.category);
+    const rowOfferteId = safeString(cost.offerte_id) || null;
+    const initialLineItems = Array.isArray(cost.line_items) && cost.line_items.length > 0
+      ? cost.line_items.map((item) =>
+        normalizeLineItem({
+          ...item,
+          category: item.category || rowCategory,
+          offerte_id: safeString(item.offerte_id) || (rowCategory === 'materiaal' ? rowOfferteId : null),
+        })
+      )
+      : [createEmptyLineItem()];
+    const amountExclForCost = roundEuro(safeNumber(cost.amount_excl_btw));
+    const normalizedOpenLineItems = (
+      initialLineItems.length > 0
+      && amountExclForCost > 0
+      && Math.abs(
+        roundEuro(initialLineItems.reduce((sum, item) => sum + roundEuro(item.total_price), 0))
+        - amountExclForCost
+      ) > 0.01
+    )
+      ? rebalanceLineItemsToAmount(initialLineItems, amountExclForCost)
+      : initialLineItems;
+    const lineItemsTotalForCost = roundEuro(
+      normalizedOpenLineItems.reduce((sum, item) => sum + roundEuro(item.total_price), 0)
+    );
+    const useManualOverride =
+      lineItemsTotalForCost <= 0
+      || Math.abs(amountExclForCost - lineItemsTotalForCost) > 0.05;
+
+    setLineItems(normalizedOpenLineItems);
+    setForm({
+      category: normalizeProjectCostCategory(cost.category),
+      supplierName: safeString(cost.supplier_name),
+      description: safeString(cost.description),
+      offerteId: safeString(cost.offerte_id),
+      date: safeString(cost.date) || new Date().toISOString().slice(0, 10),
+      btwPercentage: safeNumber(cost.btw_percentage) || 21,
+      amountExcl: amountExclForCost,
+      manualOverride: useManualOverride,
+      receiptUrl: safeString(cost.receipt_url),
+    });
+    setQuoteSearch('');
+    setSelectedFile(null);
+    setDragActive(false);
+    setEntryMode('manual');
+    setEditingCostId(cost.id);
+    setCreateOpen(true);
   };
 
   const requestDeleteCost = (cost: ProjectCostRow) => {
@@ -634,8 +847,11 @@ export default function KostenPage() {
 
       const refreshedCosts = await loadCosts();
       setCosts(refreshedCosts);
-      setActiveCost((prev) => (prev?.id === cost.id ? null : prev));
       setCostPendingDelete((prev) => (prev?.id === cost.id ? null : prev));
+      if (editingCostId === cost.id) {
+        setCreateOpen(false);
+        resetForm();
+      }
 
       toast({
         title: 'Kost verwijderd',
@@ -696,7 +912,11 @@ export default function KostenPage() {
                   }}
                 >
                   <DialogTrigger asChild>
-                    <Button type="button" className="h-10 shrink-0 gap-2 px-4 hidden sm:inline-flex">
+                    <Button
+                      type="button"
+                      className="h-10 shrink-0 gap-2 px-4 hidden sm:inline-flex"
+                      onClick={openCreateDialog}
+                    >
                       <Plus className="h-4 w-4" />
                       Nieuwe kost
                     </Button>
@@ -704,9 +924,11 @@ export default function KostenPage() {
                   <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden p-0">
                     <div className="flex max-h-[90vh] flex-col">
                       <DialogHeader className="px-6 pt-6 pb-2">
-                        <DialogTitle>Nieuwe kost</DialogTitle>
+                        <DialogTitle>{isEditingCost ? 'Kost bewerken' : 'Nieuwe kost'}</DialogTitle>
                         <DialogDescription>
-                          Voeg handmatig kosten toe of upload een bon/factuur om automatisch in te vullen.
+                          {isEditingCost
+                            ? 'Pas de kost aan en sla de wijzigingen op.'
+                            : 'Voeg handmatig kosten toe of upload een bon/factuur om automatisch in te vullen.'}
                         </DialogDescription>
                       </DialogHeader>
 
@@ -886,12 +1108,7 @@ export default function KostenPage() {
                                 />
                                 <Select
                                   value={form.offerteId || 'none'}
-                                  onValueChange={(value) =>
-                                    setForm((prev) => ({
-                                      ...prev,
-                                      offerteId: value === 'none' ? '' : value,
-                                    }))
-                                  }
+                                  onValueChange={(value) => applyMainOfferteToMaterialLines(value === 'none' ? '' : value)}
                                 >
                                   <SelectTrigger>
                                     <SelectValue placeholder="Niet gekoppeld" />
@@ -905,6 +1122,9 @@ export default function KostenPage() {
                                     ))}
                                   </SelectContent>
                                 </Select>
+                                <p className="text-xs text-muted-foreground">
+                                  Hoofdlink vult automatisch materiaalregels in. Regels met een eigen afwijkende koppeling blijven ongewijzigd.
+                                </p>
                               </div>
 
                               <div className="space-y-3">
@@ -917,11 +1137,17 @@ export default function KostenPage() {
                                 </div>
 
                                 <div className="space-y-3">
-                                  {lineItems.map((item, index) => (
-                                    <div
-                                      key={`line-item-${index}`}
-                                      className="rounded-lg border border-border/70 bg-background/40 p-3 space-y-3"
-                                    >
+                                  {lineItems.map((item, index) => {
+                                    const normalizedLine = normalizeLineItem(item);
+                                    const lineExcl = normalizedLine.total_price;
+                                    const lineBtw = roundEuro((lineExcl * form.btwPercentage) / 100);
+                                    const lineIncl = roundEuro(lineExcl + lineBtw);
+
+                                    return (
+                                      <div
+                                        key={`line-item-${index}`}
+                                        className="rounded-lg border border-border/70 bg-background/40 p-3 space-y-3"
+                                      >
                                       <Input
                                         value={item.description}
                                         onChange={(event) =>
@@ -930,53 +1156,131 @@ export default function KostenPage() {
                                         placeholder="Omschrijving"
                                       />
 
-                                      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          step="0.01"
-                                          value={item.quantity}
-                                          onChange={(event) =>
-                                            updateLineItem(index, {
-                                              quantity: safeNumber(event.target.value),
-                                            })
-                                          }
-                                          placeholder="Aantal"
-                                        />
-                                        <Input
-                                          value={item.unit}
-                                          onChange={(event) =>
-                                            updateLineItem(index, { unit: event.target.value })
-                                          }
-                                          placeholder="Eenheid"
-                                        />
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          step="0.01"
-                                          value={item.unit_price}
-                                          onChange={(event) =>
-                                            updateLineItem(index, {
-                                              unit_price: safeNumber(event.target.value),
-                                            })
-                                          }
-                                          placeholder="Prijs/stuk"
-                                        />
-                                        <Input
-                                          value={formatCurrency(normalizeLineItem(item).total_price)}
-                                          disabled
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          className="h-10"
-                                          onClick={() => removeLineItem(index)}
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        <div className="space-y-1">
+                                          <Label className="text-xs text-muted-foreground">Type regel</Label>
+                                          <Select
+                                            value={normalizeProjectCostCategory(item.category || form.category)}
+                                            onValueChange={(value) => {
+                                              const nextCategory = normalizeProjectCostCategory(value);
+                                              updateLineItem(index, {
+                                                category: nextCategory,
+                                                offerte_id:
+                                                  nextCategory === 'materiaal'
+                                                    ? (safeString(item.offerte_id) || form.offerteId || null)
+                                                    : null,
+                                              });
+                                            }}
+                                          >
+                                            <SelectTrigger>
+                                              <SelectValue placeholder="Type" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="materiaal">Materiaal</SelectItem>
+                                              <SelectItem value="gereedschap">Gereedschap</SelectItem>
+                                              <SelectItem value="brandstof">Brandstof</SelectItem>
+                                              <SelectItem value="overig">Overig</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                          <Label className="text-xs text-muted-foreground">Offerte (per regel)</Label>
+                                          {normalizeProjectCostCategory(item.category || form.category) === 'materiaal' ? (
+                                            <Select
+                                              value={safeString(item.offerte_id) || 'none'}
+                                              onValueChange={(value) =>
+                                                updateLineItem(index, {
+                                                  offerte_id: value === 'none' ? null : value,
+                                                })
+                                              }
+                                            >
+                                              <SelectTrigger>
+                                                <SelectValue placeholder="Niet gekoppeld" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="none">Niet gekoppeld</SelectItem>
+                                                {quotes.map((quote) => (
+                                                  <SelectItem key={`${index}-${quote.id}`} value={quote.id}>
+                                                    {quote.label}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          ) : (
+                                            <Input value="Bedrijfskost (geen offerte)" disabled readOnly />
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-2 gap-3 md:grid-cols-7">
+                                        <div className="space-y-1">
+                                          <p className="text-[11px] text-muted-foreground">Aantal</p>
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={item.quantity}
+                                            onChange={(event) =>
+                                              updateLineItem(index, {
+                                                quantity: safeNumber(event.target.value),
+                                              })
+                                            }
+                                            placeholder="Aantal"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <p className="text-[11px] text-muted-foreground">Eenheid</p>
+                                          <Input
+                                            value={item.unit}
+                                            onChange={(event) =>
+                                              updateLineItem(index, { unit: event.target.value })
+                                            }
+                                            placeholder="Eenheid"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <p className="text-[11px] text-muted-foreground">Prijs/stuk (excl.)</p>
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={item.unit_price}
+                                            onChange={(event) =>
+                                              updateLineItem(index, {
+                                                unit_price: safeNumber(event.target.value),
+                                              })
+                                            }
+                                            placeholder="Prijs/stuk"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <p className="text-[11px] text-muted-foreground">Excl.</p>
+                                          <Input value={formatCurrency(lineExcl)} disabled />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <p className="text-[11px] text-muted-foreground">BTW</p>
+                                          <Input value={formatCurrency(lineBtw)} disabled />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <p className="text-[11px] text-muted-foreground">Incl.</p>
+                                          <Input value={formatCurrency(lineIncl)} disabled />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <p className="text-[11px] text-muted-foreground">Actie</p>
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="h-10 w-full"
+                                            onClick={() => removeLineItem(index)}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
                                       </div>
                                     </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </div>
 
@@ -1080,7 +1384,7 @@ export default function KostenPage() {
                         </Button>
                         <Button type="button" onClick={() => void handleSave()} disabled={saving}>
                           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                          {saving ? 'Opslaan...' : 'Opslaan'}
+                          {saving ? 'Opslaan...' : (isEditingCost ? 'Wijzigingen opslaan' : 'Opslaan')}
                         </Button>
                       </DialogFooter>
                     </div>
@@ -1120,7 +1424,7 @@ export default function KostenPage() {
                   type="button"
                   variant="outline"
                   className="mt-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200 dark:hover:text-emerald-100"
-                  onClick={() => setCreateOpen(true)}
+                  onClick={openCreateDialog}
                 >
                   Nieuwe kost
                 </Button>
@@ -1137,7 +1441,16 @@ export default function KostenPage() {
                 return (
                   <div
                     key={cost.id}
-                    className="group rounded-xl border border-l-4 border-border/80 border-l-emerald-500/70 bg-card/75 px-4 py-3 shadow-sm transition-all duration-200 hover:bg-card hover:border-border hover:shadow-md sm:px-5"
+                    role="button"
+                    tabIndex={0}
+                    className="group rounded-xl border border-l-4 border-border/80 border-l-emerald-500/70 bg-card/75 px-4 py-3 shadow-sm transition-all duration-200 hover:bg-card hover:border-border hover:shadow-md sm:px-5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+                    onClick={() => handleOpenCost(cost)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleOpenCost(cost);
+                      }
+                    }}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0 flex-1">
@@ -1165,6 +1478,7 @@ export default function KostenPage() {
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex items-center gap-1 text-emerald-300 hover:text-emerald-200"
+                              onClick={(event) => event.stopPropagation()}
                             >
                               <Receipt className="h-3.5 w-3.5" />
                               Bon
@@ -1186,8 +1500,11 @@ export default function KostenPage() {
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                            onClick={() => handleOpenCost(cost)}
-                            title="Open kost"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleOpenCost(cost);
+                            }}
+                            title="Bewerk kost"
                           >
                             <ExternalLink className="h-4 w-4" />
                           </Button>
@@ -1196,7 +1513,10 @@ export default function KostenPage() {
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8 text-muted-foreground hover:text-red-300"
-                            onClick={() => requestDeleteCost(cost)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              requestDeleteCost(cost);
+                            }}
                             disabled={deletingCostId === cost.id}
                             title="Verwijder kost"
                           >
@@ -1247,121 +1567,10 @@ export default function KostenPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog
-        open={Boolean(activeCost)}
-        onOpenChange={(open) => {
-          if (!open) setActiveCost(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-2xl">
-          {activeCost ? (
-            <div className="space-y-5">
-              <DialogHeader>
-                <DialogTitle>{activeCost.supplier_name || 'Kost details'}</DialogTitle>
-                <DialogDescription>
-                  Bekijk details, open de gekoppelde offerte en verwijder indien nodig.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="grid grid-cols-1 gap-3 rounded-xl border border-border/70 bg-card/50 p-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs text-muted-foreground">Categorie</p>
-                  <p className="mt-1 text-sm font-medium">
-                    {PROJECT_COST_CATEGORY_LABELS[normalizeProjectCostCategory(activeCost.category)]}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Datum</p>
-                  <p className="mt-1 text-sm font-medium">{formatDateLabel(activeCost.date)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Excl. BTW</p>
-                  <p className="mt-1 text-sm font-medium">{formatCurrency(activeCost.amount_excl_btw)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Incl. BTW</p>
-                  <p className="mt-1 text-sm font-medium text-emerald-300">
-                    {formatCurrency(activeCost.amount_incl_btw)}
-                  </p>
-                </div>
-                <div className="sm:col-span-2">
-                  <p className="text-xs text-muted-foreground">Omschrijving</p>
-                  <p className="mt-1 text-sm font-medium">{activeCost.description || '—'}</p>
-                </div>
-                <div className="sm:col-span-2">
-                  <p className="text-xs text-muted-foreground">Offerte</p>
-                  <p className="mt-1 text-sm font-medium">
-                    {activeCostQuote
-                      ? (activeCostQuote.offerteNummer
-                        ? `Offerte #${activeCostQuote.offerteNummer}`
-                        : activeCostQuote.label)
-                      : 'Niet gekoppeld'}
-                  </p>
-                </div>
-              </div>
-
-              {activeCost.line_items.length > 0 ? (
-                <div className="space-y-2">
-                  <div className="text-sm font-semibold">Regels</div>
-                  <div className="space-y-2 rounded-xl border border-border/70 bg-card/50 p-3">
-                    {activeCost.line_items.map((item, index) => (
-                      <div
-                        key={`${activeCost.id}-line-${index}`}
-                        className="flex items-center justify-between gap-4 border-b border-border/60 pb-2 last:border-b-0 last:pb-0"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{item.description || 'Regel zonder omschrijving'}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.quantity} {item.unit} x {formatCurrency(item.unit_price)}
-                          </p>
-                        </div>
-                        <p className="text-sm font-semibold tabular-nums">{formatCurrency(item.total_price)}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              <DialogFooter className="flex flex-wrap gap-2 sm:justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  {activeCostQuote ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        router.push(`/offertes/${activeCostQuote.id}`);
-                        setActiveCost(null);
-                      }}
-                    >
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Open offerte
-                    </Button>
-                  ) : null}
-                  {activeCost.receipt_url ? (
-                    <a
-                      href={activeCost.receipt_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex h-10 items-center rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
-                    >
-                      <Receipt className="mr-2 h-4 w-4" />
-                      Open bon
-                    </a>
-                  ) : null}
-                </div>
-                <Button type="button" variant="outline" onClick={() => setActiveCost(null)}>
-                  Sluiten
-                </Button>
-              </DialogFooter>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-
       <Button
         type="button"
         className="fixed bottom-5 right-4 z-40 h-12 gap-2 rounded-full px-4 shadow-lg shadow-emerald-900/30 sm:hidden"
-        onClick={() => setCreateOpen(true)}
+        onClick={openCreateDialog}
       >
         <Plus className="h-4 w-4" />
         Nieuwe kost

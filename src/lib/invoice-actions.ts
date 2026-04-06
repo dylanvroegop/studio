@@ -126,7 +126,9 @@ export async function createInvoiceFromQuote(
 
   const issueDate = new Date();
   const betaaltermijn = safeNumber(settings.standaardBetaaltermijnDagen) ?? 14;
-  const dueDate = new Date(Date.now() + betaaltermijn * 24 * 60 * 60 * 1000);
+  const dueDate = invoiceType === 'voorschot'
+    ? new Date(issueDate)
+    : new Date(issueDate.getTime() + betaaltermijn * 24 * 60 * 60 * 1000);
 
   const payload = removeEmptyFields({
     userId,

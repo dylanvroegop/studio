@@ -13,6 +13,8 @@ export interface ProjectCostLineItem {
   unit: string;
   unit_price: number;
   total_price: number;
+  category?: ProjectCostCategory;
+  offerte_id?: string | null;
 }
 
 export interface ProjectCostRow {
@@ -69,6 +71,9 @@ export function normalizeProjectCostLineItem(input: unknown): ProjectCostLineIte
   const unitPrice = Math.max(0, safeNumber(row.unit_price));
   const explicitTotal = safeNumber(row.total_price);
   const totalPrice = roundEuro(explicitTotal > 0 ? explicitTotal : quantity * unitPrice);
+  const rawCategory = safeString(row.category);
+  const category = rawCategory ? normalizeProjectCostCategory(rawCategory) : undefined;
+  const offerteId = safeString(row.offerte_id ?? row.offerteId) || null;
 
   return {
     description: safeString(row.description),
@@ -76,6 +81,8 @@ export function normalizeProjectCostLineItem(input: unknown): ProjectCostLineIte
     unit: safeString(row.unit) || 'st',
     unit_price: roundEuro(unitPrice),
     total_price: totalPrice,
+    category,
+    offerte_id: offerteId,
   };
 }
 

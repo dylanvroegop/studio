@@ -36,6 +36,77 @@ function dateOnly(value: unknown): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function euroToCents(value: number): number {
+  return Math.max(0, Math.round(roundEuro(value) * 100));
+}
+
+function centsToEuro(value: number): number {
+  return roundEuro(value / 100);
+}
+
+function allocateAmountAcrossGroups(groupTotals: number[], targetAmount: number): number[] {
+  const targetCents = euroToCents(targetAmount);
+  if (targetCents <= 0) return groupTotals.map(() => 0);
+
+  const normalizedTotals = groupTotals.map((value) => Math.max(0, safeNumber(value)));
+  const totalsSum = normalizedTotals.reduce((sum, value) => sum + value, 0);
+  if (totalsSum <= 0) {
+    return normalizedTotals.map((_, index) => (index === 0 ? centsToEuro(targetCents) : 0));
+  }
+
+  const rawShares = normalizedTotals.map((value) => (value / totalsSum) * targetCents);
+  const floorShares = rawShares.map((value) => Math.floor(value));
+  const distributed = floorShares.reduce((sum, value) => sum + value, 0);
+  let remainder = targetCents - distributed;
+
+  const order = rawShares
+    .map((value, index) => ({
+      index,
+      fraction: value - floorShares[index],
+    }))
+    .sort((left, right) => right.fraction - left.fraction);
+
+  let cursor = 0;
+  while (remainder > 0 && order.length > 0) {
+    floorShares[order[cursor].index] += 1;
+    remainder -= 1;
+    cursor = (cursor + 1) % order.length;
+  }
+
+  return floorShares.map((value) => centsToEuro(value));
+}
+
+function rebalanceLineItemsToTargetAmount(params: {
+  lineItems: Array<Record<string, unknown>>;
+  targetAmountExcl: number;
+}): Array<Record<string, unknown>> {
+  const { lineItems, targetAmountExcl } = params;
+  if (lineItems.length === 0) return lineItems;
+
+  const currentTotals = lineItems.map((item) => {
+    const explicitTotal = roundEuro(safeNumber(item.total_price));
+    if (explicitTotal > 0) return explicitTotal;
+    const quantity = Math.max(0, safeNumber(item.quantity));
+    const unitPrice = Math.max(0, safeNumber(item.unit_price));
+    return roundEuro(quantity * unitPrice);
+  });
+  const allocatedTotals = allocateAmountAcrossGroups(currentTotals, targetAmountExcl);
+
+  return lineItems.map((item, index) => {
+    const quantity = Math.max(0, safeNumber(item.quantity));
+    const allocatedTotal = roundEuro(allocatedTotals[index] || 0);
+    const allocatedUnitPrice = quantity > 0
+      ? roundEuro(allocatedTotal / quantity)
+      : roundEuro(safeNumber(item.unit_price));
+
+    return {
+      ...item,
+      unit_price: allocatedUnitPrice,
+      total_price: allocatedTotal,
+    };
+  });
+}
+
 function isMissingRelationError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
@@ -223,112 +294,207 @@ export async function POST(request: Request) {
     }
 
     const lineItems = normalizeProjectCostLineItems(input.line_items);
-    const lineItemsTotal = sumProjectCostLineItems(lineItems);
     const requestedAmountExcl = roundEuro(safeNumber(input.amount_excl_btw));
     const manualOverride = input.manual_amount_override === true;
-
-    const amountExcl = roundEuro(
-      manualOverride
-        ? requestedAmountExcl
-        : (lineItemsTotal > 0 ? lineItemsTotal : requestedAmountExcl)
-    );
-    if (amountExcl <= 0) {
-      return NextResponse.json({ ok: false, message: 'Bedrag excl. BTW moet groter dan 0 zijn.' }, { status: 400 });
-    }
-
     const btwPercentage = roundEuro(safeNumber(input.btw_percentage) || 21);
-    const btwAmount = roundEuro((amountExcl * btwPercentage) / 100);
-    const amountIncl = roundEuro(amountExcl + btwAmount);
     const date = dateOnly(input.date);
     const receiptUrl = safeString(input.receipt_url) || null;
     const status = safeString(input.status) || 'confirmed';
 
-    const insertPayload: Record<string, unknown> = {
-      user_id: uid,
-      offerte_id: offerteId,
-      category,
-      supplier_name: supplierName,
-      description,
-      line_items: lineItems,
-      amount_excl_btw: amountExcl,
-      btw_percentage: btwPercentage,
-      btw_amount: btwAmount,
-      amount_incl_btw: amountIncl,
-      date,
-      receipt_url: receiptUrl,
-      status,
+    const routedLineItems = lineItems.map((item) => {
+      const lineCategory = normalizeProjectCostCategory(item.category || category);
+      const lineOfferteIdRaw = safeString(item.offerte_id || null);
+      const lineOfferteId = lineCategory === 'materiaal' ? (lineOfferteIdRaw || offerteId) : null;
+      return {
+        ...item,
+        category: lineCategory,
+        offerte_id: lineOfferteId,
+      };
+    });
+
+    const quoteIdsToValidate = Array.from(
+      new Set(
+        routedLineItems
+          .map((item) => safeString(item.offerte_id || null))
+          .filter(Boolean)
+      )
+    );
+    for (const quoteId of quoteIdsToValidate) {
+      await validateQuoteOwnership({ offerteId: quoteId, uid });
+    }
+
+    const insertWithFallback = async (
+      insertPayload: Record<string, unknown>
+    ): Promise<{ data: any; error: any }> => {
+      let { data, error } = await supabaseAdmin
+        .from('project_costs')
+        .insert(insertPayload)
+        .select('*')
+        .single();
+
+      if (error) {
+        const retryPayload: Record<string, unknown> = { ...insertPayload };
+        let attempts = 0;
+        while (error && attempts < 5) {
+          const notNullColumn = getProjectCostsNotNullColumn(error.message);
+          if (!notNullColumn) break;
+
+          const existingValue = retryPayload[notNullColumn];
+          if (existingValue !== null && existingValue !== undefined && `${existingValue}`.trim() !== '') {
+            break;
+          }
+
+          const fallback = fallbackValueForLegacyRequiredColumn({
+            column: notNullColumn,
+            input,
+          });
+          if (fallback === null || fallback === undefined || `${fallback}`.trim() === '') {
+            break;
+          }
+
+          retryPayload[notNullColumn] = fallback;
+          const retry = await supabaseAdmin
+            .from('project_costs')
+            .insert(retryPayload)
+            .select('*')
+            .single();
+
+          data = retry.data;
+          error = retry.error;
+          attempts += 1;
+        }
+      }
+
+      return { data, error };
     };
 
-    let { data, error } = await supabaseAdmin
-      .from('project_costs')
-      .insert(insertPayload)
-      .select('*')
-      .single();
+    const groupedEntries = new Map<string, {
+      category: ReturnType<typeof normalizeProjectCostCategory>;
+      offerteId: string | null;
+      lineItems: typeof routedLineItems;
+    }>();
 
-    if (error) {
-      const retryPayload: Record<string, unknown> = { ...insertPayload };
-      let attempts = 0;
-      while (error && attempts < 5) {
+    routedLineItems.forEach((line) => {
+      const key = `${line.category}__${line.offerte_id || 'none'}`;
+      const existing = groupedEntries.get(key);
+      if (existing) {
+        existing.lineItems.push(line);
+        return;
+      }
+      groupedEntries.set(key, {
+        category: line.category,
+        offerteId: line.offerte_id || null,
+        lineItems: [line],
+      });
+    });
+
+    if (groupedEntries.size === 0) {
+      groupedEntries.set(`${category}__${offerteId || 'none'}`, {
+        category,
+        offerteId: category === 'materiaal' ? offerteId : null,
+        lineItems: [],
+      });
+    }
+
+    const groupedArray = Array.from(groupedEntries.values());
+    const groupLineTotals = groupedArray.map((group) => sumProjectCostLineItems(group.lineItems));
+    let amountExclPerGroup = groupLineTotals.map((value) => roundEuro(value));
+    const groupedLineTotal = roundEuro(groupLineTotals.reduce((sum, value) => sum + roundEuro(value), 0));
+    const shouldApplyManualOverrideForSplit =
+      manualOverride
+      && requestedAmountExcl > 0
+      && Math.abs(groupedLineTotal - requestedAmountExcl) > 0.05;
+
+    if (shouldApplyManualOverrideForSplit) {
+      amountExclPerGroup = allocateAmountAcrossGroups(groupLineTotals, requestedAmountExcl);
+    } else if (groupedArray.length === 1 && amountExclPerGroup[0] <= 0 && requestedAmountExcl > 0) {
+      amountExclPerGroup = [roundEuro(requestedAmountExcl)];
+    }
+
+    const insertedRows: any[] = [];
+
+    for (const [groupIndex, group] of groupedArray.entries()) {
+      let groupLineItems = group.lineItems;
+      const amountExcl = roundEuro(amountExclPerGroup[groupIndex] || 0);
+      if (amountExcl <= 0) continue;
+
+      const groupLineTotal = sumProjectCostLineItems(groupLineItems as any);
+      if (groupLineItems.length > 0 && Math.abs(groupLineTotal - amountExcl) > 0.01) {
+        groupLineItems = rebalanceLineItemsToTargetAmount({
+          lineItems: groupLineItems as unknown as Array<Record<string, unknown>>,
+          targetAmountExcl: amountExcl,
+        }) as any;
+      }
+
+      const btwAmount = roundEuro((amountExcl * btwPercentage) / 100);
+      const amountIncl = roundEuro(amountExcl + btwAmount);
+      const rowDescription = groupedArray.length > 1
+        ? `${description} (${group.category})`
+        : description;
+
+      const insertPayload: Record<string, unknown> = {
+        user_id: uid,
+        offerte_id: group.offerteId,
+        category: group.category,
+        supplier_name: supplierName,
+        description: rowDescription,
+        line_items: groupLineItems,
+        amount_excl_btw: amountExcl,
+        btw_percentage: btwPercentage,
+        btw_amount: btwAmount,
+        amount_incl_btw: amountIncl,
+        date,
+        receipt_url: receiptUrl,
+        status,
+      };
+
+      const { data, error } = await insertWithFallback(insertPayload);
+
+      if (error) {
+        if (isProjectCostsSchemaMismatchError(error.message)) {
+          return NextResponse.json(
+            {
+              ok: false,
+              message:
+                'Database migratie ontbreekt: voer staging_sql/20260402_repair_project_costs_schema.sql uit.',
+            },
+            { status: 500 }
+          );
+        }
+
         const notNullColumn = getProjectCostsNotNullColumn(error.message);
-        if (!notNullColumn) break;
-
-        const existingValue = retryPayload[notNullColumn];
-        if (existingValue !== null && existingValue !== undefined && `${existingValue}`.trim() !== '') {
-          break;
+        if (notNullColumn) {
+          return NextResponse.json(
+            {
+              ok: false,
+              message:
+                `Database schema mismatch: kolom "${notNullColumn}" is verplicht in project_costs. ` +
+                'Maak die kolom optioneel of geef een default in Supabase.',
+            },
+            { status: 500 }
+          );
         }
 
-        const fallback = fallbackValueForLegacyRequiredColumn({
-          column: notNullColumn,
-          input,
-        });
-        if (fallback === null || fallback === undefined || `${fallback}`.trim() === '') {
-          break;
-        }
-
-        retryPayload[notNullColumn] = fallback;
-        const retry = await supabaseAdmin
-          .from('project_costs')
-          .insert(retryPayload)
-          .select('*')
-          .single();
-
-        data = retry.data;
-        error = retry.error;
-        attempts += 1;
+        return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
       }
+
+      insertedRows.push(data);
     }
 
-    if (error) {
-      if (isProjectCostsSchemaMismatchError(error.message)) {
-        return NextResponse.json(
-          {
-            ok: false,
-            message:
-              'Database migratie ontbreekt: voer staging_sql/20260402_repair_project_costs_schema.sql uit.',
-          },
-          { status: 500 }
-        );
-      }
-
-      const notNullColumn = getProjectCostsNotNullColumn(error.message);
-      if (notNullColumn) {
-        return NextResponse.json(
-          {
-            ok: false,
-            message:
-              `Database schema mismatch: kolom "${notNullColumn}" is verplicht in project_costs. ` +
-              'Maak die kolom optioneel of geef een default in Supabase.',
-          },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    if (insertedRows.length === 0) {
+      return NextResponse.json({ ok: false, message: 'Bedrag excl. BTW moet groter dan 0 zijn.' }, { status: 400 });
     }
 
-    if (offerteId) {
+    const overviewQuoteIds = Array.from(
+      new Set(
+        insertedRows
+          .map((row) => safeString((row as Record<string, unknown>).offerte_id))
+          .filter(Boolean)
+      )
+    );
+    for (const quoteId of overviewQuoteIds) {
       try {
-        await upsertProfitOverview({ uid, offerteId });
+        await upsertProfitOverview({ uid, offerteId: quoteId });
       } catch (overviewError) {
         console.warn('[kosten/create] Kon profit_overview niet bijwerken:', overviewError);
       }
@@ -336,7 +502,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      data: mapProjectCostRow(data),
+      data: mapProjectCostRow(insertedRows[0]),
+      rows: insertedRows.map((row) => mapProjectCostRow(row)),
+      inserted_count: insertedRows.length,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Kon kost niet opslaan.';

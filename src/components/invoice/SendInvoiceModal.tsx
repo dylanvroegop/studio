@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Download, Loader2, Mail } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import type { InvoiceType } from '@/lib/types';
 
 interface SendInvoiceModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface SendInvoiceModalProps {
   klantAanhef: string;
   factuurNummer: string;
   vervaldatum: string;
+  invoiceType?: InvoiceType;
   totaalInclBtw: number;
   bedrijfsnaam: string;
   iban?: string;
@@ -29,6 +31,7 @@ export function SendInvoiceModal({
   klantAanhef,
   factuurNummer,
   vervaldatum,
+  invoiceType,
   totaalInclBtw,
   bedrijfsnaam,
   iban,
@@ -44,19 +47,23 @@ export function SendInvoiceModal({
     setEmail(klantEmail || '');
     setSubject(`Factuur #${factuurNummer}`);
 
+    const isVoorschot = invoiceType === 'voorschot';
     const bedrag = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(totaalInclBtw || 0);
     const ibanLine = iban ? `IBAN: ${iban}\n` : '';
+    const paymentLine = isVoorschot
+      ? 'Betaaltermijn: Direct\n'
+      : `Vervaldatum: ${vervaldatum}\n`;
 
     setBody(
       `Beste ${klantAanhef || 'klant'},\n\n` +
-      `Hierbij ontvangt u factuur #${factuurNummer}.\n` +
+      `Hierbij ontvangt u ${isVoorschot ? 'de voorschotfactuur' : 'factuur'} #${factuurNummer}.\n` +
       `Bedrag: ${bedrag}\n` +
-      `Vervaldatum: ${vervaldatum}\n` +
+      paymentLine +
       `${ibanLine}` +
       `Omschrijving: Factuur #${factuurNummer}\n\n` +
       `Met vriendelijke groet,\n\n${bedrijfsnaam || ''}`
     );
-  }, [isOpen, klantEmail, klantAanhef, factuurNummer, vervaldatum, totaalInclBtw, bedrijfsnaam, iban]);
+  }, [isOpen, klantEmail, klantAanhef, factuurNummer, vervaldatum, invoiceType, totaalInclBtw, bedrijfsnaam, iban]);
 
   const handleDownloadAndOpenEmail = async () => {
     if (isSending) return;

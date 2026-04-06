@@ -98,16 +98,19 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   }
 
   // Header right
+  const isVoorschotInvoice = data.invoiceType === 'voorschot';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.text(data.invoiceType === 'voorschot' ? 'VOORSCHOTFACTUUR' : 'EINDFACTUUR', pageWidth - margin, y + 5, { align: 'right' });
+  doc.text(isVoorschotInvoice ? 'VOORSCHOTFACTUUR' : 'EINDFACTUUR', pageWidth - margin, y + 5, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.text(`Factuur #${data.invoiceNumberLabel}`, pageWidth - margin, y + 12, { align: 'right' });
   doc.text(`Factuurdatum: ${data.issueDate}`, pageWidth - margin, y + 17, { align: 'right' });
   doc.text(`Vervaldatum: ${data.dueDate}`, pageWidth - margin, y + 22, { align: 'right' });
-  if (typeof data.paymentTermDays === 'number' && Number.isFinite(data.paymentTermDays)) {
+  if (isVoorschotInvoice) {
+    doc.text('Betaaltermijn: Direct', pageWidth - margin, y + 27, { align: 'right' });
+  } else if (typeof data.paymentTermDays === 'number' && Number.isFinite(data.paymentTermDays)) {
     doc.text(`Betaaltermijn: ${Math.max(1, Math.round(data.paymentTermDays))} dagen`, pageWidth - margin, y + 27, { align: 'right' });
   }
   if (data.betreftOfferte) {
@@ -224,7 +227,7 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
 
   if (data.bedrijf.iban) paymentLines.push(`IBAN: ${data.bedrijf.iban}`);
   if (data.bedrijf.bic) paymentLines.push(`BIC: ${data.bedrijf.bic}`);
-  paymentLines.push(`Omschrijving: ${data.invoiceType === 'voorschot' ? 'Voorschotfactuur' : 'Eindfactuur'} #${data.invoiceNumberLabel}`);
+  paymentLines.push(`Omschrijving: ${isVoorschotInvoice ? 'Voorschotfactuur' : 'Eindfactuur'} #${data.invoiceNumberLabel}`);
 
   const standaardTekst = (data.standaardFactuurTekst || '').trim();
   if (standaardTekst) {

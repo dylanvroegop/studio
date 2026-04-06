@@ -7,6 +7,7 @@ import {
   inferProjectCostCategory,
   normalizeProjectCostLineItems,
   normalizeProjectCostLineItem,
+  type ProjectCostLineItem,
   roundEuro,
   sumProjectCostLineItems,
 } from '@/lib/project-costs';
@@ -16,7 +17,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const EXTRACTION_PROMPT =
-  'You are an expert at extracting data from Dutch supplier invoices and receipts for construction/carpentry materials. Extract: supplier_name, date (YYYY-MM-DD), receipt_description (short Dutch summary of the entire receipt/invoice, not just one line item), line_items (array of {description, quantity, unit, unit_price, total_price}), subtotal_excl_btw, btw_percentage, btw_amount, total_incl_btw, and any project/offerte reference number. Return ONLY valid JSON, no markdown.';
+  'You are an expert at extracting data from Dutch supplier invoices and receipts for construction/carpentry materials. Extract: supplier_name, date (YYYY-MM-DD), receipt_description (short Dutch summary of the entire receipt/invoice, not just one line item), line_items (array of {description, quantity, unit, unit_price, total_price, category}), subtotal_excl_btw, btw_percentage, btw_amount, total_incl_btw, and any project/offerte reference number. line_items.category must be exactly one of: materiaal, gereedschap, brandstof. Rules: reusable tools (measuring tools, hand tools, power tools, sets, holders, clamps, markers/pencils) => gereedschap; consumables and build inputs (screws, plugs, glue, sealant, tape, wood, plates, profiles, sanding discs, etc.) => materiaal; fuel/charging products => brandstof. Important: keep subtotal_excl_btw and total_incl_btw fiscally correct. If the receipt shows retail prices (often VAT-included), still return the correct EXCL subtotal from the VAT breakdown. Return ONLY valid JSON, no markdown.';
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -31,6 +32,280 @@ function safeString(value: unknown): string {
 function safeNumber(value: unknown): number {
   const numeric = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function safePercentage(value: unknown): number {
+  const numeric = roundEuro(safeNumber(value));
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.min(100, Math.max(0, numeric));
+}
+
+function readPathValue(source: Record<string, unknown>, path: string): unknown {
+  const parts = path.split('.');
+  let current: unknown = source;
+  for (const part of parts) {
+    if (!current || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
+function pickFirstPositiveNumber(source: Record<string, unknown>, paths: string[]): number {
+  for (const path of paths) {
+    const value = roundEuro(safeNumber(readPathValue(source, path)));
+    if (value > 0) return value;
+  }
+  return 0;
+}
+
+function nearlyEqual(left: number, right: number, tolerance = 0.05): boolean {
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
+  return Math.abs(left - right) <= tolerance;
+}
+
+function euroToCents(value: number): number {
+  return Math.max(0, Math.round(roundEuro(value) * 100));
+}
+
+function centsToEuro(value: number): number {
+  return roundEuro(value / 100);
+}
+
+function rebalanceLineItemsToTargetSubtotal(
+  items: ProjectCostLineItem[],
+  targetSubtotalExcl: number
+): ProjectCostLineItem[] {
+  if (items.length === 0) return items;
+  const targetCents = euroToCents(targetSubtotalExcl);
+  if (targetCents <= 0) return items;
+
+  const working = items.map((item) => {
+    const quantity = Math.max(0, safeNumber(item.quantity));
+    const unitCents = Math.max(0, Math.round(roundEuro(safeNumber(item.unit_price)) * 100));
+    const totalCents = euroToCents(roundEuro((unitCents / 100) * quantity));
+    return {
+      item,
+      quantity,
+      unitCents,
+      totalCents,
+    };
+  });
+
+  const sumCents = (): number => working.reduce((sum, line) => sum + line.totalCents, 0);
+  let diff = targetCents - sumCents();
+  if (diff === 0) {
+    return working.map((line) =>
+      normalizeProjectCostLineItem({
+        ...line.item,
+        unit_price: centsToEuro(line.unitCents),
+        total_price: centsToEuro(line.totalCents),
+      })
+    );
+  }
+
+  const maxIterations = 2000;
+  let iteration = 0;
+
+  while (diff !== 0 && iteration < maxIterations) {
+    iteration += 1;
+    const direction = diff > 0 ? 1 : -1;
+    let bestIndex = -1;
+    let bestDelta = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index < working.length; index += 1) {
+      const line = working[index];
+      const nextUnitCents = line.unitCents + direction;
+      if (nextUnitCents < 0) continue;
+
+      const nextTotalCents = euroToCents(roundEuro((nextUnitCents / 100) * line.quantity));
+      const delta = nextTotalCents - line.totalCents;
+      if (delta === 0) continue;
+      if (Math.sign(delta) !== Math.sign(diff)) continue;
+      if (Math.abs(delta) > Math.abs(diff)) continue;
+
+      const absDelta = Math.abs(delta);
+      if (absDelta < bestDelta) {
+        bestDelta = absDelta;
+        bestIndex = index;
+      }
+    }
+
+    if (bestIndex < 0) break;
+
+    const selected = working[bestIndex];
+    const nextUnitCents = selected.unitCents + direction;
+    const nextTotalCents = euroToCents(roundEuro((nextUnitCents / 100) * selected.quantity));
+    const delta = nextTotalCents - selected.totalCents;
+    if (delta === 0) break;
+
+    selected.unitCents = nextUnitCents;
+    selected.totalCents = nextTotalCents;
+    diff -= delta;
+  }
+
+  return working.map((line) =>
+    normalizeProjectCostLineItem({
+      ...line.item,
+      unit_price: centsToEuro(line.unitCents),
+      total_price: centsToEuro(line.totalCents),
+    })
+  );
+}
+
+function convertLineItemsFromInclToExcl(
+  items: ProjectCostLineItem[],
+  btwPercentage: number
+): ProjectCostLineItem[] {
+  const rate = Math.max(0, safeNumber(btwPercentage));
+  const factor = 1 + rate / 100;
+  if (factor <= 0) return items;
+
+  return items.map((item) => {
+    const quantity = Math.max(0, safeNumber(item.quantity));
+    const totalIncl = Math.max(0, safeNumber(item.total_price));
+    const unitIncl = Math.max(0, safeNumber(item.unit_price));
+    const totalExcl = roundEuro(totalIncl / factor);
+    const unitExcl = quantity > 0
+      ? roundEuro(totalExcl / quantity)
+      : roundEuro(unitIncl / factor);
+
+    return normalizeProjectCostLineItem({
+      description: safeString(item.description),
+      quantity,
+      unit: safeString(item.unit) || 'st',
+      unit_price: unitExcl,
+      total_price: totalExcl,
+    });
+  });
+}
+
+function inferLineItemCategory(description: string): 'materiaal' | 'gereedschap' | 'brandstof' {
+  const target = safeString(description).toLowerCase();
+  if (!target) return 'materiaal';
+
+  const containsAny = (needles: string[]) => needles.some((needle) => target.includes(needle));
+
+  const scoreContainsAny = (needles: string[], weight = 1): number =>
+    needles.reduce((score, needle) => (target.includes(needle) ? score + weight : score), 0);
+
+  if (
+    containsAny([
+      'diesel',
+      'benzine',
+      'brandstof',
+      'adblue',
+      'lpg',
+      'elektrisch laden',
+      'laadpas',
+    ])
+  ) {
+    return 'brandstof';
+  }
+
+  const gereedschapStrong = scoreContainsAny([
+    'gereedschap',
+    'hamer',
+    'zaag',
+    'boor',
+    'schroevendraaier',
+    'schroefmachine',
+    'multitool',
+    'beitel',
+    'rolbandmaat',
+    'rolmaat',
+    'meetlint',
+    'plooimeter',
+    'stanley',
+    'accu',
+    'laser',
+    'tang',
+    'waterpas',
+    'koffer',
+    'bitset',
+    'boorset',
+    'bithouder',
+    'bittset',
+    'set ',
+    ' set',
+    'lijmklem',
+    'klem',
+    'glas pen',
+    'glaspen',
+    'marker',
+    'potlood',
+    'afbreekmes',
+    'stanleymes',
+    'mes',
+    'kniptang',
+    'combitang',
+    'ratel',
+  ], 2);
+
+  const gereedschapWeak = scoreContainsAny([
+    'houder',
+    'tool',
+    'meter',
+    'meet',
+    'pen',
+  ]);
+
+  const materiaalStrong = scoreContainsAny([
+    'schroef',
+    'plug',
+    'kit',
+    'lijm',
+    'silicon',
+    'acrylaat',
+    'tape',
+    'folie',
+    'hout',
+    'plank',
+    'lat',
+    'plaat',
+    'gips',
+    'isolatie',
+    'profiel',
+    'rail',
+    'band',
+    'mortel',
+    'cement',
+    'stuc',
+    'verf',
+    'lak',
+    'primer',
+    'spijker',
+    'bout',
+    'moer',
+    'ring',
+    'anker',
+    'schuurschijf',
+    'schuurpapier',
+    'slijpschijf',
+  ], 2);
+
+  const materiaalWeak = scoreContainsAny([
+    'pattex',
+    'power fix',
+    'high tack',
+    'ms polymeer',
+    'polymeer',
+  ]);
+
+  const gereedschapScore = gereedschapStrong + gereedschapWeak;
+  const materiaalScore = materiaalStrong + materiaalWeak;
+
+  if (gereedschapScore > materiaalScore) return 'gereedschap';
+  if (materiaalScore > gereedschapScore) return 'materiaal';
+
+  if (containsAny(['set ', ' set', 'houder', 'klem', 'meter', 'waterpas', 'pen', 'potlood'])) {
+    return 'gereedschap';
+  }
+
+  if (containsAny(['schroef', 'plug', 'kit', 'lijm', 'tape', 'schijf'])) {
+    return 'materiaal';
+  }
+
+  return 'materiaal';
 }
 
 function compactWhitespace(value: string): string {
@@ -376,7 +651,7 @@ export async function POST(request: Request) {
     const publicUrlData = supabaseAdmin.storage.from('receipts').getPublicUrl(storagePath);
     const receiptUrl = safeString(publicUrlData.data?.publicUrl) || storagePath;
 
-    const model = safeString(process.env.OPENAI_RECEIPTS_MODEL) || 'gpt-4o';
+    const model = safeString(process.env.OPENAI_RECEIPTS_MODEL) || 'gpt-5.2';
 
     let parsedExtraction: Record<string, unknown>;
     if (isPdf) {
@@ -406,11 +681,17 @@ export async function POST(request: Request) {
       });
     }
 
+    const supplierName =
+      safeString(parsedExtraction.supplier_name)
+      || safeString(parsedExtraction.supplier)
+      || safeString(parsedExtraction.vendor_name)
+      || 'Onbekende leverancier';
+
     const lineItems = normalizeProjectCostLineItems(parsedExtraction.line_items);
     const lineItemsFallback = Array.isArray(parsedExtraction.items)
       ? normalizeProjectCostLineItems(parsedExtraction.items)
       : [];
-    const normalizedLineItems = lineItems.length > 0 ? lineItems : lineItemsFallback;
+    let normalizedLineItems = lineItems.length > 0 ? lineItems : lineItemsFallback;
 
     if (normalizedLineItems.length === 0) {
       const fallbackDescription = safeString(parsedExtraction.description) || 'Factuurregel';
@@ -426,29 +707,137 @@ export async function POST(request: Request) {
       );
     }
 
-    const subtotalExcl =
-      roundEuro(safeNumber(parsedExtraction.subtotal_excl_btw))
-      || roundEuro(safeNumber(parsedExtraction.amount_excl_btw))
-      || sumProjectCostLineItems(normalizedLineItems);
+    normalizedLineItems = normalizedLineItems.map((item) =>
+      normalizeProjectCostLineItem({
+        ...item,
+        category: item.category || inferLineItemCategory(item.description),
+        offerte_id: item.offerte_id ?? null,
+      })
+    );
 
-    const btwPercentage =
-      roundEuro(safeNumber(parsedExtraction.btw_percentage))
-      || roundEuro(safeNumber(parsedExtraction.vat_percentage))
+    const lineItemsTotalBeforeBtwFix = sumProjectCostLineItems(normalizedLineItems);
+
+    const parsedBtwPercentage =
+      safePercentage(parsedExtraction.btw_percentage)
+      || safePercentage(parsedExtraction.vat_percentage)
+      || safePercentage(parsedExtraction.btw)
       || 21;
-    const btwAmount =
-      roundEuro(safeNumber(parsedExtraction.btw_amount))
-      || roundEuro(safeNumber(parsedExtraction.vat_amount))
-      || roundEuro((subtotalExcl * btwPercentage) / 100);
-    const totalIncl =
-      roundEuro(safeNumber(parsedExtraction.total_incl_btw))
-      || roundEuro(safeNumber(parsedExtraction.amount_incl_btw))
-      || roundEuro(subtotalExcl + btwAmount);
 
-    const supplierName =
-      safeString(parsedExtraction.supplier_name)
-      || safeString(parsedExtraction.supplier)
-      || safeString(parsedExtraction.vendor_name)
-      || 'Onbekende leverancier';
+    const parsedSubtotalExcl = pickFirstPositiveNumber(parsedExtraction, [
+      'subtotal_excl_btw',
+      'amount_excl_btw',
+      'subtotal_excl_vat',
+      'subtotal_excl',
+      'total_excl_btw',
+      'total_excl_vat',
+      'net_amount',
+      'totals.subtotal_excl_btw',
+      'totals.amount_excl_btw',
+      'totals.subtotal_excl',
+      'totals.net_amount',
+    ]);
+
+    const parsedBtwAmount = pickFirstPositiveNumber(parsedExtraction, [
+      'btw_amount',
+      'vat_amount',
+      'tax_amount',
+      'totals.btw_amount',
+      'totals.vat_amount',
+      'totals.tax_amount',
+      'btw_specification.total.btw',
+      'btw_specification.btw',
+    ]);
+
+    const parsedTotalIncl = pickFirstPositiveNumber(parsedExtraction, [
+      'total_incl_btw',
+      'amount_incl_btw',
+      'total_incl_vat',
+      'gross_amount',
+      'grand_total',
+      'amount_total',
+      'total',
+      'totaal',
+      'te_betalen',
+      'totals.total_incl_btw',
+      'totals.amount_incl_btw',
+      'totals.total',
+      'totals.gross_amount',
+      'btw_specification.total.incl',
+      'btw_specification.incl',
+    ]);
+
+    let subtotalExcl = parsedSubtotalExcl;
+    let btwPercentage = parsedBtwPercentage || 21;
+    let btwAmount = parsedBtwAmount;
+    let totalIncl = parsedTotalIncl;
+
+    if (subtotalExcl <= 0 && totalIncl > 0 && btwAmount > 0) {
+      subtotalExcl = roundEuro(totalIncl - btwAmount);
+    }
+    if (subtotalExcl <= 0 && totalIncl > 0 && btwPercentage > 0) {
+      subtotalExcl = roundEuro(totalIncl / (1 + btwPercentage / 100));
+    }
+    if (btwAmount <= 0 && subtotalExcl > 0 && totalIncl > 0) {
+      btwAmount = roundEuro(totalIncl - subtotalExcl);
+    }
+    if (btwAmount <= 0 && subtotalExcl > 0 && btwPercentage > 0) {
+      btwAmount = roundEuro((subtotalExcl * btwPercentage) / 100);
+    }
+    if (totalIncl <= 0 && subtotalExcl > 0 && btwAmount > 0) {
+      totalIncl = roundEuro(subtotalExcl + btwAmount);
+    }
+
+    const diffToParsedIncl = parsedTotalIncl > 0
+      ? Math.abs(lineItemsTotalBeforeBtwFix - parsedTotalIncl)
+      : Number.POSITIVE_INFINITY;
+    const diffToParsedExcl = parsedSubtotalExcl > 0
+      ? Math.abs(lineItemsTotalBeforeBtwFix - parsedSubtotalExcl)
+      : Number.POSITIVE_INFINITY;
+    const lineItemsLikelyInclBtw =
+      lineItemsTotalBeforeBtwFix > 0
+      && parsedTotalIncl > 0
+      && diffToParsedIncl <= 0.05
+      && (
+        parsedSubtotalExcl <= 0
+        || diffToParsedIncl + 0.01 < diffToParsedExcl
+      );
+
+    if (lineItemsLikelyInclBtw && btwPercentage > 0) {
+      normalizedLineItems = convertLineItemsFromInclToExcl(normalizedLineItems, btwPercentage).map((item) =>
+        normalizeProjectCostLineItem({
+          ...item,
+          category: item.category || inferLineItemCategory(item.description),
+          offerte_id: item.offerte_id ?? null,
+        })
+      );
+    }
+
+    let lineItemsTotalExcl = sumProjectCostLineItems(normalizedLineItems);
+    if (
+      subtotalExcl > 0
+      && normalizedLineItems.length > 0
+      && Math.abs(subtotalExcl - lineItemsTotalExcl) > 0.001
+      && Math.abs(subtotalExcl - lineItemsTotalExcl) <= 0.15
+    ) {
+      normalizedLineItems = rebalanceLineItemsToTargetSubtotal(normalizedLineItems, subtotalExcl).map((item) =>
+        normalizeProjectCostLineItem({
+          ...item,
+          category: item.category || inferLineItemCategory(item.description),
+          offerte_id: item.offerte_id ?? null,
+        })
+      );
+      lineItemsTotalExcl = sumProjectCostLineItems(normalizedLineItems);
+    }
+
+    if (subtotalExcl <= 0) subtotalExcl = lineItemsTotalExcl;
+    if (btwAmount <= 0) btwAmount = roundEuro((subtotalExcl * btwPercentage) / 100);
+    if (totalIncl <= 0) totalIncl = roundEuro(subtotalExcl + btwAmount);
+
+    const manualAmountOverride =
+      subtotalExcl > 0
+      && lineItemsTotalExcl > 0
+      && !nearlyEqual(subtotalExcl, lineItemsTotalExcl);
+
     const description = createReceiptDescription({
       extractedSummary:
         safeString(parsedExtraction.receipt_description)
@@ -484,6 +873,7 @@ export async function POST(request: Request) {
         btw_percentage: btwPercentage,
         btw_amount: btwAmount,
         amount_incl_btw: totalIncl,
+        manual_amount_override: manualAmountOverride,
         date: extractedDate,
         offerte_reference: offerteReference,
         suggested_category: suggestedCategory,
