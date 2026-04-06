@@ -408,6 +408,31 @@ function looksLikePdf(contentType: string, filename: string): boolean {
   return contentType === 'application/pdf' || filename.toLowerCase().endsWith('.pdf');
 }
 
+function looksLikeImage(contentType: string, filename: string): boolean {
+  if (contentType.startsWith('image/')) return true;
+  const lower = filename.toLowerCase();
+  return (
+    lower.endsWith('.jpg')
+    || lower.endsWith('.jpeg')
+    || lower.endsWith('.png')
+    || lower.endsWith('.webp')
+    || lower.endsWith('.heic')
+    || lower.endsWith('.heif')
+  );
+}
+
+function inferContentType(rawType: string, filename: string): string {
+  if (rawType) return rawType;
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.heic')) return 'image/heic';
+  if (lower.endsWith('.heif')) return 'image/heif';
+  return 'application/octet-stream';
+}
+
 function isBucketNotFoundError(message: string): boolean {
   const lower = message.toLowerCase();
   return lower.includes('bucket not found') || lower.includes('bucket') && lower.includes('not found');
@@ -614,10 +639,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Bestand ontbreekt.' }, { status: 400 });
     }
 
-    const contentType = safeString(sourceFile.type) || 'application/octet-stream';
+    const rawContentType = safeString(sourceFile.type);
     const filename = sanitizeFilename(sourceFile.name || `receipt-${Date.now()}`);
+    const contentType = inferContentType(rawContentType, filename);
     const isPdf = looksLikePdf(contentType, filename);
-    const isImage = contentType.startsWith('image/');
+    const isImage = looksLikeImage(contentType, filename);
     if (!isPdf && !isImage) {
       return NextResponse.json({ ok: false, message: 'Alleen PDF of afbeelding is toegestaan.' }, { status: 400 });
     }
@@ -653,32 +679,23 @@ export async function POST(request: Request) {
 
     const model = safeString(process.env.OPENAI_RECEIPTS_MODEL) || 'gpt-5.2';
 
+    const fileId = await uploadFileToOpenAi({
+      apiKey,
+      filename,
+      contentType,
+      bytes,
+    });
+
     let parsedExtraction: Record<string, unknown>;
-    if (isPdf) {
-      const fileId = await uploadFileToOpenAi({
-        apiKey,
-        filename,
-        contentType,
-        bytes,
-      });
-      try {
-        parsedExtraction = await callOpenAiExtraction({
-          apiKey,
-          model,
-          prompt: EXTRACTION_PROMPT,
-          fileId,
-        });
-      } finally {
-        await deleteOpenAiFile(apiKey, fileId);
-      }
-    } else {
-      const dataUrl = `data:${contentType};base64,${bytes.toString('base64')}`;
+    try {
       parsedExtraction = await callOpenAiExtraction({
         apiKey,
         model,
         prompt: EXTRACTION_PROMPT,
-        imageDataUrl: dataUrl,
+        fileId,
       });
+    } finally {
+      await deleteOpenAiFile(apiKey, fileId);
     }
 
     const supplierName =

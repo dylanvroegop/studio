@@ -119,6 +119,52 @@ function formatDateLabel(value: string): string {
   }).format(date);
 }
 
+async function optimizeReceiptImageForUpload(file: File): Promise<File> {
+  const mime = safeString(file.type).toLowerCase();
+  if (!mime.startsWith('image/')) return file;
+
+  const shouldConvert = mime === 'image/heic' || mime === 'image/heif' || file.size > 4 * 1024 * 1024;
+  if (!shouldConvert || typeof window === 'undefined') return file;
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Kon foto niet verwerken.'));
+      img.src = objectUrl;
+    });
+
+    const maxDimension = 2200;
+    const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return file;
+
+    context.drawImage(image, 0, 0, width, height);
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.88);
+    });
+    if (!blob) return file;
+
+    const originalName = safeString(file.name) || `receipt-${Date.now()}`;
+    const baseName = originalName.replace(/\.[^.]+$/, '') || `receipt-${Date.now()}`;
+    return new File([blob], `${baseName}.jpg`, {
+      type: 'image/jpeg',
+      lastModified: Date.now(),
+    });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 function toDate(value: unknown): Date | null {
   if (!value) return null;
   if (value instanceof Date) return value;
@@ -670,9 +716,14 @@ export default function KostenPage() {
     setExtracting(true);
 
     try {
+      const preparedFile = await optimizeReceiptImageForUpload(fileToExtract);
+      if (preparedFile !== fileToExtract) {
+        setSelectedFile(preparedFile);
+      }
+
       const token = await user.getIdToken();
       const body = new FormData();
-      body.append('file', fileToExtract);
+      body.append('file', preparedFile);
 
       const response = await fetch('/api/kosten/extract', {
         method: 'POST',
@@ -1437,6 +1488,7 @@ export default function KostenPage() {
                 const linkedLabel = quote
                   ? (quote.offerteNummer ? `Offerte #${quote.offerteNummer}` : quote.label)
                   : 'Niet gekoppeld';
+                const linkedClientName = quote ? quote.clientName : '';
 
                 return (
                   <div
@@ -1457,9 +1509,6 @@ export default function KostenPage() {
                         <div className="truncate text-base font-semibold text-foreground sm:text-lg">
                           {cost.supplier_name || 'Onbekende leverancier'}
                         </div>
-                        <div className="mt-0.5 truncate text-sm text-muted-foreground">
-                          {cost.description || '—'}
-                        </div>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                           <Badge variant="outline" className={categoryBadgeClass(cost.category)}>
                             {PROJECT_COST_CATEGORY_LABELS[cost.category]}
@@ -1468,6 +1517,11 @@ export default function KostenPage() {
                             <Link2 className="h-3.5 w-3.5" />
                             {linkedLabel}
                           </span>
+                          {linkedClientName ? (
+                            <span className="inline-flex items-center gap-1 text-muted-foreground">
+                              Klant: {linkedClientName}
+                            </span>
+                          ) : null}
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
                             <CalendarDays className="h-3.5 w-3.5" />
                             {formatDateLabel(cost.date)}
