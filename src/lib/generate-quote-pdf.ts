@@ -118,6 +118,27 @@ function roundMoney(value: number): number {
     return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
 }
 
+function fitImageWithinBox(
+    sourceWidth: number,
+    sourceHeight: number,
+    maxWidth: number,
+    maxHeight: number,
+): { width: number; height: number } {
+    if (sourceWidth <= 0 || sourceHeight <= 0 || maxWidth <= 0 || maxHeight <= 0) {
+        return { width: 0, height: 0 };
+    }
+
+    let width = maxWidth;
+    let height = (sourceHeight * maxWidth) / sourceWidth;
+
+    if (height > maxHeight) {
+        height = maxHeight;
+        width = (sourceWidth * maxHeight) / sourceHeight;
+    }
+
+    return { width, height };
+}
+
 function buildSummaryLineTotalsWithHiddenMargin(totals: PDFQuoteData['totals']): {
     materialen: number;
     arbeid: number;
@@ -175,6 +196,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 20;
+    const bottomMargin = 20;
     let y = margin;
     let headerBlockHeight = 28;
     const isOnderVoorbehoud = Boolean(data.onderVoorbehoud);
@@ -191,7 +213,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
 
     // Helper: check for page break
     const checkPageBreak = (neededSpace: number) => {
-        if (y + neededSpace > pageHeight - 20) {
+        if (y + neededSpace > pageHeight - bottomMargin) {
             doc.addPage();
             y = margin;
             return true;
@@ -208,6 +230,30 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         drawLine(y);
         y += 10;
     };
+
+    let signatureAsset: {
+        base64: string;
+        format: 'PNG' | 'JPEG' | 'WEBP';
+        width: number;
+        height: number;
+    } | null = null;
+
+    if (data.signatureUrl) {
+        try {
+            const signatureBase64 = await urlToBase64(data.signatureUrl);
+            const signatureFormat = getImageFormatFromDataUrl(signatureBase64);
+            const signatureImg = doc.getImageProperties(signatureBase64);
+
+            signatureAsset = {
+                base64: signatureBase64,
+                format: signatureFormat,
+                width: signatureImg.width,
+                height: signatureImg.height,
+            };
+        } catch (error) {
+            console.error('Error loading signature for PDF:', error);
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // PAGE 1: HEADER + SUMMARY
@@ -880,25 +926,18 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.text(ondertekeningNaam, margin, y);
     y += 5;
 
-    if (data.signatureUrl) {
-        try {
-            const signatureBase64 = await urlToBase64(data.signatureUrl);
-            const signatureFormat = getImageFormatFromDataUrl(signatureBase64);
-            const signatureImg = doc.getImageProperties(signatureBase64);
+    if (signatureAsset) {
+        const { width: signatureWidth, height: signatureHeight } = fitImageWithinBox(
+            signatureAsset.width,
+            signatureAsset.height,
+            50,
+            18,
+        );
 
-            const maxWidth = 50;
-            const maxHeight = 18;
-            let signatureWidth = maxWidth;
-            let signatureHeight = (signatureImg.height * maxWidth) / signatureImg.width;
-            if (signatureHeight > maxHeight) {
-                signatureHeight = maxHeight;
-                signatureWidth = (signatureImg.width * maxHeight) / signatureImg.height;
-            }
-
-            doc.addImage(signatureBase64, signatureFormat, margin, y, signatureWidth, signatureHeight);
+        if (signatureWidth > 0 && signatureHeight > 0) {
+            doc.addImage(signatureAsset.base64, signatureAsset.format, margin, y, signatureWidth, signatureHeight);
             y += signatureHeight + 4;
-        } catch (error) {
-            console.error('Error adding signature to PDF:', error);
+        } else {
             y += 8;
         }
     }
@@ -1015,6 +1054,30 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.setFontSize(8);
         doc.setTextColor(140, 140, 140);
         doc.text(`${page}/${totalPages}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
+
+        if (signatureAsset) {
+            const footerMaxWidth = 34;
+            const footerMaxHeight = 8;
+            const footerAreaTop = pageHeight - 18;
+            const { width: footerSignatureWidth, height: footerSignatureHeight } = fitImageWithinBox(
+                signatureAsset.width,
+                signatureAsset.height,
+                footerMaxWidth,
+                footerMaxHeight,
+            );
+
+            if (footerSignatureWidth > 0 && footerSignatureHeight > 0) {
+                const signatureY = footerAreaTop + ((footerMaxHeight - footerSignatureHeight) / 2);
+                doc.addImage(
+                    signatureAsset.base64,
+                    signatureAsset.format,
+                    margin,
+                    signatureY,
+                    footerSignatureWidth,
+                    footerSignatureHeight,
+                );
+            }
+        }
     }
 
     return doc.output('blob');

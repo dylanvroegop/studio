@@ -3897,7 +3897,7 @@ export default function QuotePage() {
                                                             <div className="space-y-3 rounded-xl border border-white/10 bg-muted/60 p-4">
                                                                 <h4 className="font-medium">Handtekening</h4>
                                                                 <p className="text-sm text-muted-foreground">
-                                                                    Deze handtekening wordt onderaan de offerte-PDF geplaatst.
+                                                                    Deze handtekening wordt onderaan elke pagina van de offerte-PDF geplaatst.
                                                                 </p>
                                                                 {user && (
                                                                     <LogoUpload
