@@ -15,7 +15,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { Archive, Loader2, MoreHorizontal, Plus, ReceiptText, Search, FileText } from 'lucide-react';
+import { Archive, CheckCircle2, Loader2, MoreHorizontal, Plus, ReceiptText, Search, FileText } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Card, CardContent } from '@/components/ui/card';
@@ -481,6 +481,28 @@ export default function FacturenPage() {
                         <div className="hidden min-w-[140px] text-right sm:block">
                           <div className="text-2xl font-bold tabular-nums text-emerald-400">{formatCurrency(amountToShow)}</div>
                         </div>
+
+                        {inv.status !== 'betaald' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="hidden h-9 gap-2 border-amber-400/35 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20 hover:text-white sm:inline-flex"
+                            disabled={markingPaidId === inv.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              if (markingPaidId === inv.id) return;
+                              void markInvoiceAsPaid(inv);
+                            }}
+                          >
+                            {markingPaidId === inv.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            )}
+                            Markeer betaald
+                          </Button>
+                        )}
 
                         <Button
                           variant="default"

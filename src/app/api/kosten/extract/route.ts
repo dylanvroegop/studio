@@ -438,6 +438,12 @@ function isBucketNotFoundError(message: string): boolean {
   return lower.includes('bucket not found') || lower.includes('bucket') && lower.includes('not found');
 }
 
+function toImageDataUrl(contentType: string, bytes: Buffer): string {
+  const type = safeString(contentType) || 'image/jpeg';
+  const base64 = bytes.toString('base64');
+  return `data:${type};base64,${base64}`;
+}
+
 async function ensureReceiptsBucketExists(): Promise<void> {
   const create = await supabaseAdmin.storage.createBucket('receipts', {
     public: true,
@@ -679,23 +685,33 @@ export async function POST(request: Request) {
 
     const model = safeString(process.env.OPENAI_RECEIPTS_MODEL) || 'gpt-5.2';
 
-    const fileId = await uploadFileToOpenAi({
-      apiKey,
-      filename,
-      contentType,
-      bytes,
-    });
-
     let parsedExtraction: Record<string, unknown>;
-    try {
+    if (isImage) {
+      const imageDataUrl = toImageDataUrl(contentType, bytes);
       parsedExtraction = await callOpenAiExtraction({
         apiKey,
         model,
         prompt: EXTRACTION_PROMPT,
-        fileId,
+        imageDataUrl,
       });
-    } finally {
-      await deleteOpenAiFile(apiKey, fileId);
+    } else {
+      const fileId = await uploadFileToOpenAi({
+        apiKey,
+        filename,
+        contentType,
+        bytes,
+      });
+
+      try {
+        parsedExtraction = await callOpenAiExtraction({
+          apiKey,
+          model,
+          prompt: EXTRACTION_PROMPT,
+          fileId,
+        });
+      } finally {
+        await deleteOpenAiFile(apiKey, fileId);
+      }
     }
 
     const supplierName =
