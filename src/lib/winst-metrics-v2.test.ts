@@ -74,6 +74,7 @@ function baseInput(): BuildWinstMetricsInput {
           status: 'afgerond',
           labor: {
             entries: [{ id: 'l-1', date: '2026-03-10', hours: 10, hourRateExcl: 50 }],
+            actualDays: 2,
           },
           materials: {
             groot: {
@@ -107,6 +108,10 @@ export function runWinstMetricsUnitTests(): void {
   assert.equal(metrics.totals.receivedCashIncl, 5000);
   assert.equal(metrics.timeTracking.quotedHours, 8);
   assert.equal(metrics.timeTracking.actualHours, 10);
+  assert.equal(metrics.timeTracking.quotedDays, 1);
+  assert.equal(metrics.timeTracking.actualDays, 2);
+  assert.equal(metrics.timeTracking.expectedEuroPerDay, 5000);
+  assert.equal(metrics.timeTracking.realizedEuroPerDay, 2500);
 
   const arbeid = metrics.costBreakdown.categories.find((row) => row.key === 'arbeid');
   assert.ok(arbeid);

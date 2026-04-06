@@ -182,6 +182,14 @@ function ProjectRow(props: {
       : project.actualProjectMargin < 0
         ? 'text-red-300'
         : 'text-emerald-300';
+  const realizedDayText = project.actualDays > 0 ? formatCurrency(project.realizedEuroPerDay) : 'Onbekend';
+  const expectedDayText = project.quotedDays > 0 ? formatCurrency(project.expectedEuroPerDay) : 'Onbekend';
+  const dayTextClass =
+    project.actualDays <= 0
+      ? 'text-muted-foreground'
+      : project.realizedEuroPerDay >= project.expectedEuroPerDay
+        ? 'text-emerald-300'
+        : 'text-red-300';
 
   return (
     <div className="rounded-2xl bg-card/35 px-4 py-4 transition-all duration-200 hover:bg-card/55 hover:shadow-[0_12px_30px_-20px_rgba(16,185,129,0.35)] md:px-5">
@@ -205,6 +213,15 @@ function ProjectRow(props: {
           </p>
           <p className={cn('text-muted-foreground', margeTextClass)}>
             Marge <span className={cn('ml-1 font-semibold', margeTextClass)}>{margeText}</span>
+          </p>
+          <p className={cn('text-muted-foreground', dayTextClass)}>
+            €/dag <span className={cn('ml-1 font-semibold', dayTextClass)}>{realizedDayText}</span>
+          </p>
+          <p className="text-muted-foreground">
+            Dagen <span className="ml-1 font-semibold text-foreground">{project.actualDays.toFixed(1)} / {project.quotedDays.toFixed(1)}</span>
+          </p>
+          <p className="text-muted-foreground">
+            Doel €/dag <span className="ml-1 font-semibold text-foreground">{expectedDayText}</span>
           </p>
         </div>
 
@@ -388,6 +405,9 @@ export default function WinstPage() {
     const totalQuotedHours = withActual.reduce((sum, project) => sum + project.quotedHours, 0);
     const totalActualHours = withActual.reduce((sum, project) => sum + project.actualHours, 0);
     const hoursDiffPct = totalQuotedHours > 0 ? (totalActualHours - totalQuotedHours) / totalQuotedHours : null;
+    const totalQuotedDays = withActual.reduce((sum, project) => sum + project.quotedDays, 0);
+    const totalActualDays = withActual.reduce((sum, project) => sum + project.actualDays, 0);
+    const daysDiffPct = totalQuotedDays > 0 ? (totalActualDays - totalQuotedDays) / totalQuotedDays : null;
 
     const recommendationItems: string[] = [];
     if (withActual.length >= 2) {
@@ -416,6 +436,12 @@ export default function WinstPage() {
       if (hoursDiffPct !== null && hoursDiffPct > 0.1) {
         recommendationItems.push(
           `Werkelijke uren liggen ${formatSignedPercent(hoursDiffPct)} boven planning.`
+        );
+      }
+
+      if (daysDiffPct !== null && daysDiffPct > 0.1) {
+        recommendationItems.push(
+          `Werkelijke dagen liggen ${formatSignedPercent(daysDiffPct)} boven offerte-inschatting.`
         );
       }
     }
@@ -548,6 +574,11 @@ export default function WinstPage() {
                   }
                 />
                 <KPIItem label="Ontvangen cash" value={formatCurrency(metrics.totals.receivedCashIncl)} tone="positive" />
+                <KPIItem
+                  label="Verdiensten per dag"
+                  value={metrics.timeTracking.actualDays > 0 ? formatCurrency(metrics.timeTracking.realizedEuroPerDay) : 'Onbekend'}
+                  tone={metrics.timeTracking.actualDays > 0 ? 'neutral' : 'unknown'}
+                />
               </div>
             </div>
           </section>
@@ -584,6 +615,18 @@ export default function WinstPage() {
                   </p>
                   <p className="text-muted-foreground">
                     Ingevulde projecten <span className="ml-1 font-semibold text-foreground">{derived.withActual.length}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Werkelijke dagen <span className="ml-1 font-semibold text-foreground">{metrics.timeTracking.actualDays.toFixed(1)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Geoffreerde dagen <span className="ml-1 font-semibold text-foreground">{metrics.timeTracking.quotedDays.toFixed(1)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Verschil dagen{' '}
+                    <span className={cn('ml-1 font-semibold', metrics.timeTracking.daysDiff > 0 ? 'text-red-300' : metrics.timeTracking.daysDiff < 0 ? 'text-emerald-300' : 'text-foreground')}>
+                      {metrics.timeTracking.daysDiff > 0 ? '+' : ''}{metrics.timeTracking.daysDiff.toFixed(1)}
+                    </span>
                   </p>
                 </div>
               </div>

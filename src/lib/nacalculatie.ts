@@ -138,6 +138,7 @@ export function createDefaultNacalculatieDoc(params: {
         },
       ],
       actualHours: 0,
+      actualDays: 0,
       actualCostExcl: 0,
     },
     materials: {
@@ -177,6 +178,7 @@ export function recalculateNacalculatie(doc: NacalculatieDoc): NacalculatieDoc {
   const overheadEntries = normalizeCostEntries(doc.overhead?.entries);
 
   const laborHours = laborEntries.reduce((sum, entry) => sum + entry.hours, 0);
+  const laborDays = Math.max(0, safeNumber(doc.labor?.actualDays));
   const laborCost = laborEntries.reduce((sum, entry) => sum + entry.hours * entry.hourRateExcl, 0);
   const grootCost = grootEntries.reduce((sum, entry) => sum + (entry.totalExcl ?? entry.qty * entry.unitCostExcl), 0);
   const verbruikCost = verbruikEntries.reduce((sum, entry) => sum + (entry.totalExcl ?? entry.qty * entry.unitCostExcl), 0);
@@ -193,6 +195,7 @@ export function recalculateNacalculatie(doc: NacalculatieDoc): NacalculatieDoc {
     labor: {
       entries: laborEntries,
       actualHours: laborHours,
+      actualDays: laborDays,
       actualCostExcl: laborCost,
     },
     materials: {

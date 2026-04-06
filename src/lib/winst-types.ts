@@ -52,6 +52,7 @@ export interface NacalculatieDoc {
   labor: {
     entries: NacalculatieLaborEntry[];
     actualHours: number;
+    actualDays: number;
     actualCostExcl: number;
   };
   materials: {
@@ -115,8 +116,14 @@ export interface WinstProjectPerformance {
   actualHours: number;
   hoursDiff: number;
   hoursDiffPct: number;
+  quotedDays: number;
+  actualDays: number;
+  daysDiff: number;
+  daysDiffPct: number;
   expectedEuroPerHour: number;
   realizedEuroPerHour: number;
+  expectedEuroPerDay: number;
+  realizedEuroPerDay: number;
   quotedTransportKm: number;
   actualTransportKm: number;
   transportRevenueExcl: number;
@@ -188,8 +195,14 @@ export interface WinstMetricsResponse {
     actualHours: number;
     hoursDiff: number;
     hoursDiffPct: number;
+    quotedDays: number;
+    actualDays: number;
+    daysDiff: number;
+    daysDiffPct: number;
     expectedEuroPerHour: number;
     realizedEuroPerHour: number;
+    expectedEuroPerDay: number;
+    realizedEuroPerDay: number;
   };
   transportAnalysis: {
     quotedExcl: number;

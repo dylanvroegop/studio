@@ -17,7 +17,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const EXTRACTION_PROMPT =
-  'You are an expert at extracting data from Dutch supplier invoices and receipts for construction/carpentry materials. Extract: supplier_name, date (YYYY-MM-DD), receipt_description (short Dutch summary of the entire receipt/invoice, not just one line item), line_items (array of {description, quantity, unit, unit_price, total_price, category}), subtotal_excl_btw, btw_percentage, btw_amount, total_incl_btw, and any project/offerte reference number. line_items.category must be exactly one of: materiaal, gereedschap, brandstof. Rules: reusable tools (measuring tools, hand tools, power tools, sets, holders, clamps, markers/pencils) => gereedschap; consumables and build inputs (screws, plugs, glue, sealant, tape, wood, plates, profiles, sanding discs, etc.) => materiaal; fuel/charging products => brandstof. Important: keep subtotal_excl_btw and total_incl_btw fiscally correct. If the receipt shows retail prices (often VAT-included), still return the correct EXCL subtotal from the VAT breakdown. Return ONLY valid JSON, no markdown.';
+  'You are an expert at extracting data from Dutch supplier invoices and receipts for construction/carpentry materials. Extract: supplier_name, date (YYYY-MM-DD), receipt_description (short Dutch summary of the entire receipt/invoice, not just one line item), line_items (array of {description, quantity, unit, unit_price, total_price, category}), subtotal_excl_btw, btw_percentage, btw_amount, total_incl_btw, and any project/offerte reference number. line_items.category must be exactly one of: materiaal, gereedschap, brandstof. Rules: reusable tools (measuring tools, hand tools, power tools, sets, holders, clamps, markers/pencils) => gereedschap; consumables and build inputs (screws, plugs, glue, sealant, tape, wood, plates, profiles, sanding discs, etc.) => materiaal; fuel/charging products => brandstof. Important: keep subtotal_excl_btw and total_incl_btw fiscally correct. If the receipt shows retail prices (often VAT-included), still return the correct EXCL subtotal from the VAT breakdown. Critical validation: when quantity * unit_price does not match a printed (possibly discounted) line total or receipt total, prefer the discounted/printed totals and set total_price accordingly. Return ONLY valid JSON, no markdown.';
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -522,6 +522,23 @@ function parseExtractionJson(rawOutput: string): Record<string, unknown> {
   }
 }
 
+function hasPositiveProvidedTotal(input: unknown): boolean {
+  if (!input || typeof input !== 'object') return false;
+  const row = input as Record<string, unknown>;
+  const direct = safeNumber(row.total_price);
+  if (direct > 0) return true;
+
+  const aliases = [
+    row.total,
+    row.line_total,
+    row.amount,
+    row.net_amount,
+    row.subtotal,
+  ];
+
+  return aliases.some((value) => safeNumber(value) > 0);
+}
+
 async function uploadFileToOpenAi(params: {
   apiKey: string;
   filename: string;
@@ -720,11 +737,13 @@ export async function POST(request: Request) {
       || safeString(parsedExtraction.vendor_name)
       || 'Onbekende leverancier';
 
-    const lineItems = normalizeProjectCostLineItems(parsedExtraction.line_items);
-    const lineItemsFallback = Array.isArray(parsedExtraction.items)
-      ? normalizeProjectCostLineItems(parsedExtraction.items)
-      : [];
+    const rawLineItems = Array.isArray(parsedExtraction.line_items) ? parsedExtraction.line_items : [];
+    const rawLineItemsFallback = Array.isArray(parsedExtraction.items) ? parsedExtraction.items : [];
+    const lineItems = normalizeProjectCostLineItems(rawLineItems);
+    const lineItemsFallback = normalizeProjectCostLineItems(rawLineItemsFallback);
     let normalizedLineItems = lineItems.length > 0 ? lineItems : lineItemsFallback;
+    const selectedRawLineItems = lineItems.length > 0 ? rawLineItems : rawLineItemsFallback;
+    const hasAnyProvidedLineTotals = selectedRawLineItems.some((item) => hasPositiveProvidedTotal(item));
 
     if (normalizedLineItems.length === 0) {
       const fallbackDescription = safeString(parsedExtraction.description) || 'Factuurregel';
@@ -846,12 +865,17 @@ export async function POST(request: Request) {
     }
 
     let lineItemsTotalExcl = sumProjectCostLineItems(normalizedLineItems);
-    if (
+    const subtotalDiff = Math.abs(subtotalExcl - lineItemsTotalExcl);
+    const shouldForceRebalanceToSubtotal =
       subtotalExcl > 0
       && normalizedLineItems.length > 0
-      && Math.abs(subtotalExcl - lineItemsTotalExcl) > 0.001
-      && Math.abs(subtotalExcl - lineItemsTotalExcl) <= 0.15
-    ) {
+      && subtotalDiff > 0.001
+      && (
+        subtotalDiff <= 0.15
+        || !hasAnyProvidedLineTotals
+      );
+
+    if (shouldForceRebalanceToSubtotal) {
       normalizedLineItems = rebalanceLineItemsToTargetSubtotal(normalizedLineItems, subtotalExcl).map((item) =>
         normalizeProjectCostLineItem({
           ...item,

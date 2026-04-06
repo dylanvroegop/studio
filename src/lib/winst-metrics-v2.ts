@@ -115,6 +115,7 @@ interface QuotedSnapshot {
   materieel: number;
   overhead: number;
   quotedHours: number;
+  quotedDays: number;
   quotedTransportKm: number;
 }
 
@@ -126,6 +127,7 @@ interface ActualSnapshot {
   materieel: number;
   overhead: number;
   actualHours: number;
+  actualDays: number;
   actualTransportKm: number;
   transportRevenueExcl: number;
   hasAnyActualData: boolean;
@@ -135,6 +137,8 @@ interface ActualSnapshot {
     totalExcl: number;
   }>;
 }
+
+const DEFAULT_WORKDAY_HOURS = 8;
 
 interface ExternalProjectCostSnapshot {
   materiaal: number;
@@ -270,6 +274,7 @@ function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<st
       materieel: quote.quotedMaterieelExcl,
       overhead: quote.quotedOverheadExcl,
       quotedHours: 0,
+      quotedDays: 0,
       quotedTransportKm: 0,
     };
   }
@@ -280,6 +285,7 @@ function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<st
     const normalized = normalizeDataJson(calculation.dataJson);
     const transportCalc = (normalized.transport_berekening || {}) as Record<string, unknown>;
 
+    const quotedHours = Math.max(0, safeNumber(normalized.totaal_uren));
     return {
       materialenGroot: safeNumber(totals.materialenGroot),
       materialenVerbruik: safeNumber(totals.materialenVerbruik),
@@ -287,7 +293,8 @@ function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<st
       transport: safeNumber(totals.transportTotaal),
       materieel: quote.quotedMaterieelExcl,
       overhead: quote.quotedOverheadExcl,
-      quotedHours: Math.max(0, safeNumber(normalized.totaal_uren)),
+      quotedHours,
+      quotedDays: hoursToDays(quotedHours),
       quotedTransportKm: safeNumber(transportCalc.roundTripDistanceKm) || safeNumber(transportCalc.distanceKm) || 0,
     };
   } catch {
@@ -299,6 +306,7 @@ function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<st
       materieel: quote.quotedMaterieelExcl,
       overhead: quote.quotedOverheadExcl,
       quotedHours: 0,
+      quotedDays: 0,
       quotedTransportKm: 0,
     };
   }
@@ -327,6 +335,7 @@ function getActualSnapshot(
     + safeNumber(externalProjectCosts?.overig);
   const externalLaborCost = safeNumber(externalLabor?.costExcl);
   const externalLaborHours = safeNumber(externalLabor?.hours);
+  const manualActualDays = Math.max(0, safeNumber(normalized.labor.actualDays));
   const hasExternalCosts = externalCostsTotal > 0 || externalLaborCost > 0 || externalLaborHours > 0;
 
   if (hasExternalCosts) {
@@ -343,9 +352,17 @@ function getActualSnapshot(
       materieel: mappedTools,
       overhead: mappedOther,
       actualHours: externalLaborHours,
+      actualDays: manualActualDays > 0 ? manualActualDays : hoursToDays(externalLaborHours),
       actualTransportKm: 0,
       transportRevenueExcl: 0,
-      hasAnyActualData: mappedMaterial > 0 || mappedTransport > 0 || mappedTools > 0 || mappedOther > 0 || externalLaborCost > 0 || externalLaborHours > 0,
+      hasAnyActualData:
+        mappedMaterial > 0 ||
+        mappedTransport > 0 ||
+        mappedTools > 0 ||
+        mappedOther > 0 ||
+        externalLaborCost > 0 ||
+        externalLaborHours > 0 ||
+        manualActualDays > 0,
       topCostItems: mappedMaterial > 0
         ? [
           {
@@ -387,10 +404,12 @@ function getActualSnapshot(
     materieel: safeNumber(normalized.materieel.actualCostExcl),
     overhead: safeNumber(normalized.overhead.actualCostExcl),
     actualHours: safeNumber(normalized.labor.actualHours),
+    actualDays: Math.max(0, safeNumber(normalized.labor.actualDays)),
     actualTransportKm: safeNumber(normalized.transport.actualKm),
     transportRevenueExcl: safeNumber(normalized.transport.actualRevenueExcl),
     hasAnyActualData:
       safeNumber(normalized.labor.actualHours) > 0 ||
+      safeNumber(normalized.labor.actualDays) > 0 ||
       safeNumber(normalized.materials.groot.actualCostExcl) > 0 ||
       safeNumber(normalized.materials.verbruik.actualCostExcl) > 0 ||
       safeNumber(normalized.transport.actualCostExcl) > 0 ||
@@ -560,6 +579,12 @@ function buildSmartInsights(
 function toPercent(numerator: number, denominator: number): number {
   if (denominator <= 0) return 0;
   return numerator / denominator;
+}
+
+function hoursToDays(hours: number): number {
+  const normalizedHours = Math.max(0, safeNumber(hours));
+  if (normalizedHours <= 0) return 0;
+  return normalizedHours / DEFAULT_WORKDAY_HOURS;
 }
 
 function buildInvoiceAllocation(
@@ -786,8 +811,12 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     const marginPct = toPercent(netProfitQuoteBasis, quotedRevenueIncl);
     const hoursDiff = actual.actualHours - quoted.quotedHours;
     const hoursDiffPct = toPercent(hoursDiff, quoted.quotedHours);
+    const daysDiff = actual.actualDays - quoted.quotedDays;
+    const daysDiffPct = toPercent(daysDiff, quoted.quotedDays);
     const expectedEuroPerHour = toPercent(quotedRevenueIncl, quoted.quotedHours);
     const realizedEuroPerHour = toPercent(receivedCashIncl, actual.actualHours);
+    const expectedEuroPerDay = toPercent(quotedRevenueIncl, quoted.quotedDays);
+    const realizedEuroPerDay = toPercent(receivedCashIncl, actual.actualDays);
     const positiveVariance = breakdown.categories
       .filter((row) => row.diffEuro > 0)
       .sort((a, b) => b.diffEuro - a.diffEuro)[0];
@@ -824,8 +853,14 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
       actualHours: actual.actualHours,
       hoursDiff,
       hoursDiffPct,
+      quotedDays: quoted.quotedDays,
+      actualDays: actual.actualDays,
+      daysDiff,
+      daysDiffPct,
       expectedEuroPerHour,
       realizedEuroPerHour,
+      expectedEuroPerDay,
+      realizedEuroPerDay,
       quotedTransportKm: quoted.quotedTransportKm,
       actualTransportKm: actual.actualTransportKm,
       transportRevenueExcl: actual.transportRevenueExcl,
@@ -944,13 +979,23 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     actualHours: projects.reduce((sum, project) => sum + project.actualHours, 0),
     hoursDiff: 0,
     hoursDiffPct: 0,
+    quotedDays: projects.reduce((sum, project) => sum + project.quotedDays, 0),
+    actualDays: projects.reduce((sum, project) => sum + project.actualDays, 0),
+    daysDiff: 0,
+    daysDiffPct: 0,
     expectedEuroPerHour: 0,
     realizedEuroPerHour: 0,
+    expectedEuroPerDay: 0,
+    realizedEuroPerDay: 0,
   };
   timeTracking.hoursDiff = timeTracking.actualHours - timeTracking.quotedHours;
   timeTracking.hoursDiffPct = toPercent(timeTracking.hoursDiff, timeTracking.quotedHours);
+  timeTracking.daysDiff = timeTracking.actualDays - timeTracking.quotedDays;
+  timeTracking.daysDiffPct = toPercent(timeTracking.daysDiff, timeTracking.quotedDays);
   timeTracking.expectedEuroPerHour = toPercent(totals.quotedRevenueIncl, timeTracking.quotedHours);
   timeTracking.realizedEuroPerHour = toPercent(totals.receivedCashIncl, timeTracking.actualHours);
+  timeTracking.expectedEuroPerDay = toPercent(totals.quotedRevenueIncl, timeTracking.quotedDays);
+  timeTracking.realizedEuroPerDay = toPercent(totals.receivedCashIncl, timeTracking.actualDays);
 
   const transportRow = totalBreakdown.categories.find((category) => category.key === 'transport')!;
   const transportAnalysis = {

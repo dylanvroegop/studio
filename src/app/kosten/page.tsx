@@ -773,18 +773,28 @@ export default function KostenPage() {
           })
         )
         : [createEmptyLineItem()];
+      const extractedAmountExcl = roundEuro(safeNumber(extracted.amount_excl_btw));
       const extractedLineItemsTotal = roundEuro(
         extractedLineItems.reduce((sum, item) => sum + roundEuro(item.total_price), 0)
       );
-      const extractedAmountExcl = roundEuro(safeNumber(extracted.amount_excl_btw));
+      const extractedLineItemsRebalanced = (
+        extractedAmountExcl > 0
+        && extractedLineItemsTotal > 0
+        && Math.abs(extractedAmountExcl - extractedLineItemsTotal) > 0.01
+      )
+        ? rebalanceLineItemsToAmount(extractedLineItems, extractedAmountExcl)
+        : extractedLineItems;
+      const extractedLineItemsTotalAfterRebalance = roundEuro(
+        extractedLineItemsRebalanced.reduce((sum, item) => sum + roundEuro(item.total_price), 0)
+      );
       const shouldEnableManualOverride =
         extracted.manual_amount_override === true
         || (
           extractedAmountExcl > 0
-          && extractedLineItemsTotal > 0
-          && Math.abs(extractedAmountExcl - extractedLineItemsTotal) > 0.05
+          && extractedLineItemsTotalAfterRebalance > 0
+          && Math.abs(extractedAmountExcl - extractedLineItemsTotalAfterRebalance) > 0.05
         );
-      setLineItems(extractedLineItems);
+      setLineItems(extractedLineItemsRebalanced);
       setForm((prev) => ({
         ...prev,
         category: normalizeProjectCostCategory(extracted.suggested_category || prev.category),

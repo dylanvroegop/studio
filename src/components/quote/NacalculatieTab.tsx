@@ -146,6 +146,7 @@ export function NacalculatieTab({ quoteId, userId, defaultHourlyRateExcl }: Naca
       normalized.overhead.actualCostExcl;
     return {
       actualHours: normalized.labor.actualHours,
+      actualDays: normalized.labor.actualDays,
       totalCostExcl,
       grootCost: normalized.materials.groot.actualCostExcl,
       verbruikCost: normalized.materials.verbruik.actualCostExcl,
@@ -247,8 +248,41 @@ export function NacalculatieTab({ quoteId, userId, defaultHourlyRateExcl }: Naca
               <div className="text-lg font-semibold">{safeNumber(totals?.actualHours).toFixed(1)} uur</div>
             </div>
             <div className="rounded-md border border-border p-3">
+              <div className="text-xs text-muted-foreground">Werkelijke dagen</div>
+              <div className="text-lg font-semibold">{safeNumber(totals?.actualDays).toFixed(1)} dagen</div>
+            </div>
+            <div className="rounded-md border border-border p-3">
               <div className="text-xs text-muted-foreground">Werkelijke kosten (excl.)</div>
               <div className="text-lg font-semibold">{formatCurrency(safeNumber(totals?.totalCostExcl))}</div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label>Werkelijke dagen (handmatig)</Label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                value={safeNumber(docState.labor.actualDays)}
+                onChange={(event) =>
+                  setDocState((prev) =>
+                    prev
+                      ? recalculateNacalculatie({
+                          ...prev,
+                          labor: {
+                            ...prev.labor,
+                            actualDays: Math.max(0, safeNumber(event.target.value)),
+                          },
+                        })
+                      : prev
+                  )
+                }
+                placeholder="Bijv. 3.5"
+              />
+              <p className="text-xs text-muted-foreground">
+                Vul hier het echte aantal werkdagen in voor vergelijking met je offerte.
+              </p>
             </div>
           </div>
 
