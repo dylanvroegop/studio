@@ -515,8 +515,8 @@ export default function OffertesPage() {
           body: JSON.stringify({ quoteIds: quoteIdsToCheck }),
         });
 
-        const payload = await response.json();
-        if (!response.ok || !payload.ok) return;
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || payload?.ok !== true) return;
 
         const data = Array.isArray(payload.rows)
           ? (payload.rows as Array<{ quoteid: string; data_json: unknown }>)
@@ -551,6 +551,10 @@ export default function OffertesPage() {
           } catch (err) {
             console.warn(`Kon quote totaal niet syncen voor ${quoteId}:`, err);
           }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('Kon pending quote totalen niet ophalen:', err);
         }
       } finally {
         isSyncingTotalsRef.current = false;
@@ -665,6 +669,10 @@ export default function OffertesPage() {
         if (!didCompleteInitialHoofdtitelSyncRef.current) {
           didCompleteInitialHoofdtitelSyncRef.current = true;
           setIsInitialHoofdtitelSyncDone(true);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('Kon hoofdtitels niet ophalen uit calculaties:', err);
         }
       } finally {
         isSyncingHoofdtitelsRef.current = false;
