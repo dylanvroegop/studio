@@ -41,7 +41,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useParams, useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -71,10 +71,11 @@ import {
 } from '@/lib/quote-pdf-text-settings';
 import { cloneTemplateSections, findWorkDescriptionTemplate } from '@/lib/work-description/templates';
 
-import { Quote } from "@/lib/types";
+import { Quote, ReceiptAttachment } from "@/lib/types";
 import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
 import type { LeverancierContact } from '@/lib/types-settings';
 import { normalizeLeverancierContactList, pickDefaultLeverancierId } from '@/lib/types-settings';
+import { buildReceiptDownloadFileName } from '@/lib/receipt-file-naming';
 
 interface GrootCompareQuoteColumn {
     quoteId: string;
@@ -262,6 +263,29 @@ function getMaterialPackageSummary(pkg: QuoteMaterialPackage): string {
     return `${totalCount} materialen`;
 }
 
+function isAllowedReceiptMimeType(mimeType: string): boolean {
+    return [
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+    ].includes(mimeType);
+}
+
+function parseReceiptCreatedAt(value: unknown): Date | null {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value === 'string') {
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    if (typeof value === 'object' && value !== null && 'toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function') {
+        const parsed = (value as { toDate: () => Date }).toDate();
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    return null;
+}
+
 export default function QuotePage() {
     const params = useParams();
     const id = params?.id as string;
@@ -294,6 +318,9 @@ export default function QuotePage() {
     const [isUploadingAlgemeneVoorwaardenPdf, setIsUploadingAlgemeneVoorwaardenPdf] = useState(false);
     const algemeneVoorwaardenInputRef = useRef<HTMLInputElement | null>(null);
     const algemeneVoorwaardenModalInputRef = useRef<HTMLInputElement | null>(null);
+    const receiptInputRef = useRef<HTMLInputElement | null>(null);
+    const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+    const [receiptActionId, setReceiptActionId] = useState<string | null>(null);
     const hasEditedPdfTextSettingsRef = useRef(false);
     const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('onderVoorbehoud');
     const [activeTab, setActiveTab] = useState('materialen');
@@ -2300,6 +2327,151 @@ export default function QuotePage() {
         return `${safeKlantNaam} - ${safeOfferteNummer}.pdf`;
     };
 
+    const receiptAttachments = useMemo<ReceiptAttachment[]>(() => {
+        const raw = (quote as any)?.bonnetjes;
+        if (!Array.isArray(raw)) return [];
+        return raw as ReceiptAttachment[];
+    }, [quote]);
+
+    const handleUploadReceipt = async (file: File): Promise<void> => {
+        if (!user || !firestore || !id || !quote) return;
+
+        if (!isAllowedReceiptMimeType(file.type)) {
+            toast({
+                variant: 'destructive',
+                title: 'Ongeldig bestandstype',
+                description: 'Upload een PDF, JPG, PNG of WEBP bestand.',
+            });
+            return;
+        }
+
+        const maxBytes = 12 * 1024 * 1024;
+        if (file.size > maxBytes) {
+            toast({
+                variant: 'destructive',
+                title: 'Bestand te groot',
+                description: 'Maximale bestandsgrootte is 12 MB.',
+            });
+            return;
+        }
+
+        setIsUploadingReceipt(true);
+        try {
+            const storage = getStorage();
+            const receiptId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+            const extension = String(file.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
+            const storagePath = `users/${user.uid}/quotes/${id}/bonnetjes/${receiptId}.${extension}`;
+            const fileRef = storageRef(storage, storagePath);
+            await uploadBytes(fileRef, file, { contentType: file.type });
+            const downloadUrl = await getDownloadURL(fileRef);
+
+            const nextAttachment: ReceiptAttachment = {
+                id: receiptId,
+                quoteId: id,
+                originalName: file.name,
+                mimeType: file.type,
+                sizeBytes: file.size,
+                storagePath,
+                downloadUrl,
+                createdAt: new Date().toISOString(),
+                uploadedBy: user.uid,
+            };
+
+            const existing = Array.isArray((quote as any).bonnetjes) ? ((quote as any).bonnetjes as ReceiptAttachment[]) : [];
+            const nextBonnetjes = [...existing, nextAttachment];
+
+            const quoteRef = doc(firestore, 'quotes', id);
+            await updateDoc(quoteRef, {
+                bonnetjes: nextBonnetjes,
+                updatedAt: serverTimestamp(),
+            } as any);
+
+            setQuote((prev) => (prev ? ({ ...prev, bonnetjes: nextBonnetjes } as Quote) : prev));
+            toast({
+                title: 'Bonnetje geüpload',
+                description: file.name,
+            });
+        } catch (error) {
+            console.error('Error uploading bonnetje:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Upload mislukt',
+                description: 'Kon bonnetje niet uploaden. Probeer het opnieuw.',
+            });
+        } finally {
+            setIsUploadingReceipt(false);
+            if (receiptInputRef.current) {
+                receiptInputRef.current.value = '';
+            }
+        }
+    };
+
+    const handleDownloadReceipt = async (attachment: ReceiptAttachment, index: number): Promise<void> => {
+        if (!attachment?.downloadUrl) return;
+        setReceiptActionId(attachment.id);
+        try {
+            const response = await fetch(attachment.downloadUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const blob = await response.blob();
+            const klantNaam = `${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`.trim();
+            const offerteNummer = (quote as any)?.offerteNummer || 'CONCEPT';
+            const fileName = buildReceiptDownloadFileName(attachment, {
+                klantNaam: klantNaam || (quote as any)?.klantinformatie?.bedrijfsnaam || 'Klant',
+                offerteNummer,
+                index,
+            });
+            downloadBlobWithName(blob, fileName);
+        } catch (error) {
+            console.error('Error downloading bonnetje:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Download mislukt',
+                description: 'Kon bonnetje niet downloaden. Probeer het opnieuw.',
+            });
+        } finally {
+            setReceiptActionId(null);
+        }
+    };
+
+    const handleDeleteReceipt = async (attachment: ReceiptAttachment): Promise<void> => {
+        if (!user || !firestore || !id || !quote) return;
+        setReceiptActionId(attachment.id);
+        try {
+            if (attachment.storagePath) {
+                const storage = getStorage();
+                await deleteObject(storageRef(storage, attachment.storagePath));
+            }
+        } catch (error) {
+            console.error('Error deleting bonnetje from storage:', error);
+        }
+
+        try {
+            const existing = Array.isArray((quote as any).bonnetjes) ? ((quote as any).bonnetjes as ReceiptAttachment[]) : [];
+            const nextBonnetjes = existing.filter((item) => item.id !== attachment.id);
+            const quoteRef = doc(firestore, 'quotes', id);
+            await updateDoc(quoteRef, {
+                bonnetjes: nextBonnetjes,
+                updatedAt: serverTimestamp(),
+            } as any);
+            setQuote((prev) => (prev ? ({ ...prev, bonnetjes: nextBonnetjes } as Quote) : prev));
+            toast({
+                title: 'Bonnetje verwijderd',
+                description: attachment.originalName,
+            });
+        } catch (error) {
+            console.error('Error deleting bonnetje metadata:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Verwijderen mislukt',
+                description: 'Kon bonnetje niet verwijderen. Probeer het opnieuw.',
+            });
+        } finally {
+            setReceiptActionId(null);
+        }
+    };
+
     const captureDrawingsForPdf = async (): Promise<string[]> => {
         if (isGeneratingPDF) {
             throw new Error('PDF generatie is al bezig.');
@@ -3583,7 +3755,22 @@ export default function QuotePage() {
         user,
     ]);
 
-    const secondaryTabs = ['nacalculatie', 'tekeningen', 'notities', 'algemene-voorwaarden'];
+    const sortedReceiptAttachments = useMemo(() => {
+        return [...receiptAttachments].sort((a, b) => {
+            const aDate = parseReceiptCreatedAt(a.createdAt)?.getTime() ?? 0;
+            const bDate = parseReceiptCreatedAt(b.createdAt)?.getTime() ?? 0;
+            return bDate - aDate;
+        });
+    }, [receiptAttachments]);
+
+    const formatReceiptSize = (sizeBytes: number): string => {
+        const size = Number(sizeBytes || 0);
+        if (size < 1024) return `${size} B`;
+        if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+        return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+    };
+
+    const secondaryTabs = ['nacalculatie', 'tekeningen', 'bonnetjes', 'notities', 'algemene-voorwaarden'];
     const isSecondarySectionActive = secondaryTabs.includes(activeTab);
 
     return (
@@ -3818,6 +4005,10 @@ export default function QuotePage() {
                                 <TabsTrigger value="pdf" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <FileText size={16} />
                                     PDF
+                                </TabsTrigger>
+                                <TabsTrigger value="bonnetjes" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <Upload size={16} />
+                                    Bonnetjes
                                 </TabsTrigger>
                                 <TabsTrigger
                                     value="werkbeschrijving"
@@ -4785,6 +4976,97 @@ export default function QuotePage() {
                             )}
                         </TabsContent>
 
+                        <TabsContent value="bonnetjes" className="mt-6">
+                            {loading ? (
+                                <LoadingPanel />
+                            ) : (
+                                <div className="space-y-4 rounded-lg border border-border bg-card p-6">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-foreground">Bonnetjes</h3>
+                                            <p className="text-xs text-muted-foreground">
+                                                Upload foto&apos;s of PDF&apos;s en download ze met bestandsnaam op basis van offerte + klant.
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                ref={receiptInputRef}
+                                                type="file"
+                                                accept="application/pdf,image/jpeg,image/png,image/webp"
+                                                className="hidden"
+                                                onChange={(event) => {
+                                                    const file = event.target.files?.[0];
+                                                    if (!file) return;
+                                                    void handleUploadReceipt(file);
+                                                }}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="gap-2"
+                                                onClick={() => receiptInputRef.current?.click()}
+                                                disabled={isUploadingReceipt}
+                                            >
+                                                {isUploadingReceipt ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                                Upload bonnetje
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {sortedReceiptAttachments.length === 0 ? (
+                                        <div className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                                            Nog geen bonnetjes toegevoegd.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {sortedReceiptAttachments.map((attachment, index) => {
+                                                const createdAt = parseReceiptCreatedAt(attachment.createdAt);
+                                                const isBusy = receiptActionId === attachment.id;
+                                                return (
+                                                    <div
+                                                        key={attachment.id}
+                                                        className="flex flex-col gap-3 rounded-md border border-border/70 bg-background/50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                                                    >
+                                                        <div className="min-w-0 space-y-1">
+                                                            <div className="truncate text-sm font-medium text-foreground">{attachment.originalName}</div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {formatReceiptSize(attachment.sizeBytes)} · {attachment.mimeType || 'onbekend type'}
+                                                                {createdAt ? ` · ${createdAt.toLocaleString('nl-NL')}` : ''}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="gap-2"
+                                                                disabled={isBusy}
+                                                                onClick={() => { void handleDownloadReceipt(attachment, index); }}
+                                                            >
+                                                                {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                                                                Download
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="gap-2 text-red-400 hover:text-red-300"
+                                                                disabled={isBusy}
+                                                                onClick={() => { void handleDeleteReceipt(attachment); }}
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                                Verwijderen
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </TabsContent>
+
                         <TabsContent value="notities" className="mt-6">
                             {loading ? (
                                 <LoadingPanel />
@@ -4960,6 +5242,16 @@ export default function QuotePage() {
                                     }}
                                 >
                                     Tekeningen
+                                </Button>
+                                <Button
+                                    variant={activeTab === 'bonnetjes' ? 'secondary' : 'outline'}
+                                    className="h-11 justify-start"
+                                    onClick={() => {
+                                        setActiveTab('bonnetjes');
+                                        setIsMobileMoreSectionsOpen(false);
+                                    }}
+                                >
+                                    Bonnetjes
                                 </Button>
                                 <Button
                                     variant={activeTab === 'notities' ? 'secondary' : 'outline'}

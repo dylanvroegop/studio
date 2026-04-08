@@ -4,16 +4,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     Play,
-    Pause,
     Square,
     Clock,
     Coffee,
-    AlertTriangle,
-    History,
     Calendar,
     Trash2,
     Save,
-    X,
     Check
 } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
@@ -27,7 +23,6 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
     DialogFooter,
     DialogDescription
 } from '@/components/ui/dialog';
@@ -49,18 +44,19 @@ import {
     AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { format, differenceInSeconds, addHours, setHours, setMinutes, startOfToday, parse, eachDayOfInterval, parseISO } from 'date-fns';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { format, differenceInSeconds, eachDayOfInterval, parseISO } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import type { TimeEntrySource } from '@/lib/time-entries';
 
 // Types
 interface TimeEntry {
     id: string;
     date: string; // ISO date string
     totalHours: number;
-    source: 'today_quick' | 'timer_rounded' | 'timer_exact' | 'manual';
+    source: TimeEntrySource;
     exactMinutes?: number;
     roundingRule?: string;
 
@@ -70,9 +66,7 @@ interface TimeEntry {
     breakDuration?: number;
 
     quoteId?: string;
-    quoteTitle?: string;
-    description?: string;
-    createdAt: number;
+    createdAt: number | string;
 }
 
 interface UserSettings {
@@ -113,15 +107,17 @@ export default function UrenRegistratiePage() {
     const { toast } = useToast();
     const { user } = useUser();
     const firestore = useFirestore();
+    const isDevBuild = process.env.NODE_ENV !== 'production';
 
     // State
     const [mounted, setMounted] = useState(false);
-    const [activeTab, setActiveTab] = useState<'today' | 'timer' | 'manual'>('today');
+    const [activeTab, setActiveTab] = useState<'today' | 'timer' | 'manual' | 'history'>('today');
 
     // Shared State
     const [quotes, setQuotes] = useState<any[]>([]);
     const [selectedQuoteId, setSelectedQuoteId] = useState<string>('');
     const [history, setHistory] = useState<TimeEntry[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
     const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
     const [entryToDelete, setEntryToDelete] = useState<TimeEntry | null>(null);
     const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
@@ -151,6 +147,50 @@ export default function UrenRegistratiePage() {
 
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+    const toUnixTime = (value: unknown): number => {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') {
+            const parsed = Date.parse(value);
+            return Number.isFinite(parsed) ? parsed : Date.now();
+        }
+        return Date.now();
+    };
+
+    const mapApiEntryToHistory = (row: any): TimeEntry => ({
+        id: String(row?.id || crypto.randomUUID()),
+        date: String(row?.work_date || row?.date || format(new Date(), 'yyyy-MM-dd')),
+        totalHours: Number(row?.worked_hours ?? row?.totalHours ?? row?.hours ?? 0),
+        source: (String(row?.source || 'manual') as TimeEntrySource),
+        exactMinutes: row?.exact_minutes == null ? undefined : Number(row.exact_minutes),
+        roundingRule: row?.rounding_rule ?? undefined,
+        startTime: row?.start_time ?? undefined,
+        endTime: row?.end_time ?? undefined,
+        breakDuration: row?.break_duration_minutes == null ? undefined : Number(row.break_duration_minutes),
+        quoteId: row?.quote_id ?? row?.quoteId ?? undefined,
+        createdAt: toUnixTime(row?.created_at ?? row?.createdAt),
+    });
+
+    const fetchHistory = async () => {
+        if (!user) return;
+        setHistoryLoading(true);
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/uren/entries?limit=500', {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const payload = (await response.json().catch(() => null)) as { ok?: boolean; data?: any[]; message?: string } | null;
+            if (!response.ok || !payload?.ok || !Array.isArray(payload.data)) {
+                throw new Error(payload?.message || 'Kon urenhistorie niet laden.');
+            }
+            setHistory(payload.data.map(mapApiEntryToHistory));
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Onbekende fout';
+            toast({ title: 'Historie laden mislukt', description: message, variant: 'destructive' });
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
     // ------------------------------------------------------------------
     // Effects
     // ------------------------------------------------------------------
@@ -160,10 +200,6 @@ export default function UrenRegistratiePage() {
         // Load Settings
         const savedSettings = localStorage.getItem('urenregistratie_settings');
         if (savedSettings) setSettings(JSON.parse(savedSettings));
-
-        // Load History
-        const savedHistory = localStorage.getItem('urenregistratie_history');
-        if (savedHistory) setHistory(JSON.parse(savedHistory));
 
         // Load Active Timer
         const savedTimer = localStorage.getItem('urenregistratie_active_timer');
@@ -200,12 +236,16 @@ export default function UrenRegistratiePage() {
         fetchQuotes();
     }, [user, firestore]);
 
+    useEffect(() => {
+        if (!user) return;
+        void fetchHistory();
+    }, [user]);
+
     // Save Persistence
     useEffect(() => {
         if (!mounted) return;
         localStorage.setItem('urenregistratie_settings', JSON.stringify(settings));
-        localStorage.setItem('urenregistratie_history', JSON.stringify(history));
-    }, [settings, history, mounted]);
+    }, [settings, mounted]);
 
     // Timer Logic
     useEffect(() => {
@@ -239,7 +279,7 @@ export default function UrenRegistratiePage() {
     // Core Functions
     // ------------------------------------------------------------------
 
-    const saveTimeEntry = (params: {
+    const saveTimeEntry = async (params: {
         date: string;
         quoteId: string;
         hours: number;
@@ -252,55 +292,64 @@ export default function UrenRegistratiePage() {
     }) => {
         if (!params.hours || params.hours <= 0 || params.hours > 24) {
             toast({ title: "Ongeldig aantal uren", variant: "destructive" });
-            return;
+            return false;
+        }
+        if (!user) {
+            toast({ title: 'Je bent niet ingelogd', variant: 'destructive' });
+            return false;
         }
 
-        const entry: TimeEntry = {
-            id: crypto.randomUUID(),
-            createdAt: Date.now(),
-            date: params.date,
-            totalHours: params.hours,
-            source: params.source,
-            exactMinutes: params.exactMinutes,
-            roundingRule: params.roundingRule,
-            quoteId: params.quoteId,
-            quoteTitle: params.quoteId ? getQuoteDisplayTitle(quotes.find(q => q.id === params.quoteId)) : undefined,
-            startTime: params.startTime,
-            endTime: params.endTime,
-            breakDuration: params.breakDuration,
-        };
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/uren/entries', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    quoteId: params.quoteId,
+                    workDate: params.date,
+                    workedHours: params.hours,
+                    source: params.source,
+                    exactMinutes: params.exactMinutes,
+                    roundingRule: params.roundingRule,
+                    startTime: params.startTime,
+                    endTime: params.endTime,
+                    breakDurationMinutes: params.breakDuration,
+                }),
+            });
 
-        setHistory(prev => [entry, ...prev]);
-        setNewlyAddedId(entry.id);
+            const payload = (await response.json().catch(() => null)) as { ok?: boolean; data?: any; message?: string } | null;
+            if (!response.ok || !payload?.ok || !payload.data) {
+                throw new Error(payload?.message || 'Kon uren niet opslaan.');
+            }
 
-        // Remove highlight after 3 seconds
-        setTimeout(() => setNewlyAddedId(null), 3000);
+            const entry = mapApiEntryToHistory(payload.data);
+            setHistory(prev => [entry, ...prev]);
+            setNewlyAddedId(entry.id);
+            setTimeout(() => setNewlyAddedId(null), 3000);
 
-        toast({
-            title: "Opgeslagen",
-            description: `${formatHours(params.hours)} geboekt op ${format(new Date(params.date), 'd MMM')}`,
-            action: (
-                <div
-                    className="hover:underline cursor-pointer font-medium"
-                    onClick={() => {
-                        setHistory(prev => prev.filter(e => e.id !== entry.id));
-                        toast({ description: "Boeking ongedaan gemaakt." });
-                    }}
-                >
-                    Ongedaan maken
-                </div>
-            ),
-        });
+            toast({
+                title: "Opgeslagen",
+                description: `${formatHours(params.hours)} geboekt op ${format(new Date(params.date), 'd MMM')}`,
+            });
+            return true;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Onbekende fout';
+            toast({ title: 'Opslaan mislukt', description: message, variant: 'destructive' });
+            return false;
+        }
     };
 
-    const handleQuickSave = (hours: number) => {
+    const handleQuickSave = async (hours: number) => {
         if (!selectedQuoteId || selectedQuoteId === 'none') {
             toast({ title: "Kies eerst een klus/project", variant: "destructive" });
             return;
         }
 
         if (dateMode === 'single') {
-            saveTimeEntry({
+            await saveTimeEntry({
                 date: todayDate,
                 quoteId: selectedQuoteId,
                 hours: hours,
@@ -316,14 +365,14 @@ export default function UrenRegistratiePage() {
                     return;
                 }
                 const days = eachDayOfInterval({ start, end });
-                days.forEach(day => {
-                    saveTimeEntry({
+                for (const day of days) {
+                    await saveTimeEntry({
                         date: format(day, 'yyyy-MM-dd'),
                         quoteId: selectedQuoteId,
                         hours: hours,
                         source: 'today_quick'
                     });
-                });
+                }
                 toast({ title: `${days.length} dagen geboekt`, description: `Van ${todayDate} t/m ${endDate}` });
             } catch (e) {
                 console.error(e);
@@ -332,7 +381,7 @@ export default function UrenRegistratiePage() {
         }
     };
 
-    const handleCustomSave = () => {
+    const handleCustomSave = async () => {
         const h = parseFloat(customHoursValue);
         if (isNaN(h)) return;
         if (!selectedQuoteId || selectedQuoteId === 'none') {
@@ -341,7 +390,7 @@ export default function UrenRegistratiePage() {
         }
 
         if (dateMode === 'single') {
-            saveTimeEntry({
+            await saveTimeEntry({
                 date: todayDate,
                 quoteId: selectedQuoteId,
                 hours: h,
@@ -356,14 +405,14 @@ export default function UrenRegistratiePage() {
                     return;
                 }
                 const days = eachDayOfInterval({ start, end });
-                days.forEach(day => {
-                    saveTimeEntry({
+                for (const day of days) {
+                    await saveTimeEntry({
                         date: format(day, 'yyyy-MM-dd'),
                         quoteId: selectedQuoteId,
                         hours: h,
                         source: 'today_quick'
                     });
-                });
+                }
                 toast({ title: `${days.length} dagen geboekt`, description: `Van ${todayDate} t/m ${endDate}` });
             } catch (e) {
                 console.error(e);
@@ -373,7 +422,7 @@ export default function UrenRegistratiePage() {
         setCustomHoursValue('');
     };
 
-    const handleStopTimer = (choice: 'exact' | number) => {
+    const handleStopTimer = async (choice: 'exact' | number) => {
         if (!timerStartTime) return;
 
         let finalHours = 0;
@@ -389,7 +438,7 @@ export default function UrenRegistratiePage() {
             rule = 'Afgerond';
         }
 
-        saveTimeEntry({
+        const saved = await saveTimeEntry({
             date: format(timerStartTime, 'yyyy-MM-dd'),
             quoteId: selectedQuoteId,
             hours: finalHours,
@@ -401,6 +450,7 @@ export default function UrenRegistratiePage() {
             breakDuration: currentBreakMinutes
         });
 
+        if (!saved) return;
         setIsTimerRunning(false);
         setTimerStartTime(null);
         setElapsedSeconds(0);
@@ -408,7 +458,7 @@ export default function UrenRegistratiePage() {
         setStopModalOpen(false);
     };
 
-    const handleManualSave = () => {
+    const handleManualSave = async () => {
         if (!selectedQuoteId || selectedQuoteId === 'none') {
             toast({ title: "Kies eerst een klus", variant: "destructive" });
             return;
@@ -430,7 +480,7 @@ export default function UrenRegistratiePage() {
 
         if (isNaN(hours)) return;
 
-        saveTimeEntry({
+        const saved = await saveTimeEntry({
             date: manualDate,
             quoteId: selectedQuoteId,
             hours: hours,
@@ -440,6 +490,7 @@ export default function UrenRegistratiePage() {
             breakDuration: showManualDetails ? (parseInt(manualBreak) || 0) : undefined
         });
 
+        if (!saved) return;
         // Reset inputs
         setManualHours('');
         setManualStart('');
@@ -478,6 +529,15 @@ export default function UrenRegistratiePage() {
                     <Clock className="w-6 h-6 text-emerald-500" />
                     Urenregistratie
                 </h1>
+                {isDevBuild ? (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.dispatchEvent(new Event('pending-hours:open'))}
+                    >
+                        Open prompt (dev)
+                    </Button>
+                ) : null}
             </div>
 
             <div className="container max-w-md mx-auto p-4 space-y-6">
@@ -811,7 +871,12 @@ export default function UrenRegistratiePage() {
                     {/* === TAB 4: OVERZICHT (HISTORY) === */}
                     <TabsContent value="history" className="space-y-6 mt-6">
                         <div className="space-y-3">
-                            {history.length === 0 && (
+                            {historyLoading && (
+                                <div className="text-center py-10 text-muted-foreground italic bg-card/50 rounded-xl border border-dashed">
+                                    Historie laden...
+                                </div>
+                            )}
+                            {!historyLoading && history.length === 0 && (
                                 <div className="text-center py-10 text-muted-foreground italic bg-card/50 rounded-xl border border-dashed">
                                     Nog geen uren geregistreerd.
                                 </div>
@@ -837,7 +902,10 @@ export default function UrenRegistratiePage() {
 
                                             {entry.quoteId ? (
                                                 <div className="text-sm text-foreground font-medium truncate max-w-[200px] mb-1">
-                                                    {entry.quoteTitle || 'Offerte'}
+                                                    {(() => {
+                                                        const quote = quotes.find((q) => q.id === entry.quoteId);
+                                                        return quote ? getQuoteLabel(quote) : 'Offerte';
+                                                    })()}
                                                 </div>
                                             ) : (
                                                 <div className="text-sm text-muted-foreground italic">Geen klus</div>
@@ -941,11 +1009,28 @@ export default function UrenRegistratiePage() {
                     <AlertDialogFooter>
                         <AlertDialogCancel className="rounded-xl">Annuleren</AlertDialogCancel>
                         <Button
-                            onClick={() => {
-                                if (entryToDelete) {
+                            onClick={async () => {
+                                if (!entryToDelete || !user) return;
+                                try {
+                                    const token = await user.getIdToken();
+                                    const response = await fetch('/api/uren/entries', {
+                                        method: 'DELETE',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            Authorization: `Bearer ${token}`,
+                                        },
+                                        body: JSON.stringify({ id: entryToDelete.id }),
+                                    });
+                                    const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+                                    if (!response.ok || !payload?.ok) {
+                                        throw new Error(payload?.message || 'Kon boeking niet verwijderen.');
+                                    }
                                     setHistory(prev => prev.filter(e => e.id !== entryToDelete.id));
                                     setEntryToDelete(null);
                                     toast({ description: "Verwijderd." });
+                                } catch (error) {
+                                    const message = error instanceof Error ? error.message : 'Onbekende fout';
+                                    toast({ title: 'Verwijderen mislukt', description: message, variant: 'destructive' });
                                 }
                             }}
                             variant="destructiveSoft"

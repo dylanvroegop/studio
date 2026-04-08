@@ -156,10 +156,25 @@ function ProjectRow(props: {
   const projectLabel = project.offerteNummer ? `#${project.offerteNummer}` : project.title;
 
   const status = !project.hasActualData
-    ? { label: 'Geen nacalculatie', className: 'border-amber-500/30 bg-amber-500/10 text-amber-200' }
+    ? {
+      label: 'Geen nacalculatie',
+      badgeClassName: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+      cardClassName: 'border-amber-500/20 bg-gradient-to-r from-amber-500/[0.10] via-card/55 to-card/40',
+      barClassName: 'bg-amber-400/90',
+    }
     : (project.actualProjectProfit ?? 0) < 0
-      ? { label: 'Verlies', className: 'border-red-500/30 bg-red-500/10 text-red-200' }
-      : { label: 'Winstgevend', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' };
+      ? {
+        label: 'Verlies',
+        badgeClassName: 'border-red-500/30 bg-red-500/10 text-red-200',
+        cardClassName: 'border-red-500/20 bg-gradient-to-r from-red-500/[0.10] via-card/55 to-card/40',
+        barClassName: 'bg-red-400/90',
+      }
+      : {
+        label: 'Winstgevend',
+        badgeClassName: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+        cardClassName: 'border-emerald-500/20 bg-gradient-to-r from-emerald-500/[0.14] via-card/55 to-card/40',
+        barClassName: 'bg-emerald-400/90',
+      };
 
   const winstText =
     project.actualProjectProfit === null
@@ -192,41 +207,51 @@ function ProjectRow(props: {
         : 'text-red-300';
 
   return (
-    <div className="rounded-2xl bg-card/35 px-4 py-4 transition-all duration-200 hover:bg-card/55 hover:shadow-[0_12px_30px_-20px_rgba(16,185,129,0.35)] md:px-5">
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] xl:items-center">
-        <div className="min-w-0">
-          <p className="truncate text-base font-semibold text-foreground">{projectLabel}</p>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
-            {project.clientName} • {formatProjectDate(project.createdAt)}
-          </p>
+    <div className={cn('relative overflow-hidden rounded-xl border px-4 py-3 transition-all duration-200 hover:shadow-[0_14px_30px_-24px_rgba(16,185,129,0.45)]', status.cardClassName)}>
+      <div className={cn('absolute bottom-0 left-0 top-0 w-1.5', status.barClassName)} />
+      <div className="space-y-3 pl-1">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold text-foreground">{projectLabel}</p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {project.clientName} • {formatProjectDate(project.createdAt)}
+            </p>
+          </div>
+          <span className={cn('inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-medium', status.badgeClassName)}>
+            {status.label}
+          </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-          <p className="text-muted-foreground">
-            Omzet <span className="ml-1 font-semibold text-foreground">{formatCurrency(project.quotedRevenueIncl)}</span>
-          </p>
-          <p className="text-muted-foreground">
-            Kosten <span className="ml-1 font-semibold text-foreground">{project.hasActualData ? formatCurrency(project.actualCostExcl) : '—'}</span>
-          </p>
-          <p className={cn('text-muted-foreground', winstTextClass)}>
-            Winst <span className={cn('ml-1 font-semibold', winstTextClass)}>{winstText}</span>
-          </p>
-          <p className={cn('text-muted-foreground', margeTextClass)}>
-            Marge <span className={cn('ml-1 font-semibold', margeTextClass)}>{margeText}</span>
-          </p>
-          <p className={cn('text-muted-foreground', dayTextClass)}>
-            €/dag <span className={cn('ml-1 font-semibold', dayTextClass)}>{realizedDayText}</span>
-          </p>
-          <p className="text-muted-foreground">
-            Dagen <span className="ml-1 font-semibold text-foreground">{project.actualDays.toFixed(1)} / {project.quotedDays.toFixed(1)}</span>
-          </p>
-          <p className="text-muted-foreground">
-            Doel €/dag <span className="ml-1 font-semibold text-foreground">{expectedDayText}</span>
-          </p>
+        <div className="rounded-lg border border-white/10 bg-background/25 px-3 py-2.5">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Winst</p>
+          <p className={cn('mt-1 text-3xl font-semibold leading-none', winstTextClass)}>{winstText}</p>
         </div>
 
-        <div className="flex items-center xl:justify-end">
-          <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-xs font-medium', status.className)}>{status.label}</span>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Omzet</p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground">{formatCurrency(project.quotedRevenueIncl)}</p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Kosten</p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground">{project.hasActualData ? formatCurrency(project.actualCostExcl) : '—'}</p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Marge</p>
+            <p className={cn('mt-0.5 text-sm font-semibold', margeTextClass)}>{margeText}</p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">€/dag</p>
+            <p className={cn('mt-0.5 text-sm font-semibold', dayTextClass)}>{realizedDayText}</p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Dagen</p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground">{project.actualDays.toFixed(1)} / {project.quotedDays.toFixed(1)}</p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Doel €/dag</p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground">{expectedDayText}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -490,8 +515,6 @@ export default function WinstPage() {
   const hasEnoughInsightData = derived.withActual.length >= 2;
   const hasInsightContent =
     hasEnoughInsightData && (derived.deviations.length > 0 || derived.recommendationItems.length > 0);
-  const shouldShowCashflow =
-    metrics.totals.receivedCashIncl > 0 || metrics.cashflow.openAmount > 0 || metrics.cashflow.overdueAmount > 0;
 
   return (
     <div className="app-shell min-h-screen bg-background">
@@ -560,7 +583,7 @@ export default function WinstPage() {
 
           <section className="overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500/[0.10] via-background/95 to-cyan-500/[0.06]">
             <div className="overflow-x-auto">
-              <div className="flex min-w-[620px] divide-x divide-white/10">
+              <div className="flex min-w-[920px] divide-x divide-white/10">
                 <KPIItem label="Geoffreerde omzet" value={formatCurrency(derived.sumQuotedRevenue)} tone="warning" />
                 <KPIItem
                   label="Werkelijke winst"
@@ -575,11 +598,21 @@ export default function WinstPage() {
                 />
                 <KPIItem label="Ontvangen cash" value={formatCurrency(metrics.totals.receivedCashIncl)} tone="positive" />
                 <KPIItem
+                  label={`Omzetbelasting (${metrics.vatSummary.filingPeriod})`}
+                  value={formatCurrency(metrics.vatSummary.netVatPayable)}
+                  tone={metrics.vatSummary.netVatPayable >= 0 ? 'warning' : 'positive'}
+                />
+                <KPIItem
                   label="Verdiensten per dag"
                   value={metrics.timeTracking.actualDays > 0 ? formatCurrency(metrics.timeTracking.realizedEuroPerDay) : 'Onbekend'}
                   tone={metrics.timeTracking.actualDays > 0 ? 'neutral' : 'unknown'}
                 />
               </div>
+            </div>
+            <div className="border-t border-white/10 px-5 py-3 text-xs text-muted-foreground sm:px-6">
+              {metrics.vatSummary.netVatPayable >= 0 ? 'Te betalen btw' : 'Verwachte btw-teruggave'} over {metrics.vatSummary.periodLabel}:{' '}
+              <span className="font-semibold text-foreground">{formatCurrency(Math.abs(metrics.vatSummary.netVatPayable))}</span> (
+              output {formatCurrency(metrics.vatSummary.outputVat)} - aftrek {formatCurrency(metrics.vatSummary.deductibleVat)})
             </div>
           </section>
 
@@ -685,7 +718,7 @@ export default function WinstPage() {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-4">
               {filteredProjects.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Geen projecten in deze selectie.</p>
               ) : (
@@ -699,24 +732,6 @@ export default function WinstPage() {
             </div>
           </section>
 
-          {shouldShowCashflow ? (
-            <section className="space-y-3">
-              <h2 className="text-lg font-semibold tracking-tight">Cashflow</h2>
-              <div className="rounded-2xl bg-card/25 px-5 py-4">
-                <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-sm">
-                  <p className="text-muted-foreground">
-                    Ontvangen <span className="ml-1 font-semibold text-emerald-300">{formatCurrency(metrics.totals.receivedCashIncl)}</span>
-                  </p>
-                  <p className="text-muted-foreground">
-                    Openstaand <span className="ml-1 font-semibold text-foreground">{formatCurrency(metrics.cashflow.openAmount)}</span>
-                  </p>
-                  <p className="text-muted-foreground">
-                    Te laat risico <span className="ml-1 font-semibold text-red-300">{formatCurrency(metrics.cashflow.overdueAmount)}</span>
-                  </p>
-                </div>
-              </div>
-            </section>
-          ) : null}
         </div>
       </main>
     </div>

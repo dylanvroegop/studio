@@ -1166,6 +1166,30 @@ function InstellingenPageContent() {
                                         </div>
                                     </div>
                                 </div>
+
+                                <div className="grid gap-4 md:grid-cols-2 p-4 border rounded-lg">
+                                    <div className="space-y-2">
+                                        <Label className="font-semibold">Omzetbelasting aangifte</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Bepaalt of dashboard-btw per maand of per kwartaal wordt getoond.
+                                        </p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Aangifteperiode</Label>
+                                        <Select
+                                            value={settings.omzetBelastingAangiftePeriode || 'kwartaal'}
+                                            onValueChange={(value) => update('omzetBelastingAangiftePeriode', value)}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Kies periode" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="maand">Maandelijks</SelectItem>
+                                                <SelectItem value="kwartaal">Per kwartaal</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
                     </TabsContent>

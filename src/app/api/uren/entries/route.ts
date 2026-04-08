@@ -36,6 +36,18 @@ function isValidDateOnly(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function isMissingRelationError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('does not exist') ||
+    lower.includes('relation') ||
+    lower.includes('not found') ||
+    lower.includes('schema cache') ||
+    lower.includes('could not find the table') ||
+    lower.includes('not find the table')
+  );
+}
+
 async function getUid(request: Request): Promise<string | null> {
   const token = extractBearerToken(request.headers.get('authorization'));
   if (!token) return null;
@@ -62,6 +74,9 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false })
       .limit(limit);
 
+    if (error && isMissingRelationError(error.message)) {
+      return NextResponse.json({ ok: true, data: [] });
+    }
     if (error) {
       return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
     }
@@ -129,6 +144,12 @@ export async function POST(request: Request) {
       .select('*')
       .single();
 
+    if (error && isMissingRelationError(error.message)) {
+      return NextResponse.json(
+        { ok: false, message: 'Database tabel voor uren ontbreekt. Voer de uren-migratie uit.' },
+        { status: 409 }
+      );
+    }
     if (error || !data) {
       return NextResponse.json({ ok: false, message: error?.message || 'Kon niet opslaan' }, { status: 500 });
     }
@@ -166,6 +187,12 @@ export async function DELETE(request: Request) {
       .eq('id', id)
       .eq('user_id', uid);
 
+    if (error && isMissingRelationError(error.message)) {
+      return NextResponse.json(
+        { ok: false, message: 'Database tabel voor uren ontbreekt. Voer de uren-migratie uit.' },
+        { status: 409 }
+      );
+    }
     if (error) {
       return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
     }

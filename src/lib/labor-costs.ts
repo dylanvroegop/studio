@@ -5,7 +5,7 @@ interface LaborCostBucket {
   hours: number;
 }
 
-const TABLE_CANDIDATES = ['time_entries', 'urenregistratie'] as const;
+const LEGACY_TABLE_CANDIDATES = ['urenregistratie'] as const;
 
 function safeNumber(value: unknown): number {
   const numeric = typeof value === 'number' ? value : Number(value);
@@ -97,7 +97,10 @@ function isMissingRelationError(message: string): boolean {
   return (
     lower.includes('does not exist') ||
     lower.includes('relation') ||
-    lower.includes('not found')
+    lower.includes('not found') ||
+    lower.includes('schema cache') ||
+    lower.includes('could not find the table') ||
+    lower.includes('not find the table')
   );
 }
 
@@ -111,7 +114,35 @@ export async function fetchLaborCostsByQuoteId(params: {
   const quoteFilter = new Set((params.quoteIds || []).map((item) => item.trim()).filter(Boolean));
   const merged = new Map<string, LaborCostBucket>();
 
-  for (const table of TABLE_CANDIDATES) {
+  // Preferred canonical schema.
+  const explicitRead = await supabaseAdmin
+    .from('time_entries')
+    .select('quote_id, worked_hours')
+    .eq('user_id', uid)
+    .limit(5000);
+
+  if (!explicitRead.error && Array.isArray(explicitRead.data)) {
+    explicitRead.data.forEach((rawRow) => {
+      if (!rawRow || typeof rawRow !== 'object') return;
+      const row = rawRow as Record<string, unknown>;
+      const quoteId = getFirstString(row, ['quote_id', 'offerte_id', 'project_id']);
+      if (!quoteId) return;
+      if (quoteFilter.size > 0 && !quoteFilter.has(quoteId)) return;
+
+      const hours = Math.max(0, getFirstNumber(row, ['worked_hours', 'hours']));
+      if (hours <= 0) return;
+
+      const bucket = merged.get(quoteId) || { costExcl: 0, hours: 0 };
+      merged.set(quoteId, {
+        costExcl: roundEuro(bucket.costExcl),
+        hours: roundEuro(bucket.hours + hours),
+      });
+    });
+  } else if (explicitRead.error && !isMissingRelationError(explicitRead.error.message)) {
+    console.warn('[labor-costs] Kon time_entries niet laden:', explicitRead.error.message);
+  }
+
+  for (const table of LEGACY_TABLE_CANDIDATES) {
     const { data, error } = await supabaseAdmin
       .from(table)
       .select('*')

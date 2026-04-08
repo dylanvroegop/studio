@@ -238,4 +238,15 @@ export interface WinstMetricsResponse {
     clients: WinstFilterOption[];
     projects: WinstFilterOption[];
   };
+  vatSummary: {
+    filingPeriod: 'maand' | 'kwartaal';
+    filingPeriodMonths: 1 | 3;
+    periodLabel: string;
+    periodStart: string;
+    periodEnd: string;
+    quotesCount: number;
+    outputVat: number;
+    deductibleVat: number;
+    netVatPayable: number;
+  };
 }

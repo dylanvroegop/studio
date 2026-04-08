@@ -124,6 +124,12 @@ function parseFilters(body: unknown): WinstMetricsFiltersInput {
   };
 }
 
+function parseVatFilingPeriodMonths(raw: unknown): 1 | 3 {
+  const normalized = safeString(raw).toLowerCase();
+  if (normalized === 'maand' || normalized === 'monthly' || normalized === '1') return 1;
+  return 3;
+}
+
 function chunkArray<T>(input: T[], size: number): T[][] {
   const output: T[][] = [];
   for (let index = 0; index < input.length; index += size) {
@@ -288,10 +294,13 @@ export async function POST(req: Request) {
 
     const filters = parseFilters(await req.json().catch(() => ({})));
 
-    const [quoteSnapshot, invoiceSnapshot] = await Promise.all([
+    const [quoteSnapshot, invoiceSnapshot, userSnapshot] = await Promise.all([
       firestore.collection('quotes').where('userId', '==', uid).get(),
       firestore.collection('invoices').where('userId', '==', uid).get(),
+      firestore.collection('users').doc(uid).get(),
     ]);
+    const userSettings = userSnapshot.exists ? (userSnapshot.data()?.settings ?? {}) : {};
+    const vatFilingPeriodMonths = parseVatFilingPeriodMonths((userSettings as Record<string, unknown>)?.omzetBelastingAangiftePeriode);
 
     const quotes: WinstQuoteSource[] = quoteSnapshot.docs
       .filter((docSnap) => {
@@ -420,6 +429,7 @@ export async function POST(req: Request) {
       nacalculaties,
       projectCosts,
       laborCosts,
+      vatFilingPeriodMonths,
       userId: uid,
     });
 

@@ -28,8 +28,18 @@ export interface PendingHourPrompt {
   promptKey: string;
   quoteId: string;
   quoteLabel: string;
+  quoteNumber?: string;
+  clientName?: string;
+  projectTitle?: string;
+  planningType?: 'job' | 'werkbespreking' | 'mixed';
   workDate: string;
+  endWorkDate?: string;
   suggestedHours: number;
+  pendingDaysCount?: number;
+  pendingDates?: Array<{
+    workDate: string;
+    suggestedHours: number;
+    dayPromptKey?: string;
+  }>;
   plannedEntryRefs: string[];
 }
-

@@ -6,6 +6,7 @@ import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
 import { BusinessProfileGate } from '@/components/BusinessProfileGate';
 import { ThemeModeProvider } from '@/context/ThemeModeContext';
 import { AuthSessionSync } from '@/components/AuthSessionSync';
+import { PendingHoursPrompt } from '@/components/PendingHoursPrompt';
 
 export const metadata: Metadata = {
   title: 'Calvora',
@@ -55,6 +56,7 @@ export default function RootLayout({
           <ThemeModeProvider>
             <MeasurementUnitProvider>
               <BusinessProfileGate />
+              <PendingHoursPrompt />
               {children}
               <Toaster />
             </MeasurementUnitProvider>

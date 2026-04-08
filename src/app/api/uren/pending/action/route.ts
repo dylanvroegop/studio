@@ -21,6 +21,18 @@ function isValidDateOnly(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function isMissingRelationError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('does not exist') ||
+    lower.includes('relation') ||
+    lower.includes('not found') ||
+    lower.includes('schema cache') ||
+    lower.includes('could not find the table') ||
+    lower.includes('not find the table')
+  );
+}
+
 async function getUid(request: Request): Promise<string | null> {
   const token = extractBearerToken(request.headers.get('authorization'));
   if (!token) return null;
@@ -51,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     const snoozeUntil = action === 'later'
-      ? new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString()
+      ? null
       : null;
 
     const { error } = await supabaseAdmin
@@ -69,6 +81,10 @@ export async function POST(request: Request) {
         { onConflict: 'user_id,prompt_key' }
       );
 
+    if (error && isMissingRelationError(error.message)) {
+      // Degrade gracefully in dev when migration is not applied yet.
+      return NextResponse.json({ ok: true });
+    }
     if (error) {
       return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
     }

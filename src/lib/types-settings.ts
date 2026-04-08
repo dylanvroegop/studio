@@ -52,6 +52,7 @@ export interface LeverancierTransportKostenRegel {
 }
 
 export type AppearanceMode = 'dark' | 'light';
+export type OmzetBelastingAangiftePeriode = 'maand' | 'kwartaal';
 
 export interface UserSettings {
     // 1. Bedrijfsgegevens
@@ -85,6 +86,7 @@ export interface UserSettings {
         percentage: number | null;
     };
     standaardUurtarief: number;
+    omzetBelastingAangiftePeriode: OmzetBelastingAangiftePeriode;
 
     // 3. Offerte Configuraties
     offerteNummerPrefix: string;
@@ -147,6 +149,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     standaardTransport: { mode: 'perKm', prijsPerKm: 0.23 },
     standaardKleinMateriaal: { mode: 'inschatting', percentage: null },
     standaardUurtarief: 45,
+    omzetBelastingAangiftePeriode: 'kwartaal',
     offerteNummerPrefix: new Date().getFullYear() + '-',
     offerteNummerStart: 1001,
     standaardGeldigheidDagen: 30,

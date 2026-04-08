@@ -227,16 +227,16 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
 
     const deleteEntriesForQuote = useCallback(async (quoteId: string) => {
         if (!user || !firestore) throw new Error('Not authenticated');
-
-        const entriesToDelete = entries.filter(e => e.quoteId === quoteId);
+        const snapshot = await getDocs(query(
+            collection(firestore, 'planning_entries'),
+            where('userId', '==', user.uid),
+            where('quoteId', '==', quoteId)
+        ));
         const batch = writeBatch(firestore);
-
-        for (const entry of entriesToDelete) {
-            batch.delete(doc(firestore, 'planning_entries', entry.id));
-        }
+        snapshot.docs.forEach((planningDoc) => batch.delete(planningDoc.ref));
 
         await batch.commit();
-    }, [user, firestore, entries]);
+    }, [user, firestore]);
 
     const shiftQuoteEntries = useCallback(async (quoteId: string, referenceDate: Date, newStartDate: Date, newEmployeeId?: string) => {
         if (!user || !firestore) throw new Error('Not authenticated');

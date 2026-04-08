@@ -78,7 +78,7 @@ function PlanningPageContent() {
 
     const dateRange = useMemo(() => getDateRangeForView(view, currentDate), [view, currentDate]);
 
-    const { entries, isLoading: isLoadingEntries, updateEntry, shiftQuoteEntries, addEntry, addMultipleEntries } = usePlanningData({
+    const { entries, isLoading: isLoadingEntries, updateEntry, shiftQuoteEntries, addEntry, addMultipleEntries, deleteEntriesForQuote } = usePlanningData({
         startDate: dateRange.start,
         endDate: dateRange.end
     });
@@ -442,6 +442,12 @@ function PlanningPageContent() {
                 const schedulingDurationHours = schedulingType === 'werkbespreking'
                     ? 1
                     : schedulingHours;
+
+                // Scheduling from quote should replace previous job planning for that quote.
+                // Without this, stale historical split rows can remain and produce incorrect pending-hour prompts.
+                if (schedulingType === 'job') {
+                    await deleteEntriesForQuote(schedulingQuote.id);
+                }
 
                 const cacheData = {
                     clientName,

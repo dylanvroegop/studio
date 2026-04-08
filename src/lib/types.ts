@@ -95,7 +95,21 @@ export type Quote = {
     materieel?: Record<string, unknown>[]; // Bouwplaatskosten
     verzendkosten?: Record<string, unknown>[]; // Verzendkosten
   };
+
+  bonnetjes?: ReceiptAttachment[];
 };
+
+export interface ReceiptAttachment {
+  id: string;
+  quoteId: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  storagePath: string;
+  downloadUrl: string;
+  createdAt: Timestamp | Date | string;
+  uploadedBy: string;
+}
 
 export type QuoteSettings = {
   btwTarief: number;          // e.g. 21

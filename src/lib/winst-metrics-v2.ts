@@ -103,6 +103,7 @@ export interface BuildWinstMetricsInput {
   nacalculaties: WinstNacalculatieSource[];
   projectCosts?: WinstProjectCostSource[];
   laborCosts?: WinstLaborCostSource[];
+  vatFilingPeriodMonths?: 1 | 3;
   userId: string;
   now?: Date;
 }
@@ -197,6 +198,26 @@ function buildRange(now: Date, periodType: WinstPeriodType, periodRange: number)
     start: startOfDay(start),
     end: endOfDay(now),
     label: `Laatste ${periodRange} maanden`,
+  };
+}
+
+function buildVatRange(now: Date, months: 1 | 3): { start: Date; end: Date; label: string } {
+  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+  const monthFormatter = new Intl.DateTimeFormat('nl-NL', { month: 'long', year: 'numeric' });
+
+  if (months === 1) {
+    return {
+      start: startOfDay(start),
+      end: endOfDay(now),
+      label: monthFormatter.format(start),
+    };
+  }
+
+  const endMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  return {
+    start: startOfDay(start),
+    end: endOfDay(now),
+    label: `${monthFormatter.format(start)} - ${monthFormatter.format(endMonth)}`,
   };
 }
 
@@ -308,6 +329,42 @@ function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<st
       quotedHours: 0,
       quotedDays: 0,
       quotedTransportKm: 0,
+    };
+  }
+}
+
+function getQuoteVatSnapshot(
+  quote: WinstQuoteSource,
+  calculationByQuoteId: Map<string, WinstCalculationSource>
+): { outputVat: number; deductibleVat: number } {
+  const calculation = calculationByQuoteId.get(quote.id);
+  if (!calculation) {
+    const fallbackRevenueIncl = Math.max(0, safeNumber(quote.quotedRevenueIncl));
+    const fallbackRevenueExcl = fallbackRevenueIncl / 1.21;
+    return {
+      outputVat: Math.max(0, fallbackRevenueIncl - fallbackRevenueExcl),
+      deductibleVat: 0,
+    };
+  }
+
+  try {
+    const settings = mapSettingsForTotals(calculation.dataJson);
+    const totals = calculateQuoteTotals(calculation.dataJson, settings);
+    const rate = Math.max(0, safeNumber(settings.btwTarief));
+    const materialVat = rate > 0
+      ? (Math.max(0, safeNumber(totals.materialenTotaal)) * rate) / 100
+      : 0;
+
+    return {
+      outputVat: Math.max(0, safeNumber(totals.btw)),
+      deductibleVat: Math.max(0, materialVat),
+    };
+  } catch {
+    const fallbackRevenueIncl = Math.max(0, safeNumber(quote.quotedRevenueIncl));
+    const fallbackRevenueExcl = fallbackRevenueIncl / 1.21;
+    return {
+      outputVat: Math.max(0, fallbackRevenueIncl - fallbackRevenueExcl),
+      deductibleVat: 0,
     };
   }
 }
@@ -616,6 +673,60 @@ function buildInvoiceAllocation(
   }));
 }
 
+function getInvoiceTimestamp(invoice: WinstInvoiceSource): number {
+  return (
+    invoice.createdAt?.getTime()
+    ?? invoice.dueDate?.getTime()
+    ?? 0
+  );
+}
+
+function isInvoiceSettled(invoice: WinstInvoiceSource): boolean {
+  const status = String(invoice.status || '').trim().toLowerCase();
+  if (status === 'betaald') return true;
+
+  const total = Math.max(0, safeNumber(invoice.totalIncl));
+  const paid = Math.max(0, safeNumber(invoice.paidAmount));
+  const open = Math.max(0, safeNumber(invoice.openAmount));
+  if (total <= 0) return false;
+
+  return open <= 0.01 || paid >= total - 0.01;
+}
+
+function buildFinalInvoiceStateByQuoteId(
+  quotes: WinstQuoteSource[],
+  invoices: WinstInvoiceSource[],
+  vatRange: { start: Date; end: Date }
+): Set<string> {
+  const quoteIdSet = new Set(quotes.map((quote) => quote.id));
+  const finalInvoicesByQuoteId = new Map<string, WinstInvoiceSource[]>();
+
+  invoices.forEach((invoice) => {
+    const invoiceType = String(invoice.invoiceType || '').trim().toLowerCase();
+    const status = String(invoice.status || '').trim().toLowerCase();
+    if (invoiceType !== 'eind') return;
+    if (status === 'geannuleerd') return;
+
+    invoice.quoteIds.forEach((quoteId) => {
+      if (!quoteIdSet.has(quoteId)) return;
+      const list = finalInvoicesByQuoteId.get(quoteId) || [];
+      list.push(invoice);
+      finalInvoicesByQuoteId.set(quoteId, list);
+    });
+  });
+
+  const eligibleQuoteIds = new Set<string>();
+  finalInvoicesByQuoteId.forEach((invoiceList, quoteId) => {
+    const latest = [...invoiceList].sort((a, b) => getInvoiceTimestamp(b) - getInvoiceTimestamp(a))[0];
+    if (!latest) return;
+    if (!isInvoiceSettled(latest)) return;
+    if (!isDateWithinRange(latest.createdAt, vatRange)) return;
+    eligibleQuoteIds.add(quoteId);
+  });
+
+  return eligibleQuoteIds;
+}
+
 function createTotalBreakdownRow(projects: WinstProjectPerformance[]): { categories: WinstCategoryBreakdownRow[]; total: WinstCategoryBreakdownRow } {
   const totalsByCategory = new Map<WinstCostCategoryKey, { quoted: number; actual: number }>();
   CATEGORY_ORDER.forEach((key) => totalsByCategory.set(key, { quoted: 0, actual: 0 }));
@@ -667,6 +778,8 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
   const now = input.now ?? new Date();
   const normalizedFilters = normalizeFilters(input.filters);
   const range = buildRange(now, normalizedFilters.periodType, normalizedFilters.periodRange);
+  const vatFilingPeriodMonths: 1 | 3 = input.vatFilingPeriodMonths === 1 ? 1 : 3;
+  const vatRange = buildVatRange(now, vatFilingPeriodMonths);
 
   const calculationByQuoteId = new Map<string, WinstCalculationSource>();
   input.calculations.forEach((row) => {
@@ -722,6 +835,34 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
 
   const relevantQuoteIds = new Set(relevantQuotes.map((quote) => quote.id));
   const quotedRevenueByQuoteId = new Map(relevantQuotes.map((quote) => [quote.id, Math.max(0, safeNumber(quote.quotedRevenueIncl))]));
+
+  const completedFinalInvoiceQuoteIds = buildFinalInvoiceStateByQuoteId(input.quotes, input.invoices, vatRange);
+  const vatRelevantQuotes = input.quotes.filter((quote) => {
+    const quoteStatus = String(quote.status || '').trim().toLowerCase();
+    if (quoteStatus !== 'geaccepteerd') return false;
+    return completedFinalInvoiceQuoteIds.has(quote.id);
+  });
+
+  const vatSummaryBase = vatRelevantQuotes.reduce(
+    (acc, quote) => {
+      const vat = getQuoteVatSnapshot(quote, calculationByQuoteId);
+      acc.outputVat += vat.outputVat;
+      acc.deductibleVat += vat.deductibleVat;
+      return acc;
+    },
+    { outputVat: 0, deductibleVat: 0 }
+  );
+  const vatSummary = {
+    filingPeriod: (vatFilingPeriodMonths === 1 ? 'maand' : 'kwartaal') as 'maand' | 'kwartaal',
+    filingPeriodMonths: vatFilingPeriodMonths,
+    periodLabel: vatRange.label,
+    periodStart: vatRange.start.toISOString(),
+    periodEnd: vatRange.end.toISOString(),
+    quotesCount: vatRelevantQuotes.length,
+    outputVat: vatSummaryBase.outputVat,
+    deductibleVat: vatSummaryBase.deductibleVat,
+    netVatPayable: vatSummaryBase.outputVat - vatSummaryBase.deductibleVat,
+  };
 
   const invoiceById = new Map<string, WinstInvoiceSource>();
   const relevantInvoices = input.invoices.filter((invoice) => {
@@ -1091,6 +1232,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     trend,
     projectPerformances: projects,
     filterOptions: uniqueFilterOptions,
+    vatSummary,
   };
 }
 
