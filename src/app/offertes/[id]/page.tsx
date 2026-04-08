@@ -416,6 +416,7 @@ export default function QuotePage() {
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
     const [isMobileMoreActionsOpen, setIsMobileMoreActionsOpen] = useState(false);
     const [isMobileMoreSectionsOpen, setIsMobileMoreSectionsOpen] = useState(false);
+    const [isPlanningTypeDialogOpen, setIsPlanningTypeDialogOpen] = useState(false);
     const [voorschotIngeschakeld, setVoorschotIngeschakeld] = useState(true);
     const [voorschotPercentage, setVoorschotPercentage] = useState<number>(50);
     const [onderVoorbehoud, setOnderVoorbehoud] = useState(false);
@@ -3772,6 +3773,16 @@ export default function QuotePage() {
 
     const secondaryTabs = ['nacalculatie', 'tekeningen', 'bonnetjes', 'notities', 'algemene-voorwaarden'];
     const isSecondarySectionActive = secondaryTabs.includes(activeTab);
+    const openPlanningWithType = useCallback((scheduleType: 'job' | 'werkbespreking') => {
+        const params = new URLSearchParams({
+            mode: 'schedule',
+            quoteId: id,
+            hours: String(normalizedData?.totaal_uren || 0),
+            view: 'week',
+            scheduleType,
+        });
+        router.push(`/planning?${params.toString()}`);
+    }, [id, normalizedData?.totaal_uren, router]);
 
     return (
         <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
@@ -3808,15 +3819,7 @@ export default function QuotePage() {
                             <Button
                                 variant="outline"
                                 className="h-11 justify-start gap-2 px-4"
-                                onClick={() => {
-                                    const params = new URLSearchParams({
-                                        mode: 'schedule',
-                                        quoteId: id,
-                                        hours: String(normalizedData?.totaal_uren || 0),
-                                        view: 'week'
-                                    });
-                                    router.push(`/planning?${params.toString()}`);
-                                }}
+                                onClick={() => setIsPlanningTypeDialogOpen(true)}
                             >
                                 <CalendarDays size={16} />
                                 Inplannen
@@ -3893,15 +3896,7 @@ export default function QuotePage() {
                                 <Button
                                     variant="outline"
                                     className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
-                                    onClick={() => {
-                                        const params = new URLSearchParams({
-                                            mode: 'schedule',
-                                            quoteId: id,
-                                            hours: String(normalizedData?.totaal_uren || 0),
-                                            view: 'week'
-                                        });
-                                        router.push(`/planning?${params.toString()}`);
-                                    }}
+                                    onClick={() => setIsPlanningTypeDialogOpen(true)}
                                     aria-label="Inplannen"
                                     title="Inplannen"
                                 >
@@ -5205,6 +5200,41 @@ export default function QuotePage() {
                             </div>
                         </SheetContent>
                     </Sheet>
+
+                    <Dialog open={isPlanningTypeDialogOpen} onOpenChange={setIsPlanningTypeDialogOpen}>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>Wat wil je inplannen?</DialogTitle>
+                                <DialogDescription>
+                                    Kies eerst of dit een werkbespreking of een klus is.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-2">
+                                <Button
+                                    variant="outline"
+                                    className="justify-start border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/15"
+                                    onClick={() => {
+                                        setIsPlanningTypeDialogOpen(false);
+                                        openPlanningWithType('werkbespreking');
+                                    }}
+                                >
+                                    <CalendarDays className="h-4 w-4" />
+                                    Werkbespreking
+                                </Button>
+                                <Button
+                                    variant="success"
+                                    className="justify-start"
+                                    onClick={() => {
+                                        setIsPlanningTypeDialogOpen(false);
+                                        openPlanningWithType('job');
+                                    }}
+                                >
+                                    <CalendarDays className="h-4 w-4" />
+                                    Klus
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
 
                     <Sheet open={isMobileMoreSectionsOpen} onOpenChange={setIsMobileMoreSectionsOpen}>
                         <SheetContent side="bottom" className="rounded-t-2xl border-border bg-background sm:hidden">

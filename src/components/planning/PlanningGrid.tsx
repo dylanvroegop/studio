@@ -335,16 +335,25 @@ export function PlanningGrid({
                                 Winst
                             </span>
                         </div>
-                        {headerDays.map(day => (
-                            <div
-                                key={format(day, 'EEE')}
-                                className="min-w-0 p-2 text-center border-r border-zinc-700/50 last:border-r-0"
-                            >
-                                <span className="text-xs text-muted-foreground/80 font-medium">
-                                    {format(day, 'EEEE', { locale: nl })}
-                                </span>
-                            </div>
-                        ))}
+                        {headerDays.map(day => {
+                            const dayIsToday = isToday(day);
+                            return (
+                                <div
+                                    key={format(day, 'EEE')}
+                                    className={cn(
+                                        "min-w-0 p-2 text-center border-r border-zinc-700/50 last:border-r-0",
+                                        dayIsToday && "bg-emerald-500/12"
+                                    )}
+                                >
+                                    <span className={cn(
+                                        "text-xs font-medium",
+                                        dayIsToday ? "text-emerald-300" : "text-muted-foreground/80"
+                                    )}>
+                                        {format(day, 'EEEE', { locale: nl })}
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {/* Employee Rows */}
@@ -386,6 +395,7 @@ export function PlanningGrid({
                                             const dayOfWeek = day.getDay();
                                             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                                             const isCurrentMonth = isSameMonth(day, currentDate);
+                                            const dayIsToday = isToday(day);
                                             return (
                                                 <div
                                                     key={day.toISOString()}
@@ -393,6 +403,7 @@ export function PlanningGrid({
                                                         "relative min-h-[108px] min-w-0 overflow-hidden border-r border-zinc-700/50 border-b border-zinc-700/50 px-1 pt-1",
                                                         "last:border-r-0",
                                                         isWeekend && "bg-muted/20",
+                                                        dayIsToday && "bg-emerald-500/10 ring-1 ring-inset ring-emerald-400/50",
                                                         schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
                                                         !schedulingMode && "cursor-default hover:bg-zinc-900/12 transition-colors"
                                                     )}
@@ -409,7 +420,11 @@ export function PlanningGrid({
                                                     <div
                                                         className={cn(
                                                             "absolute right-1 top-1 z-[1] text-[11px] leading-none font-medium",
-                                                            isCurrentMonth ? "text-zinc-400" : "text-zinc-600"
+                                                            dayIsToday
+                                                                ? "rounded-full bg-emerald-500 px-1.5 py-0.5 text-zinc-950 shadow-sm"
+                                                                : isCurrentMonth
+                                                                    ? "text-zinc-400"
+                                                                    : "text-zinc-600"
                                                         )}
                                                     >
                                                         {format(day, 'd', { locale: nl })}

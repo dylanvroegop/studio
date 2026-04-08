@@ -488,7 +488,27 @@ function PlanningPageContent() {
                     });
                 } else {
                     // Single entry
-                    const startTime = planningSettings.defaultStartTime.split(':');
+                    let selectedStartTime = planningSettings.defaultStartTime;
+                    if (schedulingType === 'werkbespreking') {
+                        const promptedTime = window.prompt(
+                            'Kies starttijd voor de werkbespreking (HH:mm)',
+                            planningSettings.defaultStartTime
+                        );
+                        if (promptedTime === null) return;
+
+                        const trimmed = promptedTime.trim();
+                        if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(trimmed)) {
+                            toast({
+                                title: 'Ongeldige tijd',
+                                description: 'Gebruik het formaat HH:mm, bijvoorbeeld 09:30.',
+                                variant: 'destructive'
+                            });
+                            return;
+                        }
+                        selectedStartTime = trimmed;
+                    }
+
+                    const startTime = selectedStartTime.split(':');
                     const startDate = new Date(date);
                     startDate.setHours(parseInt(startTime[0]), parseInt(startTime[1]), 0);
                     const endDate = schedulingType === 'werkbespreking'
@@ -512,7 +532,9 @@ function PlanningPageContent() {
 
                     toast({
                         title: 'Ingepland',
-                        description: `${schedulingDurationHours}u ingepland op ${format(date, 'd MMMM yyyy', { locale: nl })}`
+                        description: schedulingType === 'werkbespreking'
+                            ? `Werkbespreking ingepland op ${format(date, 'd MMMM yyyy', { locale: nl })} om ${selectedStartTime}`
+                            : `${schedulingDurationHours}u ingepland op ${format(date, 'd MMMM yyyy', { locale: nl })}`
                     });
                 }
 
@@ -633,6 +655,7 @@ function PlanningPageContent() {
                         }
                         offerteNummer={String(schedulingQuote.offerteNummer || '')}
                         hours={schedulingHours}
+                        planningType={schedulingType}
                         onCancel={handleCancelScheduling}
                     />
                 )}

@@ -37,6 +37,7 @@ interface QuoteMeta {
   quoteNumber: string | null;
   clientName: string | null;
   projectTitle: string | null;
+  archived: boolean;
 }
 
 function normalizePlanningType(value: unknown): 'job' | 'werkbespreking' {
@@ -182,6 +183,7 @@ function getQuoteMetaFromQuoteDoc(data: Record<string, unknown>): QuoteMeta {
     quoteNumber: quoteNumber || null,
     clientName: clientName || null,
     projectTitle: projectTitle || null,
+    archived: data.archived === true,
   };
 }
 
@@ -196,9 +198,9 @@ function chunkArray<T>(items: T[], size: number): T[][] {
 async function cleanupOrphanPlanningEntries(
   firestore: FirebaseFirestore.Firestore,
   uid: string,
-  orphanQuoteIds: string[],
+  quoteIdsToCleanup: string[],
 ): Promise<void> {
-  for (const quoteId of orphanQuoteIds) {
+  for (const quoteId of quoteIdsToCleanup) {
     const snapshot = await firestore
       .collection('planning_entries')
       .where('userId', '==', uid)
@@ -321,8 +323,10 @@ export async function GET(request: Request) {
     }
 
     const orphanQuoteIds = quoteIds.filter((quoteId) => !quoteMetaByQuoteId.has(quoteId));
-    if (orphanQuoteIds.length > 0) {
-      await cleanupOrphanPlanningEntries(firestore, uid, orphanQuoteIds);
+    const archivedQuoteIds = quoteIds.filter((quoteId) => quoteMetaByQuoteId.get(quoteId)?.archived === true);
+    const cleanupQuoteIds = Array.from(new Set([...orphanQuoteIds, ...archivedQuoteIds]));
+    if (cleanupQuoteIds.length > 0) {
+      await cleanupOrphanPlanningEntries(firestore, uid, cleanupQuoteIds);
     }
 
     const [{ data: existingEntries, error: existingEntriesError }, { data: promptStates, error: promptStatesError }] = await Promise.all([
@@ -484,7 +488,12 @@ export async function GET(request: Request) {
           suggestedHours: Number(Math.max(0, Math.min(item.suggestedHours, remaining)).toFixed(2)),
         };
       })
-      .filter((item) => quoteMetaByQuoteId.has(item.quoteId))
+      .filter((item) => {
+        const meta = quoteMetaByQuoteId.get(item.quoteId);
+        if (!meta) return false;
+        if (meta.archived) return false;
+        return true;
+      })
       .filter((item) => item.suggestedHours > 0)
       .filter((item) => {
         const action = projectStateByKey.get(item.promptKey);

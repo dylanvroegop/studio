@@ -861,6 +861,24 @@ export default function OffertesPage() {
     if (!user || !firestore || !archiveTarget || archiving) return;
     setArchiving(true);
     try {
+      const planningSnapshot = await getDocs(
+        query(
+          collection(firestore, 'planning_entries'),
+          where('userId', '==', user.uid),
+          where('quoteId', '==', archiveTarget.id),
+        ),
+      );
+
+      if (!planningSnapshot.empty) {
+        for (let index = 0; index < planningSnapshot.docs.length; index += 400) {
+          const batch = writeBatch(firestore);
+          planningSnapshot.docs.slice(index, index + 400).forEach((planningDoc) => {
+            batch.delete(planningDoc.ref);
+          });
+          await batch.commit();
+        }
+      }
+
       const ref = doc(firestore, 'quotes', archiveTarget.id);
       await updateDoc(ref, {
         archived: true,
