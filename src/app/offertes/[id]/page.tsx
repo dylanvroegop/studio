@@ -2,7 +2,20 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuoteData } from '@/hooks/useQuoteData';
-import { calculateQuoteTotals, QuoteSettings as QuoteCalculationSettings, KlantInformatie, formatCurrency, MaterialItem, generateWorkSummary, normalizeWerkbeschrijving, normalizeDataJson, unwrapRoot } from '@/lib/quote-calculations';
+import {
+    calculateQuoteTotals,
+    QuoteSettings as QuoteCalculationSettings,
+    KlantInformatie,
+    formatCurrency,
+    MaterialItem,
+    generateWorkSummary,
+    normalizeWerkbeschrijving,
+    normalizeDataJson,
+    unwrapRoot,
+    toStructuredWorkDescription,
+    flattenStructuredWorkDescription,
+    type WorkDescriptionStructured,
+} from '@/lib/quote-calculations';
 import { ClientInfoCard } from '@/components/quote/ClientInfoCard';
 import { CostSummaryCard } from '@/components/quote/CostSummaryCard';
 import { MaterialEditor } from '@/components/quote/MaterialEditor';
@@ -39,6 +52,7 @@ import Link from "next/link";
 import { SendQuoteModal, type QuoteAttachmentOptions } from '@/components/quote/SendQuoteModal';
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialListExportDialog } from '@/components/quote/MaterialListExportDialog';
+import { WorkDescriptionWorkspace } from '@/components/quote/work-description/WorkDescriptionWorkspace';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
 import { AppNavigation } from '@/components/AppNavigation';
@@ -55,6 +69,7 @@ import {
     sanitizeQuotePdfTextSettings,
     type QuotePdfTextSettings,
 } from '@/lib/quote-pdf-text-settings';
+import { cloneTemplateSections, findWorkDescriptionTemplate } from '@/lib/work-description/templates';
 
 import { Quote } from "@/lib/types";
 import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
@@ -282,13 +297,15 @@ export default function QuotePage() {
     const hasEditedPdfTextSettingsRef = useRef(false);
     const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('onderVoorbehoud');
     const [activeTab, setActiveTab] = useState('materialen');
-    const [manualWorkDescriptionTitle, setManualWorkDescriptionTitle] = useState('');
-    const [manualWorkDescriptionRows, setManualWorkDescriptionRows] = useState<string[]>([]);
-    const [workDescriptionPrompt, setWorkDescriptionPrompt] = useState('');
+    const [workDescriptionMode, setWorkDescriptionMode] = useState<'edit' | 'preview'>('edit');
+    const [workDescriptionStructured, setWorkDescriptionStructured] = useState<WorkDescriptionStructured>(() => toStructuredWorkDescription(null));
     const [isGeneratingWorkDescription, setIsGeneratingWorkDescription] = useState(false);
+    const [isGeneratingDistanceDev, setIsGeneratingDistanceDev] = useState(false);
     const [isAutoSavingWorkDescription, setIsAutoSavingWorkDescription] = useState(false);
+    const autoDistanceAttemptedRef = useRef<Set<string>>(new Set());
     const lastSyncedWerkbeschrijvingRef = useRef<string>('');
     const autoSaveWerkbeschrijvingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const templateAutoAppliedRef = useRef(false);
     const [isPdfSettingsOpen, setIsPdfSettingsOpen] = useState(false);
     const [isPdfFocusMode, setIsPdfFocusMode] = useState(false);
     const [hasSavedPdfSettings, setHasSavedPdfSettings] = useState(true); // assume true until proven otherwise
@@ -477,6 +494,7 @@ export default function QuotePage() {
         hasEditedMaterialsRef.current = false;
         lastSavedMaterialPresetRef.current = '';
         setSelectedMaterialPackageId('NIEUW');
+        templateAutoAppliedRef.current = false;
     }, [id]);
 
     useEffect(() => {
@@ -3099,48 +3117,90 @@ export default function QuotePage() {
         }
     };
 
-    const currentWerkbeschrijving = useMemo(
-        () => normalizeWerkbeschrijving(normalizedData?.werkbeschrijving || []),
-        [normalizedData?.werkbeschrijving],
+    const currentWerkbeschrijvingStructured = useMemo(
+        () => toStructuredWorkDescription({
+            werkbeschrijving: normalizedData?.werkbeschrijving,
+            werkbeschrijving_structured: (normalizedData as any)?.werkbeschrijving_structured,
+            korteTitel: normalizedData?.korteTitel,
+            korteBeschrijving: normalizedData?.korteBeschrijving,
+        }),
+        [normalizedData],
     );
 
-    const currentWerkbeschrijvingTitle = useMemo(
-        () => String(normalizedData?.korteTitel || '').trim(),
-        [normalizedData?.korteTitel],
+    const resolvedWorkDescriptionCategory = useMemo(() => {
+        const candidates = [
+            (normalizedData as any)?.category,
+            (normalizedData as any)?.categorie,
+            (normalizedData as any)?.jobType,
+            (normalizedData as any)?.job_type,
+            (normalizedData as any)?.slug,
+            (normalizedData as any)?.klusType,
+            quote?.titel,
+        ];
+
+        for (const candidate of candidates) {
+            const value = String(candidate || '').trim();
+            if (value) return value;
+        }
+        return '';
+    }, [normalizedData, quote?.titel]);
+
+    const detectedWorkDescriptionTemplate = useMemo(
+        () => findWorkDescriptionTemplate({
+            category: resolvedWorkDescriptionCategory,
+            title: workDescriptionStructured.title,
+            context: workDescriptionStructured.context,
+        }),
+        [resolvedWorkDescriptionCategory, workDescriptionStructured.title, workDescriptionStructured.context],
     );
 
     const isWerkbeschrijvingEmpty = useMemo(() => {
-        const hasTitle = manualWorkDescriptionTitle.trim().length > 0;
-        const hasRows = manualWorkDescriptionRows.some((line) => line.trim().length > 0);
-        return !hasTitle && !hasRows;
-    }, [manualWorkDescriptionTitle, manualWorkDescriptionRows]);
+        const flat = flattenStructuredWorkDescription(workDescriptionStructured);
+        const hasTitle = workDescriptionStructured.title.trim().length > 0;
+        const hasContext = workDescriptionStructured.context.trim().length > 0;
+        return !hasTitle && !hasContext && flat.length === 0;
+    }, [workDescriptionStructured]);
 
     const showWerkbeschrijvingWarning = !loading && isWerkbeschrijvingEmpty;
 
     useEffect(() => {
         const serialized = JSON.stringify({
-            title: currentWerkbeschrijvingTitle,
-            rows: currentWerkbeschrijving,
+            structured: currentWerkbeschrijvingStructured,
         });
-        if (lastSyncedWerkbeschrijvingRef.current === serialized) {
+        const shouldAutoApplyTemplate = Boolean(
+            !templateAutoAppliedRef.current
+            && detectedWorkDescriptionTemplate
+            && flattenStructuredWorkDescription(currentWerkbeschrijvingStructured).length === 0,
+        );
+
+        if (lastSyncedWerkbeschrijvingRef.current === serialized && !shouldAutoApplyTemplate) {
             return;
         }
 
-        setManualWorkDescriptionTitle(currentWerkbeschrijvingTitle);
-        setManualWorkDescriptionRows(
-            currentWerkbeschrijving.length > 0 ? currentWerkbeschrijving : [''],
-        );
+        let next = currentWerkbeschrijvingStructured;
+        if (shouldAutoApplyTemplate && detectedWorkDescriptionTemplate) {
+            next = {
+                ...currentWerkbeschrijvingStructured,
+                sections: cloneTemplateSections(detectedWorkDescriptionTemplate),
+            };
+            templateAutoAppliedRef.current = true;
+        }
+
+        setWorkDescriptionStructured(next);
         lastSyncedWerkbeschrijvingRef.current = serialized;
-    }, [currentWerkbeschrijving, currentWerkbeschrijvingTitle]);
+    }, [currentWerkbeschrijvingStructured, detectedWorkDescriptionTemplate]);
 
     useEffect(() => {
         if (!calculation?.data_json) return;
-        const parsedTitle = manualWorkDescriptionTitle.trim();
-        const parsedWerkbeschrijving = manualWorkDescriptionRows
-            .map((line) => line.trim())
-            .filter(Boolean);
+
+        const parsedStructured = toStructuredWorkDescription({
+            werkbeschrijving_structured: workDescriptionStructured,
+            korteTitel: workDescriptionStructured.title,
+            korteBeschrijving: workDescriptionStructured.context,
+        });
+        const parsedWerkbeschrijving = flattenStructuredWorkDescription(parsedStructured);
         const serializedParsed = JSON.stringify({
-            title: parsedTitle,
+            structured: parsedStructured,
             rows: parsedWerkbeschrijving,
         });
 
@@ -3157,8 +3217,10 @@ export default function QuotePage() {
             const root = unwrapRoot(calculation.data_json);
             updateDataJson({
                 ...root,
-                korteTitel: parsedTitle,
+                korteTitel: parsedStructured.title,
+                korteBeschrijving: parsedStructured.context,
                 werkbeschrijving: parsedWerkbeschrijving,
+                werkbeschrijving_structured: parsedStructured,
             })
                 .then(() => {
                     lastSyncedWerkbeschrijvingRef.current = serializedParsed;
@@ -3180,11 +3242,10 @@ export default function QuotePage() {
                 clearTimeout(autoSaveWerkbeschrijvingTimerRef.current);
             }
         };
-    }, [manualWorkDescriptionTitle, manualWorkDescriptionRows, calculation?.data_json, updateDataJson, toast]);
+    }, [workDescriptionStructured, calculation?.data_json, updateDataJson, toast]);
 
-    const handleGenerateWorkDescription = async () => {
-        const prompt = workDescriptionPrompt.trim();
-        if (!prompt || !user) return;
+    const handleGenerateWorkDescription = async (action: 'full' | 'uitvoering-only' | 'improve') => {
+        if (!user) return;
 
         if (!calculation?.data_json) {
             toast({
@@ -3198,6 +3259,13 @@ export default function QuotePage() {
         setIsGeneratingWorkDescription(true);
         try {
             const token = await user.getIdToken();
+            const promptBase = [
+                `Actie: ${action}`,
+                workDescriptionStructured.title.trim() ? `Titel: ${workDescriptionStructured.title.trim()}` : '',
+                workDescriptionStructured.context.trim() ? `Context: ${workDescriptionStructured.context.trim()}` : '',
+                resolvedWorkDescriptionCategory ? `Categorie: ${resolvedWorkDescriptionCategory}` : '',
+            ].filter(Boolean).join('\n');
+
             const response = await fetch('/api/generate-work-description', {
                 method: 'POST',
                 headers: {
@@ -3205,17 +3273,36 @@ export default function QuotePage() {
                     Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
-                    prompt,
+                    prompt: promptBase,
                     quoteId: id,
+                    action,
+                    title: workDescriptionStructured.title,
+                    context: workDescriptionStructured.context,
+                    category: resolvedWorkDescriptionCategory,
+                    targetSection: action === 'uitvoering-only' ? 'uitvoering' : undefined,
+                    structuredInput: workDescriptionStructured,
                 }),
             });
 
             const payload = await response.json().catch(() => null) as
-                | { werkbeschrijving?: unknown; error?: string }
+                | { werkbeschrijving?: unknown; werkbeschrijvingStructured?: unknown; error?: string }
                 | null;
 
             if (!response.ok) {
                 throw new Error(payload?.error || 'Kon werkbeschrijving niet genereren.');
+            }
+
+            const generatedStructured = payload?.werkbeschrijvingStructured
+                ? toStructuredWorkDescription({ werkbeschrijving_structured: payload.werkbeschrijvingStructured })
+                : null;
+
+            if (generatedStructured && flattenStructuredWorkDescription(generatedStructured).length > 0) {
+                setWorkDescriptionStructured(generatedStructured);
+                toast({
+                    title: 'Werkbeschrijving bijgewerkt',
+                    description: 'AI-output is verwerkt in de structuur.',
+                });
+                return;
             }
 
             const generated = Array.isArray(payload?.werkbeschrijving)
@@ -3228,23 +3315,27 @@ export default function QuotePage() {
                 throw new Error('Geen werkbeschrijving ontvangen.');
             }
 
-            const root = unwrapRoot(calculation.data_json);
-            await updateDataJson({
-                ...root,
-                werkbeschrijving: generated,
-            });
-
-            setManualWorkDescriptionRows(generated);
-            lastSyncedWerkbeschrijvingRef.current = JSON.stringify({
-                title: manualWorkDescriptionTitle.trim(),
-                rows: generated,
-            });
+            if (action === 'uitvoering-only') {
+                setWorkDescriptionStructured((prev) => ({
+                    ...prev,
+                    sections: {
+                        ...prev.sections,
+                        uitvoering: generated,
+                    },
+                }));
+            } else {
+                const inferred = toStructuredWorkDescription({
+                    werkbeschrijving: generated,
+                    korteTitel: workDescriptionStructured.title,
+                    korteBeschrijving: workDescriptionStructured.context,
+                });
+                setWorkDescriptionStructured(inferred);
+            }
 
             toast({
-                title: 'Werkbeschrijving gegenereerd',
-                description: 'De werkbeschrijving is toegevoegd aan deze offerte.',
+                title: 'Werkbeschrijving bijgewerkt',
+                description: 'AI-output is verwerkt in de structuur.',
             });
-            setWorkDescriptionPrompt('');
         } catch (err: any) {
             toast({
                 variant: 'destructive',
@@ -3256,28 +3347,28 @@ export default function QuotePage() {
         }
     };
 
-    const handleChangeWorkDescriptionRow = (index: number, value: string) => {
-        setManualWorkDescriptionRows((prev) => prev.map((item, i) => (i === index ? value : item)));
-    };
+    const handleApplyWorkDescriptionTemplate = useCallback(() => {
+        if (!detectedWorkDescriptionTemplate) return;
 
-    const handleAddWorkDescriptionRow = () => {
-        setManualWorkDescriptionRows((prev) => [...prev, '']);
-    };
-
-    const handleInsertWorkDescriptionRow = (index: number) => {
-        setManualWorkDescriptionRows((prev) => {
-            const next = [...prev];
-            next.splice(index + 1, 0, '');
+        setWorkDescriptionStructured((prev) => {
+            const templateSections = cloneTemplateSections(detectedWorkDescriptionTemplate);
+            const next = {
+                ...prev,
+                sections: {
+                    voorbereiding: prev.sections.voorbereiding.length > 0 ? prev.sections.voorbereiding : templateSections.voorbereiding,
+                    uitvoering: prev.sections.uitvoering.length > 0 ? prev.sections.uitvoering : templateSections.uitvoering,
+                    afwerking: prev.sections.afwerking.length > 0 ? prev.sections.afwerking : templateSections.afwerking,
+                },
+            };
             return next;
         });
-    };
 
-    const handleRemoveWorkDescriptionRow = (index: number) => {
-        setManualWorkDescriptionRows((prev) => {
-            const next = prev.filter((_, i) => i !== index);
-            return next.length > 0 ? next : [''];
+        templateAutoAppliedRef.current = true;
+        toast({
+            title: 'Template toegepast',
+            description: `Template "${detectedWorkDescriptionTemplate.label}" is toegevoegd op lege secties.`,
         });
-    };
+    }, [detectedWorkDescriptionTemplate, toast]);
 
     const LoadingPanel = () => (
         <div className="flex flex-col items-center justify-center py-20 gap-6">
@@ -3346,6 +3437,16 @@ export default function QuotePage() {
         </div>
     );
 
+    const routeOriginAddress = useMemo(() => {
+        const origin = {
+            straat: userProfile?.settings?.adres || businessData?.adres || '',
+            huisnummer: userProfile?.settings?.huisnummer || businessData?.huisnummer || '',
+            postcode: userProfile?.settings?.postcode || businessData?.postcode || '',
+            plaats: userProfile?.settings?.plaats || businessData?.plaats || '',
+        };
+        return hasMinimalAddress(origin) ? buildAddressString(origin) : '';
+    }, [businessData?.adres, businessData?.huisnummer, businessData?.plaats, businessData?.postcode, userProfile?.settings?.adres, userProfile?.settings?.huisnummer, userProfile?.settings?.plaats, userProfile?.settings?.postcode]);
+
     const routeDestinationAddress = useMemo(() => {
         if (!klantInfo) return '';
         const projectAdres = klantInfo.afwijkendProjectadres ? klantInfo.projectAdres : undefined;
@@ -3362,6 +3463,125 @@ export default function QuotePage() {
             ? buildGoogleMapsDirectionsUrl(routeDestinationAddress)
             : '';
     }, [routeDestinationAddress]);
+
+    const runDistanceGeneration = useCallback(async (options?: { source?: string; notify?: boolean }) => {
+        if (!user) return;
+        if (!routeOriginAddress || !routeDestinationAddress) {
+            if (options?.notify !== false) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Adres ontbreekt',
+                    description: 'Vul zowel vertrekadres (instellingen) als projectadres in.',
+                });
+            }
+            return;
+        }
+
+        setIsGeneratingDistanceDev(true);
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/generate-distance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    quoteId: id,
+                    originAddress: routeOriginAddress,
+                    destinationAddress: routeDestinationAddress,
+                    manualQuote: true,
+                }),
+            });
+
+            const payload = await response.json().catch(() => null) as
+                | {
+                    error?: string;
+                    distanceKmOneWay?: number;
+                    distanceKmRoundTrip?: number;
+                    durationMinOneWay?: number;
+                }
+                | null;
+
+            if (!response.ok) {
+                throw new Error(payload?.error || 'Distance webhook mislukt.');
+            }
+
+            const distanceKmOneWay = Number(payload?.distanceKmOneWay || 0);
+            const distanceKmRoundTrip = Number(payload?.distanceKmRoundTrip || (distanceKmOneWay * 2));
+            const durationMinOneWay = Math.max(0, Math.round(Number(payload?.durationMinOneWay || 0)));
+            const durationText = `${durationMinOneWay} min`;
+            const prijsPerKm = Number(quoteSettings?.extras?.transport?.prijsPerKm || 0);
+            const oneWayTravelCost = distanceKmOneWay * prijsPerKm;
+            const roundTripTravelCost = oneWayTravelCost * 2;
+
+            if (calculation?.data_json) {
+                const root = unwrapRoot(calculation.data_json);
+                await updateDataJson({
+                    ...root,
+                    transport_berekening: {
+                        ...(root as any)?.transport_berekening,
+                        distanceKm: distanceKmOneWay,
+                        roundTripDistanceKm: distanceKmRoundTrip,
+                        durationText,
+                        durationMinOneWay,
+                        oneWayTravelCost,
+                        roundTripTravelCost,
+                        source: options?.source || 'distance_generation',
+                        originAddress: routeOriginAddress,
+                        destinationAddress: routeDestinationAddress,
+                        updatedAt: new Date().toISOString(),
+                    },
+                });
+            }
+
+            if (options?.notify !== false) {
+                toast({
+                    title: 'Distance opgehaald',
+                    description: `${distanceKmOneWay.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km (enkele reis), ${durationMinOneWay} min.`,
+                });
+            }
+        } catch (error: any) {
+            if (options?.notify !== false) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Distance genereren mislukt',
+                    description: error?.message || 'Onbekende fout.',
+                });
+            }
+        } finally {
+            setIsGeneratingDistanceDev(false);
+        }
+    }, [calculation?.data_json, id, quoteSettings?.extras?.transport?.prijsPerKm, routeDestinationAddress, routeOriginAddress, toast, updateDataJson, user]);
+
+    const hasTransportDistance = useMemo(() => {
+        const rawTransport = (normalizedData as any)?.transport_berekening || {};
+        const oneWay = Number(rawTransport?.distanceKm || 0);
+        const roundTrip = Number(rawTransport?.roundTripDistanceKm || 0);
+        return oneWay > 0 || roundTrip > 0;
+    }, [normalizedData]);
+
+    useEffect(() => {
+        if (!id) return;
+        if (!user) return;
+        if (!calculation?.data_json) return;
+        if (!routeOriginAddress || !routeDestinationAddress) return;
+        if (hasTransportDistance) return;
+        if (isGeneratingDistanceDev) return;
+        if (autoDistanceAttemptedRef.current.has(id)) return;
+
+        autoDistanceAttemptedRef.current.add(id);
+        void runDistanceGeneration({ source: 'auto_manual_quote', notify: false });
+    }, [
+        calculation?.data_json,
+        hasTransportDistance,
+        id,
+        isGeneratingDistanceDev,
+        routeDestinationAddress,
+        routeOriginAddress,
+        runDistanceGeneration,
+        user,
+    ]);
 
     const secondaryTabs = ['nacalculatie', 'tekeningen', 'notities', 'algemene-voorwaarden'];
     const isSecondarySectionActive = secondaryTabs.includes(activeTab);
@@ -4551,104 +4771,17 @@ export default function QuotePage() {
                             {loading ? (
                                 <LoadingPanel />
                             ) : (
-                                <div className="space-y-4">
-                                    <Card className="border border-border bg-card/50">
-                                        <CardHeader className="pb-3">
-                                            <CardTitle className="text-base">Werkbeschrijving</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="space-y-3">
-                                            <div className="space-y-1">
-                                                <Label className="text-xs text-muted-foreground">Hoofdtitel</Label>
-                                                <Input
-                                                    value={manualWorkDescriptionTitle}
-                                                    onChange={(e) => setManualWorkDescriptionTitle(e.target.value)}
-                                                    placeholder="Bijv. Dakisolatie woning"
-                                                    className="h-9"
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                {manualWorkDescriptionRows.map((row, index) => (
-                                                    <div key={`werkbeschrijving-row-${index}`} className="flex items-center gap-2">
-                                                        <span className="text-muted-foreground text-sm">-</span>
-                                                        <Input
-                                                            value={row}
-                                                            onChange={(e) => handleChangeWorkDescriptionRow(index, e.target.value)}
-                                                            placeholder="Bijv. Materialen aanvoeren"
-                                                            className="h-9"
-                                                        />
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => handleInsertWorkDescriptionRow(index)}
-                                                            aria-label="Voeg regel hieronder toe"
-                                                        >
-                                                            <Plus className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => handleRemoveWorkDescriptionRow(index)}
-                                                            aria-label="Verwijder regel"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="h-9"
-                                                        onClick={handleAddWorkDescriptionRow}
-                                                    >
-                                                        <Plus className="mr-2 h-4 w-4" />
-                                                        Bullet toevoegen
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="h-9"
-                                                        onClick={() => {
-                                                            setManualWorkDescriptionRows((prev) => [...prev, '', '', '', '', '']);
-                                                        }}
-                                                    >
-                                                        <Plus className="mr-2 h-4 w-4" />
-                                                        Add 5 bullet points
-                                                    </Button>
-                                                </div>
-                                                <div className="text-xs text-muted-foreground">
-                                                    {isAutoSavingWorkDescription ? 'Automatisch opslaan...' : 'Wordt automatisch opgeslagen'}
-                                                </div>
-                                            </div>
-                                            <div className="grid gap-3 pt-2 md:grid-cols-[1fr_auto]">
-                                                <Input
-                                                    value={workDescriptionPrompt}
-                                                    onChange={(e) => setWorkDescriptionPrompt(e.target.value)}
-                                                    placeholder="Bijv. schilderklus woonkamer"
-                                                    className="h-9"
-                                                />
-                                                <Button
-                                                    type="button"
-                                                    variant="success"
-                                                    className="h-9"
-                                                    onClick={() => { void handleGenerateWorkDescription(); }}
-                                                    disabled={isGeneratingWorkDescription || !workDescriptionPrompt.trim()}
-                                                >
-                                                    {isGeneratingWorkDescription ? (
-                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                    ) : (
-                                                        <Sparkles className="mr-2 h-4 w-4" />
-                                                    )}
-                                                    Genereer
-                                                </Button>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </div>
+                                <WorkDescriptionWorkspace
+                                    value={workDescriptionStructured}
+                                    mode={workDescriptionMode}
+                                    onModeChange={setWorkDescriptionMode}
+                                    onChange={setWorkDescriptionStructured}
+                                    onGenerate={(action) => { void handleGenerateWorkDescription(action); }}
+                                    isGenerating={isGeneratingWorkDescription}
+                                    isAutoSaving={isAutoSavingWorkDescription}
+                                    templateLabel={detectedWorkDescriptionTemplate?.label || null}
+                                    onApplyTemplate={detectedWorkDescriptionTemplate ? handleApplyWorkDescriptionTemplate : undefined}
+                                />
                             )}
                         </TabsContent>
 

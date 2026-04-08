@@ -51,6 +51,16 @@ function buildManualDataJson(quoteData: QuoteDataShape): Record<string, unknown>
     uren_specificatie: [],
     totaal_uren: 0,
     werkbeschrijving: werkomschrijving ? [werkomschrijving] : [],
+    werkbeschrijving_structured: {
+      title: '',
+      context: '',
+      sections: {
+        voorbereiding: [],
+        uitvoering: werkomschrijving ? [werkomschrijving] : [],
+        afwerking: [],
+      },
+      legacyNotes: [],
+    },
     klantinformatie: quoteData.klantinformatie ?? null,
     instellingen: {
       btwTarief: toFiniteNumber(instellingen?.btwTarief, 21),

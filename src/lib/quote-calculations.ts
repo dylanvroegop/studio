@@ -25,6 +25,7 @@ export type DataJson = {
     totaal_uren?: number;
     uren_specificatie?: UrenItem[];
     werkbeschrijving?: string[] | any;
+    werkbeschrijving_structured?: WorkDescriptionStructured | any;
     transport_berekening?: {
         ratePerKm?: number;
         distanceKm?: number;
@@ -35,6 +36,19 @@ export type DataJson = {
         [key: string]: any;
     };
     [key: string]: any;
+};
+
+export type WorkDescriptionSectionKey = 'voorbereiding' | 'uitvoering' | 'afwerking';
+
+export type WorkDescriptionStructured = {
+    title: string;
+    context: string;
+    sections: {
+        voorbereiding: string[];
+        uitvoering: string[];
+        afwerking: string[];
+    };
+    legacyNotes?: string[];
 };
 
 export type KlantInformatie = {
@@ -111,8 +125,160 @@ export type CalculationResult = QuoteTotals;
 
 type AnyObject = Record<string, any>;
 
+const EMPTY_WORK_DESCRIPTION_STRUCTURED: WorkDescriptionStructured = {
+    title: '',
+    context: '',
+    sections: {
+        voorbereiding: [],
+        uitvoering: [],
+        afwerking: [],
+    },
+    legacyNotes: [],
+};
+
 function isObject(v: any): v is AnyObject {
     return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function normalizeWorkDescriptionText(value: unknown): string {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeWorkDescriptionItems(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((item) => {
+            if (typeof item === 'string') return item.trim();
+            if (isObject(item)) {
+                const stap = normalizeWorkDescriptionText(item.stap);
+                if (stap) return stap;
+                const text = normalizeWorkDescriptionText(item.text);
+                if (text) return text;
+                const description = normalizeWorkDescriptionText(item.description);
+                if (description) return description;
+            }
+            return '';
+        })
+        .filter(Boolean);
+}
+
+function toWorkDescriptionSectionKey(input: string): WorkDescriptionSectionKey | null {
+    const normalized = input.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (normalized.startsWith('voorbereiding')) return 'voorbereiding';
+    if (normalized.startsWith('uitvoering')) return 'uitvoering';
+    if (normalized.startsWith('afwerking')) return 'afwerking';
+    return null;
+}
+
+function parseSectionHeader(line: string): WorkDescriptionSectionKey | null {
+    const cleaned = line
+        .replace(/^[-*•\d)\].\s]+/, '')
+        .replace(/[:\-–—]\s*$/, '')
+        .trim();
+    return toWorkDescriptionSectionKey(cleaned);
+}
+
+function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStructured {
+    return {
+        title: value.title,
+        context: value.context,
+        sections: {
+            voorbereiding: [...value.sections.voorbereiding],
+            uitvoering: [...value.sections.uitvoering],
+            afwerking: [...value.sections.afwerking],
+        },
+        legacyNotes: [...(value.legacyNotes || [])],
+    };
+}
+
+export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescriptionStructured {
+    if (!isObject(input)) {
+        return cloneStructured(EMPTY_WORK_DESCRIPTION_STRUCTURED);
+    }
+
+    const row = input as Record<string, unknown>;
+    const sectionsValue = isObject(row.sections) ? row.sections as Record<string, unknown> : {};
+
+    const normalized: WorkDescriptionStructured = {
+        title: normalizeWorkDescriptionText(row.title),
+        context: normalizeWorkDescriptionText(row.context),
+        sections: {
+            voorbereiding: normalizeWorkDescriptionItems(sectionsValue.voorbereiding ?? row.voorbereiding),
+            uitvoering: normalizeWorkDescriptionItems(sectionsValue.uitvoering ?? row.uitvoering),
+            afwerking: normalizeWorkDescriptionItems(sectionsValue.afwerking ?? row.afwerking),
+        },
+        legacyNotes: normalizeWorkDescriptionItems(row.legacyNotes),
+    };
+
+    return normalized;
+}
+
+export function toStructuredWorkDescription(input: unknown): WorkDescriptionStructured {
+    const base = cloneStructured(EMPTY_WORK_DESCRIPTION_STRUCTURED);
+
+    if (!input) return base;
+
+    if (isObject(input)) {
+        const row = input as Record<string, unknown>;
+
+        const directStructured = sanitizeWorkDescriptionStructured(
+            row.werkbeschrijving_structured ?? row.werkbeschrijvingStructured
+        );
+        const hasStructuredContent = directStructured.title
+            || directStructured.context
+            || directStructured.sections.voorbereiding.length > 0
+            || directStructured.sections.uitvoering.length > 0
+            || directStructured.sections.afwerking.length > 0
+            || (directStructured.legacyNotes?.length || 0) > 0;
+
+        if (hasStructuredContent) {
+            const merged = cloneStructured(directStructured);
+            if (!merged.title) merged.title = normalizeWorkDescriptionText(row.korteTitel ?? row.korte_titel);
+            if (!merged.context) merged.context = normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving);
+            return merged;
+        }
+
+        base.title = normalizeWorkDescriptionText(row.korteTitel ?? row.korte_titel ?? row.title);
+        base.context = normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving ?? row.context);
+
+        const legacyRaw = row.werkbeschrijving ?? row.description ?? row.text ?? row.output ?? input;
+        const lines = normalizeWerkbeschrijving(legacyRaw);
+        let currentSection: WorkDescriptionSectionKey = 'uitvoering';
+
+        lines.forEach((line) => {
+            const cleaned = String(line || '').trim();
+            if (!cleaned) return;
+
+            const detectedSection = parseSectionHeader(cleaned);
+            if (detectedSection) {
+                currentSection = detectedSection;
+                return;
+            }
+
+            base.sections[currentSection].push(cleaned);
+        });
+
+        return base;
+    }
+
+    const lines = normalizeWerkbeschrijving(input);
+    base.sections.uitvoering = lines;
+    return base;
+}
+
+export function flattenStructuredWorkDescription(input: unknown): string[] {
+    const structured = sanitizeWorkDescriptionStructured(
+        isObject(input) ? input : toStructuredWorkDescription(input)
+    );
+
+    return [
+        ...structured.sections.voorbereiding,
+        ...structured.sections.uitvoering,
+        ...structured.sections.afwerking,
+        ...(structured.legacyNotes || []),
+    ]
+        .map((line) => String(line || '').trim())
+        .filter(Boolean);
 }
 
 function toNumber(value: any, fallback = 0): number {
@@ -218,6 +384,13 @@ export function normalizeWerkbeschrijving(input: any): string[] {
     // Case 3: Object with a 'werkbeschrijving' property (the n8n wrap)
     if (isObject(input) && input.werkbeschrijving) {
         return normalizeWerkbeschrijving(input.werkbeschrijving);
+    }
+
+    // Case 4: Structured model
+    if (isObject(input) && (input.sections || input.werkbeschrijving_structured)) {
+        return flattenStructuredWorkDescription(
+            input.werkbeschrijving_structured ? input.werkbeschrijving_structured : input
+        );
     }
 
     return [];
@@ -351,6 +524,16 @@ export function normalizeDataJson(input: any): DataJson {
     const rawInst = findProp(base, 'instellingen');
     const rawExtras = findProp(base, 'extras');
     const rawWerk = findProp(base, 'werkbeschrijving');
+    const rawWerkStructured =
+        findProp(base, 'werkbeschrijving_structured') ||
+        findProp(base, 'werkbeschrijvingStructured');
+    const structuredWerkbeschrijving = toStructuredWorkDescription({
+        werkbeschrijving: rawWerk,
+        werkbeschrijving_structured: rawWerkStructured,
+        korteTitel: findProp(base, 'korteTitel') || findProp(base, 'korte_titel'),
+        korteBeschrijving: findProp(base, 'korteBeschrijving') || findProp(base, 'korte_beschrijving'),
+    });
+    const flattenedWerkbeschrijving = flattenStructuredWorkDescription(structuredWerkbeschrijving);
     const looksLikeTravelCalc = (value: any): boolean => {
         if (!isObject(value)) return false;
         return (
@@ -404,6 +587,8 @@ export function normalizeDataJson(input: any): DataJson {
     const rawKorteBeschrijving = findProp(base, 'korteBeschrijving') ||
         findProp(base, 'korte_beschrijving') ||
         (isObject(rawWerk) ? (rawWerk as any).korteBeschrijving || (rawWerk as any).korte_beschrijving : undefined);
+    const resolvedKorteTitel = rawKorteTitel || structuredWerkbeschrijving.title;
+    const resolvedKorteBeschrijving = rawKorteBeschrijving || structuredWerkbeschrijving.context;
 
     const urenSpecRoot = (base as any).uren_specificatie || {};
     const urenSpecificatie = Array.isArray(urenSpecRoot.uren_specificatie)
@@ -458,11 +643,12 @@ export function normalizeDataJson(input: any): DataJson {
         instellingen: safeJsonParse(rawInst),
         extras: safeJsonParse(rawExtras),
         transport_berekening: safeJsonParse(rawTransportBerekening),
-        korteTitel: rawKorteTitel,
-        korteBeschrijving: rawKorteBeschrijving,
+        korteTitel: resolvedKorteTitel,
+        korteBeschrijving: resolvedKorteBeschrijving,
         totaal_uren,
         uren_specificatie: urenSpecificatie,
-        werkbeschrijving: normalizeWerkbeschrijving(rawWerk ?? (base as any).werkbeschrijving)
+        werkbeschrijving: flattenedWerkbeschrijving,
+        werkbeschrijving_structured: structuredWerkbeschrijving,
     };
 }
 
