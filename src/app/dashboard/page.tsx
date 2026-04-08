@@ -1,151 +1,242 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  collection,
-  getDocs,
-  onSnapshot,
-  query,
-  Timestamp,
-  where,
-} from 'firebase/firestore';
-import {
-  CalendarDays,
-  Loader2,
-} from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Loader2 } from 'lucide-react';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFirestore, useUser } from '@/firebase';
-import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-status';
-import { parsePriceToNumber } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import type { WinstCostCategoryKey, WinstMetricsResponse } from '@/lib/winst-types';
+import { cn } from '@/lib/utils';
 
-type QuoteStatus =
-  | 'concept'
-  | 'in_behandeling'
-  | 'verzonden'
-  | 'geaccepteerd'
-  | 'afgewezen'
-  | 'verlopen';
-
-type InvoiceStatus =
-  | 'concept'
-  | 'verzonden'
-  | 'gedeeltelijk_betaald'
-  | 'betaald'
-  | 'geannuleerd';
-
-interface DashboardQuote {
-  id: string;
-  status?: QuoteStatus;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
-  archived?: boolean;
-  totals?: {
-    winstMarge?: number;
-  };
-}
-
-interface DashboardInvoice {
-  id: string;
-  quoteId?: string;
-  status?: InvoiceStatus;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
-  paidAt?: Timestamp;
-  dueDate?: Timestamp;
-  archived?: boolean;
-  paymentSummary?: {
-    paidAmount?: number;
-    openAmount?: number;
-    lastPaymentAt?: Timestamp;
-  };
-}
-
-interface PlanningEntry {
-  id: string;
-  quoteId?: string;
-  startDate?: Timestamp;
-  endDate?: Timestamp;
-  cache?: {
-    clientName?: string;
-    projectTitle?: string;
-  };
-}
-
-interface PaymentPoint {
-  invoiceId: string;
-  amount: number;
-  date: Date;
-}
-
-function parseDate(value: any): Date | null {
-  if (!value) return null;
-  if (value instanceof Date) return value;
-  if (value instanceof Timestamp) return value.toDate();
-  if (typeof value === 'object' && typeof value.seconds === 'number') {
-    return new Date(value.seconds * 1000);
-  }
-  return null;
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-function monthKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function lastMonths(count: number): Array<{ key: string; label: string }> {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() - (count - 1), 1);
-  const formatMonth = new Intl.DateTimeFormat('nl-NL', { month: 'short' });
-
-  return Array.from({ length: count }).map((_, idx) => {
-    const d = new Date(start.getFullYear(), start.getMonth() + idx, 1);
-    return { key: monthKey(d), label: formatMonth.format(d) };
-  });
-}
+type PeriodType = 'month' | 'week';
+type KPIItemTone = 'neutral' | 'positive' | 'negative' | 'warning' | 'unknown';
+type ProjectRowData = WinstMetricsResponse['projectPerformances'][number] & {
+  actualProjectProfit: number | null;
+  actualProjectMargin: number | null;
+};
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('nl-NL', {
     style: 'currency',
     currency: 'EUR',
-  }).format(amount || 0);
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(amount) ? amount : 0);
 }
 
-function formatTime(value: Date | null): string {
-  if (!value) return '—';
-  return value.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+function formatPercent(value: number): string {
+  return `${(Number.isFinite(value) ? value * 100 : 0).toFixed(1)}%`;
 }
 
-function safeAmount(value: unknown): number {
-  const parsed = parsePriceToNumber(value);
-  return parsed == null || !Number.isFinite(parsed) ? 0 : parsed;
+function formatSignedPercent(value: number): string {
+  const numeric = Number.isFinite(value) ? value * 100 : 0;
+  const sign = numeric > 0 ? '+' : '';
+  return `${sign}${numeric.toFixed(1)}%`;
 }
 
-function DashboardSkeleton() {
+function formatSignedCurrency(value: number): string {
+  const numeric = Number.isFinite(value) ? value : 0;
+  const sign = numeric > 0 ? '+' : '';
+  return `${sign}${formatCurrency(numeric)}`;
+}
+
+function formatProjectDate(value: string | null): string {
+  if (!value) return 'Onbekende datum';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Onbekende datum';
+  return new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+}
+
+function kpiValueClass(tone: KPIItemTone): string {
+  if (tone === 'positive') return 'text-emerald-300';
+  if (tone === 'negative') return 'text-red-300';
+  if (tone === 'warning') return 'text-amber-300';
+  if (tone === 'unknown') return 'text-muted-foreground';
+  return 'text-foreground';
+}
+
+function FilterPopover(props: {
+  title: string;
+  options: Array<{ id: string; label: string }>;
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const { title, options, selected, onChange } = props;
+  const selectedCount = selected.length;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="justify-between gap-2 border-border/60 bg-background/40">
+          <span>{title}</span>
+          <span className="text-xs text-muted-foreground">{selectedCount > 0 ? `${selectedCount} geselecteerd` : 'Alle'}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 space-y-2 p-3">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-medium">{title}</div>
+          <Button type="button" size="sm" variant="ghost" onClick={() => onChange([])}>
+            Reset
+          </Button>
+        </div>
+        <div className="max-h-64 space-y-1 overflow-auto pr-1">
+          {options.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Geen opties beschikbaar.</p>
+          ) : (
+            options.map((option) => (
+              <label key={option.id} className="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 px-2 py-1.5">
+                <Checkbox
+                  checked={selected.includes(option.id)}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      onChange(Array.from(new Set([...selected, option.id])));
+                      return;
+                    }
+                    onChange(selected.filter((item) => item !== option.id));
+                  }}
+                />
+                <span className="text-sm">{option.label}</span>
+              </label>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function KPIItem(props: {
+  label: string;
+  value: string;
+  tone?: KPIItemTone;
+  className?: string;
+}) {
+  const { label, value, tone = 'neutral', className } = props;
+  return (
+    <div className={cn('flex-1 px-5 py-4 sm:px-6 sm:py-5', className)}>
+      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">{label}</p>
+      <p className={cn('mt-2 text-3xl font-semibold leading-none drop-shadow-[0_0_16px_rgba(16,185,129,0.08)]', kpiValueClass(tone))}>{value}</p>
+    </div>
+  );
+}
+
+function EmptyStateBlock(props: {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  const { title, description, actionLabel, onAction } = props;
+  return (
+    <div className="rounded-2xl bg-muted/20 px-6 py-12 text-center">
+      <h3 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h3>
+      <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground">{description}</p>
+      {actionLabel && onAction ? (
+        <Button onClick={onAction} className="mt-6 bg-emerald-500 text-black hover:bg-emerald-400">
+          {actionLabel}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function ProjectRow(props: {
+  project: ProjectRowData;
+}) {
+  const { project } = props;
+  const projectLabel = project.offerteNummer ? `#${project.offerteNummer}` : project.title;
+
+  const status = !project.hasActualData
+    ? { label: 'Geen nacalculatie', className: 'border-amber-500/30 bg-amber-500/10 text-amber-200' }
+    : (project.actualProjectProfit ?? 0) < 0
+      ? { label: 'Verlies', className: 'border-red-500/30 bg-red-500/10 text-red-200' }
+      : { label: 'Winstgevend', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' };
+
+  const winstText =
+    project.actualProjectProfit === null
+      ? 'Onbekend'
+      : formatCurrency(project.actualProjectProfit);
+
+  const winstTextClass =
+    project.actualProjectProfit === null
+      ? 'text-muted-foreground'
+      : project.actualProjectProfit < 0
+        ? 'text-red-300'
+        : 'text-emerald-300';
+  const margeText =
+    project.actualProjectMargin === null
+      ? 'Onbekend'
+      : formatPercent(project.actualProjectMargin);
+  const margeTextClass =
+    project.actualProjectMargin === null
+      ? 'text-muted-foreground'
+      : project.actualProjectMargin < 0
+        ? 'text-red-300'
+        : 'text-emerald-300';
+  const realizedDayText = project.actualDays > 0 ? formatCurrency(project.realizedEuroPerDay) : 'Onbekend';
+  const expectedDayText = project.quotedDays > 0 ? formatCurrency(project.expectedEuroPerDay) : 'Onbekend';
+  const dayTextClass =
+    project.actualDays <= 0
+      ? 'text-muted-foreground'
+      : project.realizedEuroPerDay >= project.expectedEuroPerDay
+        ? 'text-emerald-300'
+        : 'text-red-300';
+
+  return (
+    <div className="rounded-2xl bg-card/35 px-4 py-4 transition-all duration-200 hover:bg-card/55 hover:shadow-[0_12px_30px_-20px_rgba(16,185,129,0.35)] md:px-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] xl:items-center">
+        <div className="min-w-0">
+          <p className="truncate text-base font-semibold text-foreground">{projectLabel}</p>
+          <p className="mt-1 truncate text-sm text-muted-foreground">
+            {project.clientName} • {formatProjectDate(project.createdAt)}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+          <p className="text-muted-foreground">
+            Omzet <span className="ml-1 font-semibold text-foreground">{formatCurrency(project.quotedRevenueIncl)}</span>
+          </p>
+          <p className="text-muted-foreground">
+            Kosten <span className="ml-1 font-semibold text-foreground">{project.hasActualData ? formatCurrency(project.actualCostExcl) : '—'}</span>
+          </p>
+          <p className={cn('text-muted-foreground', winstTextClass)}>
+            Winst <span className={cn('ml-1 font-semibold', winstTextClass)}>{winstText}</span>
+          </p>
+          <p className={cn('text-muted-foreground', margeTextClass)}>
+            Marge <span className={cn('ml-1 font-semibold', margeTextClass)}>{margeText}</span>
+          </p>
+          <p className={cn('text-muted-foreground', dayTextClass)}>
+            €/dag <span className={cn('ml-1 font-semibold', dayTextClass)}>{realizedDayText}</span>
+          </p>
+          <p className="text-muted-foreground">
+            Dagen <span className="ml-1 font-semibold text-foreground">{project.actualDays.toFixed(1)} / {project.quotedDays.toFixed(1)}</span>
+          </p>
+          <p className="text-muted-foreground">
+            Doel €/dag <span className="ml-1 font-semibold text-foreground">{expectedDayText}</span>
+          </p>
+        </div>
+
+        <div className="flex items-center xl:justify-end">
+          <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-xs font-medium', status.className)}>{status.label}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageSkeleton() {
   return (
     <div className="flex min-h-screen flex-col">
-      <DashboardHeader user={null} />
+      <DashboardHeader user={null} title="Dashboard" />
       <main className="flex flex-1 items-center justify-center p-6">
         <div className="flex items-center gap-3 rounded-3xl border bg-card/50 p-8 text-muted-foreground shadow-sm backdrop-blur-xl">
           <Loader2 className="h-6 w-6 animate-spin" />
@@ -156,337 +247,251 @@ function DashboardSkeleton() {
   );
 }
 
-export default function DashboardPage() {
+export default function WinstPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const { toast } = useToast();
 
-  const [quotes, setQuotes] = useState<DashboardQuote[]>([]);
-  const [invoices, setInvoices] = useState<DashboardInvoice[]>([]);
-  const [planningEntries, setPlanningEntries] = useState<PlanningEntry[]>([]);
-  const [payments, setPayments] = useState<PaymentPoint[]>([]);
-
-  const [quotesReady, setQuotesReady] = useState(false);
-  const [invoicesReady, setInvoicesReady] = useState(false);
-  const [planningReady, setPlanningReady] = useState(false);
-  const bootstrapAttemptedForUidRef = useRef<string | null>(null);
-
-  const loading = !quotesReady || !invoicesReady || !planningReady;
-
-  const greeting = useMemo(() => {
-    let name =
-      (user as any)?.displayName ||
-      (user as any)?.name ||
-      (user as any)?.email?.split('@')?.[0] ||
-      '';
-    if (name) name = name.charAt(0).toUpperCase() + name.slice(1);
-    return name ? `Welkom, ${name}` : 'Welkom';
-  }, [user]);
+  const [periodType, setPeriodType] = useState<PeriodType>('month');
+  const [periodRange, setPeriodRange] = useState<number>(6);
+  const [selectedJobTypes, setSelectedJobTypes] = useState<string[]>([]);
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+  const [metrics, setMetrics] = useState<WinstMetricsResponse | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState<boolean>(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [projectSearch, setProjectSearch] = useState<string>('');
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
-  }, [user, isUserLoading, router]);
+  }, [isUserLoading, router, user]);
 
   useEffect(() => {
-    if (!user) return;
-    if (bootstrapAttemptedForUidRef.current === user.uid) return;
-    bootstrapAttemptedForUidRef.current = user.uid;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const token = await user.getIdToken();
-        if (cancelled) return;
-
-        const response = await fetch('/api/onboarding/bootstrap-defaults', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          cache: 'no-store',
-        });
-
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          const message = payload?.message || `HTTP ${response.status}`;
-          console.warn('Onboarding bootstrap failed:', message);
-        }
-      } catch (error) {
-        console.warn('Onboarding bootstrap failed:', error);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+    setPeriodRange(periodType === 'month' ? 6 : 8);
+  }, [periodType]);
 
   useEffect(() => {
     if (!user || !firestore) return;
-
-    const quotesQuery = query(collection(firestore, 'quotes'), where('userId', '==', user.uid));
-    const invoicesQuery = query(collection(firestore, 'invoices'), where('userId', '==', user.uid));
-    const planningQuery = query(
-      collection(firestore, 'planning_entries'),
-      where('userId', '==', user.uid)
-    );
-
-    const unsubQuotes = onSnapshot(
-      quotesQuery,
-      (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as DashboardQuote[];
-        setQuotes(list);
-        setQuotesReady(true);
-      },
-      () => setQuotesReady(true)
-    );
-
-    const unsubInvoices = onSnapshot(
-      invoicesQuery,
-      (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as DashboardInvoice[];
-        setInvoices(list);
-        setInvoicesReady(true);
-      },
-      () => setInvoicesReady(true)
-    );
-
-    const unsubPlanning = onSnapshot(
-      planningQuery,
-      (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PlanningEntry[];
-        setPlanningEntries(list);
-        setPlanningReady(true);
-      },
-      () => setPlanningReady(true)
-    );
-
-    return () => {
-      unsubQuotes();
-      unsubInvoices();
-      unsubPlanning();
-    };
-  }, [user, firestore]);
-
-  useEffect(() => {
-    if (!firestore) return;
-    const nonArchivedInvoices = invoices.filter((inv) => !inv.archived);
-    if (nonArchivedInvoices.length === 0) {
-      setPayments([]);
-      return;
-    }
-
     let cancelled = false;
-    (async () => {
-      try {
-        const nested = await Promise.all(
-          nonArchivedInvoices.map(async (inv) => {
-            const snap = await getDocs(collection(firestore, 'invoices', inv.id, 'payments'));
-            return snap.docs.map((d) => {
-              const raw = d.data() as any;
-              return {
-                invoiceId: inv.id,
-                amount: safeAmount(raw?.amount),
-                date: parseDate(raw?.date) || new Date(0),
-              } as PaymentPoint;
-            });
-          })
-        );
 
-        if (!cancelled) {
-          setPayments(nested.flat());
+    const loadMetrics = async () => {
+      setLoadingMetrics(true);
+      setMetricsError(null);
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/winst/metrics', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            periodType,
+            periodRange,
+            jobTypes: selectedJobTypes,
+            clientIds: selectedClientIds,
+            projectIds: selectedProjectIds,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          message?: string;
+          data?: WinstMetricsResponse;
+        } | null;
+
+        if (!response.ok || !payload?.ok || !payload.data) {
+          throw new Error(payload?.message || `HTTP ${response.status}`);
         }
-      } catch (e) {
-        console.error('Fout bij ophalen betalingen voor dashboard:', e);
-        if (!cancelled) setPayments([]);
+
+        if (!cancelled) setMetrics(payload.data);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Onbekende fout';
+        if (!cancelled) {
+          setMetricsError(message);
+          setMetrics(null);
+          toast({
+            title: 'Winstmetrics laden mislukt',
+            description: message,
+            variant: 'destructive',
+          });
+        }
+      } finally {
+        if (!cancelled) setLoadingMetrics(false);
       }
-    })();
+    };
+
+    void loadMetrics();
 
     return () => {
       cancelled = true;
     };
-  }, [firestore, invoices]);
+  }, [firestore, periodRange, periodType, selectedClientIds, selectedJobTypes, selectedProjectIds, toast, user]);
 
-  const monthBuckets = useMemo(() => lastMonths(6), []);
-  const monthKeySet = useMemo(() => new Set(monthBuckets.map((m) => m.key)), [monthBuckets]);
+  const derived = useMemo(() => {
+    const projects = metrics?.projectPerformances ?? [];
+    const withActual = projects.filter((project) => project.hasActualData);
 
-  const activeQuotes = useMemo(() => quotes.filter((q) => !q.archived), [quotes]);
-  const archivedQuotes = useMemo(() => quotes.filter((q) => !!q.archived), [quotes]);
-  const activeInvoices = useMemo(() => invoices.filter((i) => !i.archived), [invoices]);
-  const acceptedQuoteIdsFromInvoices = useMemo(() => {
-    const set = new Set<string>();
-    activeInvoices.forEach((inv) => {
-      if (!invoiceImpliesAccepted(inv.status)) return;
-      if (inv.quoteId) set.add(inv.quoteId);
-    });
-    return set;
-  }, [activeInvoices]);
+    const sumQuotedRevenue = projects.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
+    const sumQuotedCost = projects.reduce(
+      (sum, project) => sum + project.costBreakdown.reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
+      0
+    );
+    const estimatedProfit = sumQuotedRevenue - sumQuotedCost;
 
-  const projectStats = useMemo(() => {
-    const counts: Record<QuoteStatus, number> = {
-      concept: 0,
-      in_behandeling: 0,
-      verzonden: 0,
-      geaccepteerd: 0,
-      afgewezen: 0,
-      verlopen: 0,
-    };
+    const sumActualCostKnown = withActual.reduce((sum, project) => sum + project.actualCostExcl, 0);
+    const sumActualRevenueScope = withActual.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
+    const actualProfitKnown = withActual.length > 0 ? sumActualRevenueScope - sumActualCostKnown : null;
+    const actualMarginKnown =
+      withActual.length > 0 && sumActualRevenueScope > 0 && actualProfitKnown !== null
+        ? actualProfitKnown / sumActualRevenueScope
+        : null;
 
-    activeQuotes.forEach((q) => {
-      const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) as QuoteStatus;
-      counts[effectiveStatus] += 1;
+    const bucketDefs = [
+      {
+        id: 'arbeid',
+        label: 'Arbeid',
+        keys: new Set<WinstCostCategoryKey>(['arbeid']),
+      },
+      {
+        id: 'materiaal',
+        label: 'Materiaal',
+        keys: new Set<WinstCostCategoryKey>(['materialenGroot', 'materialenVerbruik']),
+      },
+      {
+        id: 'transport',
+        label: 'Transport',
+        keys: new Set<WinstCostCategoryKey>(['transport']),
+      },
+      {
+        id: 'overhead',
+        label: 'Overhead',
+        keys: new Set<WinstCostCategoryKey>(['overhead', 'materieel']),
+      },
+    ];
+
+    const deviations = bucketDefs
+      .map((bucket) => {
+        const quoted = withActual.reduce(
+          (sum, project) =>
+            sum +
+            project.costBreakdown
+              .filter((row) => bucket.keys.has(row.key))
+              .reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
+          0
+        );
+        const actual = withActual.reduce(
+          (sum, project) =>
+            sum +
+            project.costBreakdown
+              .filter((row) => bucket.keys.has(row.key))
+              .reduce((rowSum, row) => rowSum + row.actualExcl, 0),
+          0
+        );
+        const diff = actual - quoted;
+        const diffPct = quoted > 0 ? diff / quoted : null;
+        return {
+          id: bucket.id,
+          label: bucket.label,
+          quoted,
+          actual,
+          diff,
+          diffPct,
+        };
+      })
+      .filter((row) => row.quoted > 0 || row.actual > 0)
+      .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+
+    const totalQuotedHours = withActual.reduce((sum, project) => sum + project.quotedHours, 0);
+    const totalActualHours = withActual.reduce((sum, project) => sum + project.actualHours, 0);
+    const hoursDiffPct = totalQuotedHours > 0 ? (totalActualHours - totalQuotedHours) / totalQuotedHours : null;
+    const totalQuotedDays = withActual.reduce((sum, project) => sum + project.quotedDays, 0);
+    const totalActualDays = withActual.reduce((sum, project) => sum + project.actualDays, 0);
+    const daysDiffPct = totalQuotedDays > 0 ? (totalActualDays - totalQuotedDays) / totalQuotedDays : null;
+
+    const recommendationItems: string[] = [];
+    if (withActual.length >= 2) {
+      const arbeid = deviations.find((item) => item.id === 'arbeid');
+      const materiaal = deviations.find((item) => item.id === 'materiaal');
+      const transport = deviations.find((item) => item.id === 'transport');
+
+      if (arbeid && arbeid.diffPct !== null && arbeid.diffPct > 0.1) {
+        recommendationItems.push(
+          `Arbeid ligt gemiddeld ${formatSignedPercent(arbeid.diffPct)} boven offerte.`
+        );
+      }
+
+      if (materiaal && materiaal.diffPct !== null && materiaal.diffPct > 0.1) {
+        recommendationItems.push(
+          `Materiaalkosten lopen gemiddeld ${formatSignedPercent(materiaal.diffPct)} op.`
+        );
+      }
+
+      if (transport && transport.diffPct !== null && transport.diffPct > 0.1) {
+        recommendationItems.push(
+          `Transport wordt gemiddeld ${formatSignedPercent(transport.diffPct)} onderschat.`
+        );
+      }
+
+      if (hoursDiffPct !== null && hoursDiffPct > 0.1) {
+        recommendationItems.push(
+          `Werkelijke uren liggen ${formatSignedPercent(hoursDiffPct)} boven planning.`
+        );
+      }
+
+      if (daysDiffPct !== null && daysDiffPct > 0.1) {
+        recommendationItems.push(
+          `Werkelijke dagen liggen ${formatSignedPercent(daysDiffPct)} boven offerte-inschatting.`
+        );
+      }
+    }
+
+    const projectRows: ProjectRowData[] = projects.map((project) => {
+      const actualProjectProfit = project.hasActualData ? project.quotedRevenueIncl - project.actualCostExcl : null;
+      const actualProjectMargin =
+        actualProjectProfit !== null && project.quotedRevenueIncl > 0
+          ? actualProjectProfit / project.quotedRevenueIncl
+          : null;
+      return {
+        ...project,
+        actualProjectProfit,
+        actualProjectMargin,
+      };
     });
 
     return {
-      concept: counts.concept,
-      inBehandeling: counts.in_behandeling,
-      verzonden: counts.verzonden,
-      geaccepteerd: counts.geaccepteerd,
-      afgewezen: counts.afgewezen,
-      verlopen: counts.verlopen,
-      totaal: activeQuotes.length,
-      archief: archivedQuotes.length,
+      projects,
+      withActual,
+      sumQuotedRevenue,
+      estimatedProfit,
+      sumActualCostKnown,
+      actualProfitKnown,
+      actualMarginKnown,
+      deviations,
+      recommendationItems,
+      projectRows,
     };
-  }, [activeQuotes, archivedQuotes.length, acceptedQuoteIdsFromInvoices]);
+  }, [metrics]);
 
-  const invoiceStats = useMemo(() => {
-    const now = new Date();
-    const concept = activeInvoices.filter((inv) => inv.status === 'concept').length;
-    const openstaand = activeInvoices.filter((inv) => (inv.paymentSummary?.openAmount ?? 0) > 0).length;
-    const gedeeltelijk = activeInvoices.filter((inv) => inv.status === 'gedeeltelijk_betaald').length;
-    const betaald = activeInvoices.filter((inv) => inv.status === 'betaald').length;
-    const teLaat = activeInvoices.filter((inv) => {
-      const due = parseDate(inv.dueDate);
-      const open = inv.paymentSummary?.openAmount ?? 0;
-      return !!due && due.getTime() < now.getTime() && open > 0;
-    }).length;
-
-    return { concept, openstaand, gedeeltelijk, betaald, teLaat };
-  }, [activeInvoices]);
-
-  const planningTodayTomorrow = useMemo(() => {
-    const now = new Date();
-    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-
-    const normalized = planningEntries
-      .map((entry) => {
-        const start = parseDate(entry.startDate);
-        const end = parseDate(entry.endDate);
-        return {
-          ...entry,
-          start,
-          end,
-          title:
-            entry.cache?.projectTitle ||
-            entry.cache?.clientName ||
-            'Onbekend project',
-        };
-      })
-      .filter((entry) => !!entry.start)
-      .sort((a, b) => (a.start!.getTime() - b.start!.getTime()));
-
-    const today = normalized.filter((entry) => isSameDay(entry.start!, now)).slice(0, 5);
-    const tomorrowItems = normalized
-      .filter((entry) => isSameDay(entry.start!, tomorrow))
-      .slice(0, 5);
-
-    return { today, tomorrow: tomorrowItems };
-  }, [planningEntries]);
-
-  const acceptedPerMonth = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const m of monthBuckets) map.set(m.key, 0);
-
-    activeQuotes.forEach((q) => {
-      const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
-      if (effectiveStatus !== 'geaccepteerd') return;
-      const d = parseDate(q.createdAt);
-      if (!d) return;
-      const key = monthKey(d);
-      if (monthKeySet.has(key)) {
-        map.set(key, (map.get(key) || 0) + 1);
-      }
+  const filteredProjects = useMemo(() => {
+    const term = projectSearch.trim().toLowerCase();
+    if (!term) return derived.projectRows;
+    return derived.projectRows.filter((project) => {
+      const target = `${project.title} ${project.clientName} ${project.offerteNummer || ''}`.toLowerCase();
+      return target.includes(term);
     });
+  }, [derived.projectRows, projectSearch]);
 
-    return monthBuckets.map((m) => ({
-      maand: m.label,
-      value: map.get(m.key) || 0,
-    }));
-  }, [activeQuotes, monthBuckets, monthKeySet, acceptedQuoteIdsFromInvoices]);
+  if (isUserLoading || !user || loadingMetrics || !metrics) {
+    return <PageSkeleton />;
+  }
 
-  const offerProfitPerMonth = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const m of monthBuckets) map.set(m.key, 0);
-
-    activeQuotes.forEach((q) => {
-      const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
-      if (effectiveStatus !== 'geaccepteerd') return;
-      const d = parseDate(q.createdAt);
-      if (!d) return;
-      const key = monthKey(d);
-      if (!monthKeySet.has(key)) return;
-      const winst = Number(q?.totals?.winstMarge || 0);
-      map.set(key, (map.get(key) || 0) + (Number.isFinite(winst) ? winst : 0));
-    });
-
-    return monthBuckets.map((m) => ({
-      maand: m.label,
-      value: map.get(m.key) || 0,
-    }));
-  }, [activeQuotes, monthBuckets, monthKeySet, acceptedQuoteIdsFromInvoices]);
-
-  const invoicePaymentsPerMonth = useMemo(() => {
-    const invoiceIds = new Set(activeInvoices.map((i) => i.id));
-    const recordedPaidByInvoice = new Map<string, number>();
-    const map = new Map<string, number>();
-    for (const m of monthBuckets) map.set(m.key, 0);
-
-    payments.forEach((p) => {
-      if (!invoiceIds.has(p.invoiceId)) return;
-      const amount = safeAmount(p.amount);
-      if (amount <= 0) return;
-      recordedPaidByInvoice.set(p.invoiceId, (recordedPaidByInvoice.get(p.invoiceId) || 0) + amount);
-    });
-
-    const syntheticPayments: PaymentPoint[] = activeInvoices.flatMap((inv) => {
-      const expectedPaid = safeAmount(inv.paymentSummary?.paidAmount);
-      if (expectedPaid <= 0) return [];
-
-      const recordedPaid = recordedPaidByInvoice.get(inv.id) || 0;
-      const missing = expectedPaid - recordedPaid;
-      if (missing <= 0.0001) return [];
-
-      const fallbackDate =
-        parseDate(inv.paidAt) ||
-        parseDate(inv.paymentSummary?.lastPaymentAt) ||
-        parseDate(inv.updatedAt) ||
-        parseDate(inv.createdAt) ||
-        new Date();
-
-      return [{
-        invoiceId: inv.id,
-        amount: missing,
-        date: fallbackDate,
-      }];
-    });
-
-    const effectivePayments = [...payments, ...syntheticPayments];
-    effectivePayments.forEach((p) => {
-      if (!invoiceIds.has(p.invoiceId)) return;
-      const amount = safeAmount(p.amount);
-      if (amount <= 0) return;
-      const key = monthKey(p.date);
-      if (!monthKeySet.has(key)) return;
-      map.set(key, (map.get(key) || 0) + amount);
-    });
-
-    return monthBuckets.map((m) => ({
-      maand: m.label,
-      value: map.get(m.key) || 0,
-    }));
-  }, [activeInvoices, monthBuckets, monthKeySet, payments]);
-
-  if (isUserLoading || !user || loading) return <DashboardSkeleton />;
+  const hasActualComparison = derived.withActual.length > 0;
+  const hasEnoughInsightData = derived.withActual.length >= 2;
+  const hasInsightContent =
+    hasEnoughInsightData && (derived.deviations.length > 0 || derived.recommendationItems.length > 0);
+  const shouldShowCashflow =
+    metrics.totals.receivedCashIncl > 0 || metrics.cashflow.openAmount > 0 || metrics.cashflow.overdueAmount > 0;
 
   return (
     <div className="app-shell min-h-screen bg-background">
@@ -494,173 +499,224 @@ export default function DashboardPage() {
       <DashboardHeader user={user} title="Dashboard" />
 
       <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
-        <div className="w-full max-w-7xl space-y-6">
-          <div className="px-1">
-            <div className="text-3xl font-light tracking-tight">{greeting}</div>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Planning</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Vandaag</div>
-                  {planningTodayTomorrow.today.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">Geen planning voor vandaag</div>
+        <div className="w-full max-w-7xl space-y-12">
+          <section className="rounded-2xl bg-card/30 p-4 md:p-5">
+            <div className="flex justify-end">
+              <p className="text-sm text-muted-foreground">{metrics.periodLabel}</p>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Tabs value={periodType} onValueChange={(value) => setPeriodType(value as PeriodType)}>
+                <TabsList>
+                  <TabsTrigger value="month">Per maand</TabsTrigger>
+                  <TabsTrigger value="week">Per week</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Select value={String(periodRange)} onValueChange={(value) => setPeriodRange(Number(value))}>
+                <SelectTrigger className="w-[140px] border-border/60 bg-background/40">
+                  <SelectValue placeholder="Periode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {periodType === 'month' ? (
+                    <>
+                      <SelectItem value="3">3 maanden</SelectItem>
+                      <SelectItem value="6">6 maanden</SelectItem>
+                      <SelectItem value="12">12 maanden</SelectItem>
+                    </>
                   ) : (
-                    <div className="space-y-2">
-                      {planningTodayTomorrow.today.map((entry) => (
-                        <button
-                          key={entry.id}
-                          className="w-full text-left rounded-md border border-border/60 bg-card/40 p-2 hover:bg-card/60 transition-colors"
-                          onClick={() => router.push('/planning')}
-                        >
-                          <div className="text-sm font-medium truncate">{entry.title}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {formatTime(entry.start || null)} - {formatTime(entry.end || null)}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+                    <>
+                      <SelectItem value="4">4 weken</SelectItem>
+                      <SelectItem value="8">8 weken</SelectItem>
+                      <SelectItem value="12">12 weken</SelectItem>
+                    </>
                   )}
-                </div>
+                </SelectContent>
+              </Select>
+              <FilterPopover
+                title="Type klus"
+                options={metrics.filterOptions.jobTypes}
+                selected={selectedJobTypes}
+                onChange={setSelectedJobTypes}
+              />
+              <FilterPopover
+                title="Klant"
+                options={metrics.filterOptions.clients}
+                selected={selectedClientIds}
+                onChange={setSelectedClientIds}
+              />
+              <FilterPopover
+                title="Project"
+                options={metrics.filterOptions.projects}
+                selected={selectedProjectIds}
+                onChange={setSelectedProjectIds}
+              />
+            </div>
+          </section>
 
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Morgen</div>
-                  {planningTodayTomorrow.tomorrow.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">Geen planning voor morgen</div>
-                  ) : (
-                    <div className="space-y-2">
-                      {planningTodayTomorrow.tomorrow.map((entry) => (
-                        <button
-                          key={entry.id}
-                          className="w-full text-left rounded-md border border-border/60 bg-card/40 p-2 hover:bg-card/60 transition-colors"
-                          onClick={() => router.push('/planning')}
-                        >
-                          <div className="text-sm font-medium truncate">{entry.title}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {formatTime(entry.start || null)} - {formatTime(entry.end || null)}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+          {metricsError ? (
+            <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+              Metrics fout: {metricsError}
+            </div>
+          ) : null}
+
+          <section className="overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500/[0.10] via-background/95 to-cyan-500/[0.06]">
+            <div className="overflow-x-auto">
+              <div className="flex min-w-[620px] divide-x divide-white/10">
+                <KPIItem label="Geoffreerde omzet" value={formatCurrency(derived.sumQuotedRevenue)} tone="warning" />
+                <KPIItem
+                  label="Werkelijke winst"
+                  value={derived.actualProfitKnown === null ? 'Onbekend' : formatCurrency(derived.actualProfitKnown)}
+                  tone={
+                    derived.actualProfitKnown === null
+                      ? 'unknown'
+                      : derived.actualProfitKnown >= 0
+                        ? 'positive'
+                        : 'negative'
+                  }
+                />
+                <KPIItem label="Ontvangen cash" value={formatCurrency(metrics.totals.receivedCashIncl)} tone="positive" />
+                <KPIItem
+                  label="Verdiensten per dag"
+                  value={metrics.timeTracking.actualDays > 0 ? formatCurrency(metrics.timeTracking.realizedEuroPerDay) : 'Onbekend'}
+                  tone={metrics.timeTracking.actualDays > 0 ? 'neutral' : 'unknown'}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold tracking-tight">Winst status</h2>
+            {!hasActualComparison ? (
+              <EmptyStateBlock
+                title="Nog geen kosten geregistreerd"
+                description="Voeg kosten toe via Kosten om werkelijke winst en marge per project te berekenen."
+                actionLabel="Ga naar kosten"
+                onAction={() => router.push('/kosten')}
+              />
+            ) : (
+              <div className="rounded-2xl bg-card/30 px-6 py-10">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Werkelijke winst (ingevulde projecten)</p>
+                <p
+                  className={cn(
+                    'mt-3 text-5xl font-semibold leading-none',
+                    (derived.actualProfitKnown ?? 0) >= 0 ? 'text-emerald-300' : 'text-red-300'
                   )}
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-9"
-                  onClick={() => router.push('/planning')}
                 >
-                  <CalendarDays className="h-4 w-4 mr-2" />
-                  Open planning
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base text-cyan-300">Projecten / Offertes</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex items-center justify-between"><span>Concept</span><span>{projectStats.concept}</span></div>
-                <div className="flex items-center justify-between"><span>In behandeling</span><span>{projectStats.inBehandeling}</span></div>
-                <div className="flex items-center justify-between"><span>Verzonden</span><span>{projectStats.verzonden}</span></div>
-                <div className="flex items-center justify-between"><span>Geaccepteerd</span><span>{projectStats.geaccepteerd}</span></div>
-                <div className="flex items-center justify-between"><span>Afgewezen</span><span>{projectStats.afgewezen}</span></div>
-                <div className="flex items-center justify-between"><span>Verlopen</span><span>{projectStats.verlopen}</span></div>
-                <div className="pt-2 mt-2 border-t border-border flex items-center justify-between font-semibold">
-                  <span>Totaal</span><span>{projectStats.totaal}</span>
+                  {formatCurrency(derived.actualProfitKnown ?? 0)}
+                </p>
+                <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-3 text-sm">
+                  <p className="text-muted-foreground">
+                    Werkelijke kosten <span className="ml-1 font-semibold text-foreground">{formatCurrency(derived.sumActualCostKnown)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Marge{' '}
+                    <span className="ml-1 font-semibold text-foreground">
+                      {derived.actualMarginKnown === null ? 'Onbekend' : formatPercent(derived.actualMarginKnown)}
+                    </span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Ingevulde projecten <span className="ml-1 font-semibold text-foreground">{derived.withActual.length}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Werkelijke dagen <span className="ml-1 font-semibold text-foreground">{metrics.timeTracking.actualDays.toFixed(1)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Geoffreerde dagen <span className="ml-1 font-semibold text-foreground">{metrics.timeTracking.quotedDays.toFixed(1)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Verschil dagen{' '}
+                    <span className={cn('ml-1 font-semibold', metrics.timeTracking.daysDiff > 0 ? 'text-red-300' : metrics.timeTracking.daysDiff < 0 ? 'text-emerald-300' : 'text-foreground')}>
+                      {metrics.timeTracking.daysDiff > 0 ? '+' : ''}{metrics.timeTracking.daysDiff.toFixed(1)}
+                    </span>
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            )}
+          </section>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base text-emerald-300">Facturen</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex items-center justify-between"><span>Concept</span><span>{invoiceStats.concept}</span></div>
-                <div className="flex items-center justify-between"><span>Openstaand</span><span>{invoiceStats.openstaand}</span></div>
-                <div className="flex items-center justify-between"><span>Gedeeltelijk betaald</span><span>{invoiceStats.gedeeltelijk}</span></div>
-                <div className="flex items-center justify-between"><span>Betaald</span><span>{invoiceStats.betaald}</span></div>
-                <div className="pt-2 mt-2 border-t border-border flex items-center justify-between font-semibold text-amber-300">
-                  <span>Te laat</span><span>{invoiceStats.teLaat}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Goedgekeurde offertes per maand</CardTitle>
-              </CardHeader>
-              <CardContent className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={acceptedPerMonth}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="maand" tick={{ fill: '#a1a1aa', fontSize: 12 }} />
-                    <YAxis allowDecimals={false} tick={{ fill: '#a1a1aa', fontSize: 12 }} />
-                    <RechartsTooltip
-                      formatter={(value: any) => [value, 'Aantal']}
-                      contentStyle={{ background: '#18181b', border: '1px solid #27272a' }}
-                      labelStyle={{ color: '#d4d4d8' }}
-                    />
-                    <Bar dataKey="value" fill="#22d3ee" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Mini winstgrafieken (6 maanden)</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="text-sm text-cyan-300 font-medium">Offertes - Prognose winst</div>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={offerProfitPerMonth}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey="maand" tick={{ fill: '#a1a1aa', fontSize: 11 }} />
-                        <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} />
-                        <RechartsTooltip
-                          formatter={(value: any) => [formatCurrency(Number(value || 0)), 'Winst']}
-                          contentStyle={{ background: '#18181b', border: '1px solid #27272a' }}
-                          labelStyle={{ color: '#d4d4d8' }}
-                        />
-                        <Bar dataKey="value" fill="#22d3ee" radius={[6, 6, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+          <section className="space-y-5">
+            <h2 className="text-xl font-semibold tracking-tight">Inzichten</h2>
+            {!hasEnoughInsightData ? (
+              <EmptyStateBlock title="Geen inzichten beschikbaar" description="Minimaal 2 projecten met nacalculatie nodig." />
+            ) : hasInsightContent ? (
+              <div className="space-y-8">
+                {derived.deviations.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">Belangrijkste afwijkingen</p>
+                    <div className="space-y-1">
+                      {derived.deviations.map((row) => (
+                        <div key={row.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/50 py-3 text-sm last:border-0">
+                          <p className="font-medium text-foreground">{row.label}</p>
+                          <p className={cn('font-semibold', row.diff > 0 ? 'text-red-300' : row.diff < 0 ? 'text-emerald-300' : 'text-muted-foreground')}>
+                            {formatSignedCurrency(row.diff)}
+                            {row.diffPct !== null ? ` • ${formatSignedPercent(row.diffPct)}` : ''}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
-                <div className="space-y-2">
-                  <div className="text-sm text-emerald-300 font-medium">Facturen - Ontvangen betalingen</div>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={invoicePaymentsPerMonth}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey="maand" tick={{ fill: '#a1a1aa', fontSize: 11 }} />
-                        <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} />
-                        <RechartsTooltip
-                          formatter={(value: any) => [formatCurrency(Number(value || 0)), 'Ontvangen']}
-                          contentStyle={{ background: '#18181b', border: '1px solid #27272a' }}
-                          labelStyle={{ color: '#d4d4d8' }}
-                        />
-                        <Bar dataKey="value" fill="#10b981" radius={[6, 6, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                {derived.recommendationItems.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">Aanbevelingen voor volgende offertes</p>
+                    <ul className="space-y-2">
+                      {derived.recommendationItems.map((item, index) => (
+                        <li key={`${index}-${item}`} className="text-sm text-foreground/90">
+                          • {item}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
+                ) : null}
+              </div>
+            ) : (
+              <EmptyStateBlock title="Geen inzichten beschikbaar" description="Nog geen duidelijke afwijkingen in de huidige selectie." />
+            )}
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-xl font-semibold tracking-tight">Project prestaties</h2>
+              <Input
+                value={projectSearch}
+                onChange={(event) => setProjectSearch(event.target.value)}
+                placeholder="Zoek project of klant"
+                className="sm:w-72 border-border/60 bg-background/40"
+              />
+            </div>
+
+            <div className="space-y-2">
+              {filteredProjects.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Geen projecten in deze selectie.</p>
+              ) : (
+                filteredProjects.map((project) => (
+                  <ProjectRow
+                    key={project.projectId}
+                    project={project}
+                  />
+                ))
+              )}
+            </div>
+          </section>
+
+          {shouldShowCashflow ? (
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold tracking-tight">Cashflow</h2>
+              <div className="rounded-2xl bg-card/25 px-5 py-4">
+                <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-sm">
+                  <p className="text-muted-foreground">
+                    Ontvangen <span className="ml-1 font-semibold text-emerald-300">{formatCurrency(metrics.totals.receivedCashIncl)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Openstaand <span className="ml-1 font-semibold text-foreground">{formatCurrency(metrics.cashflow.openAmount)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Te laat risico <span className="ml-1 font-semibold text-red-300">{formatCurrency(metrics.cashflow.overdueAmount)}</span>
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </section>
+          ) : null}
         </div>
       </main>
     </div>

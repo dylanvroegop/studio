@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, TrendingUp, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote } from 'lucide-react';
+import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -21,13 +21,6 @@ interface NavigationItem {
 }
 
 const navItems: NavigationItem[] = [
-    {
-        href: '/offertes/nieuw',
-        label: 'Nieuwe calculatie',
-        icon: Plus,
-        iconColorClass: 'text-amber-400',
-        iconColorClassActive: 'text-amber-300',
-    },
     {
         href: '/dashboard',
         label: 'Dashboard',
@@ -62,13 +55,6 @@ const navItems: NavigationItem[] = [
         icon: Receipt,
         iconColorClass: 'text-teal-400',
         iconColorClassActive: 'text-teal-300',
-    },
-    {
-        href: '/winst',
-        label: 'Winst',
-        icon: TrendingUp,
-        iconColorClass: 'text-lime-400',
-        iconColorClassActive: 'text-lime-300',
     },
     {
         href: '/planning',
@@ -146,6 +132,15 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                         priority
                     />
                 </div>
+                <Button
+                    asChild
+                    className="mt-3 h-10 w-full justify-start rounded-lg bg-emerald-500 text-black hover:bg-emerald-400"
+                >
+                    <Link href="/offertes/nieuw" onClick={onNavigate}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Nieuwe calculatie
+                    </Link>
+                </Button>
             </div>
 
             <nav className="flex-1 overflow-y-auto px-3 pb-6">
