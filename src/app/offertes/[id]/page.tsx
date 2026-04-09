@@ -357,12 +357,14 @@ export default function QuotePage() {
     const materialPresetSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSavedMaterialPresetRef = useRef<string>('');
 
-    // Refresh captured drawings when entering the PDF tab or when data changes
+    // Refresh captured drawings when entering the PDF tab.
+    // Avoid depending on calculation data object references, which can cause
+    // unnecessary resets/re-mounts and repeated PDF preview refreshes.
     useEffect(() => {
         if (activeTab !== 'pdf') return;
         setCapturedDrawings([]);
         setIsDrawingsReady(false);
-    }, [activeTab, quote?.id, calculation?.data_json]);
+    }, [activeTab, quote?.id]);
 
     // Auto-open PDF settings for first-time users when they navigate to the PDF tab
     useEffect(() => {
@@ -3773,6 +3775,17 @@ export default function QuotePage() {
 
     const secondaryTabs = ['nacalculatie', 'tekeningen', 'bonnetjes', 'notities', 'algemene-voorwaarden'];
     const isSecondarySectionActive = secondaryTabs.includes(activeTab);
+    const openKostenForBonnetjes = useCallback(() => {
+        const query = new URLSearchParams({ offerteId: id });
+        router.push(`/kosten?${query.toString()}`);
+    }, [id, router]);
+    const handleTabChange = useCallback((tab: string) => {
+        if (tab === 'bonnetjes') {
+            openKostenForBonnetjes();
+            return;
+        }
+        setActiveTab(tab);
+    }, [openKostenForBonnetjes]);
     const openPlanningWithType = useCallback((scheduleType: 'job' | 'werkbespreking') => {
         const params = new URLSearchParams({
             mode: 'schedule',
@@ -3849,25 +3862,6 @@ export default function QuotePage() {
                     )}
 
                     <div className="hidden w-full gap-2 overflow-x-auto pb-1 sm:flex sm:w-auto sm:overflow-visible sm:pb-0">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                                void handleDownloadPDF();
-                            }}
-                            className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
-                            disabled={!totals || loading || isGeneratingPDF}
-                            aria-label="Download"
-                            title="Download"
-                        >
-                            {isGeneratingPDF ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <Download size={18} />
-                            )}
-                            Download
-                        </Button>
-
                         {!loading && (
                             <>
                                 <Button
@@ -3924,14 +3918,30 @@ export default function QuotePage() {
                                     PDF instellingen
                                 </Button>
                                 <Button
+                                    type="button"
                                     variant="success"
-                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
+                                    onClick={() => {
+                                        void handleDownloadPDF();
+                                    }}
+                                    className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
+                                    disabled={!totals || loading || isGeneratingPDF}
+                                    aria-label="Download"
+                                    title="Download"
+                                >
+                                    {isGeneratingPDF ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Download size={18} />
+                                    )}
+                                </Button>
+                                <Button
+                                    variant="success"
+                                    className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
                                     onClick={() => setIsSendModalOpen(true)}
                                     aria-label="Versturen"
                                     title="Versturen"
                                 >
                                     <Mail size={16} />
-                                    Versturen
                                 </Button>
                             </>
                         )}
@@ -3949,7 +3959,7 @@ export default function QuotePage() {
                     </div>
                 ) : (
                     <>
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                    <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
                         <div className="sm:hidden space-y-1.5 rounded-xl border border-border bg-card p-2">
                             <TabsList className="h-auto w-full justify-between gap-1 bg-transparent p-0">
                                 <TabsTrigger value="overzicht" className="h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
@@ -5277,7 +5287,7 @@ export default function QuotePage() {
                                     variant={activeTab === 'bonnetjes' ? 'secondary' : 'outline'}
                                     className="h-11 justify-start"
                                     onClick={() => {
-                                        setActiveTab('bonnetjes');
+                                        openKostenForBonnetjes();
                                         setIsMobileMoreSectionsOpen(false);
                                     }}
                                 >

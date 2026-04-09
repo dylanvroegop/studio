@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Pencil } from 'lucide-react';
+import { format } from 'date-fns';
+import { nl } from 'date-fns/locale';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,6 +25,12 @@ type KPIItemTone = 'neutral' | 'positive' | 'negative' | 'warning' | 'unknown';
 type ProjectRowData = WinstMetricsResponse['projectPerformances'][number] & {
   actualProjectProfit: number | null;
   actualProjectMargin: number | null;
+};
+
+type TimeEntryRow = {
+  id: string;
+  date: string;
+  workedHours: number;
 };
 
 function formatCurrency(amount: number): string {
@@ -151,9 +160,15 @@ function EmptyStateBlock(props: {
 
 function ProjectRow(props: {
   project: ProjectRowData;
+  onNavigate: (path: string) => void;
+  onEditHours: (project: ProjectRowData) => void;
 }) {
-  const { project } = props;
+  const { project, onNavigate, onEditHours } = props;
   const projectLabel = project.offerteNummer ? `#${project.offerteNummer}` : project.title;
+  const encodedProjectId = encodeURIComponent(project.projectId);
+  const openHoursEditor = () => onEditHours(project);
+  const openCostEditor = () => onNavigate(`/kosten?offerteId=${encodedProjectId}&open=1`);
+  const openQuoteEditor = () => onNavigate(`/offertes/${encodedProjectId}`);
 
   const status = !project.hasActualData
     ? {
@@ -212,8 +227,8 @@ function ProjectRow(props: {
       <div className="space-y-3 pl-1">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-base font-semibold text-foreground">{projectLabel}</p>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            <p className="truncate text-lg font-semibold text-foreground">{projectLabel}</p>
+            <p className="mt-0.5 truncate text-sm text-muted-foreground">
               {project.clientName} • {formatProjectDate(project.createdAt)}
             </p>
           </div>
@@ -224,31 +239,91 @@ function ProjectRow(props: {
 
         <div className="rounded-lg border border-white/10 bg-background/25 px-3 py-2.5">
           <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Winst</p>
-          <p className={cn('mt-1 text-3xl font-semibold leading-none', winstTextClass)}>{winstText}</p>
+          <p className={cn('mt-1 text-2xl font-semibold leading-none', winstTextClass)}>{winstText}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+          <div className="relative rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-1.5 top-1.5 h-6 w-6 text-muted-foreground hover:text-foreground"
+              onClick={openQuoteEditor}
+              title="Omzet bewerken in offerte"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
             <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Omzet</p>
             <p className="mt-0.5 text-sm font-semibold text-foreground">{formatCurrency(project.quotedRevenueIncl)}</p>
           </div>
-          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+          <div className="relative rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-1.5 top-1.5 h-6 w-6 text-muted-foreground hover:text-foreground"
+              onClick={openCostEditor}
+              title="Kosten bewerken"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
             <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Kosten</p>
             <p className="mt-0.5 text-sm font-semibold text-foreground">{project.hasActualData ? formatCurrency(project.actualCostExcl) : '—'}</p>
           </div>
-          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+          <div className="relative rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-1.5 top-1.5 h-6 w-6 text-muted-foreground hover:text-foreground"
+              onClick={openCostEditor}
+              title="Marge bijwerken via kosten"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
             <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Marge</p>
             <p className={cn('mt-0.5 text-sm font-semibold', margeTextClass)}>{margeText}</p>
           </div>
-          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+          <div className="relative rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-1.5 top-1.5 h-6 w-6 text-muted-foreground hover:text-foreground"
+              onClick={openHoursEditor}
+              title="Dagtarief bijwerken via uren"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
             <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">€/dag</p>
             <p className={cn('mt-0.5 text-sm font-semibold', dayTextClass)}>{realizedDayText}</p>
           </div>
-          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+          <div className="relative rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-1.5 top-1.5 h-6 w-6 text-muted-foreground hover:text-foreground"
+              onClick={openHoursEditor}
+              title="Dagen bewerken via uren"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
             <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Dagen</p>
             <p className="mt-0.5 text-sm font-semibold text-foreground">{project.actualDays.toFixed(1)} / {project.quotedDays.toFixed(1)}</p>
           </div>
-          <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+          <div className="relative rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-1.5 top-1.5 h-6 w-6 text-muted-foreground hover:text-foreground"
+              onClick={openQuoteEditor}
+              title="Doel bewerken in offerte"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
             <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Doel €/dag</p>
             <p className="mt-0.5 text-sm font-semibold text-foreground">{expectedDayText}</p>
           </div>
@@ -287,6 +362,13 @@ export default function WinstPage() {
   const [loadingMetrics, setLoadingMetrics] = useState<boolean>(false);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [projectSearch, setProjectSearch] = useState<string>('');
+  const [hoursEditorProject, setHoursEditorProject] = useState<ProjectRowData | null>(null);
+  const [hoursEditorDate, setHoursEditorDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [hoursEditorValue, setHoursEditorValue] = useState<string>('');
+  const [hoursSaving, setHoursSaving] = useState<boolean>(false);
+  const [hoursHistory, setHoursHistory] = useState<TimeEntryRow[]>([]);
+  const [hoursHistoryLoading, setHoursHistoryLoading] = useState<boolean>(false);
+  const [metricsRefreshTick, setMetricsRefreshTick] = useState<number>(0);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -351,7 +433,128 @@ export default function WinstPage() {
     return () => {
       cancelled = true;
     };
-  }, [firestore, periodRange, periodType, selectedClientIds, selectedJobTypes, selectedProjectIds, toast, user]);
+  }, [firestore, metricsRefreshTick, periodRange, periodType, selectedClientIds, selectedJobTypes, selectedProjectIds, toast, user]);
+
+  useEffect(() => {
+    if (!user || !hoursEditorProject) return;
+    let cancelled = false;
+
+    const loadProjectHours = async () => {
+      setHoursHistoryLoading(true);
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/uren/entries?limit=500', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const payload = (await response.json().catch(() => null)) as { ok?: boolean; data?: Array<Record<string, unknown>>; message?: string } | null;
+        if (!response.ok || !payload?.ok || !Array.isArray(payload.data)) {
+          throw new Error(payload?.message || `HTTP ${response.status}`);
+        }
+
+        const filtered = payload.data
+          .filter((row) => String(row.quote_id || row.quoteId || '') === hoursEditorProject.projectId)
+          .map((row) => ({
+            id: String(row.id || crypto.randomUUID()),
+            date: String(row.work_date || row.date || ''),
+            workedHours: Number(row.worked_hours ?? row.workedHours ?? row.hours ?? 0),
+          }))
+          .filter((row) => row.date)
+          .sort((a, b) => b.date.localeCompare(a.date))
+          .slice(0, 8);
+
+        if (!cancelled) setHoursHistory(filtered);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Onbekende fout';
+        if (!cancelled) {
+          setHoursHistory([]);
+          toast({
+            title: 'Urenhistorie laden mislukt',
+            description: message,
+            variant: 'destructive',
+          });
+        }
+      } finally {
+        if (!cancelled) setHoursHistoryLoading(false);
+      }
+    };
+
+    void loadProjectHours();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hoursEditorProject, toast, user]);
+
+  const handleOpenHoursEditor = (project: ProjectRowData) => {
+    setHoursEditorProject(project);
+    setHoursEditorDate(format(new Date(), 'yyyy-MM-dd'));
+    setHoursEditorValue('');
+    setHoursHistory([]);
+  };
+
+  const handleSaveProjectHours = async () => {
+    if (!user || !hoursEditorProject) return;
+
+    const hours = Number(hoursEditorValue.replace(',', '.'));
+    if (!Number.isFinite(hours) || hours <= 0 || hours > 24) {
+      toast({
+        title: 'Ongeldig aantal uren',
+        description: 'Vul een waarde tussen 0 en 24 in.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(hoursEditorDate)) {
+      toast({
+        title: 'Ongeldige datum',
+        description: 'Kies een geldige datum.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setHoursSaving(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/uren/entries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          quoteId: hoursEditorProject.projectId,
+          workDate: hoursEditorDate,
+          workedHours: hours,
+          source: 'manual',
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || `HTTP ${response.status}`);
+      }
+
+      toast({
+        title: 'Uren opgeslagen',
+        description: `${hours.toFixed(2)} uur toegevoegd op ${hoursEditorDate}.`,
+      });
+      setHoursEditorValue('');
+      setMetricsRefreshTick((prev) => prev + 1);
+      setHoursEditorProject(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Onbekende fout';
+      toast({
+        title: 'Opslaan mislukt',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setHoursSaving(false);
+    }
+  };
 
   const derived = useMemo(() => {
     const projects = metrics?.projectPerformances ?? [];
@@ -507,14 +710,40 @@ export default function WinstPage() {
     });
   }, [derived.projectRows, projectSearch]);
 
+  const projectTotals = useMemo(() => {
+    const totalOmzet = filteredProjects.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
+    const totalQuotedCosts = filteredProjects.reduce(
+      (sum, project) => sum + project.costBreakdown.reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
+      0
+    );
+    const projectsWithActual = filteredProjects.filter((project) => project.hasActualData);
+    const actualRevenueScope = projectsWithActual.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
+    const totalKosten = projectsWithActual.reduce((sum, project) => sum + project.actualCostExcl, 0);
+    const marge = actualRevenueScope > 0 ? (actualRevenueScope - totalKosten) / actualRevenueScope : null;
+    const totalActualDays = filteredProjects.reduce((sum, project) => sum + project.actualDays, 0);
+    const totalQuotedDays = filteredProjects.reduce((sum, project) => sum + project.quotedDays, 0);
+    const euroPerDay = totalActualDays > 0 && actualRevenueScope > 0
+      ? (actualRevenueScope - totalKosten) / totalActualDays
+      : null;
+    const doelPerDay = totalQuotedDays > 0 ? (totalOmzet - totalQuotedCosts) / totalQuotedDays : null;
+
+    return {
+      totalOmzet,
+      totalKosten,
+      marge,
+      euroPerDay,
+      totalActualDays,
+      totalQuotedDays,
+      doelPerDay,
+      hasActualCostData: projectsWithActual.length > 0,
+    };
+  }, [filteredProjects]);
+
   if (isUserLoading || !user || loadingMetrics || !metrics) {
     return <PageSkeleton />;
   }
 
   const hasActualComparison = derived.withActual.length > 0;
-  const hasEnoughInsightData = derived.withActual.length >= 2;
-  const hasInsightContent =
-    hasEnoughInsightData && (derived.deviations.length > 0 || derived.recommendationItems.length > 0);
 
   return (
     <div className="app-shell min-h-screen bg-background">
@@ -524,9 +753,6 @@ export default function WinstPage() {
       <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
         <div className="w-full max-w-7xl space-y-12">
           <section className="rounded-2xl bg-card/30 p-4 md:p-5">
-            <div className="flex justify-end">
-              <p className="text-sm text-muted-foreground">{metrics.periodLabel}</p>
-            </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Tabs value={periodType} onValueChange={(value) => setPeriodType(value as PeriodType)}>
                 <TabsList>
@@ -666,47 +892,6 @@ export default function WinstPage() {
             )}
           </section>
 
-          <section className="space-y-5">
-            <h2 className="text-xl font-semibold tracking-tight">Inzichten</h2>
-            {!hasEnoughInsightData ? (
-              <EmptyStateBlock title="Geen inzichten beschikbaar" description="Minimaal 2 projecten met nacalculatie nodig." />
-            ) : hasInsightContent ? (
-              <div className="space-y-8">
-                {derived.deviations.length > 0 ? (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Belangrijkste afwijkingen</p>
-                    <div className="space-y-1">
-                      {derived.deviations.map((row) => (
-                        <div key={row.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/50 py-3 text-sm last:border-0">
-                          <p className="font-medium text-foreground">{row.label}</p>
-                          <p className={cn('font-semibold', row.diff > 0 ? 'text-red-300' : row.diff < 0 ? 'text-emerald-300' : 'text-muted-foreground')}>
-                            {formatSignedCurrency(row.diff)}
-                            {row.diffPct !== null ? ` • ${formatSignedPercent(row.diffPct)}` : ''}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {derived.recommendationItems.length > 0 ? (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Aanbevelingen voor volgende offertes</p>
-                    <ul className="space-y-2">
-                      {derived.recommendationItems.map((item, index) => (
-                        <li key={`${index}-${item}`} className="text-sm text-foreground/90">
-                          • {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <EmptyStateBlock title="Geen inzichten beschikbaar" description="Nog geen duidelijke afwijkingen in de huidige selectie." />
-            )}
-          </section>
-
           <section className="space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-xl font-semibold tracking-tight">Project prestaties</h2>
@@ -722,18 +907,147 @@ export default function WinstPage() {
               {filteredProjects.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Geen projecten in deze selectie.</p>
               ) : (
-                filteredProjects.map((project) => (
-                  <ProjectRow
-                    key={project.projectId}
-                    project={project}
-                  />
-                ))
+                <>
+                  <div className="rounded-xl border border-cyan-500/25 bg-gradient-to-r from-cyan-500/[0.14] via-card/55 to-card/40 px-4 py-3">
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-sm font-semibold text-foreground">Totaal (zichtbare projecten)</p>
+                      <span className="text-xs text-muted-foreground">{filteredProjects.length} projecten</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Omzet</p>
+                        <p className="mt-0.5 text-sm font-semibold text-foreground">{formatCurrency(projectTotals.totalOmzet)}</p>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Kosten</p>
+                        <p className="mt-0.5 text-sm font-semibold text-foreground">
+                          {projectTotals.hasActualCostData ? formatCurrency(projectTotals.totalKosten) : '—'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Marge</p>
+                        <p
+                          className={cn(
+                            'mt-0.5 text-sm font-semibold',
+                            projectTotals.marge === null
+                              ? 'text-muted-foreground'
+                              : projectTotals.marge < 0
+                                ? 'text-red-300'
+                                : 'text-emerald-300'
+                          )}
+                        >
+                          {projectTotals.marge === null ? 'Onbekend' : formatPercent(projectTotals.marge)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">€/dag</p>
+                        <p
+                          className={cn(
+                            'mt-0.5 text-sm font-semibold',
+                            projectTotals.euroPerDay === null
+                              ? 'text-muted-foreground'
+                              : projectTotals.doelPerDay !== null && projectTotals.euroPerDay < projectTotals.doelPerDay
+                                ? 'text-red-300'
+                                : 'text-emerald-300'
+                          )}
+                        >
+                          {projectTotals.euroPerDay === null ? 'Onbekend' : formatCurrency(projectTotals.euroPerDay)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Dagen</p>
+                        <p className="mt-0.5 text-sm font-semibold text-foreground">
+                          {projectTotals.totalActualDays.toFixed(1)} / {projectTotals.totalQuotedDays.toFixed(1)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Doel €/dag</p>
+                        <p className="mt-0.5 text-sm font-semibold text-foreground">
+                          {projectTotals.doelPerDay === null ? 'Onbekend' : formatCurrency(projectTotals.doelPerDay)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {filteredProjects.map((project) => (
+                    <ProjectRow
+                      key={project.projectId}
+                      project={project}
+                      onNavigate={router.push}
+                      onEditHours={handleOpenHoursEditor}
+                    />
+                  ))}
+                </>
               )}
             </div>
           </section>
 
         </div>
       </main>
+
+      <Dialog open={Boolean(hoursEditorProject)} onOpenChange={(open) => !open && setHoursEditorProject(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Uren bijwerken</DialogTitle>
+            <DialogDescription>
+              {hoursEditorProject
+                ? `${hoursEditorProject.offerteNummer ? `#${hoursEditorProject.offerteNummer} • ` : ''}${hoursEditorProject.clientName}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Datum</p>
+                <Input
+                  type="date"
+                  value={hoursEditorDate}
+                  onChange={(event) => setHoursEditorDate(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Uren</p>
+                <Input
+                  inputMode="decimal"
+                  placeholder="Bijv. 7.5"
+                  value={hoursEditorValue}
+                  onChange={(event) => setHoursEditorValue(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Recente uren voor dit project</p>
+              {hoursHistoryLoading ? (
+                <p className="mt-2 text-sm text-muted-foreground">Laden...</p>
+              ) : hoursHistory.length === 0 ? (
+                <p className="mt-2 text-sm text-muted-foreground">Nog geen uren gevonden voor dit project.</p>
+              ) : (
+                <div className="mt-2 space-y-1.5">
+                  {hoursHistory.map((entry) => (
+                    <div key={entry.id} className="flex items-center justify-between rounded-md border border-border/50 px-2.5 py-1.5 text-sm">
+                      <span className="text-muted-foreground">
+                        {format(new Date(entry.date), 'd MMM yyyy', { locale: nl })}
+                      </span>
+                      <span className="font-medium text-foreground">{entry.workedHours.toFixed(2)}u</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setHoursEditorProject(null)} disabled={hoursSaving}>
+              Sluiten
+            </Button>
+            <Button type="button" onClick={() => void handleSaveProjectHours()} disabled={hoursSaving}>
+              {hoursSaving ? 'Opslaan...' : 'Uren opslaan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

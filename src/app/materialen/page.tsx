@@ -961,9 +961,14 @@ export default function MaterialenPage() {
                         direction: current?.key === 'prijsNumber' && current.direction === 'asc' ? 'desc' : 'asc'
                       }));
                     }}>
-                      <div className="flex items-center justify-end gap-1">
-                        Prijs
-                        <ArrowUpDown className="h-3 w-3" />
+                      <div className="flex flex-col items-end leading-tight">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>Prijs</span>
+                          <ArrowUpDown className="h-3 w-3" />
+                        </div>
+                        <span className="text-[10px] font-normal lowercase text-muted-foreground whitespace-nowrap">
+                          ex btw
+                        </span>
                       </div>
                     </TableHead>
                     <TableHead className="hidden w-[10%] min-w-[80px] cursor-pointer hover:text-foreground md:table-cell" onClick={() => {

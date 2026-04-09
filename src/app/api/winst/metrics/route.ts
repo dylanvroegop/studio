@@ -130,6 +130,12 @@ function parseVatFilingPeriodMonths(raw: unknown): 1 | 3 {
   return 3;
 }
 
+function parseVatPeriodStartMonth(raw: unknown): number {
+  const parsed = Math.round(safeNumber(raw));
+  if (parsed < 1 || parsed > 12) return 1;
+  return parsed;
+}
+
 function chunkArray<T>(input: T[], size: number): T[][] {
   const output: T[][] = [];
   for (let index = 0; index < input.length; index += size) {
@@ -301,6 +307,7 @@ export async function POST(req: Request) {
     ]);
     const userSettings = userSnapshot.exists ? (userSnapshot.data()?.settings ?? {}) : {};
     const vatFilingPeriodMonths = parseVatFilingPeriodMonths((userSettings as Record<string, unknown>)?.omzetBelastingAangiftePeriode);
+    const vatPeriodStartMonth = parseVatPeriodStartMonth((userSettings as Record<string, unknown>)?.omzetBelastingStartMaand);
 
     const quotes: WinstQuoteSource[] = quoteSnapshot.docs
       .filter((docSnap) => {
@@ -418,6 +425,7 @@ export async function POST(req: Request) {
       quoteId,
       costExcl: safeNumber(bucket.costExcl),
       hours: safeNumber(bucket.hours),
+      days: safeNumber(bucket.days),
     }));
 
     const metrics = buildWinstMetrics({
@@ -430,6 +438,7 @@ export async function POST(req: Request) {
       projectCosts,
       laborCosts,
       vatFilingPeriodMonths,
+      vatPeriodStartMonth,
       userId: uid,
     });
 

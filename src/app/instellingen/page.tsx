@@ -17,7 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users, Palette, MoonStar, Sun } from 'lucide-react';
+import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users, Palette, MoonStar, Sun, ReceiptText } from 'lucide-react';
 import {
     UserSettings,
     DEFAULT_USER_SETTINGS,
@@ -85,6 +85,20 @@ function InstellingenPageContent() {
         naam: '',
         email: '',
     });
+    const belastingStartMaandOpties = [
+        { value: '1', label: 'Januari' },
+        { value: '2', label: 'Februari' },
+        { value: '3', label: 'Maart' },
+        { value: '4', label: 'April' },
+        { value: '5', label: 'Mei' },
+        { value: '6', label: 'Juni' },
+        { value: '7', label: 'Juli' },
+        { value: '8', label: 'Augustus' },
+        { value: '9', label: 'September' },
+        { value: '10', label: 'Oktober' },
+        { value: '11', label: 'November' },
+        { value: '12', label: 'December' },
+    ] as const;
 
     // Bouwplaats CRUD State
     const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
@@ -569,7 +583,7 @@ function InstellingenPageContent() {
 
             <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                    <TabsList className="grid w-full grid-cols-2 lg:grid-cols-7 h-auto p-1">
+                    <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto p-1 gap-1">
                         <TabsTrigger value="uiterlijk" className="py-2.5">
                             <Palette className="mr-2 h-4 w-4" />
                             Uiterlijk
@@ -585,6 +599,10 @@ function InstellingenPageContent() {
                         <TabsTrigger value="financieel" className="py-2.5">
                             <Coins className="mr-2 h-4 w-4" />
                             Calculatie-instellingen
+                        </TabsTrigger>
+                        <TabsTrigger value="belasting" className="py-2.5">
+                            <ReceiptText className="mr-2 h-4 w-4" />
+                            Belasting
                         </TabsTrigger>
                         <TabsTrigger value="offerte" className="py-2.5">
                             <FileText className="mr-2 h-4 w-4" />
@@ -1167,15 +1185,29 @@ function InstellingenPageContent() {
                                     </div>
                                 </div>
 
-                                <div className="grid gap-4 md:grid-cols-2 p-4 border rounded-lg">
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* --- BELASTING --- */}
+                    <TabsContent value="belasting" className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Omzetbelasting</CardTitle>
+                                <CardDescription>
+                                    Stel uw aangifte ritme in. Dashboard-btw gebruikt vaste kalenderperiodes i.p.v. rollende maanden.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-5">
+                                <div className="grid gap-4 rounded-lg border p-4 md:grid-cols-2">
                                     <div className="space-y-2">
-                                        <Label className="font-semibold">Omzetbelasting aangifte</Label>
+                                        <Label className="font-semibold">Aangifteperiode</Label>
                                         <p className="text-xs text-muted-foreground">
-                                            Bepaalt of dashboard-btw per maand of per kwartaal wordt getoond.
+                                            Kies of omzetbelasting per maand of per kwartaal wordt berekend.
                                         </p>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Aangifteperiode</Label>
+                                        <Label>Frequentie</Label>
                                         <Select
                                             value={settings.omzetBelastingAangiftePeriode || 'kwartaal'}
                                             onValueChange={(value) => update('omzetBelastingAangiftePeriode', value)}
@@ -1186,6 +1218,33 @@ function InstellingenPageContent() {
                                             <SelectContent>
                                                 <SelectItem value="maand">Maandelijks</SelectItem>
                                                 <SelectItem value="kwartaal">Per kwartaal</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-4 rounded-lg border p-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label className="font-semibold">Startmaand belastingjaar</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Bepaalt vanaf welke maand kwartaalblokken starten (standaard: januari).
+                                        </p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Startmaand</Label>
+                                        <Select
+                                            value={String(settings.omzetBelastingStartMaand || 1)}
+                                            onValueChange={(value) => update('omzetBelastingStartMaand', Number(value) as UserSettings['omzetBelastingStartMaand'])}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Kies startmaand" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {belastingStartMaandOpties.map((optie) => (
+                                                    <SelectItem key={optie.value} value={optie.value}>
+                                                        {optie.label}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                     </div>

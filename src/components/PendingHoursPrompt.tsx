@@ -51,6 +51,20 @@ function distributeBySuggestedHours(
   return scaled;
 }
 
+function distributeEvenly(totalValue: number, count: number): number[] {
+  const safeCount = Math.max(0, Math.floor(count));
+  if (safeCount <= 0) return [];
+  const safeTotal = Math.max(0, totalValue);
+  const base = Number((safeTotal / safeCount).toFixed(2));
+  const output = new Array<number>(safeCount).fill(base);
+  const consumed = Number((base * safeCount).toFixed(2));
+  const diff = Number((safeTotal - consumed).toFixed(2));
+  if (Math.abs(diff) > 0.001) {
+    output[output.length - 1] = Number((output[output.length - 1] + diff).toFixed(2));
+  }
+  return output;
+}
+
 export function PendingHoursPrompt() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
@@ -61,6 +75,7 @@ export function PendingHoursPrompt() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [adjustMode, setAdjustMode] = useState(false);
   const [workedHours, setWorkedHours] = useState('');
+  const [workedDays, setWorkedDays] = useState('');
   const [quotedHours, setQuotedHours] = useState('');
   const [note, setNote] = useState('');
   const [dismissedForSession, setDismissedForSession] = useState(false);
@@ -124,6 +139,7 @@ export function PendingHoursPrompt() {
   useEffect(() => {
     if (!currentItem) return;
     setWorkedHours(String(currentItem.suggestedHours));
+    setWorkedDays(String(currentItem.pendingDaysCount || (currentItem.pendingDates || []).length || 1));
     setQuotedHours('');
     setNote('');
     setAdjustMode(false);
@@ -191,6 +207,7 @@ export function PendingHoursPrompt() {
   const saveEntry = async (source: 'login_prompt_confirm' | 'login_prompt_adjust') => {
     if (!currentItem) return;
     const parsedWorked = Number(workedHours);
+    const parsedWorkedDays = Number(workedDays);
     const parsedQuoted = quotedHours.trim() ? Number(quotedHours) : null;
     if (!Number.isFinite(parsedWorked) || parsedWorked <= 0 || parsedWorked > 500) {
       toast({ title: 'Werkelijke uren zijn ongeldig', variant: 'destructive' });
@@ -200,11 +217,16 @@ export function PendingHoursPrompt() {
       toast({ title: 'Geoffreerde uren zijn ongeldig', variant: 'destructive' });
       return;
     }
+    if (!Number.isFinite(parsedWorkedDays) || parsedWorkedDays <= 0 || parsedWorkedDays > 31) {
+      toast({ title: 'Werkelijke dagen zijn ongeldig', variant: 'destructive' });
+      return;
+    }
 
     const pendingDates = (currentItem.pendingDates || []).length > 0
       ? (currentItem.pendingDates || [])
       : [{ workDate: currentItem.workDate, suggestedHours: currentItem.suggestedHours }];
     const workedDistribution = distributeBySuggestedHours(parsedWorked, pendingDates.map((segment) => ({ suggestedHours: segment.suggestedHours })));
+    const workedDaysDistribution = distributeEvenly(parsedWorkedDays, pendingDates.length);
     const quotedDistribution = parsedQuoted === null
       ? null
       : distributeBySuggestedHours(parsedQuoted, pendingDates.map((segment) => ({ suggestedHours: segment.suggestedHours })));
@@ -224,6 +246,7 @@ export function PendingHoursPrompt() {
               quoteId: currentItem.quoteId,
               workDate: segment.workDate,
               workedHours: workedDistribution[index],
+              workedDays: workedDaysDistribution[index],
               quotedHours: quotedDistribution ? quotedDistribution[index] : null,
               note: note.trim() || null,
               source,
@@ -240,7 +263,7 @@ export function PendingHoursPrompt() {
       removeCurrentItem();
       toast({
         title: 'Uren opgeslagen',
-        description: `${formatHours(parsedWorked)} op ${currentItem.quoteLabel}`,
+        description: `${formatHours(parsedWorked)} en ${parsedWorkedDays.toFixed(2).replace(/\.?0+$/, '')} dagen op ${currentItem.quoteLabel}`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Onbekende fout';
@@ -312,6 +335,17 @@ export function PendingHoursPrompt() {
                 step="0.25"
                 value={workedHours}
                 onChange={(event) => setWorkedHours(event.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="worked-days">Werkelijk gewerkt (dagen)</Label>
+              <Input
+                id="worked-days"
+                type="number"
+                step="0.25"
+                value={workedDays}
+                onChange={(event) => setWorkedDays(event.target.value)}
                 disabled={isSubmitting}
               />
             </div>

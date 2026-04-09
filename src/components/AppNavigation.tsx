@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote } from 'lucide-react';
+import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -90,6 +90,13 @@ const navItems: NavigationItem[] = [
         icon: StickyNote,
         iconColorClass: 'text-rose-400',
         iconColorClassActive: 'text-rose-300',
+    },
+    {
+        href: '/kennis',
+        label: 'Kennis',
+        icon: BookOpen,
+        iconColorClass: 'text-lime-400',
+        iconColorClassActive: 'text-lime-300',
     },
     {
         href: '/instellingen',

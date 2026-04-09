@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { ArrowLeft, FileText, Loader2, ReceiptText } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFirestore, useUser } from '@/firebase';
 import type { UserSettings } from '@/lib/types-settings';
+import { calculateQuoteTotals, normalizeDataJson, type QuoteSettings as CalculationQuoteSettings } from '@/lib/quote-calculations';
 import { toast } from '@/hooks/use-toast';
 import { createInvoiceFromQuote, findExistingVoorschotInvoiceId, getInvoiceSnapshotForAdjustments } from '@/lib/invoice-actions';
 
@@ -24,6 +25,91 @@ function formatCurrency(amount?: number) {
 
 function clampPct(value: number) {
   return Math.max(0, Math.min(100, value));
+}
+
+function toNumber(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
+function resolveTotalFromQuote(quote: any): number {
+  if (!quote) return 0;
+
+  const candidates = [
+    quote?.amount,
+    quote?.totaalbedrag,
+    quote?.totaalInclBtw,
+    quote?.totals?.totaalInclBtw,
+    quote?.totalsSnapshot?.totaalInclBtw,
+    quote?.financialAdjustments?.originalTotalInclBtw,
+    quote?.calculationSnapshot?.totals?.totaalInclBtw,
+  ];
+
+  for (const candidate of candidates) {
+    const n = toNumber(candidate);
+    if (n !== null && n > 0) return n;
+  }
+
+  return 0;
+}
+
+function mapSettingsForTotals(input: unknown): CalculationQuoteSettings {
+  const normalized = normalizeDataJson(input as any);
+  const rawInst = (normalized?.instellingen || {}) as any;
+  const rawExtras = (normalized?.extras || {}) as any;
+
+  return {
+    btwTarief: rawInst?.btwTarief || 21,
+    uurTariefExclBtw: rawInst?.uurTariefExclBtw || rawInst?.uurTarief || 50,
+    schattingUren: rawInst?.schattingUren ?? false,
+    extras: {
+      transport: {
+        prijsPerKm: rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? rawInst?.transportPrijsPerKm,
+        vasteTransportkosten: rawExtras?.transport?.vasteTransportkosten ?? rawInst?.extras?.transport?.vasteTransportkosten,
+        tunnelkosten: rawExtras?.transport?.tunnelkosten ?? rawInst?.extras?.transport?.tunnelkosten,
+        mode: rawExtras?.transport?.mode ?? rawInst?.extras?.transport?.mode,
+      },
+      winstMarge: {
+        percentage: rawExtras?.winstMarge?.percentage ?? rawInst?.extras?.winstMarge?.percentage ?? 10,
+        fixedAmount: rawExtras?.winstMarge?.fixedAmount ?? 0,
+        mode: rawExtras?.winstMarge?.mode ?? 'percentage',
+        basis: rawExtras?.winstMarge?.basis ?? 'totaal',
+      },
+    },
+  };
+}
+
+function resolveTotalFromCalculation(dataJson: unknown): number | null {
+  if (!dataJson) return null;
+
+  try {
+    const settings = mapSettingsForTotals(dataJson);
+    const totals = calculateQuoteTotals(dataJson as any, settings);
+    const total = toNumber(totals?.totaalInclBtw);
+    if (total !== null && total > 0) return total;
+  } catch {
+    // Fallback candidates below handle malformed shapes.
+  }
+
+  const normalized = normalizeDataJson(dataJson as any) as any;
+  const candidates = [
+    normalized?.totaalInclBtw,
+    normalized?.totaal_incl_btw,
+    normalized?.totals?.totaalInclBtw,
+    normalized?.totals?.totaal_incl_btw,
+    (dataJson as any)?.totaalInclBtw,
+    (dataJson as any)?.totaal_incl_btw,
+    (dataJson as any)?.totals?.totaalInclBtw,
+    (dataJson as any)?.totals?.totaal_incl_btw,
+  ];
+
+  for (const candidate of candidates) {
+    const n = toNumber(candidate);
+    if (n !== null && n > 0) return n;
+  }
+
+  return null;
 }
 
 function NieuweFactuurPageContent() {
@@ -63,7 +149,56 @@ function NieuweFactuurPageContent() {
 
         const quoteRef = doc(firestore, 'quotes', quoteId);
         const quoteSnap = await getDoc(quoteRef);
-        const q = quoteSnap.exists() ? ({ id: quoteSnap.id, ...(quoteSnap.data() as any) }) : null;
+        let q = quoteSnap.exists() ? ({ id: quoteSnap.id, ...(quoteSnap.data() as any) }) : null;
+
+        let resolvedTotal = resolveTotalFromQuote(q);
+
+        if (q && resolvedTotal <= 0) {
+          try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/quotes/get-calculations', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ quoteIds: [quoteId] }),
+            });
+
+            const payload = await response.json().catch(() => null);
+            if (response.ok && payload?.ok === true && Array.isArray(payload?.rows)) {
+              const rows = payload.rows as Array<{ quoteid: string; data_json: unknown }>;
+              const forQuote = rows.filter((row) => row?.quoteid === quoteId);
+              for (const row of forQuote) {
+                const calculatedTotal = resolveTotalFromCalculation(row?.data_json);
+                if (calculatedTotal && calculatedTotal > 0) {
+                  resolvedTotal = calculatedTotal;
+                  q = {
+                    ...q,
+                    amount: calculatedTotal,
+                    totaalbedrag: calculatedTotal,
+                  };
+                  break;
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('Kon calculatie niet ophalen voor factuurtotaal:', err);
+          }
+        }
+
+        if (q && resolvedTotal > 0 && resolveTotalFromQuote(q) <= 0) {
+          try {
+            await updateDoc(quoteRef, {
+              amount: resolvedTotal,
+              totaalbedrag: resolvedTotal,
+              updatedAt: serverTimestamp(),
+            });
+          } catch (err) {
+            console.warn('Kon totaal niet terugschrijven op quote:', err);
+          }
+        }
+
         if (!cancelled) setQuote(q);
 
         if (q?.facturatie) {
@@ -76,7 +211,11 @@ function NieuweFactuurPageContent() {
         }
 
         const existingId = await findExistingVoorschotInvoiceId(firestore, { userId: user.uid, quoteId });
-        if (!cancelled) setExistingVoorschotId(existingId);
+        if (!cancelled) {
+          setExistingVoorschotId(existingId);
+          // Auto-gedrag: alleen aftrekken als er echt al een voorschotfactuur bestaat.
+          setVoorschotIngeschakeld(!!existingId);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -87,14 +226,16 @@ function NieuweFactuurPageContent() {
   }, [user, firestore, quoteId]);
 
   const totalIncl = useMemo(() => {
-    if (!quote) return 0;
-    const n = typeof quote?.amount === 'number' ? quote.amount : (typeof quote?.totaalbedrag === 'number' ? quote.totaalbedrag : 0);
-    return Number.isFinite(n) ? n : 0;
+    return resolveTotalFromQuote(quote);
   }, [quote]);
 
   const pct = useMemo(() => clampPct(Number(voorschotPercentage) || 0), [voorschotPercentage]);
   const voorschotBedrag = useMemo(() => Math.round(totalIncl * (pct / 100) * 100) / 100, [totalIncl, pct]);
-  const aftrek = useMemo(() => (voorschotIngeschakeld ? voorschotBedrag : 0), [voorschotIngeschakeld, voorschotBedrag]);
+  const hasVoorschotFactuur = !!existingVoorschotId;
+  const aftrek = useMemo(
+    () => (hasVoorschotFactuur && voorschotIngeschakeld ? voorschotBedrag : 0),
+    [hasVoorschotFactuur, voorschotIngeschakeld, voorschotBedrag]
+  );
   const eindBedrag = useMemo(() => Math.round(Math.max(0, totalIncl - aftrek) * 100) / 100, [totalIncl, aftrek]);
 
   const canCreate = !!user && !!firestore && !!settings && !!quote && totalIncl > 0;
@@ -137,6 +278,8 @@ function NieuweFactuurPageContent() {
 
       const existingId = await findExistingVoorschotInvoiceId(firestore, { userId: user.uid, quoteId });
       const voorschotSnapshot = existingId ? await getInvoiceSnapshotForAdjustments(firestore, existingId) : null;
+      const effectiveAftrek = existingId && voorschotIngeschakeld ? voorschotBedrag : 0;
+      const effectiveEindBedrag = Math.round(Math.max(0, totalIncl - effectiveAftrek) * 100) / 100;
 
       const invoiceId = await createInvoiceFromQuote(firestore, {
         userId: user.uid,
@@ -145,10 +288,10 @@ function NieuweFactuurPageContent() {
         settings,
         invoiceType: 'eind',
         originalTotalInclBtw: totalIncl,
-        totalsInclBtw: eindBedrag,
-        voorschotAftrekInclBtw: aftrek,
+        totalsInclBtw: effectiveEindBedrag,
+        voorschotAftrekInclBtw: effectiveAftrek,
         voorschotFactuurSnapshot: voorschotSnapshot,
-        opmerking: voorschotIngeschakeld && !existingId ? 'Voorschot in mindering (zonder voorschotfactuur)' : '',
+        opmerking: '',
       });
       router.push(`/facturen/${invoiceId}`);
     } catch (e) {
@@ -300,11 +443,21 @@ function NieuweFactuurPageContent() {
                         <div className="space-y-1">
                           <div className="font-medium">Voorschot aftrekken</div>
                           <div className="text-sm text-muted-foreground">
-                            Eindfactuur = totaal - voorschot (ook zonder voorschotfactuur).
+                            Eindfactuur = totaal - voorschotfactuur (alleen als die bestaat).
                           </div>
                         </div>
-                        <Switch checked={voorschotIngeschakeld} onCheckedChange={setVoorschotIngeschakeld} />
+                        <Switch
+                          checked={voorschotIngeschakeld}
+                          onCheckedChange={setVoorschotIngeschakeld}
+                          disabled={!hasVoorschotFactuur}
+                        />
                       </div>
+
+                      {!hasVoorschotFactuur && (
+                        <div className="text-sm text-muted-foreground">
+                          Geen voorschotfactuur gevonden. Eindfactuur gebruikt het volledige bedrag.
+                        </div>
+                      )}
 
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">

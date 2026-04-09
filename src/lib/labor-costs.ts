@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 interface LaborCostBucket {
   costExcl: number;
   hours: number;
+  days: number;
 }
 
 const LEGACY_TABLE_CANDIDATES = ['urenregistratie'] as const;
@@ -117,7 +118,7 @@ export async function fetchLaborCostsByQuoteId(params: {
   // Preferred canonical schema.
   const explicitRead = await supabaseAdmin
     .from('time_entries')
-    .select('quote_id, worked_hours')
+    .select('quote_id, worked_hours, worked_days')
     .eq('user_id', uid)
     .limit(5000);
 
@@ -130,12 +131,14 @@ export async function fetchLaborCostsByQuoteId(params: {
       if (quoteFilter.size > 0 && !quoteFilter.has(quoteId)) return;
 
       const hours = Math.max(0, getFirstNumber(row, ['worked_hours', 'hours']));
-      if (hours <= 0) return;
+      const days = Math.max(0, getFirstNumber(row, ['worked_days', 'days']));
+      if (hours <= 0 && days <= 0) return;
 
-      const bucket = merged.get(quoteId) || { costExcl: 0, hours: 0 };
+      const bucket = merged.get(quoteId) || { costExcl: 0, hours: 0, days: 0 };
       merged.set(quoteId, {
         costExcl: roundEuro(bucket.costExcl),
         hours: roundEuro(bucket.hours + hours),
+        days: roundEuro(bucket.days + (days > 0 ? days : (hours / 8))),
       });
     });
   } else if (explicitRead.error && !isMissingRelationError(explicitRead.error.message)) {
@@ -183,10 +186,11 @@ export async function fetchLaborCostsByQuoteId(params: {
       const hours = roundEuro(getLaborHours(row));
       if (costExcl <= 0 && hours <= 0) return;
 
-      const bucket = merged.get(quoteId) || { costExcl: 0, hours: 0 };
+      const bucket = merged.get(quoteId) || { costExcl: 0, hours: 0, days: 0 };
       merged.set(quoteId, {
         costExcl: roundEuro(bucket.costExcl + costExcl),
         hours: roundEuro(bucket.hours + hours),
+        days: roundEuro(bucket.days + (hours > 0 ? (hours / 8) : 0)),
       });
     });
   }

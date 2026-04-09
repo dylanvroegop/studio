@@ -2,7 +2,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Menu, Plus, LayoutDashboard, FileText, Pencil, Boxes, Users, Settings, CheckCircle2, AlertTriangle, CalendarDays, ReceiptText, TrendingUp, Clock3, Archive, StickyNote } from 'lucide-react';
+import { Menu, Plus, LayoutDashboard, FileText, Pencil, Boxes, Users, Settings, CheckCircle2, AlertTriangle, CalendarDays, ReceiptText, TrendingUp, Clock3, Archive, StickyNote, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -315,6 +315,12 @@ export function WizardHeader({
                                                 <Link href="/notities">
                                                     <StickyNote className="h-4 w-4" />
                                                     Notities
+                                                </Link>
+                                            </Button>
+                                            <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
+                                                <Link href="/kennis">
+                                                    <BookOpen className="h-4 w-4" />
+                                                    Kennis
                                                 </Link>
                                             </Button>
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>

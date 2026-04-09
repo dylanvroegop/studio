@@ -103,6 +103,7 @@ export async function POST(request: Request) {
     const quoteId = quoteIdRaw || null;
     const workDate = safeString(body.workDate || body.date);
     const workedHours = safeNumber(body.workedHours ?? body.hours);
+    const workedDaysRaw = safeNumber(body.workedDays ?? body.days);
     const quotedHoursRaw = safeNumber(body.quotedHours);
     const sourceRaw = safeString(body.source) as TimeEntrySource;
     const note = safeString(body.note) || null;
@@ -120,6 +121,10 @@ export async function POST(request: Request) {
     if (!Number.isFinite(workedHours) || workedHours <= 0 || workedHours > 24) {
       return NextResponse.json({ ok: false, message: 'workedHours is ongeldig' }, { status: 400 });
     }
+    const workedDays = workedDaysRaw > 0 ? workedDaysRaw : Number((workedHours / 8).toFixed(2));
+    if (!Number.isFinite(workedDays) || workedDays <= 0 || workedDays > 31) {
+      return NextResponse.json({ ok: false, message: 'workedDays is ongeldig' }, { status: 400 });
+    }
     if (!ALLOWED_SOURCES.includes(sourceRaw)) {
       return NextResponse.json({ ok: false, message: 'source is ongeldig' }, { status: 400 });
     }
@@ -132,6 +137,7 @@ export async function POST(request: Request) {
         quote_id: quoteId,
         work_date: workDate,
         worked_hours: workedHours,
+        worked_days: workedDays,
         quoted_hours: quotedHours,
         source: sourceRaw,
         note,

@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
     Play,
     Square,
@@ -107,11 +108,18 @@ export default function UrenRegistratiePage() {
     const { toast } = useToast();
     const { user } = useUser();
     const firestore = useFirestore();
+    const searchParams = useSearchParams();
     const isDevBuild = process.env.NODE_ENV !== 'production';
+    const initialQuoteIdFromUrl = searchParams?.get('quoteId')?.trim() || '';
+    const initialTabFromUrl = (searchParams?.get('tab') || '').trim();
 
     // State
     const [mounted, setMounted] = useState(false);
-    const [activeTab, setActiveTab] = useState<'today' | 'timer' | 'manual' | 'history'>('today');
+    const [activeTab, setActiveTab] = useState<'today' | 'timer' | 'manual' | 'history'>(
+        initialTabFromUrl === 'timer' || initialTabFromUrl === 'manual' || initialTabFromUrl === 'history'
+            ? (initialTabFromUrl as 'timer' | 'manual' | 'history')
+            : 'today'
+    );
 
     // Shared State
     const [quotes, setQuotes] = useState<any[]>([]);
@@ -229,12 +237,15 @@ export default function UrenRegistratiePage() {
                     return tB - tA;
                 });
                 setQuotes(data);
+                if (initialQuoteIdFromUrl && data.some((quote) => quote.id === initialQuoteIdFromUrl)) {
+                    setSelectedQuoteId(initialQuoteIdFromUrl);
+                }
             } catch (err) {
                 console.error("Fout bij ophalen offertes:", err);
             }
         };
         fetchQuotes();
-    }, [user, firestore]);
+    }, [user, firestore, initialQuoteIdFromUrl]);
 
     useEffect(() => {
         if (!user) return;

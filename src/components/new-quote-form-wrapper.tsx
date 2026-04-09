@@ -33,6 +33,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -44,7 +45,9 @@ import {
   User,
   Building2,
   ChevronRight,
-  BookUser
+  BookUser,
+  Sparkles,
+  Upload
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -132,6 +135,9 @@ export function NewQuoteForm({
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
+  const [aiSourceImage, setAiSourceImage] = useState<File | null>(null);
+  const [isAiExtracting, setIsAiExtracting] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const resolvedBackHref = backHref ?? (quoteId ? '/offertes' : '/');
   const requiresWorkDescriptionPrompt = Boolean(successHref);
@@ -235,6 +241,37 @@ export function NewQuoteForm({
       return name.includes(term) || email.includes(term) || city.includes(term);
     });
   }, [clients, searchQuery]);
+
+  const normalizeExtractedClientData = useCallback((rawClient: Record<string, unknown>) => {
+    const get = (key: string) => (typeof rawClient[key] === 'string' ? String(rawClient[key]).trim() : '');
+    const klanttypeRaw = get('klanttype').toLowerCase();
+    const isZakelijk = klanttypeRaw === 'zakelijk';
+    const afwijkendProjectadres =
+      rawClient.afwijkendProjectadres === true
+      || get('afwijkendProjectadres').toLowerCase() === 'true'
+      || get('afwijkendProjectadres').toLowerCase() === 'ja';
+
+    const normalized = {
+      klanttype: isZakelijk ? 'Zakelijk' : 'Particulier',
+      bedrijfsnaam: get('bedrijfsnaam'),
+      contactpersoon: get('contactpersoon'),
+      voornaam: formatCapitalize(get('voornaam')),
+      achternaam: formatCapitalize(get('achternaam')),
+      emailadres: get('emailadres'),
+      telefoonnummer: get('telefoonnummer'),
+      straat: formatCapitalize(get('straat')),
+      huisnummer: get('huisnummer'),
+      postcode: formatPostcode(get('postcode')),
+      plaats: formatCapitalize(get('plaats')),
+      afwijkendProjectadres,
+      projectStraat: formatCapitalize(get('projectStraat')),
+      projectHuisnummer: get('projectHuisnummer'),
+      projectPostcode: formatPostcode(get('projectPostcode')),
+      projectPlaats: formatCapitalize(get('projectPlaats')),
+    };
+
+    return normalized;
+  }, []);
 
   const handleAutoSave = async (field: string, value: any) => {
     if (!quoteId || !firestore) return;
@@ -451,6 +488,78 @@ export function NewQuoteForm({
     router.push(resolvedBackHref);
   };
 
+  const handleGenerateClientFromImage = async () => {
+    if (!user) {
+      toast({ variant: 'destructive', title: 'Je moet ingelogd zijn.' });
+      return;
+    }
+
+    if (!aiSourceImage) {
+      toast({ variant: 'destructive', title: 'Kies eerst een screenshot of afbeelding.' });
+      return;
+    }
+
+    setIsAiExtracting(true);
+    try {
+      const token = await user.getIdToken();
+      const formData = new FormData();
+      formData.append('file', aiSourceImage);
+
+      const response = await fetch('/api/quotes/extract-client-info', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const payload = await response.json().catch(() => null) as {
+        ok?: boolean;
+        message?: string;
+        model?: string;
+        client?: Record<string, unknown>;
+      } | null;
+
+      if (!response.ok || !payload?.ok || !payload.client) {
+        throw new Error(payload?.message || 'Kon klantgegevens niet genereren.');
+      }
+
+      const normalized = normalizeExtractedClientData(payload.client);
+      const nextKlanttype = normalized.klanttype === 'Zakelijk' ? 'zakelijk' : 'particulier';
+      const hasProjectAddress = Boolean(
+        normalized.afwijkendProjectadres
+        || normalized.projectStraat
+        || normalized.projectHuisnummer
+        || normalized.projectPostcode
+        || normalized.projectPlaats
+      );
+
+      setInitialKI(normalized);
+      setKlanttype(nextKlanttype);
+      setShowProjectAddress(hasProjectAddress);
+      setFormKey((prev) => prev + 1);
+
+      if (quoteId && firestore) {
+        await updateDoc(doc(firestore, 'quotes', quoteId), {
+          klantinformatie: cleanFirestoreData(normalized),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      setIsAiDialogOpen(false);
+      setAiSourceImage(null);
+      toast({
+        title: 'Klantgegevens ingevuld',
+        description: `Velden zijn ingevuld met ${payload.model || 'gpt-5.2'}. Controleer alles nog even.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Kon klantgegevens niet genereren.';
+      toast({ variant: 'destructive', title: message });
+    } finally {
+      setIsAiExtracting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-8 text-center">
@@ -469,76 +578,136 @@ export function NewQuoteForm({
               <CardDescription>Vul de gegevens van de klant in.</CardDescription>
             </div>
 
-            <Dialog open={isClientModalOpen} onOpenChange={setIsClientModalOpen}>
-              <DialogTrigger asChild>
-                <Button variant="secondary" size="sm" className="gap-2">
-                  <BookUser className="h-4 w-4" />
-                  <span className="hidden sm:inline">Adresboek</span>
-                </Button>
-              </DialogTrigger>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Dialog open={isAiDialogOpen} onOpenChange={setIsAiDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="secondary" size="sm" className="gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    <span className="hidden sm:inline">Genereer uit screenshot</span>
+                    <span className="sm:hidden">Genereer</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Klantgegevens genereren</DialogTitle>
+                    <DialogDescription>
+                      Upload een screenshot of foto met klantgegevens. We vullen de velden in met AI (gpt-5.2).
+                    </DialogDescription>
+                  </DialogHeader>
 
-              <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Klant selecteren</DialogTitle>
-                </DialogHeader>
+                  <div className="space-y-3">
+                    <Label htmlFor="ai-client-image">Afbeelding</Label>
+                    <Input
+                      id="ai-client-image"
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp,.heic,.heif,image/*"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] || null;
+                        setAiSourceImage(file);
+                      }}
+                    />
+                    {aiSourceImage ? (
+                      <p className="text-xs text-muted-foreground">{aiSourceImage.name}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Ondersteund: JPG, PNG, WEBP, HEIC/HEIF.</p>
+                    )}
 
-                <div className="relative mt-2">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Zoek op naam, bedrijf of e-mail..."
-                    className="pl-9"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-
-                <div className="flex-1 overflow-y-auto mt-2 -mx-2 px-2 space-y-2">
-                  {filteredClients.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
-                      Geen klanten gevonden.
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setIsAiDialogOpen(false);
+                          setAiSourceImage(null);
+                        }}
+                      >
+                        Annuleren
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleGenerateClientFromImage}
+                        disabled={!aiSourceImage || isAiExtracting}
+                        className="gap-2"
+                      >
+                        {isAiExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        {isAiExtracting ? 'Genereren...' : 'Genereer velden'}
+                      </Button>
                     </div>
-                  ) : (
-                    filteredClients.map((client) => {
-                      const isZakelijk = client.klanttype === 'Zakelijk';
-                      return (
-                        <button
-                          key={client.id}
-                          type="button"
-                          onClick={() => selectClient(client)}
-                          className="flex items-center justify-between p-3 rounded-md border hover:bg-muted/50 cursor-pointer transition-colors group"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={cn(
-                                "h-10 w-10 rounded-full flex items-center justify-center shrink-0",
-                                isZakelijk ? "bg-blue-100 text-blue-600" : "bg-emerald-100 text-emerald-600"
-                              )}
-                            >
-                              {isZakelijk ? <Building2 className="h-5 w-5" /> : <User className="h-5 w-5" />}
-                            </div>
-                            <div>
-                              <div className="font-medium text-sm flex items-center gap-2">
-                                {client.voornaam} {client.achternaam}
-                                {isZakelijk && (
-                                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                                    Zakelijk
-                                  </span>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={isClientModalOpen} onOpenChange={setIsClientModalOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="secondary" size="sm" className="gap-2">
+                    <BookUser className="h-4 w-4" />
+                    <span className="hidden sm:inline">Adresboek</span>
+                  </Button>
+                </DialogTrigger>
+
+                <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+                  <DialogHeader>
+                    <DialogTitle>Klant selecteren</DialogTitle>
+                  </DialogHeader>
+
+                  <div className="relative mt-2">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Zoek op naam, bedrijf of e-mail..."
+                      className="pl-9"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto mt-2 -mx-2 px-2 space-y-2">
+                    {filteredClients.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground text-sm">
+                        Geen klanten gevonden.
+                      </div>
+                    ) : (
+                      filteredClients.map((client) => {
+                        const isZakelijk = client.klanttype === 'Zakelijk';
+                        return (
+                          <button
+                            key={client.id}
+                            type="button"
+                            onClick={() => selectClient(client)}
+                            className="flex items-center justify-between p-3 rounded-md border hover:bg-muted/50 cursor-pointer transition-colors group"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={cn(
+                                  "h-10 w-10 rounded-full flex items-center justify-center shrink-0",
+                                  isZakelijk ? "bg-blue-100 text-blue-600" : "bg-emerald-100 text-emerald-600"
                                 )}
+                              >
+                                {isZakelijk ? <Building2 className="h-5 w-5" /> : <User className="h-5 w-5" />}
                               </div>
-                              <div className="text-xs text-muted-foreground">
-                                {isZakelijk && client.bedrijfsnaam ? `${client.bedrijfsnaam} • ` : ''}
-                                {client.plaats}
+                              <div>
+                                <div className="font-medium text-sm flex items-center gap-2">
+                                  {client.voornaam} {client.achternaam}
+                                  {isZakelijk && (
+                                    <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                                      Zakelijk
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {isZakelijk && client.bedrijfsnaam ? `${client.bedrijfsnaam} • ` : ''}
+                                  {client.plaats}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </CardHeader>
 

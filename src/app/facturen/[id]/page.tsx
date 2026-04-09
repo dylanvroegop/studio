@@ -513,14 +513,6 @@ export default function FactuurDetailPage() {
         const newStatus = nextStatusAfterPayment(total, newPaid, currentStatus);
 
         const paymentRef = doc(collection(firestore, 'invoices', invoiceId, 'payments'));
-        tx.set(paymentRef, {
-          amount,
-          date: paymentDate,
-          method: payMethod,
-          reference: payReference || '',
-          note: payNote || '',
-          createdAt: serverTimestamp(),
-        });
 
         const update: any = {
           'paymentSummary.paidAmount': newPaid,
@@ -537,6 +529,15 @@ export default function FactuurDetailPage() {
         if (invoiceImpliesAccepted(newStatus)) {
           await promoteInvoiceRelatedQuotesToAcceptedInTransaction(tx, firestore, inv);
         }
+
+        tx.set(paymentRef, {
+          amount,
+          date: paymentDate,
+          method: payMethod,
+          reference: payReference || '',
+          note: payNote || '',
+          createdAt: serverTimestamp(),
+        });
 
         tx.update(invRef, update);
       });

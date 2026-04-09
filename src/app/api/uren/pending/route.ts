@@ -269,6 +269,7 @@ export async function GET(request: Request) {
       const quoteLabel = getQuoteLabel(row.cache, quoteId);
       const quoteTotalHours = getQuoteTotalHours(row.cache);
       const planningType = normalizePlanningType(row.planningType);
+      if (planningType === 'werkbespreking') return;
       const lastEligibleDate = minDateOnly(endDateOnly, cutoffWorkDate);
       eachDateOnlyInclusive(startDateOnly, lastEligibleDate).forEach((workDate) => {
         const promptKey = `${quoteId}:${workDate}`;

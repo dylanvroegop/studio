@@ -92,6 +92,7 @@ export interface WinstLaborCostSource {
   quoteId: string;
   costExcl: number;
   hours?: number;
+  days?: number;
 }
 
 export interface BuildWinstMetricsInput {
@@ -104,6 +105,7 @@ export interface BuildWinstMetricsInput {
   projectCosts?: WinstProjectCostSource[];
   laborCosts?: WinstLaborCostSource[];
   vatFilingPeriodMonths?: 1 | 3;
+  vatPeriodStartMonth?: number;
   userId: string;
   now?: Date;
 }
@@ -201,8 +203,27 @@ function buildRange(now: Date, periodType: WinstPeriodType, periodRange: number)
   };
 }
 
-function buildVatRange(now: Date, months: 1 | 3): { start: Date; end: Date; label: string } {
-  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+function normalizeStartMonth(value: unknown): number {
+  const numeric = Math.round(safeNumber(value));
+  if (numeric < 1 || numeric > 12) return 1;
+  return numeric;
+}
+
+function getQuarterStart(now: Date, startMonth: number): Date {
+  const anchorMonthIndex = normalizeStartMonth(startMonth) - 1;
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const offsetWithinYear = (currentMonth - anchorMonthIndex + 12) % 12;
+  const quarterOffset = Math.floor(offsetWithinYear / 3) * 3;
+  const startMonthIndex = (anchorMonthIndex + quarterOffset) % 12;
+  const startYear = startMonthIndex > currentMonth ? currentYear - 1 : currentYear;
+  return new Date(startYear, startMonthIndex, 1);
+}
+
+function buildVatRange(now: Date, months: 1 | 3, startMonth: number): { start: Date; end: Date; label: string } {
+  const start = months === 1
+    ? new Date(now.getFullYear(), now.getMonth(), 1)
+    : getQuarterStart(now, startMonth);
   const monthFormatter = new Intl.DateTimeFormat('nl-NL', { month: 'long', year: 'numeric' });
 
   if (months === 1) {
@@ -213,7 +234,7 @@ function buildVatRange(now: Date, months: 1 | 3): { start: Date; end: Date; labe
     };
   }
 
-  const endMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endMonth = new Date(start.getFullYear(), start.getMonth() + 2, 1);
   return {
     start: startOfDay(start),
     end: endOfDay(now),
@@ -374,7 +395,7 @@ function getActualSnapshot(
   userId: string,
   nacalculatieByQuoteId: Map<string, WinstNacalculatieSource>,
   projectCostsByQuoteId: Map<string, ExternalProjectCostSnapshot>,
-  laborCostsByQuoteId: Map<string, { costExcl: number; hours: number }>
+  laborCostsByQuoteId: Map<string, { costExcl: number; hours: number; days: number }>
 ): { doc: NacalculatieDoc; snapshot: ActualSnapshot } {
   const source = nacalculatieByQuoteId.get(quote.id);
   const normalized = normalizeNacalculatieDoc({
@@ -392,8 +413,9 @@ function getActualSnapshot(
     + safeNumber(externalProjectCosts?.overig);
   const externalLaborCost = safeNumber(externalLabor?.costExcl);
   const externalLaborHours = safeNumber(externalLabor?.hours);
+  const externalLaborDays = safeNumber(externalLabor?.days);
   const manualActualDays = Math.max(0, safeNumber(normalized.labor.actualDays));
-  const hasExternalCosts = externalCostsTotal > 0 || externalLaborCost > 0 || externalLaborHours > 0;
+  const hasExternalCosts = externalCostsTotal > 0 || externalLaborCost > 0 || externalLaborHours > 0 || externalLaborDays > 0;
 
   if (hasExternalCosts) {
     const mappedMaterial = safeNumber(externalProjectCosts?.materiaal);
@@ -409,7 +431,7 @@ function getActualSnapshot(
       materieel: mappedTools,
       overhead: mappedOther,
       actualHours: externalLaborHours,
-      actualDays: manualActualDays > 0 ? manualActualDays : hoursToDays(externalLaborHours),
+      actualDays: manualActualDays > 0 ? manualActualDays : (externalLaborDays > 0 ? externalLaborDays : hoursToDays(externalLaborHours)),
       actualTransportKm: 0,
       transportRevenueExcl: 0,
       hasAnyActualData:
@@ -419,6 +441,7 @@ function getActualSnapshot(
         mappedOther > 0 ||
         externalLaborCost > 0 ||
         externalLaborHours > 0 ||
+        externalLaborDays > 0 ||
         manualActualDays > 0,
       topCostItems: mappedMaterial > 0
         ? [
@@ -779,7 +802,8 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
   const normalizedFilters = normalizeFilters(input.filters);
   const range = buildRange(now, normalizedFilters.periodType, normalizedFilters.periodRange);
   const vatFilingPeriodMonths: 1 | 3 = input.vatFilingPeriodMonths === 1 ? 1 : 3;
-  const vatRange = buildVatRange(now, vatFilingPeriodMonths);
+  const vatPeriodStartMonth = normalizeStartMonth(input.vatPeriodStartMonth);
+  const vatRange = buildVatRange(now, vatFilingPeriodMonths, vatPeriodStartMonth);
 
   const calculationByQuoteId = new Map<string, WinstCalculationSource>();
   input.calculations.forEach((row) => {
@@ -807,13 +831,14 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     projectCostsByQuoteId.set(row.quoteId, current);
   });
 
-  const laborCostsByQuoteId = new Map<string, { costExcl: number; hours: number }>();
+  const laborCostsByQuoteId = new Map<string, { costExcl: number; hours: number; days: number }>();
   (input.laborCosts || []).forEach((row) => {
     if (!row.quoteId) return;
-    const current = laborCostsByQuoteId.get(row.quoteId) || { costExcl: 0, hours: 0 };
+    const current = laborCostsByQuoteId.get(row.quoteId) || { costExcl: 0, hours: 0, days: 0 };
     laborCostsByQuoteId.set(row.quoteId, {
       costExcl: safeNumber(current.costExcl) + safeNumber(row.costExcl),
       hours: safeNumber(current.hours) + safeNumber(row.hours),
+      days: safeNumber(current.days) + safeNumber(row.days),
     });
   });
 

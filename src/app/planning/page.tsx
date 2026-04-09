@@ -66,6 +66,10 @@ function PlanningPageContent() {
     const [modalPreselectedDate, setModalPreselectedDate] = useState<Date | undefined>(undefined);
     const [modalPreselectedEmployee, setModalPreselectedEmployee] = useState<string | undefined>(undefined);
     const [modalPreselectedPlanningType, setModalPreselectedPlanningType] = useState<PlanningEntryType>('job');
+    const [isWerkbesprekingTimeDialogOpen, setIsWerkbesprekingTimeDialogOpen] = useState(false);
+    const [pendingWerkbesprekingDate, setPendingWerkbesprekingDate] = useState<Date | null>(null);
+    const [pendingWerkbesprekingEmployeeId, setPendingWerkbesprekingEmployeeId] = useState<string>('');
+    const [werkbesprekingStartTime, setWerkbesprekingStartTime] = useState(DEFAULT_PLANNING_SETTINGS.defaultStartTime);
     const [planningSettings, setPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
     const [draftPlanningSettings, setDraftPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
     const [isPlanningSettingsOpen, setIsPlanningSettingsOpen] = useState(false);
@@ -412,142 +416,142 @@ function PlanningPageContent() {
         setIsScheduleModalOpen(true);
     };
 
-    const handleEmptyCellClick = async (date: Date, employeeId: string) => {
-        if (schedulingMode) {
-            // In scheduling mode: directly create the planning entry
-            if (!schedulingQuote || (schedulingType !== 'werkbespreking' && !schedulingHours)) {
-                toast({
-                    title: 'Fout',
-                    description: 'Offerte gegevens ontbreken',
-                    variant: 'destructive'
-                });
-                return;
+    const createSchedulingEntryFromDate = async (
+        date: Date,
+        employeeId: string,
+        werkbesprekingTime?: string
+    ) => {
+        // In scheduling mode: directly create the planning entry
+        if (!schedulingQuote || (schedulingType !== 'werkbespreking' && !schedulingHours)) {
+            toast({
+                title: 'Fout',
+                description: 'Offerte gegevens ontbreken',
+                variant: 'destructive'
+            });
+            return;
+        }
+
+        // Use first employee if no specific employee selected
+        const targetEmployeeId = employeeId || employees[0]?.id;
+        if (!targetEmployeeId) {
+            toast({
+                title: 'Geen uitvoerder',
+                description: 'Maak eerst een profiel aan in instellingen',
+                variant: 'destructive'
+            });
+            return;
+        }
+
+        try {
+            const clientName = schedulingQuote.klantinformatie?.bedrijfsnaam ||
+                `${schedulingQuote.klantinformatie?.voornaam || ''} ${schedulingQuote.klantinformatie?.achternaam || ''}`.trim() ||
+                'Onbekend';
+            const schedulingDurationHours = schedulingType === 'werkbespreking'
+                ? 1
+                : schedulingHours;
+
+            // Scheduling from quote should replace previous job planning for that quote.
+            // Without this, stale historical split rows can remain and produce incorrect pending-hour prompts.
+            if (schedulingType === 'job') {
+                await deleteEntriesForQuote(schedulingQuote.id);
             }
 
-            // Use first employee if no specific employee selected
-            const targetEmployeeId = employeeId || employees[0]?.id;
-            if (!targetEmployeeId) {
+            const cacheData = {
+                clientName,
+                projectTitle: schedulingType === 'werkbespreking'
+                    ? `Werkbespreking${schedulingQuote.titel ? ` · ${schedulingQuote.titel}` : ''}`
+                    : (schedulingQuote.titel || ''),
+                projectAddress: '',
+                totalQuoteHours: schedulingDurationHours,
+                totalQuoteAmount: Number((schedulingQuote as any)?.totaalbedrag || (schedulingQuote as any)?.amount || 0) || 0,
+                totalQuoteEarnings: quoteFinanceById[schedulingQuote.id]?.totalEarnings || 0,
+            };
+
+            if (schedulingType !== 'werkbespreking' && schedulingDurationHours > planningSettings.defaultWorkdayHours && planningSettings.allowAutoSplit) {
+                // Auto-split the job
+                const splitEntries = autoSplitJob(
+                    schedulingDurationHours,
+                    date,
+                    planningSettings
+                );
+
+                // Convert to the format expected by addMultipleEntries
+                const entriesToAdd = splitEntries.map(entry => ({
+                    quoteId: schedulingQuote.id,
+                    employeeId: targetEmployeeId,
+                    startDate: entry.startDate,
+                    endDate: entry.endDate,
+                    scheduledHours: entry.hours,
+                    planningType: schedulingType,
+                    isAutoSplit: true,
+                    cache: cacheData
+                }));
+
+                await addMultipleEntries(entriesToAdd);
+
                 toast({
-                    title: 'Geen uitvoerder',
-                    description: 'Maak eerst een profiel aan in instellingen',
-                    variant: 'destructive'
+                    title: 'Ingepland',
+                    description: `${schedulingDurationHours}u verdeeld over ${splitEntries.length} werkdagen`
                 });
-                return;
-            }
+            } else {
+                // Single entry
+                const selectedStartTime = schedulingType === 'werkbespreking'
+                    ? (werkbesprekingTime || planningSettings.defaultStartTime)
+                    : planningSettings.defaultStartTime;
 
-            try {
-                const clientName = schedulingQuote.klantinformatie?.bedrijfsnaam ||
-                    `${schedulingQuote.klantinformatie?.voornaam || ''} ${schedulingQuote.klantinformatie?.achternaam || ''}`.trim() ||
-                    'Onbekend';
-                const schedulingDurationHours = schedulingType === 'werkbespreking'
-                    ? 1
-                    : schedulingHours;
-
-                // Scheduling from quote should replace previous job planning for that quote.
-                // Without this, stale historical split rows can remain and produce incorrect pending-hour prompts.
-                if (schedulingType === 'job') {
-                    await deleteEntriesForQuote(schedulingQuote.id);
-                }
-
-                const cacheData = {
-                    clientName,
-                    projectTitle: schedulingType === 'werkbespreking'
-                        ? `Werkbespreking${schedulingQuote.titel ? ` · ${schedulingQuote.titel}` : ''}`
-                        : (schedulingQuote.titel || ''),
-                    projectAddress: '',
-                    totalQuoteHours: schedulingDurationHours,
-                    totalQuoteAmount: Number((schedulingQuote as any)?.totaalbedrag || (schedulingQuote as any)?.amount || 0) || 0,
-                    totalQuoteEarnings: quoteFinanceById[schedulingQuote.id]?.totalEarnings || 0,
-                };
-
-                if (schedulingType !== 'werkbespreking' && schedulingDurationHours > planningSettings.defaultWorkdayHours && planningSettings.allowAutoSplit) {
-                    // Auto-split the job
-                    const splitEntries = autoSplitJob(
+                const startTime = selectedStartTime.split(':');
+                const startDate = new Date(date);
+                startDate.setHours(parseInt(startTime[0]), parseInt(startTime[1]), 0);
+                const endDate = schedulingType === 'werkbespreking'
+                    ? new Date(startDate.getTime() + 60 * 60 * 1000)
+                    : calculateEndDateFromHours(
+                        startDate,
                         schedulingDurationHours,
-                        date,
-                        planningSettings
+                        planningSettings.pauzeMinuten ?? 0
                     );
 
-                    // Convert to the format expected by addMultipleEntries
-                    const entriesToAdd = splitEntries.map(entry => ({
-                        quoteId: schedulingQuote.id,
-                        employeeId: targetEmployeeId,
-                        startDate: entry.startDate,
-                        endDate: entry.endDate,
-                        scheduledHours: entry.hours,
-                        planningType: schedulingType,
-                        isAutoSplit: true,
-                        cache: cacheData
-                    }));
+                await addEntry({
+                    quoteId: schedulingQuote.id,
+                    employeeId: targetEmployeeId,
+                    startDate,
+                    endDate,
+                    scheduledHours: schedulingDurationHours,
+                    planningType: schedulingType,
+                    isAutoSplit: false,
+                    cache: cacheData
+                });
 
-                    await addMultipleEntries(entriesToAdd);
-
-                    toast({
-                        title: 'Ingepland',
-                        description: `${schedulingDurationHours}u verdeeld over ${splitEntries.length} werkdagen`
-                    });
-                } else {
-                    // Single entry
-                    let selectedStartTime = planningSettings.defaultStartTime;
-                    if (schedulingType === 'werkbespreking') {
-                        const promptedTime = window.prompt(
-                            'Kies starttijd voor de werkbespreking (HH:mm)',
-                            planningSettings.defaultStartTime
-                        );
-                        if (promptedTime === null) return;
-
-                        const trimmed = promptedTime.trim();
-                        if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(trimmed)) {
-                            toast({
-                                title: 'Ongeldige tijd',
-                                description: 'Gebruik het formaat HH:mm, bijvoorbeeld 09:30.',
-                                variant: 'destructive'
-                            });
-                            return;
-                        }
-                        selectedStartTime = trimmed;
-                    }
-
-                    const startTime = selectedStartTime.split(':');
-                    const startDate = new Date(date);
-                    startDate.setHours(parseInt(startTime[0]), parseInt(startTime[1]), 0);
-                    const endDate = schedulingType === 'werkbespreking'
-                        ? new Date(startDate.getTime() + 60 * 60 * 1000)
-                        : calculateEndDateFromHours(
-                            startDate,
-                            schedulingDurationHours,
-                            planningSettings.pauzeMinuten ?? 0
-                        );
-
-                    await addEntry({
-                        quoteId: schedulingQuote.id,
-                        employeeId: targetEmployeeId,
-                        startDate,
-                        endDate,
-                        scheduledHours: schedulingDurationHours,
-                        planningType: schedulingType,
-                        isAutoSplit: false,
-                        cache: cacheData
-                    });
-
-                    toast({
-                        title: 'Ingepland',
-                        description: schedulingType === 'werkbespreking'
-                            ? `Werkbespreking ingepland op ${format(date, 'd MMMM yyyy', { locale: nl })} om ${selectedStartTime}`
-                            : `${schedulingDurationHours}u ingepland op ${format(date, 'd MMMM yyyy', { locale: nl })}`
-                    });
-                }
-
-                // Exit scheduling mode
-                router.push('/planning');
-            } catch (error) {
-                console.error('Error creating planning entry:', error);
                 toast({
-                    title: 'Fout bij inplannen',
-                    description: error instanceof Error ? error.message : 'Onbekende fout',
-                    variant: 'destructive'
+                    title: 'Ingepland',
+                    description: schedulingType === 'werkbespreking'
+                        ? `Werkbespreking ingepland op ${format(date, 'd MMMM yyyy', { locale: nl })} om ${selectedStartTime}`
+                        : `${schedulingDurationHours}u ingepland op ${format(date, 'd MMMM yyyy', { locale: nl })}`
                 });
             }
+
+            // Exit scheduling mode
+            router.push('/planning');
+        } catch (error) {
+            console.error('Error creating planning entry:', error);
+            toast({
+                title: 'Fout bij inplannen',
+                description: error instanceof Error ? error.message : 'Onbekende fout',
+                variant: 'destructive'
+            });
+        }
+    };
+
+    const handleEmptyCellClick = async (date: Date, employeeId: string) => {
+        if (schedulingMode) {
+            if (schedulingType === 'werkbespreking') {
+                setPendingWerkbesprekingDate(date);
+                setPendingWerkbesprekingEmployeeId(employeeId || employees[0]?.id || '');
+                setWerkbesprekingStartTime(planningSettings.defaultStartTime);
+                setIsWerkbesprekingTimeDialogOpen(true);
+                return;
+            }
+
+            await createSchedulingEntryFromDate(date, employeeId);
         } else {
             setSelectedEntry(null);
             setModalPreselectedDate(date);
@@ -559,6 +563,29 @@ function PlanningPageContent() {
 
     const handleCancelScheduling = () => {
         router.push('/planning');
+    };
+
+    const handleConfirmWerkbesprekingTime = async () => {
+        if (!pendingWerkbesprekingDate) return;
+
+        const trimmed = werkbesprekingStartTime.trim();
+        if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(trimmed)) {
+            toast({
+                title: 'Ongeldige tijd',
+                description: 'Gebruik het formaat HH:mm, bijvoorbeeld 09:30.',
+                variant: 'destructive'
+            });
+            return;
+        }
+
+        setIsWerkbesprekingTimeDialogOpen(false);
+        await createSchedulingEntryFromDate(
+            pendingWerkbesprekingDate,
+            pendingWerkbesprekingEmployeeId,
+            trimmed
+        );
+        setPendingWerkbesprekingDate(null);
+        setPendingWerkbesprekingEmployeeId('');
     };
 
     const handleEntryDrop = async (entryId: string, newStart: Date, newEmployeeId: string) => {
@@ -869,6 +896,47 @@ function PlanningPageContent() {
                 preselectedEmployee={modalPreselectedEmployee}
                 preselectedPlanningType={modalPreselectedPlanningType}
             />
+
+            <Dialog
+                open={isWerkbesprekingTimeDialogOpen}
+                onOpenChange={(open) => {
+                    setIsWerkbesprekingTimeDialogOpen(open);
+                    if (!open) {
+                        setPendingWerkbesprekingDate(null);
+                        setPendingWerkbesprekingEmployeeId('');
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Kies starttijd</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        <Label htmlFor="werkbespreking-starttijd">Starttijd werkbespreking</Label>
+                        <Input
+                            id="werkbespreking-starttijd"
+                            type="time"
+                            value={werkbesprekingStartTime}
+                            onChange={(e) => setWerkbesprekingStartTime(e.target.value)}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="ghost"
+                            onClick={() => {
+                                setIsWerkbesprekingTimeDialogOpen(false);
+                                setPendingWerkbesprekingDate(null);
+                                setPendingWerkbesprekingEmployeeId('');
+                            }}
+                        >
+                            Annuleren
+                        </Button>
+                        <Button variant="success" onClick={handleConfirmWerkbesprekingTime}>
+                            Inplannen
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={isPlanningSettingsOpen} onOpenChange={setIsPlanningSettingsOpen}>
                 <DialogContent className="w-[95vw] sm:max-w-[560px]">

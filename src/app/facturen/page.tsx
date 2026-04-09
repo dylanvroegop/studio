@@ -227,6 +227,8 @@ export default function FacturenPage() {
         const paidNow = Number(data?.paymentSummary?.paidAmount ?? 0) || 0;
         const nextPaidAmount = Math.max(total, paidNow);
 
+        await promoteInvoiceRelatedQuotesToAcceptedInTransaction(tx, firestore, data);
+
         tx.update(invRef, {
           status: 'betaald',
           'paymentSummary.paidAmount': nextPaidAmount,
@@ -235,8 +237,6 @@ export default function FacturenPage() {
           paidAt: data?.paidAt ?? serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-
-        await promoteInvoiceRelatedQuotesToAcceptedInTransaction(tx, firestore, data);
       });
 
       toast({ title: 'Bijgewerkt', description: 'Factuur is gemarkeerd als betaald.' });

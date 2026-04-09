@@ -53,6 +53,19 @@ export interface LeverancierTransportKostenRegel {
 
 export type AppearanceMode = 'dark' | 'light';
 export type OmzetBelastingAangiftePeriode = 'maand' | 'kwartaal';
+export type OmzetBelastingStartMaand =
+    | 1
+    | 2
+    | 3
+    | 4
+    | 5
+    | 6
+    | 7
+    | 8
+    | 9
+    | 10
+    | 11
+    | 12;
 
 export interface UserSettings {
     // 1. Bedrijfsgegevens
@@ -87,6 +100,7 @@ export interface UserSettings {
     };
     standaardUurtarief: number;
     omzetBelastingAangiftePeriode: OmzetBelastingAangiftePeriode;
+    omzetBelastingStartMaand: OmzetBelastingStartMaand;
 
     // 3. Offerte Configuraties
     offerteNummerPrefix: string;
@@ -150,6 +164,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     standaardKleinMateriaal: { mode: 'inschatting', percentage: null },
     standaardUurtarief: 45,
     omzetBelastingAangiftePeriode: 'kwartaal',
+    omzetBelastingStartMaand: 1,
     offerteNummerPrefix: new Date().getFullYear() + '-',
     offerteNummerStart: 1001,
     standaardGeldigheidDagen: 30,

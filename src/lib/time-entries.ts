@@ -12,6 +12,7 @@ export interface TimeEntryRecord {
   quoteId: string | null;
   workDate: string;
   workedHours: number;
+  workedDays: number | null;
   quotedHours: number | null;
   source: TimeEntrySource;
   note: string | null;

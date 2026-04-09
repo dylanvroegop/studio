@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
+  BookOpen,
   Boxes,
   CalendarDays,
   ChevronDown,
@@ -238,6 +239,12 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
       return {
         icon: StickyNote,
         iconClassName: 'text-rose-400',
+      };
+    }
+    if (pathname.startsWith('/kennis')) {
+      return {
+        icon: BookOpen,
+        iconClassName: 'text-lime-400',
       };
     }
     if (pathname.startsWith('/archief')) {

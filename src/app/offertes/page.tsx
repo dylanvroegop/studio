@@ -475,7 +475,7 @@ export default function OffertesPage() {
   const pendingQuoteIds = useMemo(
     () =>
       quotes
-        .filter((q) => q.status === 'in_behandeling' && !hasCalculatedAmount(q.totaalbedrag || q.amount || 0))
+        .filter((q) => (q.status === 'in_behandeling' || q.status === 'concept') && !hasCalculatedAmount(q.totaalbedrag || q.amount || 0))
         .map((q) => q.id),
     [quotes]
   );

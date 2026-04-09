@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   CalendarDays,
   ExternalLink,
@@ -355,6 +355,7 @@ function parseOfferteReferenceToQuoteId(reference: string | null, quotes: QuoteO
 
 export default function KostenPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -384,10 +385,27 @@ export default function KostenPage() {
   const [lineItems, setLineItems] = useState<ProjectCostLineItem[]>([
     createEmptyLineItem(),
   ]);
+  const initialOfferteIdFromUrl = safeString(searchParams?.get('offerteId'));
+  const shouldOpenCreateFromUrl = safeString(searchParams?.get('open')) === '1';
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
   }, [isUserLoading, router, user]);
+
+  useEffect(() => {
+    if (!initialOfferteIdFromUrl && !shouldOpenCreateFromUrl) return;
+    if (quotes.length === 0) return;
+
+    if (shouldOpenCreateFromUrl) {
+      setCreateOpen(true);
+      setEntryMode('manual');
+    }
+
+    if (initialOfferteIdFromUrl && quotes.some((quote) => quote.id === initialOfferteIdFromUrl)) {
+      applyMainOfferteToMaterialLines(initialOfferteIdFromUrl);
+      setQuoteSearch('');
+    }
+  }, [initialOfferteIdFromUrl, shouldOpenCreateFromUrl, quotes]);
 
   const loadQuotes = useCallback(async (): Promise<QuoteOption[]> => {
     if (!user || !firestore) return [];
@@ -1535,6 +1553,9 @@ export default function KostenPage() {
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
                             <CalendarDays className="h-3.5 w-3.5" />
                             {formatDateLabel(cost.date)}
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-muted-foreground">
+                            Geplaatst: {formatDateLabel(cost.created_at)}
                           </span>
                           {cost.receipt_url ? (
                             <a
