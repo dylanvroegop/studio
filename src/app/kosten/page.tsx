@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   CalendarDays,
@@ -353,7 +353,7 @@ function parseOfferteReferenceToQuoteId(reference: string | null, quotes: QuoteO
   return fuzzy?.id || '';
 }
 
-export default function KostenPage() {
+function KostenPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -1661,5 +1661,19 @@ export default function KostenPage() {
         Nieuwe kost
       </Button>
     </div>
+  );
+}
+
+export default function KostenPage() {
+  return (
+    <Suspense
+      fallback={(
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
+    >
+      <KostenPageContent />
+    </Suspense>
   );
 }

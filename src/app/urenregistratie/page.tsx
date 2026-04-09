@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react/no-unescaped-entities */
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
     Play,
@@ -104,7 +104,7 @@ function getQuoteLabel(q: any) {
     return parts.join(' - ');
 }
 
-export default function UrenRegistratiePage() {
+function UrenRegistratiePageContent() {
     const { toast } = useToast();
     const { user } = useUser();
     const firestore = useFirestore();
@@ -1054,5 +1054,19 @@ export default function UrenRegistratiePage() {
 
             {/* Quick Save Safety Confirmation REMOVED */}
         </div >
+    );
+}
+
+export default function UrenRegistratiePage() {
+    return (
+        <Suspense
+            fallback={(
+                <div className="flex min-h-screen items-center justify-center bg-background">
+                    <Clock className="h-6 w-6 animate-pulse text-muted-foreground" />
+                </div>
+            )}
+        >
+            <UrenRegistratiePageContent />
+        </Suspense>
     );
 }
