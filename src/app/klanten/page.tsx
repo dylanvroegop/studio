@@ -8,12 +8,14 @@ import {
   collection,
   query,
   where,
+  getDoc,
   getDocs,
   orderBy,
   deleteDoc,
   updateDoc,
   addDoc,
   doc,
+  writeBatch,
   serverTimestamp,
 } from 'firebase/firestore';
 import {
@@ -84,6 +86,62 @@ type Client = {
   createdAt?: any;
   updatedAt?: any;
 };
+
+function normalizeLower(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizePhone(value: unknown): string {
+  return String(value || '').replace(/\D+/g, '');
+}
+
+function toQuoteKlantinformatie(client: Client): Record<string, unknown> {
+  const projectStraat = (client.projectStraat || '').trim();
+  const projectHuisnummer = (client.projectHuisnummer || '').trim();
+  const projectPostcode = (client.projectPostcode || '').trim();
+  const projectPlaats = (client.projectPlaats || '').trim();
+  const hasProjectAddress = !!(projectStraat || projectHuisnummer || projectPostcode || projectPlaats);
+  const emailadres = (client.emailadres || '').trim();
+  const klanttype = (client.bedrijfsnaam || '').trim() ? 'Zakelijk' : 'Particulier';
+
+  return {
+    clientId: client.id || '',
+    klanttype,
+    voornaam: (client.voornaam || '').trim(),
+    achternaam: (client.achternaam || '').trim(),
+    bedrijfsnaam: (client.bedrijfsnaam || '').trim(),
+    emailadres,
+    'e-mailadres': emailadres,
+    telefoonnummer: (client.telefoonnummer || '').trim(),
+    straat: (client.straat || '').trim(),
+    huisnummer: (client.huisnummer || '').trim(),
+    postcode: (client.postcode || '').trim(),
+    plaats: (client.plaats || '').trim(),
+    factuuradres: {
+      straat: (client.straat || '').trim(),
+      huisnummer: (client.huisnummer || '').trim(),
+      postcode: (client.postcode || '').trim(),
+      plaats: (client.plaats || '').trim(),
+    },
+    afwijkendProjectadres: hasProjectAddress,
+    projectStraat,
+    projectHuisnummer,
+    projectPostcode,
+    projectPlaats,
+    projectAdres: {
+      straat: projectStraat || '',
+      huisnummer: projectHuisnummer || '',
+      postcode: projectPostcode || '',
+      plaats: projectPlaats || '',
+    },
+    projectadres: {
+      straat: projectStraat || null,
+      huisnummer: projectHuisnummer || null,
+      postcode: projectPostcode || null,
+      plaats: projectPlaats || null,
+    },
+  };
+}
 
 export default function KlantenPage() {
   const { user, isUserLoading } = useUser();
@@ -169,11 +227,13 @@ export default function KlantenPage() {
   };
 
   const handleSaveEdit = async () => {
-    if (!firestore || !editingClient) return;
+    if (!firestore || !editingClient || !user) return;
 
     setIsEditSaving(true);
     try {
       const docRef = doc(firestore, 'clients', editingClient.id);
+      const beforeSnap = await getDoc(docRef);
+      const beforeData = beforeSnap.exists() ? (beforeSnap.data() as Client) : null;
 
       await updateDoc(docRef, {
         voornaam: editingClient.voornaam || '',
@@ -193,6 +253,48 @@ export default function KlantenPage() {
         updatedAt: serverTimestamp(),
       });
 
+      const newEmail = normalizeLower(editingClient.emailadres);
+      const oldEmail = normalizeLower(beforeData?.emailadres);
+      const newPhone = normalizePhone(editingClient.telefoonnummer);
+      const oldPhone = normalizePhone(beforeData?.telefoonnummer);
+
+      const emailSet = new Set([newEmail, oldEmail].filter(Boolean));
+      const phoneSet = new Set([newPhone, oldPhone].filter(Boolean));
+
+      const quotesSnap = await getDocs(
+        query(collection(firestore, 'quotes'), where('userId', '==', user.uid))
+      );
+
+      const batch = writeBatch(firestore);
+      let matchedQuotes = 0;
+      const nextQuoteClient = toQuoteKlantinformatie(editingClient);
+
+      quotesSnap.docs.forEach((quoteDoc) => {
+        const quoteData = quoteDoc.data() as any;
+        const ki = (quoteData?.klantinformatie || {}) as Record<string, unknown>;
+
+        const quoteClientId = String(ki?.clientId || '').trim();
+        const quoteEmail = normalizeLower(ki?.emailadres || ki?.['e-mailadres']);
+        const quotePhone = normalizePhone(ki?.telefoonnummer);
+
+        const isMatch =
+          (quoteClientId && quoteClientId === editingClient.id) ||
+          (quoteEmail && emailSet.has(quoteEmail)) ||
+          (quotePhone && phoneSet.has(quotePhone));
+
+        if (!isMatch) return;
+
+        matchedQuotes += 1;
+        batch.update(doc(firestore, 'quotes', quoteDoc.id), {
+          klantinformatie: nextQuoteClient,
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      if (matchedQuotes > 0) {
+        await batch.commit();
+      }
+
       setClients((prev) =>
         prev.map((c) => (c.id === editingClient.id ? editingClient : c))
       );
@@ -200,7 +302,10 @@ export default function KlantenPage() {
 
       toast({
         title: 'Klant bijgewerkt',
-        description: 'De wijzigingen zijn opgeslagen.',
+        description:
+          matchedQuotes > 0
+            ? `De wijzigingen zijn opgeslagen en doorgezet naar ${matchedQuotes} offerte(s).`
+            : 'De wijzigingen zijn opgeslagen.',
       });
     } catch (e) {
       console.error(e);

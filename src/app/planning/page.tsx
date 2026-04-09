@@ -16,6 +16,7 @@ import { getDateRangeForView, autoSplitJob, calculateEndDateFromHours } from '@/
 import { PlanningGrid } from '@/components/planning/PlanningGrid';
 import { ScheduleModal } from '@/components/planning/ScheduleModal';
 import { SchedulingBanner } from '@/components/planning/SchedulingBanner';
+import { MobileMonthCalendar } from '@/components/planning/MobileMonthCalendar';
 import { format, addDays, addWeeks, addMonths, subDays, subWeeks, subMonths } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -74,6 +75,7 @@ function PlanningPageContent() {
     const [draftPlanningSettings, setDraftPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
     const [isPlanningSettingsOpen, setIsPlanningSettingsOpen] = useState(false);
     const [isSavingPlanningSettings, setIsSavingPlanningSettings] = useState(false);
+    const [selectedMobileDate, setSelectedMobileDate] = useState(new Date());
     const [schedulingQuote, setSchedulingQuote] = useState<Quote | null>(null);
     const [isLoadingSchedulingQuote, setIsLoadingSchedulingQuote] = useState(false);
     const [quoteFinanceById, setQuoteFinanceById] = useState<Record<string, { amount: number; totalHours: number | null; totalEarnings: number | null }>>({});
@@ -387,27 +389,19 @@ function PlanningPageContent() {
     }, [hydratedEntries, employeeNameById]);
 
     const showMobileLayout = isMobile;
-    const mobileScheduleDays = useMemo(() => {
-        const base = new Date(currentDate);
-        base.setHours(0, 0, 0, 0);
-        return Array.from({ length: 18 }, (_, idx) => {
-            const date = addDays(base, idx);
-            const dayEntries = hydratedEntries.filter((entry) => {
-                const start = typeof (entry.startDate as any)?.toDate === 'function'
-                    ? (entry.startDate as any).toDate()
-                    : new Date(entry.startDate as any);
-                return (
-                    start.getFullYear() === date.getFullYear()
-                    && start.getMonth() === date.getMonth()
-                    && start.getDate() === date.getDate()
-                );
-            });
-            return {
-                date,
-                entriesCount: dayEntries.length,
-            };
+    const mobileDayEntries = useMemo(() => {
+        return mobilePlanningEntries.filter((item) => {
+            return (
+                item.start.getFullYear() === selectedMobileDate.getFullYear()
+                && item.start.getMonth() === selectedMobileDate.getMonth()
+                && item.start.getDate() === selectedMobileDate.getDate()
+            );
         });
-    }, [currentDate, hydratedEntries]);
+    }, [mobilePlanningEntries, selectedMobileDate]);
+
+    useEffect(() => {
+        setSelectedMobileDate(currentDate);
+    }, [currentDate]);
 
     const handleEntryClick = (entry: PlanningEntry) => {
         setSelectedEntry(entry);
@@ -797,35 +791,31 @@ function PlanningPageContent() {
                     </div>
                 ) : showMobileLayout ? (
                     <div className="flex-1 space-y-3 overflow-y-auto pb-2">
+                        <MobileMonthCalendar
+                            currentDate={currentDate}
+                            selectedDate={selectedMobileDate}
+                            entries={hydratedEntries}
+                            employees={employees}
+                            schedulingMode={schedulingMode}
+                            onSelectDate={setSelectedMobileDate}
+                            onEntryClick={handleEntryClick}
+                            onScheduleDayClick={(date) => handleEmptyCellClick(date, '')}
+                        />
+
                         {schedulingMode ? (
-                            <div className="space-y-2">
-                                <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
-                                    Kies een dag om direct in te plannen.
-                                </div>
-                                {mobileScheduleDays.map((day) => (
-                                    <button
-                                        key={day.date.toISOString()}
-                                        type="button"
-                                        onClick={() => handleEmptyCellClick(day.date, '')}
-                                        className="w-full rounded-xl border border-border/70 bg-card/70 px-4 py-3 text-left transition-colors active:scale-[0.99]"
-                                    >
-                                        <div className="flex items-center justify-between gap-3">
-                                            <span className="font-semibold text-foreground">
-                                                {format(day.date, 'EEEE d MMMM', { locale: nl })}
-                                            </span>
-                                            <span className="text-xs text-muted-foreground">
-                                                {day.entriesCount > 0 ? `${day.entriesCount} gepland` : 'Vrij'}
-                                            </span>
-                                        </div>
-                                    </button>
-                                ))}
+                            <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+                                Tik op een dag in de kalender om direct in te plannen.
                             </div>
-                        ) : mobilePlanningEntries.length === 0 ? (
+                        ) : mobileDayEntries.length === 0 ? (
                             <div className="rounded-xl border border-border bg-card/60 p-5 text-sm text-muted-foreground">
-                                Geen planning in deze periode. Voeg een planning toe met de knop rechtsboven.
+                                Geen planning op {format(selectedMobileDate, 'EEEE d MMMM', { locale: nl })}.
                             </div>
                         ) : (
-                            mobilePlanningEntries.map((item) => (
+                            <div className="space-y-2">
+                                <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+                                    {format(selectedMobileDate, 'EEEE d MMMM', { locale: nl })}
+                                </div>
+                                {mobileDayEntries.map((item) => (
                                 <button
                                     key={item.entry.id}
                                     type="button"
@@ -856,6 +846,8 @@ function PlanningPageContent() {
                                     </div>
                                 </button>
                             ))
+                            }
+                            </div>
                         )}
                     </div>
                 ) : (
