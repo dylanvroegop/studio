@@ -250,6 +250,17 @@ function withRodeVoorwaardenByMode(
 
 const CALCULATION_ESTIMATE_SECONDS = 300;
 const CALCULATION_STUCK_SECONDS = 20 * 60;
+const WORK_DESCRIPTION_AUTOSAVE_DEBOUNCE_MS = 3500;
+const WORK_DESCRIPTION_REMOTE_SYNC_PAUSE_MS = 3000;
+const WORK_DESCRIPTION_SAVING_INDICATOR_DELAY_MS = 900;
+
+function truncatePromptText(value: string, maxLength: number): string {
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    if (!normalized) return '';
+    return normalized.length > maxLength
+        ? `${normalized.slice(0, maxLength).trim()}...`
+        : normalized;
+}
 
 function getMaterialPackageSummary(pkg: QuoteMaterialPackage): string {
     const grootCount = Array.isArray(pkg.grootmaterialen) ? pkg.grootmaterialen.length : 0;
@@ -332,6 +343,8 @@ export default function QuotePage() {
     const autoDistanceAttemptedRef = useRef<Set<string>>(new Set());
     const lastSyncedWerkbeschrijvingRef = useRef<string>('');
     const autoSaveWerkbeschrijvingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const workDescriptionLastEditAtRef = useRef<number>(0);
+    const workDescriptionDirtyRef = useRef<boolean>(false);
     const templateAutoAppliedRef = useRef(false);
     const [isPdfSettingsOpen, setIsPdfSettingsOpen] = useState(false);
     const [isPdfFocusMode, setIsPdfFocusMode] = useState(false);
@@ -1920,6 +1933,28 @@ export default function QuotePage() {
         return [...groot, ...verbruik];
     }, [materials.groot, materials.verbruik]);
 
+    const werkbeschrijvingMaterialContext = useMemo(() => {
+        const toRow = (item: MaterialItem, type: 'groot' | 'verbruik') => {
+            const name = String(item?.product || '').trim();
+            if (!name) return null;
+            const quantity = Number(item?.aantal);
+            const unit = String((item as any)?.eenheid || 'stuk').trim() || 'stuk';
+            return {
+                name,
+                quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+                unit,
+                type,
+            };
+        };
+
+        const rows = [
+            ...materials.groot.map((item) => toRow(item, 'groot')),
+            ...materials.verbruik.map((item) => toRow(item, 'verbruik')),
+        ].filter((row): row is { name: string; quantity: number; unit: string; type: 'groot' | 'verbruik' } => row !== null);
+
+        return rows;
+    }, [materials.groot, materials.verbruik]);
+
     const materialExportContext = useMemo<MaterialListExportMeta>(() => ({
         offerteNummer: (quote as any)?.offerteNummer || null,
         klusTitel: normalizedData?.korteTitel || normalizedData?.werkbeschrijving || (quote as any)?.titel || 'Offerte',
@@ -3320,6 +3355,43 @@ export default function QuotePage() {
         return '';
     }, [normalizedData, quote?.titel]);
 
+    const werkbeschrijvingMeasurementsContext = useMemo(() => {
+        const measurementsRaw = (normalizedData as any)?.measurements;
+        if (!measurementsRaw || typeof measurementsRaw !== 'object') return '';
+
+        const entries = Object.entries(measurementsRaw as Record<string, unknown>)
+            .map(([key, value]) => {
+                if (Array.isArray(value)) {
+                    const compactRows = value
+                        .slice(0, 3)
+                        .map((row) => {
+                            if (row && typeof row === 'object') {
+                                const r = row as Record<string, unknown>;
+                                const label = String(r.label || '').trim();
+                                const breedte = Number(r.breedte);
+                                const lengte = Number(r.lengte);
+                                const dims = [
+                                    Number.isFinite(breedte) ? `b ${breedte}` : '',
+                                    Number.isFinite(lengte) ? `l ${lengte}` : '',
+                                ].filter(Boolean).join(', ');
+                                return [label, dims].filter(Boolean).join(' ');
+                            }
+                            return String(row || '').trim();
+                        })
+                        .filter(Boolean)
+                        .join(' | ');
+                    return compactRows ? `${key}: ${compactRows}` : '';
+                }
+                if (value && typeof value === 'object') return '';
+                const text = String(value ?? '').trim();
+                return text ? `${key}: ${text}` : '';
+            })
+            .filter(Boolean)
+            .slice(0, 20);
+
+        return truncatePromptText(entries.join('\n'), 2000);
+    }, [normalizedData]);
+
     const detectedWorkDescriptionTemplate = useMemo(
         () => findWorkDescriptionTemplate({
             category: resolvedWorkDescriptionCategory,
@@ -3338,7 +3410,22 @@ export default function QuotePage() {
 
     const showWerkbeschrijvingWarning = !loading && isWerkbeschrijvingEmpty;
 
+    const handleWorkDescriptionChange = useCallback((next: WorkDescriptionStructured) => {
+        workDescriptionDirtyRef.current = true;
+        workDescriptionLastEditAtRef.current = Date.now();
+        setWorkDescriptionStructured(next);
+    }, []);
+
     useEffect(() => {
+        const msSinceLastEdit = Date.now() - workDescriptionLastEditAtRef.current;
+        const isLikelyTyping =
+            workDescriptionDirtyRef.current
+            && msSinceLastEdit < WORK_DESCRIPTION_REMOTE_SYNC_PAUSE_MS;
+
+        if (isLikelyTyping) {
+            return;
+        }
+
         const serialized = JSON.stringify({
             structured: currentWerkbeschrijvingStructured,
         });
@@ -3388,7 +3475,13 @@ export default function QuotePage() {
         }
 
         autoSaveWerkbeschrijvingTimerRef.current = setTimeout(() => {
-            setIsAutoSavingWorkDescription(true);
+            let shouldHideIndicator = false;
+            const savingIndicatorTimer = window.setTimeout(() => {
+                setIsAutoSavingWorkDescription(true);
+                shouldHideIndicator = true;
+            }, WORK_DESCRIPTION_SAVING_INDICATOR_DELAY_MS);
+
+            const saveStartedAt = Date.now();
             const root = unwrapRoot(calculation.data_json);
             updateDataJson({
                 ...root,
@@ -3399,6 +3492,9 @@ export default function QuotePage() {
             })
                 .then(() => {
                     lastSyncedWerkbeschrijvingRef.current = serializedParsed;
+                    if (workDescriptionLastEditAtRef.current <= saveStartedAt) {
+                        workDescriptionDirtyRef.current = false;
+                    }
                 })
                 .catch((err: any) => {
                     toast({
@@ -3408,9 +3504,12 @@ export default function QuotePage() {
                     });
                 })
                 .finally(() => {
-                    setIsAutoSavingWorkDescription(false);
+                    window.clearTimeout(savingIndicatorTimer);
+                    if (shouldHideIndicator) {
+                        setIsAutoSavingWorkDescription(false);
+                    }
                 });
-        }, 600);
+        }, WORK_DESCRIPTION_AUTOSAVE_DEBOUNCE_MS);
 
         return () => {
             if (autoSaveWerkbeschrijvingTimerRef.current) {
@@ -3434,11 +3533,34 @@ export default function QuotePage() {
         setIsGeneratingWorkDescription(true);
         try {
             const token = await user.getIdToken();
+            const notesContext = truncatePromptText(quoteNotes, 1800);
+            const materialPromptLines = werkbeschrijvingMaterialContext.length > 0
+                ? [
+                    'Verplichte materialen (deze moeten expliciet terugkomen in de werkbeschrijving):',
+                    ...werkbeschrijvingMaterialContext.map((item) => `- ${item.name} (${item.quantity} ${item.unit}, type: ${item.type})`),
+                    'Als materialen zijn opgegeven, noem ze concreet in de stappen.',
+                ]
+                : [];
+            const notesPromptLines = notesContext
+                ? [
+                    'Notities van gebruiker (gebruik deze context actief, inclusief maten/afmetingen):',
+                    notesContext,
+                ]
+                : [];
+            const measurementPromptLines = werkbeschrijvingMeasurementsContext
+                ? [
+                    'Beschikbare maatvoering uit offerte-data (gebruik waar relevant):',
+                    werkbeschrijvingMeasurementsContext,
+                ]
+                : [];
             const promptBase = [
                 `Actie: ${action}`,
                 workDescriptionStructured.title.trim() ? `Titel: ${workDescriptionStructured.title.trim()}` : '',
                 workDescriptionStructured.context.trim() ? `Context: ${workDescriptionStructured.context.trim()}` : '',
                 resolvedWorkDescriptionCategory ? `Categorie: ${resolvedWorkDescriptionCategory}` : '',
+                ...materialPromptLines,
+                ...notesPromptLines,
+                ...measurementPromptLines,
             ].filter(Boolean).join('\n');
 
             const response = await fetch('/api/generate-work-description', {
@@ -3456,6 +3578,9 @@ export default function QuotePage() {
                     category: resolvedWorkDescriptionCategory,
                     targetSection: action === 'uitvoering-only' ? 'uitvoering' : undefined,
                     structuredInput: workDescriptionStructured,
+                    materialContext: werkbeschrijvingMaterialContext,
+                    notesContext,
+                    measurementsContext: werkbeschrijvingMeasurementsContext,
                 }),
             });
 
@@ -3909,13 +4034,12 @@ export default function QuotePage() {
                                 </Button>
                                 <Button
                                     variant="outline"
-                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:px-4"
+                                    className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
                                     aria-label="PDF instellingen"
                                     title="PDF instellingen"
                                     onClick={() => setIsPdfSettingsOpen(true)}
                                 >
                                     <Settings size={16} />
-                                    PDF instellingen
                                 </Button>
                                 <Button
                                     type="button"
@@ -4971,7 +5095,7 @@ export default function QuotePage() {
                                     value={workDescriptionStructured}
                                     mode={workDescriptionMode}
                                     onModeChange={setWorkDescriptionMode}
-                                    onChange={setWorkDescriptionStructured}
+                                    onChange={handleWorkDescriptionChange}
                                     onGenerate={(action) => { void handleGenerateWorkDescription(action); }}
                                     isGenerating={isGeneratingWorkDescription}
                                     isAutoSaving={isAutoSavingWorkDescription}

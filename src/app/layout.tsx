@@ -3,10 +3,8 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
 import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
-import { BusinessProfileGate } from '@/components/BusinessProfileGate';
 import { ThemeModeProvider } from '@/context/ThemeModeContext';
-import { AuthSessionSync } from '@/components/AuthSessionSync';
-import { PendingHoursPrompt } from '@/components/PendingHoursPrompt';
+import { DeferredAuthGuards } from '@/components/DeferredAuthGuards';
 
 export const metadata: Metadata = {
   title: 'Calvora',
@@ -52,11 +50,9 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>
-          <AuthSessionSync />
           <ThemeModeProvider>
             <MeasurementUnitProvider>
-              <BusinessProfileGate />
-              <PendingHoursPrompt />
+              <DeferredAuthGuards />
               {children}
               <Toaster />
             </MeasurementUnitProvider>

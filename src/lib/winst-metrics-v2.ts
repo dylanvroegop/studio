@@ -842,6 +842,52 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     });
   });
 
+  const visibleQuotes = input.quotes.filter((quote) => {
+    const baseDate = quote.updatedAt || quote.createdAt;
+    if (!isDateWithinRange(baseDate, range)) return false;
+    if (normalizedFilters.projectIds.length > 0 && !normalizedFilters.projectIds.includes(quote.id)) return false;
+    if (normalizedFilters.clientIds.length > 0 && !normalizedFilters.clientIds.includes(quote.clientId)) return false;
+    if (
+      normalizedFilters.jobTypes.length > 0 &&
+      !quote.jobTypes.some((type) => normalizedFilters.jobTypes.includes(type))
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  const quoteStatusSummary = visibleQuotes.reduce(
+    (acc, quote) => {
+      const status = String(quote.status || '').trim().toLowerCase();
+      if (status === 'concept') {
+        acc.concept += 1;
+      } else if (status === 'in_behandeling') {
+        acc.inBehandeling += 1;
+      } else if (status === 'verzonden') {
+        acc.verzonden += 1;
+      } else if (status === 'geaccepteerd') {
+        acc.geaccepteerd += 1;
+      } else if (status === 'afgewezen') {
+        acc.afgewezen += 1;
+      } else if (status === 'verlopen') {
+        acc.verlopen += 1;
+      } else {
+        acc.onbekend += 1;
+      }
+      return acc;
+    },
+    {
+      total: visibleQuotes.length,
+      concept: 0,
+      inBehandeling: 0,
+      verzonden: 0,
+      geaccepteerd: 0,
+      afgewezen: 0,
+      verlopen: 0,
+      onbekend: 0,
+    }
+  );
+
   const relevantQuotes = input.quotes.filter((quote) => {
     const quoteStatus = String(quote.status || '').trim().toLowerCase();
     if (quoteStatus !== 'geaccepteerd') return false;
@@ -1258,6 +1304,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     projectPerformances: projects,
     filterOptions: uniqueFilterOptions,
     vatSummary,
+    quoteStatusSummary,
   };
 }
 

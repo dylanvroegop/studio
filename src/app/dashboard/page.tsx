@@ -138,26 +138,6 @@ function KPIItem(props: {
   );
 }
 
-function EmptyStateBlock(props: {
-  title: string;
-  description: string;
-  actionLabel?: string;
-  onAction?: () => void;
-}) {
-  const { title, description, actionLabel, onAction } = props;
-  return (
-    <div className="rounded-2xl bg-muted/20 px-6 py-12 text-center">
-      <h3 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h3>
-      <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground">{description}</p>
-      {actionLabel && onAction ? (
-        <Button onClick={onAction} className="mt-6 bg-emerald-500 text-black hover:bg-emerald-400">
-          {actionLabel}
-        </Button>
-      ) : null}
-    </div>
-  );
-}
-
 function ProjectRow(props: {
   project: ProjectRowData;
   onNavigate: (path: string) => void;
@@ -743,8 +723,6 @@ export default function WinstPage() {
     return <PageSkeleton />;
   }
 
-  const hasActualComparison = derived.withActual.length > 0;
-
   return (
     <div className="app-shell min-h-screen bg-background">
       <AppNavigation />
@@ -824,7 +802,7 @@ export default function WinstPage() {
                 />
                 <KPIItem label="Ontvangen cash" value={formatCurrency(metrics.totals.receivedCashIncl)} tone="positive" />
                 <KPIItem
-                  label={`Omzetbelasting (${metrics.vatSummary.filingPeriod})`}
+                  label={`Omzetbelasting (${metrics.vatSummary.periodLabel})`}
                   value={formatCurrency(metrics.vatSummary.netVatPayable)}
                   tone={metrics.vatSummary.netVatPayable >= 0 ? 'warning' : 'positive'}
                 />
@@ -835,61 +813,65 @@ export default function WinstPage() {
                 />
               </div>
             </div>
-            <div className="border-t border-white/10 px-5 py-3 text-xs text-muted-foreground sm:px-6">
-              {metrics.vatSummary.netVatPayable >= 0 ? 'Te betalen btw' : 'Verwachte btw-teruggave'} over {metrics.vatSummary.periodLabel}:{' '}
-              <span className="font-semibold text-foreground">{formatCurrency(Math.abs(metrics.vatSummary.netVatPayable))}</span> (
-              output {formatCurrency(metrics.vatSummary.outputVat)} - aftrek {formatCurrency(metrics.vatSummary.deductibleVat)})
+            <div className="border-t border-white/10 px-5 py-3 sm:px-6">
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Werkelijke kosten</p>
+                  <p className="mt-0.5 text-sm font-semibold text-foreground">{formatCurrency(derived.sumActualCostKnown)}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Marge</p>
+                  <p className="mt-0.5 text-sm font-semibold text-foreground">
+                    {derived.actualMarginKnown === null ? 'Onbekend' : formatPercent(derived.actualMarginKnown)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Ingevulde projecten</p>
+                  <p className="mt-0.5 text-sm font-semibold text-foreground">{derived.withActual.length}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Werkelijke dagen</p>
+                  <p className="mt-0.5 text-sm font-semibold text-foreground">{metrics.timeTracking.actualDays.toFixed(1)}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Geoffreerde dagen</p>
+                  <p className="mt-0.5 text-sm font-semibold text-foreground">{metrics.timeTracking.quotedDays.toFixed(1)}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Verschil dagen</p>
+                  <p className={cn('mt-0.5 text-sm font-semibold', metrics.timeTracking.daysDiff > 0 ? 'text-red-300' : metrics.timeTracking.daysDiff < 0 ? 'text-emerald-300' : 'text-foreground')}>
+                    {metrics.timeTracking.daysDiff > 0 ? '+' : ''}{metrics.timeTracking.daysDiff.toFixed(1)}
+                  </p>
+                </div>
+              </div>
             </div>
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-semibold tracking-tight">Winst status</h2>
-            {!hasActualComparison ? (
-              <EmptyStateBlock
-                title="Nog geen kosten geregistreerd"
-                description="Voeg kosten toe via Kosten om werkelijke winst en marge per project te berekenen."
-                actionLabel="Ga naar kosten"
-                onAction={() => router.push('/kosten')}
-              />
-            ) : (
-              <div className="rounded-2xl bg-card/30 px-6 py-10">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Werkelijke winst (ingevulde projecten)</p>
-                <p
-                  className={cn(
-                    'mt-3 text-5xl font-semibold leading-none',
-                    (derived.actualProfitKnown ?? 0) >= 0 ? 'text-emerald-300' : 'text-red-300'
-                  )}
-                >
-                  {formatCurrency(derived.actualProfitKnown ?? 0)}
-                </p>
-                <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-3 text-sm">
-                  <p className="text-muted-foreground">
-                    Werkelijke kosten <span className="ml-1 font-semibold text-foreground">{formatCurrency(derived.sumActualCostKnown)}</span>
-                  </p>
-                  <p className="text-muted-foreground">
-                    Marge{' '}
-                    <span className="ml-1 font-semibold text-foreground">
-                      {derived.actualMarginKnown === null ? 'Onbekend' : formatPercent(derived.actualMarginKnown)}
-                    </span>
-                  </p>
-                  <p className="text-muted-foreground">
-                    Ingevulde projecten <span className="ml-1 font-semibold text-foreground">{derived.withActual.length}</span>
-                  </p>
-                  <p className="text-muted-foreground">
-                    Werkelijke dagen <span className="ml-1 font-semibold text-foreground">{metrics.timeTracking.actualDays.toFixed(1)}</span>
-                  </p>
-                  <p className="text-muted-foreground">
-                    Geoffreerde dagen <span className="ml-1 font-semibold text-foreground">{metrics.timeTracking.quotedDays.toFixed(1)}</span>
-                  </p>
-                  <p className="text-muted-foreground">
-                    Verschil dagen{' '}
-                    <span className={cn('ml-1 font-semibold', metrics.timeTracking.daysDiff > 0 ? 'text-red-300' : metrics.timeTracking.daysDiff < 0 ? 'text-emerald-300' : 'text-foreground')}>
-                      {metrics.timeTracking.daysDiff > 0 ? '+' : ''}{metrics.timeTracking.daysDiff.toFixed(1)}
-                    </span>
-                  </p>
-                </div>
+            <div className="rounded-xl border border-cyan-500/25 bg-gradient-to-r from-cyan-500/[0.14] via-card/55 to-card/40 px-4 py-3">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold text-foreground">Offerte status (huidige selectie)</p>
+                <span className="text-xs text-muted-foreground">{metrics.quoteStatusSummary.total} offertes</span>
               </div>
-            )}
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
+                {[
+                  { key: 'concept', label: 'Concept', value: metrics.quoteStatusSummary.concept, valueClassName: 'text-muted-foreground' },
+                  { key: 'in_behandeling', label: 'In behandeling', value: metrics.quoteStatusSummary.inBehandeling, valueClassName: 'text-blue-300' },
+                  { key: 'verzonden', label: 'Verzonden', value: metrics.quoteStatusSummary.verzonden, valueClassName: 'text-cyan-300' },
+                  { key: 'geaccepteerd', label: 'Geaccepteerd', value: metrics.quoteStatusSummary.geaccepteerd, valueClassName: 'text-emerald-300' },
+                  { key: 'afgewezen', label: 'Afgewezen', value: metrics.quoteStatusSummary.afgewezen, valueClassName: 'text-red-300' },
+                  { key: 'verlopen', label: 'Verlopen', value: metrics.quoteStatusSummary.verlopen, valueClassName: 'text-amber-300' },
+                  { key: 'onbekend', label: 'Onbekend', value: metrics.quoteStatusSummary.onbekend, valueClassName: 'text-muted-foreground' },
+                ].map((item) => (
+                  <div key={item.key} className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{item.label}</p>
+                    <p className={cn('mt-0.5 text-sm font-semibold', item.valueClassName)}>
+                      {item.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
 
           <section className="space-y-4">

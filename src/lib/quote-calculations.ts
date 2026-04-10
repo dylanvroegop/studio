@@ -697,14 +697,14 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
     const durationText = typeof transportBerekening?.durationText === "string" ? transportBerekening.durationText : "";
     const oneWayMinutes = parseDurationToMinutes(durationText);
     const roundTripMinutes = oneWayMinutes * 2;
-    const transportOneWayCost = toNumber(
-        transportBerekening?.oneWayTravelCost,
-        toNumber(transportDistanceKmOneWay, 0) * toNumber(prijsPerKm, 0)
-    );
-    const transportRoundTripCost = toNumber(
-        transportBerekening?.roundTripTravelCost,
-        transportOneWayCost * 2
-    );
+    const computedOneWayCost = toNumber(transportDistanceKmOneWay, 0) * toNumber(prijsPerKm, 0);
+    const storedOneWayCost = Number(transportBerekening?.oneWayTravelCost);
+    const hasStoredOneWayCost = Number.isFinite(storedOneWayCost) && storedOneWayCost > 0;
+    const transportOneWayCost = hasStoredOneWayCost ? storedOneWayCost : computedOneWayCost;
+    const computedRoundTripCost = transportOneWayCost * 2;
+    const storedRoundTripCost = Number(transportBerekening?.roundTripTravelCost);
+    const hasStoredRoundTripCost = Number.isFinite(storedRoundTripCost) && storedRoundTripCost > 0;
+    const transportRoundTripCost = hasStoredRoundTripCost ? storedRoundTripCost : computedRoundTripCost;
     const transportPerDagFromDistance = transportRoundTripCost > 0
         ? transportRoundTripCost
         : toNumber(afstandKm, 0) * toNumber(prijsPerKm, 0);

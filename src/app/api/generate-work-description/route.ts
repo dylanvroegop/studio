@@ -13,46 +13,19 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type AiAction = 'full' | 'uitvoering-only' | 'improve';
+type MaterialContextItem = {
+  name: string;
+  quantity: number;
+  unit: string;
+  type: 'groot' | 'verbruik' | 'unknown';
+};
 
-const DEFAULT_N8N_WORK_DESCRIPTION_WEBHOOK =
-  'https://n8n.dylan8n.org/webhook/38942fcb-1194-4f6b-8032-0c970425af7c';
-
-function truncateForDebug(value: string, max: number = 500): string {
-  const text = value.trim();
-  if (!text) return '';
-  return text.length > max ? `${text.slice(0, max)}...` : text;
-}
-
-function extractN8nErrorDetail(rawBody: string): string {
-  const body = rawBody.trim();
-  if (!body) return '';
-
-  try {
-    const parsed = JSON.parse(body) as {
-      message?: unknown;
-      error?: unknown;
-      code?: unknown;
-      details?: unknown;
-    };
-    const candidates = [parsed.message, parsed.error, parsed.details, parsed.code];
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim()) return truncateForDebug(candidate);
-      if (typeof candidate === 'number') return String(candidate);
-    }
-  } catch {
-    // Keep fallback below for non-JSON responses.
-  }
-
-  return truncateForDebug(body);
-}
-
-function getWebhookUrl(): string {
-  return (
-    process.env.N8N_WORK_DESCRIPTION_WEBHOOK_URL
-    || process.env.NEXT_PUBLIC_N8N_WORK_DESCRIPTION_WEBHOOK
-    || DEFAULT_N8N_WORK_DESCRIPTION_WEBHOOK
-  ).trim();
-}
+const DEFAULT_OPENAI_MODEL = 'gpt-5.2';
+const OPENAI_SYSTEM_PROMPT = `
+Je bent een Nederlandse werkvoorbereider in timmer/bouw.
+Schrijf praktische, uitvoerbare werkbeschrijvingen.
+Gebruik alleen relevante info uit de input.
+`;
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -81,10 +54,32 @@ function buildActionPrompt(input: {
   title: string;
   context: string;
   category: string;
+  materialContext: MaterialContextItem[];
+  notesContext: string;
+  measurementsContext: string;
 }): string {
   const titleLine = input.title ? `Titel: ${input.title}` : '';
   const contextLine = input.context ? `Context: ${input.context}` : '';
   const categoryLine = input.category ? `Categorie: ${input.category}` : '';
+  const materialLines = input.materialContext.length > 0
+    ? [
+      'Verplichte materialen (deze moeten expliciet terugkomen in de werkbeschrijving):',
+      ...input.materialContext.map((item) => `- ${item.name} (${item.quantity} ${item.unit}, type: ${item.type})`),
+      'Als materialen zijn opgegeven, noem ze concreet in de stappen.',
+    ]
+    : [];
+  const notesLines = input.notesContext
+    ? [
+      'Notities van gebruiker (gebruik deze context actief, inclusief maten/afmetingen):',
+      input.notesContext,
+    ]
+    : [];
+  const measurementsLines = input.measurementsContext
+    ? [
+      'Beschikbare maatvoering uit offerte-data (gebruik waar relevant):',
+      input.measurementsContext,
+    ]
+    : [];
 
   if (input.action === 'uitvoering-only') {
     return [
@@ -92,6 +87,9 @@ function buildActionPrompt(input: {
       titleLine,
       contextLine,
       categoryLine,
+      ...materialLines,
+      ...notesLines,
+      ...measurementsLines,
       'Geef output als lijst met concrete stappen.',
     ].filter(Boolean).join('\n');
   }
@@ -102,6 +100,9 @@ function buildActionPrompt(input: {
       titleLine,
       contextLine,
       categoryLine,
+      ...materialLines,
+      ...notesLines,
+      ...measurementsLines,
       'Behoud Nederlandse taal en praktische volgorde.',
     ].filter(Boolean).join('\n');
   }
@@ -111,8 +112,191 @@ function buildActionPrompt(input: {
     titleLine,
     contextLine,
     categoryLine,
+    ...materialLines,
+    ...notesLines,
+    ...measurementsLines,
     'Geef output als duidelijke stappen in het Nederlands.',
   ].filter(Boolean).join('\n');
+}
+
+function safeString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function extractResponseText(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const row = payload as Record<string, unknown>;
+
+  const direct = safeString(row.output_text);
+  if (direct) return direct;
+
+  const output = Array.isArray(row.output) ? row.output : [];
+  const chunks: string[] = [];
+
+  output.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    const message = entry as Record<string, unknown>;
+    const content = Array.isArray(message.content) ? message.content : [];
+
+    content.forEach((part) => {
+      if (!part || typeof part !== 'object') return;
+      const data = part as Record<string, unknown>;
+      const text = safeString(data.text) || safeString(data.output_text);
+      if (text) chunks.push(text);
+    });
+  });
+
+  return chunks.join('\n').trim();
+}
+
+function stripCodeFences(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('```')) return trimmed;
+  return trimmed
+    .replace(/^```[a-z]*\n?/i, '')
+    .replace(/```$/i, '')
+    .trim();
+}
+
+function parseJsonWithFallback(rawOutput: string): Record<string, unknown> {
+  const cleaned = stripCodeFences(rawOutput);
+  try {
+    return JSON.parse(cleaned) as Record<string, unknown>;
+  } catch {
+    const firstCurly = cleaned.indexOf('{');
+    const lastCurly = cleaned.lastIndexOf('}');
+    if (firstCurly !== -1 && lastCurly > firstCurly) {
+      return JSON.parse(cleaned.slice(firstCurly, lastCurly + 1)) as Record<string, unknown>;
+    }
+    throw new Error('OpenAI output bevat geen geldig JSON-object.');
+  }
+}
+
+function buildOpenAiUserPrompt(params: {
+  prompt: string;
+  action: AiAction | null;
+  baseStructured: WorkDescriptionStructured;
+}): string {
+  const actionRule =
+    params.action === 'uitvoering-only'
+      ? 'Werk alleen de sectie uitvoering bij; voorbereiding/afwerking mogen leeg blijven als er geen input voor is.'
+      : params.action === 'improve'
+        ? 'Verbeter en herschrijf de bestaande inhoud professioneel.'
+        : 'Genereer een volledige werkbeschrijving.';
+
+  return [
+    params.prompt,
+    '',
+    'Bestaande werkbeschrijving (JSON):',
+    JSON.stringify(params.baseStructured),
+    '',
+    actionRule,
+    '',
+    'Geef uitsluitend JSON terug in exact dit formaat:',
+    '{"werkbeschrijvingStructured":{"title":"string","context":"string","sections":{"voorbereiding":["..."],"uitvoering":["..."],"afwerking":["..."]}}}',
+    'Geen markdown, geen extra uitleg.',
+  ].join('\n');
+}
+
+async function callOpenAiWorkDescription(params: {
+  apiKey: string;
+  model: string;
+  prompt: string;
+  action: AiAction | null;
+  baseStructured: WorkDescriptionStructured;
+}): Promise<unknown> {
+  const userPrompt = buildOpenAiUserPrompt({
+    prompt: params.prompt,
+    action: params.action,
+    baseStructured: params.baseStructured,
+  });
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${params.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: params.model,
+      temperature: 0.2,
+      input: [
+        {
+          role: 'system',
+          content: [{ type: 'input_text', text: OPENAI_SYSTEM_PROMPT }],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'input_text', text: userPrompt }],
+        },
+      ],
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = safeString((payload as { error?: { message?: unknown } }).error?.message) || 'OpenAI analyse mislukt.';
+    throw new Error(message);
+  }
+
+  const outputText = extractResponseText(payload);
+  if (!outputText) {
+    throw new Error('OpenAI gaf geen leesbare output terug.');
+  }
+
+  try {
+    return parseJsonWithFallback(outputText);
+  } catch {
+    return outputText;
+  }
+}
+
+function normalizeMaterialContext(input: unknown): MaterialContextItem[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((row) => {
+      if (!row || typeof row !== 'object') return null;
+      const item = row as Record<string, unknown>;
+      const name = typeof item.name === 'string' ? item.name.trim() : '';
+      if (!name) return null;
+      const quantityRaw = Number(item.quantity);
+      const quantity = Number.isFinite(quantityRaw) && quantityRaw > 0 ? Number(quantityRaw.toFixed(3)) : 1;
+      const unit = typeof item.unit === 'string' && item.unit.trim() ? item.unit.trim() : 'stuk';
+      const typeRaw = typeof item.type === 'string' ? item.type.trim().toLowerCase() : '';
+      const type: MaterialContextItem['type'] =
+        typeRaw === 'groot' || typeRaw === 'verbruik' ? typeRaw : 'unknown';
+      return { name, quantity, unit, type };
+    })
+    .filter((item): item is MaterialContextItem => item !== null);
+}
+
+function ensureMaterialsIncluded(
+  structuredInput: WorkDescriptionStructured,
+  materialContext: MaterialContextItem[],
+): WorkDescriptionStructured {
+  if (materialContext.length === 0) return structuredInput;
+
+  const structured = sanitizeWorkDescriptionStructured(structuredInput);
+  const allRows = flattenStructuredWorkDescription(structured).map((row) => row.toLowerCase());
+
+  const missing = materialContext.filter((item) => {
+    const nameLower = item.name.toLowerCase();
+    return !allRows.some((row) => row.includes(nameLower));
+  });
+
+  if (missing.length === 0) return structured;
+
+  const materialChecklistRows = missing.map((item) =>
+    `Materiaal verwerken: ${item.name} (${item.quantity} ${item.unit}).`
+  );
+
+  return {
+    ...structured,
+    sections: {
+      ...structured.sections,
+      uitvoering: [...structured.sections.uitvoering, ...materialChecklistRows],
+    },
+  };
 }
 
 function extractAiOutput(result: unknown): string | null {
@@ -355,6 +539,9 @@ export async function POST(request: Request) {
       context?: unknown;
       category?: unknown;
       targetSection?: unknown;
+      materialContext?: unknown;
+      notesContext?: unknown;
+      measurementsContext?: unknown;
     } | null;
 
     const action = normalizeAction(rawBody?.action);
@@ -362,9 +549,21 @@ export async function POST(request: Request) {
     const title = typeof rawBody?.title === 'string' ? rawBody.title.trim() : '';
     const context = typeof rawBody?.context === 'string' ? rawBody.context.trim() : '';
     const category = typeof rawBody?.category === 'string' ? rawBody.category.trim() : '';
+    const notesContext = typeof rawBody?.notesContext === 'string' ? rawBody.notesContext.trim() : '';
+    const measurementsContext = typeof rawBody?.measurementsContext === 'string' ? rawBody.measurementsContext.trim() : '';
+
+    const materialContext = normalizeMaterialContext(rawBody?.materialContext);
 
     const explicitPrompt = typeof rawBody?.prompt === 'string' ? rawBody.prompt.trim() : '';
-    const fallbackPrompt = buildActionPrompt({ action, title, context, category });
+    const fallbackPrompt = buildActionPrompt({
+      action,
+      title,
+      context,
+      category,
+      materialContext,
+      notesContext,
+      measurementsContext,
+    });
     const prompt = explicitPrompt || fallbackPrompt;
 
     if (!prompt) {
@@ -377,62 +576,20 @@ export async function POST(request: Request) {
       korteBeschrijving: context,
     });
 
-    const webhookUrl = getWebhookUrl();
-    const webhookSecret = process.env.N8N_HEADER_SECRET?.trim();
-
-    let response: Response;
-    try {
-      response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(webhookSecret ? { 'x-offertehulp-secret': webhookSecret } : {}),
-        },
-        body: JSON.stringify({
-          prompt,
-          input: prompt,
-          quoteId,
-          action,
-          targetSection: rawBody?.targetSection,
-          title,
-          context,
-          category,
-          structuredInput: baseStructured,
-          userId,
-          userid: userId,
-        }),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Onbekende fetch-fout';
-      return NextResponse.json({
-        error: `Werkbeschrijving webhook niet bereikbaar: ${message}`,
-        n8nStatus: null,
-        n8nDetail: 'Network/fetch error while calling n8n webhook',
-      }, { status: 502 });
+    const apiKey = safeString(process.env.OPENAI_API_KEY);
+    if (!apiKey) {
+      return NextResponse.json({ error: 'OPENAI_API_KEY ontbreekt op de server.' }, { status: 500 });
     }
 
-    const responseText = await response.text();
-    if (!response.ok) {
-      const detail = extractN8nErrorDetail(responseText);
-      const detailSuffix = detail ? `: ${detail}` : '';
-      return NextResponse.json({
-        error: `Werkbeschrijving webhook mislukt (n8n ${response.status})${detailSuffix}`,
-        n8nStatus: response.status,
-        n8nDetail: detail || null,
-      }, { status: 502 });
-    }
+    const model = safeString(process.env.OPENAI_WORK_DESCRIPTION_MODEL) || DEFAULT_OPENAI_MODEL;
 
-    let parsedData: unknown = responseText;
-    try {
-      parsedData = JSON.parse(responseText);
-    } catch {
-      // plain text response is also supported
-    }
-
-    const result =
-      Array.isArray(parsedData) && parsedData.length > 0
-        ? parsedData[0]
-        : parsedData;
+    const result = await callOpenAiWorkDescription({
+      apiKey,
+      model,
+      prompt,
+      action,
+      baseStructured,
+    });
 
     const directStructured = extractDirectStructured(result);
     if (directStructured) {
@@ -441,13 +598,14 @@ export async function POST(request: Request) {
         base: baseStructured,
         generated: directStructured,
       });
-      const flattened = flattenStructuredWorkDescription(mergedStructured);
+      const mergedWithMaterials = ensureMaterialsIncluded(mergedStructured, materialContext);
+      const flattened = flattenStructuredWorkDescription(mergedWithMaterials);
       if (quoteId) {
-        await persistWorkDescription(quoteId, userId, flattened, mergedStructured);
+        await persistWorkDescription(quoteId, userId, flattened, mergedWithMaterials);
       }
       return NextResponse.json({
         werkbeschrijving: flattened,
-        werkbeschrijvingStructured: mergedStructured,
+        werkbeschrijvingStructured: mergedWithMaterials,
       });
     }
 
@@ -458,19 +616,20 @@ export async function POST(request: Request) {
         base: baseStructured,
         rows: directWerkbeschrijving,
       });
-      const flattened = flattenStructuredWorkDescription(mergedStructured);
+      const mergedWithMaterials = ensureMaterialsIncluded(mergedStructured, materialContext);
+      const flattened = flattenStructuredWorkDescription(mergedWithMaterials);
       if (quoteId) {
-        await persistWorkDescription(quoteId, userId, flattened, mergedStructured);
+        await persistWorkDescription(quoteId, userId, flattened, mergedWithMaterials);
       }
       return NextResponse.json({
         werkbeschrijving: flattened,
-        werkbeschrijvingStructured: mergedStructured,
+        werkbeschrijvingStructured: mergedWithMaterials,
       });
     }
 
     const aiOutput = extractAiOutput(result);
     if (!aiOutput) {
-      return NextResponse.json({ error: 'Geen output ontvangen uit workflow.' }, { status: 502 });
+      return NextResponse.json({ error: 'Geen output ontvangen van OpenAI.' }, { status: 502 });
     }
 
     const werkbeschrijving = parseWorkDescription(aiOutput);
@@ -483,15 +642,16 @@ export async function POST(request: Request) {
       base: baseStructured,
       rows: werkbeschrijving,
     });
-    const flattened = flattenStructuredWorkDescription(mergedStructured);
+    const mergedWithMaterials = ensureMaterialsIncluded(mergedStructured, materialContext);
+    const flattened = flattenStructuredWorkDescription(mergedWithMaterials);
 
     if (quoteId) {
-      await persistWorkDescription(quoteId, userId, flattened, mergedStructured);
+      await persistWorkDescription(quoteId, userId, flattened, mergedWithMaterials);
     }
 
     return NextResponse.json({
       werkbeschrijving: flattened,
-      werkbeschrijvingStructured: mergedStructured,
+      werkbeschrijvingStructured: mergedWithMaterials,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Werkbeschrijving genereren mislukt';

@@ -230,6 +230,13 @@ function hasCalculatedAmount(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+function getStoredQuoteTotal(quote: QuoteRow): number {
+  const raw = quote.totaalbedrag ?? quote.amount ?? 0;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return parsed;
+}
+
 function mapSettingsForTotals(input: unknown): QuoteCalculationSettings {
   const normalized = normalizeDataJson(input as any);
   const rawInst = (normalized?.instellingen || {}) as any;
@@ -473,10 +480,27 @@ export default function OffertesPage() {
   }, [firestore, user]);
 
   const pendingQuoteIds = useMemo(
-    () =>
-      quotes
-        .filter((q) => (q.status === 'in_behandeling' || q.status === 'concept') && !hasCalculatedAmount(q.totaalbedrag || q.amount || 0))
-        .map((q) => q.id),
+    () => {
+      return quotes
+        .filter((q) => {
+          if (q.status !== 'in_behandeling' && q.status !== 'concept') return false;
+          if (q.archived) return false;
+
+          const storedTotal = getStoredQuoteTotal(q);
+          const calculatedFromDoc = haalTotaalUitCalculatie((q as any)?.data_json);
+
+          if (!hasCalculatedAmount(storedTotal) && hasCalculatedAmount(calculatedFromDoc)) {
+            return true;
+          }
+
+          if (hasCalculatedAmount(storedTotal) && hasCalculatedAmount(calculatedFromDoc)) {
+            return Math.abs(storedTotal - calculatedFromDoc) > 0.01;
+          }
+
+          return !hasCalculatedAmount(storedTotal);
+        })
+        .map((q) => q.id);
+    },
     [quotes]
   );
 
@@ -499,20 +523,54 @@ export default function OffertesPage() {
     const syncPendingTotals = async () => {
       if (isSyncingTotalsRef.current || cancelled) return;
 
-      const quoteIdsToCheck = pendingQuoteIds;
-      if (!quoteIdsToCheck.length) return;
+        const quoteIdsToCheck = pendingQuoteIds;
+        if (!quoteIdsToCheck.length) return;
 
-      isSyncingTotalsRef.current = true;
+        // First pass: try to repair totals directly from quote.data_json (freshest local source).
+        const unresolvedQuoteIds: string[] = [];
+        for (const quoteId of quoteIdsToCheck) {
+          const quote = quotes.find((entry) => entry.id === quoteId);
+          if (!quote) {
+            unresolvedQuoteIds.push(quoteId);
+            continue;
+          }
 
-      try {
-        const token = await user.getIdToken();
+          const localCalculatedTotal = haalTotaalUitCalculatie((quote as any)?.data_json);
+          if (!hasCalculatedAmount(localCalculatedTotal)) {
+            unresolvedQuoteIds.push(quoteId);
+            continue;
+          }
+
+          const storedTotal = getStoredQuoteTotal(quote);
+          if (Math.abs(storedTotal - localCalculatedTotal) <= 0.01) {
+            continue;
+          }
+
+          try {
+            await updateDoc(doc(firestore, 'quotes', quoteId), {
+              totaalbedrag: localCalculatedTotal,
+              amount: localCalculatedTotal,
+              updatedAt: serverTimestamp(),
+            });
+          } catch (err) {
+            console.warn(`Kon lokaal quote totaal niet syncen voor ${quoteId}:`, err);
+            unresolvedQuoteIds.push(quoteId);
+          }
+        }
+
+        if (unresolvedQuoteIds.length === 0 || cancelled) return;
+
+        isSyncingTotalsRef.current = true;
+
+        try {
+          const token = await user.getIdToken();
         const response = await fetch('/api/quotes/get-calculations', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
           },
-          body: JSON.stringify({ quoteIds: quoteIdsToCheck }),
+          body: JSON.stringify({ quoteIds: unresolvedQuoteIds }),
         });
 
         const payload = await response.json().catch(() => null);
@@ -531,7 +589,7 @@ export default function OffertesPage() {
           rowsByQuote.set(row.quoteid, existing);
         }
 
-        for (const quoteId of quoteIdsToCheck) {
+        for (const quoteId of unresolvedQuoteIds) {
           const rows = rowsByQuote.get(quoteId) || [];
           let totalFromCalculation: number | null = null;
 
@@ -570,7 +628,17 @@ export default function OffertesPage() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [firestore, pendingQuoteIds, user]);
+  }, [firestore, pendingQuoteIds, quotes, user]);
+
+  const quoteTotalsById = useMemo(() => {
+    const map: Record<string, number> = {};
+    quotes.forEach((quote) => {
+      const calculatedFromDoc = haalTotaalUitCalculatie((quote as any)?.data_json);
+      const stored = getStoredQuoteTotal(quote);
+      map[quote.id] = hasCalculatedAmount(calculatedFromDoc) ? calculatedFromDoc : stored;
+    });
+    return map;
+  }, [quotes]);
 
   useEffect(() => {
     if (!firestore || acceptedQuoteIdsFromInvoices.size === 0 || quotes.length === 0) return;
@@ -1122,7 +1190,7 @@ export default function OffertesPage() {
             <>
             <div className="space-y-3 sm:hidden">
               {filteredQuotes.map((q) => {
-                const totaal = q.totaalbedrag || q.amount || 0;
+                const totaal = quoteTotalsById[q.id] ?? getStoredQuoteTotal(q);
                 const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
                 const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
                 const datum = q.updatedAtDate ?? q.createdAtDate;
@@ -1272,7 +1340,7 @@ export default function OffertesPage() {
 
             <div className="hidden space-y-2 sm:block">
               {filteredQuotes.map((q) => {
-                const totaal = q.totaalbedrag || q.amount || 0;
+                const totaal = quoteTotalsById[q.id] ?? getStoredQuoteTotal(q);
                 const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
                 const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
                 const datum = q.updatedAtDate ?? q.createdAtDate;

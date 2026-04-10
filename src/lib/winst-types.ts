@@ -249,4 +249,14 @@ export interface WinstMetricsResponse {
     deductibleVat: number;
     netVatPayable: number;
   };
+  quoteStatusSummary: {
+    total: number;
+    concept: number;
+    inBehandeling: number;
+    verzonden: number;
+    geaccepteerd: number;
+    afgewezen: number;
+    verlopen: number;
+    onbekend: number;
+  };
 }

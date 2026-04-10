@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Plus, Search, Filter, ArrowLeft, ChevronDown, Star, Pencil, Copy } from 'lucide-react';
+import { Loader2, Plus, Search, Filter, ArrowLeft, ChevronDown, Star, Pencil, Copy, Sparkles, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -235,6 +235,53 @@ function formatEuro(amount: number | null): string {
   }).format(amount);
 }
 
+function pickBestMatchingOption(raw: string, options: string[]): string {
+  const needle = raw.trim();
+  if (!needle) return '';
+  const lowerNeedle = needle.toLowerCase();
+
+  const exact = options.find((option) => option.toLowerCase() === lowerNeedle);
+  if (exact) return exact;
+
+  const starts = options.find((option) => option.toLowerCase().startsWith(lowerNeedle));
+  if (starts) return starts;
+
+  const contains = options.find((option) => {
+    const lowerOption = option.toLowerCase();
+    return lowerOption.includes(lowerNeedle) || lowerNeedle.includes(lowerOption);
+  });
+  if (contains) return contains;
+
+  return '';
+}
+
+function normalizeExtractedUnit(raw: string): string {
+  const value = raw.trim().toLowerCase();
+  if (!value) return 'stuk';
+  const compact = value.replace(/\s+/g, '').replace('²', '2').replace('³', '3');
+  const aliases: Record<string, string> = {
+    m: 'm1',
+    m1: 'm1',
+    meter: 'm1',
+    m2: 'm2',
+    m3: 'p/m3',
+    stuk: 'stuk',
+    stuks: 'stuk',
+    st: 'stuk',
+    doos: 'doos',
+    set: 'set',
+    koker: 'koker',
+    zak: 'zak',
+    'p/m1': 'p/m1',
+    'p/m2': 'p/m2',
+    'p/m3': 'p/m3',
+    perm1: 'p/m1',
+    perm2: 'p/m2',
+    perm3: 'p/m3',
+  };
+  return aliases[compact] || 'stuk';
+}
+
 function normalizeFilterValue(value: unknown): string {
   if (typeof value !== 'string') return '';
   return value.toLowerCase().trim();
@@ -406,6 +453,10 @@ export function MaterialSelectionModal({
   const [customCategorie, setCustomCategorie] = useState<string>('');
   const [customSubsectie, setCustomSubsectie] = useState<string>('');
   const [customLeverancier, setCustomLeverancier] = useState<string>('');
+  const [aiSourceImage, setAiSourceImage] = useState<File | null>(null);
+  const [isAiExtracting, setIsAiExtracting] = useState(false);
+  const [aiExtractionSummary, setAiExtractionSummary] = useState<string | null>(null);
+  const [isDraggingAiImage, setIsDraggingAiImage] = useState(false);
   const [safetyDialogOpen, setSafetyDialogOpen] = useState(false);
   const [safetyQuestion, setSafetyQuestion] = useState('');
   const [safetyExpectedUnit, setSafetyExpectedUnit] = useState('');
@@ -475,6 +526,10 @@ export function MaterialSelectionModal({
       setCustomCategorie('');
       setCustomSubsectie('');
       setCustomLeverancier('');
+      setAiSourceImage(null);
+      setIsAiExtracting(false);
+      setAiExtractionSummary(null);
+      setIsDraggingAiImage(false);
       setSafetyDialogOpen(false);
       setSafetyQuestion('');
       setSafetyExpectedUnit('');
@@ -1048,6 +1103,105 @@ export function MaterialSelectionModal({
   const canSaveCustom = useMemo(() => {
     return !savingCustom && isNaamOk && isPrijsOk && isEenheidOk;
   }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk]);
+
+  const handleGenerateMaterialFromImage = async (fileOverride?: File | null) => {
+    if (isAiExtracting) return;
+
+    const sourceImage = fileOverride ?? aiSourceImage;
+    if (!sourceImage) {
+      setError('Kies eerst een screenshot of foto.');
+      return;
+    }
+
+    setError(null);
+    setAiExtractionSummary(null);
+    setIsAiExtracting(true);
+
+    try {
+      const { getAuth } = await import('firebase/auth');
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Niet ingelogd.');
+      const token = await currentUser.getIdToken();
+
+      const formData = new FormData();
+      formData.append('file', sourceImage);
+      formData.append('categories', JSON.stringify(formCategoryOptions));
+      formData.append('subsections', JSON.stringify(formSubsectionOptions));
+      formData.append('suppliers', JSON.stringify(uniqueLeveranciers));
+
+      const response = await fetch('/api/materialen/extract-from-image', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const payload = await response.json().catch(() => null) as {
+        ok?: boolean;
+        message?: string;
+        material?: {
+          materiaalnaam?: string;
+          eenheid?: string;
+          prijs_excl_btw?: number | null;
+          prijs_incl_btw?: number | null;
+          categorie?: string;
+          subsectie?: string;
+          leverancier?: string;
+          confidence?: number;
+        };
+      } | null;
+
+      if (!response.ok || !payload?.ok || !payload.material) {
+        throw new Error(payload?.message || 'Kon screenshot niet analyseren.');
+      }
+
+      const material = payload.material;
+      const nextNaam = (material.materiaalnaam || '').trim();
+      const nextUnit = normalizeExtractedUnit(material.eenheid || '');
+      const nextCategoryRaw = (material.categorie || '').trim();
+      const nextSubsectionRaw = (material.subsectie || '').trim();
+      const nextSupplierRaw = (material.leverancier || '').trim();
+
+      const matchedCategory = pickBestMatchingOption(nextCategoryRaw, formCategoryOptions);
+      const matchedSubsection = pickBestMatchingOption(nextSubsectionRaw, formSubsectionOptions);
+      const matchedSupplier = pickBestMatchingOption(nextSupplierRaw, uniqueLeveranciers);
+
+      const excl = typeof material.prijs_excl_btw === 'number' ? material.prijs_excl_btw : null;
+      const incl = typeof material.prijs_incl_btw === 'number' ? material.prijs_incl_btw : null;
+      const resolvedExcl = excl ?? (incl != null ? Number((incl / 1.21).toFixed(2)) : null);
+      const resolvedIncl = incl ?? (excl != null ? Number((excl * 1.21).toFixed(2)) : null);
+
+      if (nextNaam) setCustomNaam(nextNaam);
+      if (EENHEDEN.includes(nextUnit)) setCustomEenheid(nextUnit);
+      if (resolvedExcl != null) setCustomPrijsExclBtw(formatPriceInput(resolvedExcl));
+      if (resolvedIncl != null) setCustomPrijs(formatPriceInput(resolvedIncl));
+      if (matchedCategory || nextCategoryRaw) setCustomCategorie(matchedCategory || nextCategoryRaw);
+      if (matchedSubsection || nextSubsectionRaw) setCustomSubsectie(matchedSubsection || nextSubsectionRaw);
+      if (matchedSupplier || nextSupplierRaw) setCustomLeverancier(matchedSupplier || nextSupplierRaw);
+
+      const confidence = typeof material.confidence === 'number'
+        ? `${Math.round(Math.max(0, Math.min(1, material.confidence)) * 100)}%`
+        : null;
+      setAiExtractionSummary(confidence ? `AI ingevuld (zekerheid ${confidence}). Controleer en sla op.` : 'AI heeft de velden ingevuld. Controleer en sla op.');
+    } catch (extractError) {
+      const message = extractError instanceof Error ? extractError.message : 'Kon screenshot niet analyseren.';
+      setError(message);
+    } finally {
+      setIsAiExtracting(false);
+    }
+  };
+
+  const handleAiFilePicked = (file: File | null, options?: { autoAnalyze?: boolean }) => {
+    if (!file) return;
+    setAiSourceImage(file);
+    setAiExtractionSummary(null);
+    if (error) setError(null);
+    if (options?.autoAnalyze) {
+      void handleGenerateMaterialFromImage(file);
+    }
+  };
 
   // --- SAVE ACTION ---
   const saveCustomMaterial = async (
@@ -1942,6 +2096,84 @@ export function MaterialSelectionModal({
                     {error}
                   </div>
                 )}
+                <div className="rounded-lg border border-border/60 bg-muted/10 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Vul velden via screenshot (AI)
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto] md:items-end">
+                    <div className="space-y-1">
+                      <div
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          if (!isDraggingAiImage) setIsDraggingAiImage(true);
+                        }}
+                        onDragEnter={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setIsDraggingAiImage(true);
+                        }}
+                        onDragLeave={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          const nextTarget = event.relatedTarget as Node | null;
+                          if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+                            setIsDraggingAiImage(false);
+                          }
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setIsDraggingAiImage(false);
+                          const file = event.dataTransfer.files?.[0] || null;
+                          handleAiFilePicked(file, { autoAnalyze: true });
+                        }}
+                        className={cn(
+                          'rounded-md border border-dashed p-3 transition-colors',
+                          isDraggingAiImage
+                            ? 'border-emerald-400 bg-emerald-500/10'
+                            : 'border-border/70 bg-background/60'
+                        )}
+                      >
+                        <label className="block cursor-pointer">
+                          <Input
+                            type="file"
+                            accept=".jpg,.jpeg,.png,.webp,.heic,.heif,image/*"
+                            className="hidden"
+                            onChange={(event) => {
+                              handleAiFilePicked(event.target.files?.[0] || null);
+                            }}
+                          />
+                          <div className="text-xs text-muted-foreground">
+                            {aiSourceImage
+                              ? 'Bestand geselecteerd. Je kunt ook een ander bestand slepen of klikken om te vervangen.'
+                              : 'Sleep hier je screenshot naartoe of klik om een bestand te kiezen.'}
+                          </div>
+                        </label>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Upload een product-screenshot van bijvoorbeeld Bouwmaat. We vullen naam, prijs, eenheid en leverancier in.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="gap-2"
+                      onClick={() => void handleGenerateMaterialFromImage()}
+                      disabled={!aiSourceImage || isAiExtracting}
+                    >
+                      {isAiExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                      {isAiExtracting ? 'Analyseren...' : 'Analyseer screenshot'}
+                    </Button>
+                  </div>
+                  {aiSourceImage && (
+                    <p className="text-[11px] text-muted-foreground">{aiSourceImage.name}</p>
+                  )}
+                  {aiExtractionSummary && (
+                    <p className="text-[11px] text-emerald-500">{aiExtractionSummary}</p>
+                  )}
+                </div>
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Materiaalnaam *</div>
                   <Input

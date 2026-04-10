@@ -136,9 +136,9 @@ export function WorkDescriptionWorkspace({
                   Template toepassen ({templateLabel})
                 </Button>
               ) : null}
-              <span className="text-xs text-muted-foreground">
-                {isAutoSaving ? 'Automatisch opslaan...' : 'Wordt automatisch opgeslagen'}
-              </span>
+              {isAutoSaving ? (
+                <span className="text-xs text-muted-foreground">Opslaan...</span>
+              ) : null}
             </div>
           </div>
         </CardContent>

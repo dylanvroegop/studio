@@ -313,7 +313,7 @@ export async function POST(req: Request) {
       .filter((docSnap) => {
         const data = docSnap.data();
         const rawStatus = safeString(data.status).toLowerCase();
-        return data.archived !== true && rawStatus !== 'concept';
+        return data.archived !== true;
       })
       .map((docSnap) => {
         const data = docSnap.data();
