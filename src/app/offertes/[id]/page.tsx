@@ -260,6 +260,83 @@ function truncatePromptText(value: string, maxLength: number): string {
         : normalized;
 }
 
+interface QuoteNoteSection {
+    id: string;
+    title: string;
+    notes: string;
+}
+
+function createQuoteNoteSectionId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return `quote-note-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createQuoteNoteSection(index: number, overrides?: Partial<QuoteNoteSection>): QuoteNoteSection {
+    return {
+        id: overrides?.id || createQuoteNoteSectionId(),
+        title: overrides?.title ?? `Klus ${index + 1}`,
+        notes: overrides?.notes ?? '',
+    };
+}
+
+function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
+    const normalized = rawValue.replace(/\r\n/g, '\n').trim();
+    if (!normalized) {
+        return [createQuoteNoteSection(0)];
+    }
+
+    const lines = normalized.split('\n');
+    const sections: Array<{ title: string; notesLines: string[] }> = [];
+    let activeSection: { title: string; notesLines: string[] } | null = null;
+
+    for (const line of lines) {
+        const titleMatch = line.match(/^###\s+(.+)$/);
+        if (titleMatch) {
+            const title = titleMatch[1].trim() || `Klus ${sections.length + 1}`;
+            activeSection = { title, notesLines: [] };
+            sections.push(activeSection);
+            continue;
+        }
+
+        if (!activeSection) {
+            activeSection = { title: 'Klus 1', notesLines: [] };
+            sections.push(activeSection);
+        }
+
+        activeSection.notesLines.push(line);
+    }
+
+    const mapped = sections.map((section, index) =>
+        createQuoteNoteSection(index, {
+            title: section.title,
+            notes: section.notesLines.join('\n').trim(),
+        }),
+    );
+
+    return mapped.length > 0 ? mapped : [createQuoteNoteSection(0)];
+}
+
+function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
+    const cleanedSections = sections
+        .map((section, index) => ({
+            title: section.title.trim() || `Klus ${index + 1}`,
+            notes: section.notes.trim(),
+        }))
+        .filter((section) => section.title.length > 0 || section.notes.length > 0);
+
+    if (cleanedSections.length === 0) return '';
+
+    return cleanedSections
+        .map((section) => (
+            section.notes
+                ? `### ${section.title}\n${section.notes}`
+                : `### ${section.title}`
+        ))
+        .join('\n\n');
+}
+
 function getMaterialPackageSummary(pkg: QuoteMaterialPackage): string {
     const grootCount = Array.isArray(pkg.grootmaterialen) ? pkg.grootmaterialen.length : 0;
     const verbruikCount = Array.isArray(pkg.verbruiksartikelen) ? pkg.verbruiksartikelen.length : 0;
@@ -362,10 +439,12 @@ export default function QuotePage() {
     const [pdfSettingsSavedAt, setPdfSettingsSavedAt] = useState<number | null>(null);
     const pdfSettingsShownOnceRef = useRef(false);
     const [quoteNotes, setQuoteNotes] = useState('');
+    const [quoteNoteSections, setQuoteNoteSections] = useState<QuoteNoteSection[]>(() => [createQuoteNoteSection(0)]);
     const [isAutoSavingQuoteNotes, setIsAutoSavingQuoteNotes] = useState(false);
     const [quoteNotesSavedAt, setQuoteNotesSavedAt] = useState<Date | null>(null);
     const quoteNotesSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSyncedQuoteNotesRef = useRef('');
+    const lastSerializedQuoteNoteSectionsRef = useRef('');
     const quoteNotesLastEditAtRef = useRef<number>(0);
     const quoteNotesDirtyRef = useRef<boolean>(false);
 
@@ -955,6 +1034,50 @@ export default function QuotePage() {
         quoteNotesLastEditAtRef.current = Date.now();
         setQuoteNotes(value);
     }, []);
+
+    const syncQuoteNoteSectionsToQuoteNotes = useCallback((nextSections: QuoteNoteSection[]) => {
+        const serialized = serializeQuoteNoteSections(nextSections);
+        lastSerializedQuoteNoteSectionsRef.current = serialized;
+        setQuoteNoteSections(nextSections);
+        handleQuoteNotesChange(serialized);
+    }, [handleQuoteNotesChange]);
+
+    const handleQuoteNoteSectionChange = useCallback((sectionId: string, field: 'title' | 'notes', value: string) => {
+        const nextSections = quoteNoteSections.map((section) => (
+            section.id === sectionId
+                ? { ...section, [field]: value }
+                : section
+        ));
+        syncQuoteNoteSectionsToQuoteNotes(nextSections);
+    }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
+
+    const handleAddQuoteNoteSection = useCallback(() => {
+        const nextSections = [...quoteNoteSections, createQuoteNoteSection(quoteNoteSections.length)];
+        syncQuoteNoteSectionsToQuoteNotes(nextSections);
+    }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
+
+    const handleRemoveQuoteNoteSection = useCallback((sectionId: string) => {
+        if (quoteNoteSections.length <= 1) {
+            const resetSection = {
+                ...quoteNoteSections[0],
+                title: 'Klus 1',
+                notes: '',
+            };
+            syncQuoteNoteSectionsToQuoteNotes([resetSection]);
+            return;
+        }
+
+        const nextSections = quoteNoteSections.filter((section) => section.id !== sectionId);
+        syncQuoteNoteSectionsToQuoteNotes(nextSections);
+    }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
+
+    useEffect(() => {
+        if (quoteNotes === lastSerializedQuoteNoteSectionsRef.current) return;
+
+        const parsedSections = parseQuoteNotesToSections(quoteNotes);
+        setQuoteNoteSections(parsedSections);
+        lastSerializedQuoteNoteSectionsRef.current = quoteNotes;
+    }, [quoteNotes]);
 
     useEffect(() => {
         if (!quote) return;
@@ -5499,12 +5622,45 @@ export default function QuotePage() {
                                                     : 'Wordt automatisch opgeslagen'}
                                         </div>
                                     </div>
-                                    <textarea
-                                        value={quoteNotes}
-                                        onChange={(e) => handleQuoteNotesChange(e.target.value)}
-                                        placeholder="Voeg notities toe voor deze offerte..."
-                                        className="min-h-[280px] w-full rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:border-border focus:bg-background"
-                                    />
+                                    <div className="space-y-3">
+                                        {quoteNoteSections.map((section, index) => (
+                                            <div key={section.id} className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                                    <Input
+                                                        value={section.title}
+                                                        onChange={(e) => handleQuoteNoteSectionChange(section.id, 'title', e.target.value)}
+                                                        placeholder={`Titel notitieblok ${index + 1}`}
+                                                        className="h-9 sm:flex-1"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="gap-2 self-start sm:self-auto"
+                                                        onClick={() => handleRemoveQuoteNoteSection(section.id)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                        Verwijder
+                                                    </Button>
+                                                </div>
+                                                <textarea
+                                                    value={section.notes}
+                                                    onChange={(e) => handleQuoteNoteSectionChange(section.id, 'notes', e.target.value)}
+                                                    placeholder="Voeg notities toe voor dit onderdeel..."
+                                                    className="min-h-[180px] w-full rounded-xl border border-border/60 bg-background p-4 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:border-border"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="gap-2"
+                                        onClick={handleAddQuoteNoteSection}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Notitieblok toevoegen
+                                    </Button>
                                 </div>
                             )}
                         </TabsContent>

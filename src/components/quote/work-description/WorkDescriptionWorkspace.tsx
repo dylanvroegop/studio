@@ -145,9 +145,24 @@ export function WorkDescriptionWorkspace({
             </div>
 
             <div className="flex items-center gap-2">
+              <Button type="button" variant="success" size="sm" onClick={() => onGenerate('full')} disabled={isGenerating}>
+                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                Genereer werkbeschrijving
+              </Button>
               {templateLabel && onApplyTemplate ? (
                 <Button type="button" variant="outline" size="sm" onClick={onApplyTemplate}>
                   Template toepassen ({templateLabel})
+                </Button>
+              ) : null}
+              {showDevTools ? (
+                <Button
+                  type="button"
+                  variant="destructiveSoft"
+                  size="sm"
+                  onClick={clearAllSectionsKeepTitleAndContext}
+                  disabled={isGenerating}
+                >
+                  Dev: wis stappen
                 </Button>
               ) : null}
               {isAutoSaving ? (
@@ -155,37 +170,6 @@ export function WorkDescriptionWorkspace({
               ) : null}
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border border-border bg-card/50">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-base">AI acties</CardTitle>
-            {showDevTools ? (
-              <Button
-                type="button"
-                variant="destructiveSoft"
-                size="sm"
-                onClick={clearAllSectionsKeepTitleAndContext}
-                disabled={isGenerating}
-              >
-                Dev: wis stappen
-              </Button>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-2 md:grid-cols-3">
-          <Button type="button" variant="success" onClick={() => onGenerate('full')} disabled={isGenerating}>
-            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            Genereer volledige werkbeschrijving
-          </Button>
-          <Button type="button" variant="outline" onClick={() => onGenerate('uitvoering-only')} disabled={isGenerating}>
-            Vul alleen uitvoering
-          </Button>
-          <Button type="button" variant="outline" onClick={() => onGenerate('improve')} disabled={isGenerating}>
-            Verbeter bestaande tekst
-          </Button>
         </CardContent>
       </Card>
 

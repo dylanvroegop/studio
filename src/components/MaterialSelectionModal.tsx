@@ -467,6 +467,9 @@ export function MaterialSelectionModal({
   const [categorieDropdownOpen, setCategorieDropdownOpen] = useState(false);
   const [subsectieDropdownOpen, setSubsectieDropdownOpen] = useState(false);
   const [leverancierDropdownOpen, setLeverancierDropdownOpen] = useState(false);
+  const [showAllCategorieOptions, setShowAllCategorieOptions] = useState(false);
+  const [showAllSubsectieOptions, setShowAllSubsectieOptions] = useState(false);
+  const [showAllLeverancierOptions, setShowAllLeverancierOptions] = useState(false);
 
   const subCategoryPreferenceScope = useMemo(() => {
     const scopeRaw = categoryTitle || (Array.isArray(defaultCategory) ? defaultCategory.join(',') : defaultCategory) || 'default';
@@ -526,6 +529,12 @@ export function MaterialSelectionModal({
       setCustomCategorie('');
       setCustomSubsectie('');
       setCustomLeverancier('');
+      setCategorieDropdownOpen(false);
+      setSubsectieDropdownOpen(false);
+      setLeverancierDropdownOpen(false);
+      setShowAllCategorieOptions(false);
+      setShowAllSubsectieOptions(false);
+      setShowAllLeverancierOptions(false);
       setAiSourceImage(null);
       setIsAiExtracting(false);
       setAiExtractionSummary(null);
@@ -803,22 +812,25 @@ export function MaterialSelectionModal({
   }, [existingMaterials, customCategorie, selectedCategoryForNewMaterial, selectedSubCategoryForNewMaterial]);
 
   const filteredCategories = useMemo(() => {
+    if (showAllCategorieOptions) return formCategoryOptions;
     if (!customCategorie.trim()) return formCategoryOptions;
     const lower = customCategorie.toLowerCase();
     return formCategoryOptions.filter(cat => cat.toLowerCase().includes(lower));
-  }, [formCategoryOptions, customCategorie]);
+  }, [formCategoryOptions, customCategorie, showAllCategorieOptions]);
 
   const filteredSubsecties = useMemo(() => {
+    if (showAllSubsectieOptions) return formSubsectionOptions;
     if (!customSubsectie.trim()) return formSubsectionOptions;
     const lower = customSubsectie.toLowerCase();
     return formSubsectionOptions.filter((sub) => sub.toLowerCase().includes(lower));
-  }, [formSubsectionOptions, customSubsectie]);
+  }, [formSubsectionOptions, customSubsectie, showAllSubsectieOptions]);
 
   const filteredLeveranciers = useMemo(() => {
+    if (showAllLeverancierOptions) return uniqueLeveranciers;
     if (!customLeverancier.trim()) return uniqueLeveranciers;
     const lower = customLeverancier.toLowerCase();
     return uniqueLeveranciers.filter(lev => lev.toLowerCase().includes(lower));
-  }, [uniqueLeveranciers, customLeverancier]);
+  }, [uniqueLeveranciers, customLeverancier, showAllLeverancierOptions]);
 
   const applyCategoryFilter = useCallback((
     nextCategoryFilter: string | string[],
@@ -2249,9 +2261,18 @@ export function MaterialSelectionModal({
                     <div className="relative">
                       <Input
                         value={customCategorie}
-                        onChange={(e) => setCustomCategorie(e.target.value)}
-                        onFocus={() => setCategorieDropdownOpen(true)}
-                        onBlur={() => setTimeout(() => setCategorieDropdownOpen(false), 150)}
+                        onChange={(e) => {
+                          setCustomCategorie(e.target.value);
+                          setShowAllCategorieOptions(false);
+                        }}
+                        onFocus={() => {
+                          setCategorieDropdownOpen(true);
+                          setShowAllCategorieOptions(false);
+                        }}
+                        onBlur={() => setTimeout(() => {
+                          setCategorieDropdownOpen(false);
+                          setShowAllCategorieOptions(false);
+                        }, 150)}
                         placeholder="Bijv. Balkhout"
                         autoComplete="off"
                         className={formCategoryOptions.length > 0 ? "pr-10" : ""}
@@ -2259,7 +2280,16 @@ export function MaterialSelectionModal({
                       {formCategoryOptions.length > 0 && (
                         <button
                           type="button"
-                          onMouseDown={(e) => { e.preventDefault(); setCategorieDropdownOpen(!categorieDropdownOpen); }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            if (categorieDropdownOpen) {
+                              setCategorieDropdownOpen(false);
+                              setShowAllCategorieOptions(false);
+                            } else {
+                              setCategorieDropdownOpen(true);
+                              setShowAllCategorieOptions(true);
+                            }
+                          }}
                           className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors"
                         >
                           <ChevronDown className="h-4 w-4" />
@@ -2271,7 +2301,12 @@ export function MaterialSelectionModal({
                             <button
                               key={cat}
                               type="button"
-                              onMouseDown={(e) => { e.preventDefault(); setCustomCategorie(cat); setCategorieDropdownOpen(false); }}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setCustomCategorie(cat);
+                                setCategorieDropdownOpen(false);
+                                setShowAllCategorieOptions(false);
+                              }}
                               className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
                               {cat}
@@ -2286,9 +2321,18 @@ export function MaterialSelectionModal({
                     <div className="relative">
                       <Input
                         value={customSubsectie}
-                        onChange={(e) => setCustomSubsectie(e.target.value)}
-                        onFocus={() => setSubsectieDropdownOpen(true)}
-                        onBlur={() => setTimeout(() => setSubsectieDropdownOpen(false), 150)}
+                        onChange={(e) => {
+                          setCustomSubsectie(e.target.value);
+                          setShowAllSubsectieOptions(false);
+                        }}
+                        onFocus={() => {
+                          setSubsectieDropdownOpen(true);
+                          setShowAllSubsectieOptions(false);
+                        }}
+                        onBlur={() => setTimeout(() => {
+                          setSubsectieDropdownOpen(false);
+                          setShowAllSubsectieOptions(false);
+                        }, 150)}
                         placeholder="Bijv. Ribben"
                         autoComplete="off"
                         className={formSubsectionOptions.length > 0 ? "pr-10" : ""}
@@ -2296,7 +2340,16 @@ export function MaterialSelectionModal({
                       {formSubsectionOptions.length > 0 && (
                         <button
                           type="button"
-                          onMouseDown={(e) => { e.preventDefault(); setSubsectieDropdownOpen(!subsectieDropdownOpen); }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            if (subsectieDropdownOpen) {
+                              setSubsectieDropdownOpen(false);
+                              setShowAllSubsectieOptions(false);
+                            } else {
+                              setSubsectieDropdownOpen(true);
+                              setShowAllSubsectieOptions(true);
+                            }
+                          }}
                           className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors"
                         >
                           <ChevronDown className="h-4 w-4" />
@@ -2308,7 +2361,12 @@ export function MaterialSelectionModal({
                             <button
                               key={subsectie}
                               type="button"
-                              onMouseDown={(e) => { e.preventDefault(); setCustomSubsectie(subsectie); setSubsectieDropdownOpen(false); }}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setCustomSubsectie(subsectie);
+                                setSubsectieDropdownOpen(false);
+                                setShowAllSubsectieOptions(false);
+                              }}
                               className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
                               {subsectie}
@@ -2323,9 +2381,18 @@ export function MaterialSelectionModal({
                     <div className="relative">
                       <Input
                         value={customLeverancier}
-                        onChange={(e) => setCustomLeverancier(e.target.value)}
-                        onFocus={() => setLeverancierDropdownOpen(true)}
-                        onBlur={() => setTimeout(() => setLeverancierDropdownOpen(false), 150)}
+                        onChange={(e) => {
+                          setCustomLeverancier(e.target.value);
+                          setShowAllLeverancierOptions(false);
+                        }}
+                        onFocus={() => {
+                          setLeverancierDropdownOpen(true);
+                          setShowAllLeverancierOptions(false);
+                        }}
+                        onBlur={() => setTimeout(() => {
+                          setLeverancierDropdownOpen(false);
+                          setShowAllLeverancierOptions(false);
+                        }, 150)}
                         placeholder="Bijv. Bouwmaat"
                         autoComplete="off"
                         className={uniqueLeveranciers.length > 0 ? "pr-10" : ""}
@@ -2333,7 +2400,16 @@ export function MaterialSelectionModal({
                       {uniqueLeveranciers.length > 0 && (
                         <button
                           type="button"
-                          onMouseDown={(e) => { e.preventDefault(); setLeverancierDropdownOpen(!leverancierDropdownOpen); }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            if (leverancierDropdownOpen) {
+                              setLeverancierDropdownOpen(false);
+                              setShowAllLeverancierOptions(false);
+                            } else {
+                              setLeverancierDropdownOpen(true);
+                              setShowAllLeverancierOptions(true);
+                            }
+                          }}
                           className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-colors"
                         >
                           <ChevronDown className="h-4 w-4" />
@@ -2345,7 +2421,12 @@ export function MaterialSelectionModal({
                             <button
                               key={lev}
                               type="button"
-                              onMouseDown={(e) => { e.preventDefault(); setCustomLeverancier(lev); setLeverancierDropdownOpen(false); }}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setCustomLeverancier(lev);
+                                setLeverancierDropdownOpen(false);
+                                setShowAllLeverancierOptions(false);
+                              }}
                               className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
                               {lev}

@@ -1086,10 +1086,12 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     for (let page = 1; page <= totalPages; page += 1) {
         doc.setPage(page);
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
-        doc.setTextColor(120, 120, 120);
-        doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, 8, { align: 'right' });
+        if (page > 1) {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.setTextColor(120, 120, 120);
+            doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, 8, { align: 'right' });
+        }
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
@@ -1097,9 +1099,9 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.text(`${page}/${totalPages}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
 
         if (signatureAsset) {
-            const footerMaxWidth = 34;
-            const footerMaxHeight = 8;
-            const footerAreaTop = pageHeight - 18;
+            const footerMaxWidth = 40;
+            const footerMaxHeight = 10;
+            const footerAreaTop = pageHeight - 19;
             const { width: footerSignatureWidth, height: footerSignatureHeight } = fitImageWithinBox(
                 signatureAsset.width,
                 signatureAsset.height,
