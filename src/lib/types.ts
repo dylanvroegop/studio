@@ -97,9 +97,22 @@ export type Quote = {
   };
 
   bonnetjes?: ReceiptAttachment[];
+  fotos?: QuotePhotoAttachment[];
 };
 
 export interface ReceiptAttachment {
+  id: string;
+  quoteId: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  storagePath: string;
+  downloadUrl: string;
+  createdAt: Timestamp | Date | string;
+  uploadedBy: string;
+}
+
+export interface QuotePhotoAttachment {
   id: string;
   quoteId: string;
   originalName: string;

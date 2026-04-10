@@ -18,6 +18,19 @@ type MaterialContextItem = {
   quantity: number;
   unit: string;
   type: 'groot' | 'verbruik' | 'unknown';
+  shortLabel: string;
+};
+type WorkDescriptionScope = {
+  jobType: string;
+  mainObject: string;
+  location: string;
+  primaryActions: string[];
+  secondaryActions: string[];
+  finishActions: string[];
+  relevantPreparation: string[];
+  relevantMaterials: string[];
+  constraintsOrUnknowns: string[];
+  customerVisibleScope: string[];
 };
 
 const DEFAULT_OPENAI_MODEL = 'gpt-5.2';
@@ -36,6 +49,20 @@ const MATERIAL_TOKEN_STOPWORDS = new Set([
   'stuk', 'stuks', 'mm', 'cm', 'm', 'meter', 'plaat', 'platen', 'materiaal', 'materialen',
   'fsc', 'mix', 'wit', 'gegrond', 'exterieur', 'interieur',
 ]);
+const GENERIC_FILLER_PATTERN = /\b(we zorgen voor|we controleren|we stemmen( met u)? af|zodat|waar nodig|indien nodig)\b/i;
+
+const EMPTY_SCOPE: WorkDescriptionScope = {
+  jobType: '',
+  mainObject: '',
+  location: '',
+  primaryActions: [],
+  secondaryActions: [],
+  finishActions: [],
+  relevantPreparation: [],
+  relevantMaterials: [],
+  constraintsOrUnknowns: [],
+  customerVisibleScope: [],
+};
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -132,8 +159,123 @@ function buildActionPrompt(input: {
   ].filter(Boolean).join('\n');
 }
 
+function buildScopeExtractionPrompt(input: {
+  action: AiAction | null;
+  title: string;
+  context: string;
+  category: string;
+  notesContext: string;
+  measurementsContext: string;
+  materialContext: MaterialContextItem[];
+  baseStructured: WorkDescriptionStructured;
+}): string {
+  const materialLines = input.materialContext.length > 0
+    ? input.materialContext.map((item) => `- ${item.shortLabel} (${item.quantity} ${item.unit})`)
+    : ['- geen expliciete materialen meegegeven'];
+
+  return [
+    'Stap 1: Extraheer de echte klus-scope uit de context voor een Nederlandse offerte.',
+    `Actie: ${input.action || 'full'}`,
+    input.title ? `Titel: ${input.title}` : '',
+    input.context ? `Korte context: ${input.context}` : '',
+    input.category ? `Categorie: ${input.category}` : '',
+    input.notesContext ? `Notities: ${input.notesContext}` : '',
+    input.measurementsContext ? `Maatvoering: ${input.measurementsContext}` : '',
+    'Materiaalcontext (reeds opgeschoond):',
+    ...materialLines,
+    'Bestaande werkbeschrijving (indien aanwezig):',
+    JSON.stringify(input.baseStructured),
+    '',
+    'Regels:',
+    '- Gebruik geen leveranciersnamen, merktaal, SKU-achtige labels of complete producttitels.',
+    '- Vermijd maten in relevantMaterials, tenzij die maat essentieel is voor de scope.',
+    '- Neem alleen scope op die klant zichtbaar of commercieel relevant is.',
+    '- Houd entries compact en concreet.',
+    '',
+    'Geef uitsluitend JSON terug in exact dit formaat:',
+    '{"scope":{"jobType":"","mainObject":"","location":"","primaryActions":[],"secondaryActions":[],"finishActions":[],"relevantPreparation":[],"relevantMaterials":[],"constraintsOrUnknowns":[],"customerVisibleScope":[]}}',
+  ].filter(Boolean).join('\n');
+}
+
+function buildWriteFromScopePrompt(input: {
+  action: AiAction | null;
+  scope: WorkDescriptionScope;
+  baseStructured: WorkDescriptionStructured;
+}): string {
+  const actionRule =
+    input.action === 'uitvoering-only'
+      ? 'Werk alleen uitvoering bij.'
+      : input.action === 'improve'
+        ? 'Verbeter bestaande tekst op basis van scope.'
+        : 'Schrijf volledige werkbeschrijving.';
+
+  return [
+    'Stap 2: Schrijf offerteklare werkbeschrijving vanuit de scope.',
+    actionRule,
+    '',
+    'Scope JSON:',
+    JSON.stringify(input.scope),
+    '',
+    'Bestaande werkbeschrijving JSON:',
+    JSON.stringify(input.baseStructured),
+    '',
+    'Schrijfregels:',
+    '- Nederlands, kort, vakmatig, offerte-geschikt.',
+    '- Geen chatbottaal, geen uitlegstijl, geen zachte opvulling.',
+    '- Vermijd: "we zorgen voor", "we controleren", "we stemmen af", "zodat", "waar nodig", "indien nodig".',
+    '- Geen leveranciersachtige materiaalregels; gebruik generieke materiaaltaal.',
+    '- Titel 2-6 woorden.',
+    '- Samenvatting 1 korte zin.',
+    '- Voorbereiding 2-4 regels, uitvoering 3-6 regels, afwerking 2-4 regels (bij full).',
+    '- Elke regel moet zelfstandig waarde hebben voor offertescope.',
+    '',
+    'Geef uitsluitend JSON terug in exact dit formaat:',
+    '{"werkbeschrijvingStructured":{"title":"","context":"","sections":{"voorbereiding":[],"uitvoering":[],"afwerking":[]}}}',
+    'Geen markdown, geen extra tekst.',
+  ].join('\n');
+}
+
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeArrayOfStrings(value: unknown, max = 12): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .slice(0, max);
+}
+
+function normalizeScope(value: unknown): WorkDescriptionScope {
+  if (!value || typeof value !== 'object') return { ...EMPTY_SCOPE };
+  const row = value as Record<string, unknown>;
+  return {
+    jobType: safeString(row.jobType),
+    mainObject: safeString(row.mainObject),
+    location: safeString(row.location),
+    primaryActions: normalizeArrayOfStrings(row.primaryActions, 10),
+    secondaryActions: normalizeArrayOfStrings(row.secondaryActions, 10),
+    finishActions: normalizeArrayOfStrings(row.finishActions, 10),
+    relevantPreparation: normalizeArrayOfStrings(row.relevantPreparation, 10),
+    relevantMaterials: normalizeArrayOfStrings(row.relevantMaterials, 10),
+    constraintsOrUnknowns: normalizeArrayOfStrings(row.constraintsOrUnknowns, 10),
+    customerVisibleScope: normalizeArrayOfStrings(row.customerVisibleScope, 10),
+  };
+}
+
+function hasScopeContent(scope: WorkDescriptionScope): boolean {
+  return Boolean(
+    scope.jobType
+    || scope.mainObject
+    || scope.location
+    || scope.primaryActions.length
+    || scope.secondaryActions.length
+    || scope.finishActions.length
+    || scope.relevantPreparation.length
+    || scope.relevantMaterials.length
+    || scope.customerVisibleScope.length
+  );
 }
 
 function extractResponseText(payload: unknown): string {
@@ -185,51 +327,12 @@ function parseJsonWithFallback(rawOutput: string): Record<string, unknown> {
   }
 }
 
-function buildOpenAiUserPrompt(params: {
-  prompt: string;
-  action: AiAction | null;
-  baseStructured: WorkDescriptionStructured;
-}): string {
-  const actionRule =
-    params.action === 'uitvoering-only'
-      ? 'Werk alleen de sectie uitvoering bij; voorbereiding/afwerking mogen leeg blijven als er geen input voor is.'
-      : params.action === 'improve'
-        ? 'Verbeter en herschrijf de bestaande inhoud professioneel.'
-        : 'Genereer een volledige werkbeschrijving.';
-
-  return [
-    params.prompt,
-    '',
-    'Bestaande werkbeschrijving (JSON):',
-    JSON.stringify(params.baseStructured),
-    '',
-    actionRule,
-    params.action === 'full'
-      ? 'Zorg voor logische sectieverdeling en compacte offerte-stappen zonder herhaling.'
-      : '',
-    'Noem elk relevant materiaal in de daadwerkelijke uitvoeringsstap, niet als losse slotregel.',
-    'Titel = korte hoofdtitel (2-6 woorden). Context = samenvatting in 1 korte zin.',
-    'Schrijf niet als chatbot. Vermijd zinnen als "We zorgen voor...", "We stemmen af..." en "zodat..."-uitleg.',
-    '',
-    'Geef uitsluitend JSON terug in exact dit formaat:',
-    '{"werkbeschrijvingStructured":{"title":"string","context":"string","sections":{"voorbereiding":["..."],"uitvoering":["..."],"afwerking":["..."]}}}',
-    'Geen markdown, geen extra uitleg.',
-  ].join('\n');
-}
-
-async function callOpenAiWorkDescription(params: {
+async function callOpenAiJson(params: {
   apiKey: string;
   model: string;
-  prompt: string;
-  action: AiAction | null;
-  baseStructured: WorkDescriptionStructured;
-}): Promise<unknown> {
-  const userPrompt = buildOpenAiUserPrompt({
-    prompt: params.prompt,
-    action: params.action,
-    baseStructured: params.baseStructured,
-  });
-
+  systemPrompt: string;
+  userPrompt: string;
+}): Promise<Record<string, unknown>> {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
@@ -238,15 +341,15 @@ async function callOpenAiWorkDescription(params: {
     },
     body: JSON.stringify({
       model: params.model,
-      temperature: 0.2,
+      temperature: 0.1,
       input: [
         {
           role: 'system',
-          content: [{ type: 'input_text', text: OPENAI_SYSTEM_PROMPT }],
+          content: [{ type: 'input_text', text: params.systemPrompt }],
         },
         {
           role: 'user',
-          content: [{ type: 'input_text', text: userPrompt }],
+          content: [{ type: 'input_text', text: params.userPrompt }],
         },
       ],
     }),
@@ -263,11 +366,7 @@ async function callOpenAiWorkDescription(params: {
     throw new Error('OpenAI gaf geen leesbare output terug.');
   }
 
-  try {
-    return parseJsonWithFallback(outputText);
-  } catch {
-    return outputText;
-  }
+  return parseJsonWithFallback(outputText);
 }
 
 function normalizeMaterialContext(input: unknown): MaterialContextItem[] {
@@ -284,9 +383,24 @@ function normalizeMaterialContext(input: unknown): MaterialContextItem[] {
       const typeRaw = typeof item.type === 'string' ? item.type.trim().toLowerCase() : '';
       const type: MaterialContextItem['type'] =
         typeRaw === 'groot' || typeRaw === 'verbruik' ? typeRaw : 'unknown';
-      return { name, quantity, unit, type };
+      const shortLabel = toGenericMaterialLabel(name);
+      return { name, quantity, unit, type, shortLabel };
     })
     .filter((item): item is MaterialContextItem => item !== null);
+}
+
+function toGenericMaterialLabel(name: string): string {
+  const raw = normalizeForMatch(name);
+  if (!raw) return 'nieuw materiaal';
+  if (/\bboeideel|boeidelen\b/.test(raw)) return 'nieuwe boeidelen';
+  if (/\bisolat/i.test(raw)) return 'isolatiemateriaal';
+  if (/\bgips\b/.test(raw)) return 'gipsplaten';
+  if (/\bkozijn\b/.test(raw)) return 'kozijnonderdelen';
+  if (/\blat|regelwerk|houtregel\b/.test(raw)) return 'regelwerk';
+  if (/\bkit\b/.test(raw)) return 'kitmateriaal';
+  if (/\bschroef|bevestig|plug\b/.test(raw)) return 'bevestigingsmateriaal';
+  if (/\bmultiplex|plaat|mdf|okoume\b/.test(raw)) return 'plaatmateriaal';
+  return 'nieuw materiaal';
 }
 
 function normalizeForMatch(value: string): string {
@@ -420,14 +534,20 @@ function cleanWorkDescriptionLine(input: string): string {
   line = line
     .replace(/^we\s+/i, '')
     .replace(/^wij\s+/i, '')
+    .replace(/^we\s+(zorgen|controleren|stemmen).+$/i, '')
     .replace(/\b(waar|indien)\s+nodig\b/gi, '')
     .replace(/\s*,?\s*zodat\b.+$/i, '')
     .replace(/\s*,?\s*waarbij\b.+$/i, '')
+    .replace(/\bnetjes\b/gi, '')
+    .replace(/\bzorgvuldig\b/gi, '')
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([,.;:])/g, '$1')
     .replace(/[;:]+$/g, '')
     .trim();
 
+  if (!line) return '';
+  if (GENERIC_FILLER_PATTERN.test(line)) return '';
+  line = stripSupplierStyleMaterialText(line);
   if (!line) return '';
 
   if (line.length > 170) {
@@ -441,16 +561,70 @@ function cleanWorkDescriptionLine(input: string): string {
     }
   }
 
+  if (line.length > 120) {
+    const clauseIndex = line.search(/\b(en|maar|terwijl)\b/i);
+    if (clauseIndex > 50) {
+      line = line.slice(0, clauseIndex).trim();
+    } else {
+      line = line.slice(0, 120).trim();
+    }
+  }
+
   return toSentenceCase(line);
+}
+
+function stripSupplierStyleMaterialText(line: string): string {
+  let next = line;
+
+  next = next
+    .replace(/\b\d{2,4}\s*x\s*\d{2,4}(\s*x\s*\d{1,3})?\s*(mm|cm|m)?\b/gi, '')
+    .replace(/\b(fsc|mix\s*\d+%?|exterieur|interieur|verlijmd|gegrond|watervast)\b/gi, '')
+    .replace(/\b(okoume|multiplexplaat|multiplex)\b/gi, 'plaatmateriaal')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.;:])/g, '$1')
+    .trim();
+
+  const tokenCount = next.split(' ').filter(Boolean).length;
+  if (tokenCount > 16 && /\bplaatmateriaal\b/i.test(next)) {
+    next = next.split(' ').slice(0, 12).join(' ').trim();
+  }
+
+  return next.replace(/[;:,.]+$/g, '').trim();
+}
+
+function stripSteigerMentions(line: string): string {
+  let next = line
+    .replace(/\bsteiger(s)?\b/gi, '')
+    .replace(/\(\s*\/?\s*\)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.;:])/g, '$1')
+    .trim();
+
+  next = next
+    .replace(/^(Gebruik|Plaatsen|Monteren|Regelen)\s+(van\s+)?$/i, '')
+    .replace(/[;:,.]+$/g, '')
+    .trim();
+
+  return next;
 }
 
 function dedupeLines(lines: string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
+  const seenTokens: string[][] = [];
   lines.forEach((line) => {
     const key = normalizeForMatch(line);
     if (!key || seen.has(key)) return;
+    const tokens = key.split(' ').filter(Boolean);
+    const nearDuplicate = seenTokens.some((existing) => {
+      const overlap = existing.filter((token) => tokens.includes(token)).length;
+      const baseline = Math.max(existing.length, tokens.length, 1);
+      return overlap / baseline >= 0.8;
+    });
+    if (nearDuplicate) return;
     seen.add(key);
+    seenTokens.push(tokens);
     result.push(line);
   });
   return result;
@@ -459,12 +633,19 @@ function dedupeLines(lines: string[]): string[] {
 function postProcessWorkDescription(
   structuredInput: WorkDescriptionStructured,
   action: AiAction | null,
+  options?: { allowSteigerMention?: boolean },
 ): WorkDescriptionStructured {
   const structured = sanitizeWorkDescriptionStructured(structuredInput);
+  const allowSteigerMention = Boolean(options?.allowSteigerMention);
+  const cleanupLines = (rows: string[]): string[] =>
+    rows
+      .map(cleanWorkDescriptionLine)
+      .map((line) => (allowSteigerMention ? line : stripSteigerMentions(line)))
+      .filter(Boolean);
   const cleaned = {
-    voorbereiding: dedupeLines(structured.sections.voorbereiding.map(cleanWorkDescriptionLine).filter(Boolean)).slice(0, 4),
-    uitvoering: dedupeLines(structured.sections.uitvoering.map(cleanWorkDescriptionLine).filter(Boolean)).slice(0, 6),
-    afwerking: dedupeLines(structured.sections.afwerking.map(cleanWorkDescriptionLine).filter(Boolean)).slice(0, 4),
+    voorbereiding: dedupeLines(cleanupLines(structured.sections.voorbereiding)).slice(0, 4),
+    uitvoering: dedupeLines(cleanupLines(structured.sections.uitvoering)).slice(0, 6),
+    afwerking: dedupeLines(cleanupLines(structured.sections.afwerking)).slice(0, 4),
   };
 
   if (action === 'full') {
@@ -510,16 +691,14 @@ function ensureMaterialsIncluded(
   const allRows = flattenStructuredWorkDescription(structured);
 
   const missing = materialContext.filter((item) => {
-    return !allRows.some((row) => rowMentionsMaterial(row, item.name));
+    return !allRows.some((row) => rowMentionsMaterial(row, item.shortLabel) || rowMentionsMaterial(row, item.name));
   });
 
   if (missing.length === 0) return structured;
 
   const nextUitvoering = [...structured.sections.uitvoering];
   const insertAt = findMaterialInsertionIndex(nextUitvoering);
-  const materialRows = missing.map((item) =>
-    `Plaatsen en verwerken van ${item.name} (${item.quantity} ${item.unit}) volgens maatvoering en productspecificatie.`
-  );
+  const materialRows = missing.map((item) => `Plaatsen en verwerken van ${item.shortLabel}.`);
   nextUitvoering.splice(insertAt, 0, ...materialRows);
 
   return {
@@ -627,14 +806,48 @@ function extractDirectStructured(result: unknown): WorkDescriptionStructured | n
     if (hasStructuredContent(structured)) return structured;
   }
 
+  const hasDutchShape =
+    typeof (row as { hoofdtitel?: unknown }).hoofdtitel === 'string'
+    || typeof (row as { samenvatting?: unknown }).samenvatting === 'string'
+    || Array.isArray((row as { voorbereiding?: unknown }).voorbereiding)
+    || Array.isArray((row as { uitvoering?: unknown }).uitvoering)
+    || Array.isArray((row as { afwerking?: unknown }).afwerking);
+  if (hasDutchShape) {
+    const structured = sanitizeWorkDescriptionStructured({
+      title: (row as { hoofdtitel?: unknown; title?: unknown }).hoofdtitel ?? (row as { title?: unknown }).title,
+      context: (row as { samenvatting?: unknown; context?: unknown }).samenvatting ?? (row as { context?: unknown }).context,
+      sections: {
+        voorbereiding: (row as { voorbereiding?: unknown }).voorbereiding,
+        uitvoering: (row as { uitvoering?: unknown }).uitvoering,
+        afwerking: (row as { afwerking?: unknown }).afwerking,
+      },
+    });
+    if (hasStructuredContent(structured)) return structured;
+  }
+
   if (typeof row.output === 'string' && row.output.trim()) {
     try {
       const parsed = JSON.parse(row.output) as {
         werkbeschrijving_structured?: unknown;
         werkbeschrijvingStructured?: unknown;
+        hoofdtitel?: unknown;
+        samenvatting?: unknown;
+        voorbereiding?: unknown;
+        uitvoering?: unknown;
+        afwerking?: unknown;
       };
       const candidate = parsed.werkbeschrijving_structured ?? parsed.werkbeschrijvingStructured;
-      const structured = sanitizeWorkDescriptionStructured(candidate);
+      const structured = candidate
+        ? sanitizeWorkDescriptionStructured(candidate)
+        : sanitizeWorkDescriptionStructured({
+          title: parsed.hoofdtitel,
+          context: parsed.samenvatting,
+          sections: {
+            voorbereiding: parsed.voorbereiding,
+            uitvoering: parsed.uitvoering,
+            afwerking: parsed.afwerking,
+          },
+        });
       if (hasStructuredContent(structured)) return structured;
     } catch {
       // ignore
@@ -797,6 +1010,16 @@ export async function POST(request: Request) {
       measurementsContext,
     });
     const prompt = explicitPrompt || fallbackPrompt;
+    const steigerContext = [
+      explicitPrompt,
+      title,
+      context,
+      category,
+      notesContext,
+      measurementsContext,
+      ...materialContext.map((item) => item.name),
+    ].join('\n').toLowerCase();
+    const allowSteigerMention = /\bsteiger(s)?\b/.test(steigerContext);
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is verplicht.' }, { status: 400 });
@@ -814,13 +1037,43 @@ export async function POST(request: Request) {
     }
 
     const model = safeString(process.env.OPENAI_WORK_DESCRIPTION_MODEL) || DEFAULT_OPENAI_MODEL;
-
-    const result = await callOpenAiWorkDescription({
+    const scopeExtractionPrompt = buildScopeExtractionPrompt({
+      action,
+      title,
+      context,
+      category,
+      notesContext,
+      measurementsContext,
+      materialContext,
+      baseStructured,
+    });
+    const scopePayload = await callOpenAiJson({
       apiKey,
       model,
-      prompt,
+      systemPrompt: OPENAI_SYSTEM_PROMPT,
+      userPrompt: scopeExtractionPrompt,
+    });
+    const extractedScope = normalizeScope((scopePayload as { scope?: unknown }).scope ?? scopePayload);
+    const fallbackScope: WorkDescriptionScope = {
+      ...EMPTY_SCOPE,
+      jobType: category,
+      mainObject: title || context,
+      primaryActions: action === 'uitvoering-only' ? ['uitvoering uitwerken'] : [],
+      relevantMaterials: materialContext.map((item) => item.shortLabel),
+      customerVisibleScope: context ? [context] : [],
+    };
+    const scope = hasScopeContent(extractedScope) ? extractedScope : fallbackScope;
+
+    const writePrompt = buildWriteFromScopePrompt({
       action,
+      scope,
       baseStructured,
+    });
+    const result = await callOpenAiJson({
+      apiKey,
+      model,
+      systemPrompt: OPENAI_SYSTEM_PROMPT,
+      userPrompt: writePrompt,
     });
 
     const directStructured = extractDirectStructured(result);
@@ -832,7 +1085,7 @@ export async function POST(request: Request) {
       });
       const balanced = enforceSectionDistribution(mergedStructured, action);
       const mergedWithMaterials = ensureMaterialsIncluded(balanced, materialContext);
-      const polished = postProcessWorkDescription(mergedWithMaterials, action);
+      const polished = postProcessWorkDescription(mergedWithMaterials, action, { allowSteigerMention });
       const flattened = flattenStructuredWorkDescription(polished);
       if (quoteId) {
         await persistWorkDescription(quoteId, userId, flattened, polished);
@@ -852,7 +1105,7 @@ export async function POST(request: Request) {
       });
       const balanced = enforceSectionDistribution(mergedStructured, action);
       const mergedWithMaterials = ensureMaterialsIncluded(balanced, materialContext);
-      const polished = postProcessWorkDescription(mergedWithMaterials, action);
+      const polished = postProcessWorkDescription(mergedWithMaterials, action, { allowSteigerMention });
       const flattened = flattenStructuredWorkDescription(polished);
       if (quoteId) {
         await persistWorkDescription(quoteId, userId, flattened, polished);
@@ -880,7 +1133,7 @@ export async function POST(request: Request) {
     });
     const balanced = enforceSectionDistribution(mergedStructured, action);
     const mergedWithMaterials = ensureMaterialsIncluded(balanced, materialContext);
-    const polished = postProcessWorkDescription(mergedWithMaterials, action);
+    const polished = postProcessWorkDescription(mergedWithMaterials, action, { allowSteigerMention });
     const flattened = flattenStructuredWorkDescription(polished);
 
     if (quoteId) {

@@ -25,7 +25,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -58,7 +58,6 @@ import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
 import { AppNavigation } from '@/components/AppNavigation';
 import { LogoUpload } from '@/components/settings/LogoUpload';
 import { findExistingVoorschotInvoiceId } from '@/lib/invoice-actions';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn, parsePriceToNumber } from '@/lib/utils';
@@ -71,7 +70,7 @@ import {
 } from '@/lib/quote-pdf-text-settings';
 import { cloneTemplateSections, findWorkDescriptionTemplate } from '@/lib/work-description/templates';
 
-import { Quote, ReceiptAttachment } from "@/lib/types";
+import { Quote, ReceiptAttachment, QuotePhotoAttachment } from "@/lib/types";
 import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
 import type { LeverancierContact } from '@/lib/types-settings';
 import { normalizeLeverancierContactList, pickDefaultLeverancierId } from '@/lib/types-settings';
@@ -282,6 +281,12 @@ function isAllowedReceiptMimeType(mimeType: string): boolean {
     ].includes(mimeType);
 }
 
+function isAllowedPhotoMimeType(mimeType: string): boolean {
+    if (!mimeType) return false;
+    if (mimeType.startsWith('image/')) return true;
+    return ['image/heic', 'image/heif'].includes(mimeType.toLowerCase());
+}
+
 function parseReceiptCreatedAt(value: unknown): Date | null {
     if (!value) return null;
     if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -329,8 +334,13 @@ export default function QuotePage() {
     const algemeneVoorwaardenInputRef = useRef<HTMLInputElement | null>(null);
     const algemeneVoorwaardenModalInputRef = useRef<HTMLInputElement | null>(null);
     const receiptInputRef = useRef<HTMLInputElement | null>(null);
+    const photoInputRef = useRef<HTMLInputElement | null>(null);
+    const photoCameraInputRef = useRef<HTMLInputElement | null>(null);
     const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
     const [receiptActionId, setReceiptActionId] = useState<string | null>(null);
+    const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+    const [photoActionId, setPhotoActionId] = useState<string | null>(null);
+    const [selectedPhoto, setSelectedPhoto] = useState<QuotePhotoAttachment | null>(null);
     const hasEditedPdfTextSettingsRef = useRef(false);
     const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('onderVoorbehoud');
     const [activeTab, setActiveTab] = useState('materialen');
@@ -2392,6 +2402,12 @@ export default function QuotePage() {
         return raw as ReceiptAttachment[];
     }, [quote]);
 
+    const photoAttachments = useMemo<QuotePhotoAttachment[]>(() => {
+        const raw = (quote as any)?.fotos;
+        if (!Array.isArray(raw)) return [];
+        return raw as QuotePhotoAttachment[];
+    }, [quote]);
+
     const handleUploadReceipt = async (file: File): Promise<void> => {
         if (!user || !firestore || !id || !quote) return;
 
@@ -2528,6 +2544,124 @@ export default function QuotePage() {
             });
         } finally {
             setReceiptActionId(null);
+        }
+    };
+
+    const handleUploadPhoto = async (file: File): Promise<void> => {
+        if (!user || !firestore || !id || !quote) return;
+
+        if (!isAllowedPhotoMimeType(file.type)) {
+            toast({
+                variant: 'destructive',
+                title: 'Ongeldig bestandstype',
+                description: 'Upload een foto bestand (JPG, PNG, WEBP of HEIC).',
+            });
+            return;
+        }
+
+        const maxBytes = 15 * 1024 * 1024;
+        if (file.size > maxBytes) {
+            toast({
+                variant: 'destructive',
+                title: 'Bestand te groot',
+                description: 'Maximale bestandsgrootte is 15 MB.',
+            });
+            return;
+        }
+
+        setIsUploadingPhoto(true);
+        try {
+            const storage = getStorage();
+            const photoId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+            const extension = String(file.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+            const storagePath = `users/${user.uid}/quotes/${id}/fotos/${photoId}.${extension}`;
+            const fileRef = storageRef(storage, storagePath);
+            await uploadBytes(fileRef, file, { contentType: file.type || 'image/jpeg' });
+            const downloadUrl = await getDownloadURL(fileRef);
+
+            const nextPhoto: QuotePhotoAttachment = {
+                id: photoId,
+                quoteId: id,
+                originalName: file.name,
+                mimeType: file.type || 'image/jpeg',
+                sizeBytes: file.size,
+                storagePath,
+                downloadUrl,
+                createdAt: new Date().toISOString(),
+                uploadedBy: user.uid,
+            };
+
+            const existing = Array.isArray((quote as any).fotos) ? ((quote as any).fotos as QuotePhotoAttachment[]) : [];
+            const nextFotos = [...existing, nextPhoto];
+
+            const quoteRef = doc(firestore, 'quotes', id);
+            await updateDoc(quoteRef, {
+                fotos: nextFotos,
+                updatedAt: serverTimestamp(),
+            } as any);
+
+            setQuote((prev) => (prev ? ({ ...prev, fotos: nextFotos } as Quote) : prev));
+            toast({
+                title: 'Foto opgeslagen',
+                description: file.name,
+            });
+        } catch (error) {
+            console.error('Error uploading foto:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Upload mislukt',
+                description: 'Kon foto niet uploaden. Probeer het opnieuw.',
+            });
+        } finally {
+            setIsUploadingPhoto(false);
+            if (photoInputRef.current) {
+                photoInputRef.current.value = '';
+            }
+            if (photoCameraInputRef.current) {
+                photoCameraInputRef.current.value = '';
+            }
+        }
+    };
+
+    const handleDeletePhoto = async (photo: QuotePhotoAttachment): Promise<void> => {
+        if (!user || !firestore || !id || !quote) return;
+        setPhotoActionId(photo.id);
+        try {
+            if (photo.storagePath) {
+                const storage = getStorage();
+                await deleteObject(storageRef(storage, photo.storagePath));
+            }
+        } catch (error) {
+            console.error('Error deleting foto from storage:', error);
+        }
+
+        try {
+            const existing = Array.isArray((quote as any).fotos) ? ((quote as any).fotos as QuotePhotoAttachment[]) : [];
+            const nextFotos = existing.filter((item) => item.id !== photo.id);
+            const quoteRef = doc(firestore, 'quotes', id);
+            await updateDoc(quoteRef, {
+                fotos: nextFotos,
+                updatedAt: serverTimestamp(),
+            } as any);
+            setQuote((prev) => (prev ? ({ ...prev, fotos: nextFotos } as Quote) : prev));
+            if (selectedPhoto?.id === photo.id) {
+                setSelectedPhoto(null);
+            }
+            toast({
+                title: 'Foto verwijderd',
+                description: photo.originalName,
+            });
+        } catch (error) {
+            console.error('Error deleting foto metadata:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Verwijderen mislukt',
+                description: 'Kon foto niet verwijderen. Probeer het opnieuw.',
+            });
+        } finally {
+            setPhotoActionId(null);
         }
     };
 
@@ -3921,6 +4055,14 @@ export default function QuotePage() {
         });
     }, [receiptAttachments]);
 
+    const sortedPhotoAttachments = useMemo(() => {
+        return [...photoAttachments].sort((a, b) => {
+            const aDate = parseReceiptCreatedAt(a.createdAt)?.getTime() ?? 0;
+            const bDate = parseReceiptCreatedAt(b.createdAt)?.getTime() ?? 0;
+            return bDate - aDate;
+        });
+    }, [photoAttachments]);
+
     const formatReceiptSize = (sizeBytes: number): string => {
         const size = Number(sizeBytes || 0);
         if (size < 1024) return `${size} B`;
@@ -3928,19 +4070,11 @@ export default function QuotePage() {
         return `${(size / (1024 * 1024)).toFixed(1)} MB`;
     };
 
-    const secondaryTabs = ['nacalculatie', 'tekeningen', 'bonnetjes', 'notities', 'algemene-voorwaarden'];
+    const secondaryTabs = ['nacalculatie', 'tekeningen', 'fotos', 'notities', 'algemene-voorwaarden'];
     const isSecondarySectionActive = secondaryTabs.includes(activeTab);
-    const openKostenForBonnetjes = useCallback(() => {
-        const query = new URLSearchParams({ offerteId: id });
-        router.push(`/kosten?${query.toString()}`);
-    }, [id, router]);
     const handleTabChange = useCallback((tab: string) => {
-        if (tab === 'bonnetjes') {
-            openKostenForBonnetjes();
-            return;
-        }
         setActiveTab(tab);
-    }, [openKostenForBonnetjes]);
+    }, []);
     const openPlanningWithType = useCallback((scheduleType: 'job' | 'werkbespreking') => {
         const params = new URLSearchParams({
             mode: 'schedule',
@@ -4165,9 +4299,9 @@ export default function QuotePage() {
                                     <FileText size={16} />
                                     PDF
                                 </TabsTrigger>
-                                <TabsTrigger value="bonnetjes" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
-                                    <Upload size={16} />
-                                    Bonnetjes
+                                <TabsTrigger value="fotos" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <ImageIcon size={16} />
+                                    Foto&apos;s
                                 </TabsTrigger>
                                 <TabsTrigger
                                     value="werkbeschrijving"
@@ -4260,10 +4394,10 @@ export default function QuotePage() {
                                                             <div className="border-b border-white/10 bg-muted/65 px-5 py-3.5">
                                                                 <h3 className="text-sm font-semibold text-foreground">2. Financiële instellingen</h3>
                                                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                                                    Bepaal hoe winstmarge wordt toegepast voor overzicht en PDF.
+                                                                    Bepaal hoe winstmarge en facturatie worden toegepast.
                                                                 </p>
                                                             </div>
-                                                            <div className="p-5">
+                                                            <div className="p-5 space-y-5">
                                                                 <div className="grid gap-2 max-w-md">
                                                                     <Label htmlFor="pdf-winstmarge-basis">Winstmarge basis</Label>
                                                                     <select
@@ -4289,6 +4423,87 @@ export default function QuotePage() {
                                                                         <option value="arbeid">Arbeid</option>
                                                                     </select>
                                                                 </div>
+
+                                                                {totals && (
+                                                                    <div className="space-y-4 rounded-xl border border-white/10 bg-muted/60 p-4">
+                                                                        <div className="flex items-center justify-between gap-4">
+                                                                            <div className="space-y-1">
+                                                                                <div className="font-medium text-foreground">Voorschot gebruiken</div>
+                                                                                <div className="text-sm text-muted-foreground">
+                                                                                    Gebruik een voorschotpercentage voor de eindfactuur.
+                                                                                </div>
+                                                                            </div>
+                                                                            <Switch
+                                                                                checked={voorschotIngeschakeld}
+                                                                                onCheckedChange={(checked) => {
+                                                                                    const wasOn = voorschotIngeschakeld;
+                                                                                    setVoorschotIngeschakeld(checked);
+                                                                                    if (checked && !wasOn) {
+                                                                                        const defaultPct = Number(userProfile?.settings?.standaardVoorschotPercentage);
+                                                                                        if (Number.isFinite(defaultPct)) {
+                                                                                            setVoorschotPercentage(defaultPct);
+                                                                                        }
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                        </div>
+
+                                                                        <div className="grid gap-4 md:grid-cols-3">
+                                                                            <div className="space-y-2">
+                                                                                <Label>Voorschot (%)</Label>
+                                                                                <div className="relative">
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        min={0}
+                                                                                        max={100}
+                                                                                        value={voorschotPercentage}
+                                                                                        onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
+                                                                                        onKeyDown={(e) => {
+                                                                                            if (['e', 'E', '+', '-'].includes(e.key)) {
+                                                                                                e.preventDefault();
+                                                                                            }
+                                                                                        }}
+                                                                                        onPaste={(e) => {
+                                                                                            if (/[eE+-]/.test(e.clipboardData.getData('text'))) {
+                                                                                                e.preventDefault();
+                                                                                            }
+                                                                                        }}
+                                                                                        disabled={!voorschotIngeschakeld}
+                                                                                        className="w-full h-10 rounded-md border border-border bg-background px-3 pr-8 text-sm disabled:opacity-60"
+                                                                                    />
+                                                                                    <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="space-y-2 md:col-span-2">
+                                                                                <Label>Preview (incl. BTW)</Label>
+                                                                                <div className="h-10 rounded-md border border-border bg-background px-3 flex items-center justify-between">
+                                                                                    <span className="text-sm text-muted-foreground">Voorschotbedrag</span>
+                                                                                    <span className="text-sm font-semibold text-foreground">
+                                                                                        {formatCurrency(
+                                                                                            Math.round((totals.totaalInclBtw * (Math.max(0, Math.min(100, voorschotPercentage)) / 100)) * 100) / 100
+                                                                                        )}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+                                                                            Onder voorbehoud instellen? Dit regel je hierboven bij <span className="font-medium text-foreground">Inhoud en Samenvatting</span>.
+                                                                        </div>
+
+                                                                        <div className="flex flex-wrap gap-2">
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="outline"
+                                                                                onClick={() => existingVoorschotInvoiceId && router.push(`/facturen/${existingVoorschotInvoiceId}`)}
+                                                                                disabled={!existingVoorschotInvoiceId}
+                                                                            >
+                                                                                Open voorschotfactuur
+                                                                            </Button>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </section>
                                                     )}
@@ -5017,92 +5232,6 @@ export default function QuotePage() {
                                 </Button>
                             </div>
 
-                            {totals && (
-                                <Card className="border border-border bg-card/50">
-                                    <CardHeader className="pb-3">
-                                        <CardTitle className="text-base">Facturatie</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="flex items-center justify-between gap-4">
-                                            <div className="space-y-1">
-                                                <div className="font-medium text-foreground">Voorschot gebruiken</div>
-                                                <div className="text-sm text-muted-foreground">
-                                                    Gebruik een voorschotpercentage voor de eindfactuur.
-                                                </div>
-                                            </div>
-                                            <Switch
-                                                checked={voorschotIngeschakeld}
-                                                onCheckedChange={(checked) => {
-                                                    const wasOn = voorschotIngeschakeld;
-                                                    setVoorschotIngeschakeld(checked);
-                                                    if (checked && !wasOn) {
-                                                        const defaultPct = Number(userProfile?.settings?.standaardVoorschotPercentage);
-                                                        if (Number.isFinite(defaultPct)) {
-                                                            setVoorschotPercentage(defaultPct);
-                                                        }
-                                                    }
-                                                }}
-                                            />
-                                        </div>
-
-                                        <div className="grid gap-4 md:grid-cols-3">
-                                            <div className="space-y-2">
-                                                <Label>Voorschot (%)</Label>
-                                                <div className="relative">
-                                                    <input
-                                                        type="number"
-                                                        min={0}
-                                                        max={100}
-                                                        value={voorschotPercentage}
-                                                        onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
-                                                        onKeyDown={(e) => {
-                                                            if (['e', 'E', '+', '-'].includes(e.key)) {
-                                                                e.preventDefault();
-                                                            }
-                                                        }}
-                                                        onPaste={(e) => {
-                                                            if (/[eE+-]/.test(e.clipboardData.getData('text'))) {
-                                                                e.preventDefault();
-                                                            }
-                                                        }}
-                                                        disabled={!voorschotIngeschakeld}
-                                                        className="w-full h-10 rounded-md border border-border bg-background px-3 pr-8 text-sm disabled:opacity-60"
-                                                    />
-                                                    <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-2 md:col-span-2">
-                                                <Label>Preview (incl. BTW)</Label>
-                                                <div className="h-10 rounded-md border border-border bg-background px-3 flex items-center justify-between">
-                                                    <span className="text-sm text-muted-foreground">Voorschotbedrag</span>
-                                                    <span className="text-sm font-semibold text-foreground">
-                                                        {formatCurrency(
-                                                            Math.round((totals.totaalInclBtw * (Math.max(0, Math.min(100, voorschotPercentage)) / 100)) * 100) / 100
-                                                        )}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-                                            Onder voorbehoud instellen? Gebruik <span className="font-medium text-foreground">PDF Instellingen</span> in de tab <span className="font-medium text-foreground">PDF Preview</span>.
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-2">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                onClick={() => existingVoorschotInvoiceId && router.push(`/facturen/${existingVoorschotInvoiceId}`)}
-                                                disabled={!existingVoorschotInvoiceId}
-                                            >
-                                                Open voorschotfactuur
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
-
                             {loading ? (
                                 <LoadingPanel />
                             ) : !isDrawingsReady ? (
@@ -5216,6 +5345,133 @@ export default function QuotePage() {
                                                                 <Trash2 className="h-3.5 w-3.5" />
                                                                 Verwijderen
                                                             </Button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </TabsContent>
+
+                        <TabsContent value="fotos" className="mt-6">
+                            {loading ? (
+                                <LoadingPanel />
+                            ) : (
+                                <div className="space-y-4 rounded-lg border border-border bg-card p-6">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-foreground">Foto&apos;s op locatie</h3>
+                                            <p className="text-xs text-muted-foreground">
+                                                Maak direct een foto op locatie en bekijk hem meteen terug in deze offerte.
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <input
+                                                ref={photoCameraInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                capture="environment"
+                                                className="hidden"
+                                                onChange={(event) => {
+                                                    const file = event.target.files?.[0];
+                                                    if (!file) return;
+                                                    void handleUploadPhoto(file);
+                                                }}
+                                            />
+                                            <input
+                                                ref={photoInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={(event) => {
+                                                    const file = event.target.files?.[0];
+                                                    if (!file) return;
+                                                    void handleUploadPhoto(file);
+                                                }}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="gap-2"
+                                                onClick={() => photoCameraInputRef.current?.click()}
+                                                disabled={isUploadingPhoto}
+                                            >
+                                                {isUploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                                                Foto maken
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="gap-2"
+                                                onClick={() => photoInputRef.current?.click()}
+                                                disabled={isUploadingPhoto}
+                                            >
+                                                <Upload className="h-4 w-4" />
+                                                Foto uploaden
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {sortedPhotoAttachments.length === 0 ? (
+                                        <div className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                                            Nog geen foto&apos;s toegevoegd.
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                            {sortedPhotoAttachments.map((photo) => {
+                                                const createdAt = parseReceiptCreatedAt(photo.createdAt);
+                                                const isBusy = photoActionId === photo.id;
+                                                return (
+                                                    <div key={photo.id} className="overflow-hidden rounded-lg border border-border/70 bg-background/50">
+                                                        <button
+                                                            type="button"
+                                                            className="relative block w-full"
+                                                            onClick={() => setSelectedPhoto(photo)}
+                                                        >
+                                                            <img
+                                                                src={photo.downloadUrl}
+                                                                alt={photo.originalName || 'Projectfoto'}
+                                                                className="h-44 w-full object-cover"
+                                                                loading="lazy"
+                                                            />
+                                                            <div className="absolute right-2 top-2 rounded-md bg-background/90 p-1 text-foreground shadow">
+                                                                <Maximize2 className="h-3.5 w-3.5" />
+                                                            </div>
+                                                        </button>
+                                                        <div className="space-y-2 p-3">
+                                                            <div className="line-clamp-1 text-sm font-medium text-foreground">
+                                                                {photo.originalName}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {formatReceiptSize(photo.sizeBytes)}
+                                                                {createdAt ? ` · ${createdAt.toLocaleString('nl-NL')}` : ''}
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="gap-2"
+                                                                    disabled={isBusy}
+                                                                    onClick={() => setSelectedPhoto(photo)}
+                                                                >
+                                                                    <Maximize2 className="h-3.5 w-3.5" />
+                                                                    Bekijken
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="gap-2 text-red-400 hover:text-red-300"
+                                                                    disabled={isBusy}
+                                                                    onClick={() => { void handleDeletePhoto(photo); }}
+                                                                >
+                                                                    {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                                                    Verwijderen
+                                                                </Button>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 );
@@ -5438,14 +5694,14 @@ export default function QuotePage() {
                                     Tekeningen
                                 </Button>
                                 <Button
-                                    variant={activeTab === 'bonnetjes' ? 'secondary' : 'outline'}
+                                    variant={activeTab === 'fotos' ? 'secondary' : 'outline'}
                                     className="h-11 justify-start"
                                     onClick={() => {
-                                        openKostenForBonnetjes();
+                                        setActiveTab('fotos');
                                         setIsMobileMoreSectionsOpen(false);
                                     }}
                                 >
-                                    Bonnetjes
+                                    Foto&apos;s
                                 </Button>
                                 <Button
                                     variant={activeTab === 'notities' ? 'secondary' : 'outline'}
@@ -5470,6 +5726,23 @@ export default function QuotePage() {
                             </div>
                         </SheetContent>
                     </Sheet>
+
+                    <Dialog open={!!selectedPhoto} onOpenChange={(open) => { if (!open) setSelectedPhoto(null); }}>
+                        <DialogContent className="w-[96vw] max-w-4xl border-border bg-background p-0">
+                            <DialogHeader className="border-b border-border/60 px-4 py-3">
+                                <DialogTitle className="line-clamp-1 text-sm">{selectedPhoto?.originalName || 'Foto'}</DialogTitle>
+                            </DialogHeader>
+                            {selectedPhoto && (
+                                <div className="p-3 sm:p-4">
+                                    <img
+                                        src={selectedPhoto.downloadUrl}
+                                        alt={selectedPhoto.originalName || 'Projectfoto'}
+                                        className="max-h-[78vh] w-full rounded-md border border-border/60 object-contain"
+                                    />
+                                </div>
+                            )}
+                        </DialogContent>
+                    </Dialog>
                     </>
                 )}
 
