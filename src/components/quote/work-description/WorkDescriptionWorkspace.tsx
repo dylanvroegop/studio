@@ -54,6 +54,8 @@ export function WorkDescriptionWorkspace({
   templateLabel,
   onApplyTemplate,
 }: WorkDescriptionWorkspaceProps) {
+  const showDevTools = process.env.NODE_ENV === 'development';
+
   const updateSectionRow = (section: SectionKey, index: number, rowValue: string) => {
     const currentRows = [...value.sections[section]];
     currentRows[index] = rowValue;
@@ -80,6 +82,18 @@ export function WorkDescriptionWorkspace({
     rows[targetIndex] = temp;
 
     onChange(updateSectionRows(value, section, rows));
+  };
+
+  const clearAllSectionsKeepTitleAndContext = () => {
+    onChange({
+      ...value,
+      sections: {
+        voorbereiding: [],
+        uitvoering: [],
+        afwerking: [],
+      },
+      legacyNotes: [],
+    });
   };
 
   return (
@@ -146,7 +160,20 @@ export function WorkDescriptionWorkspace({
 
       <Card className="border border-border bg-card/50">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">AI acties</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base">AI acties</CardTitle>
+            {showDevTools ? (
+              <Button
+                type="button"
+                variant="destructiveSoft"
+                size="sm"
+                onClick={clearAllSectionsKeepTitleAndContext}
+                disabled={isGenerating}
+              >
+                Dev: wis stappen
+              </Button>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent className="grid gap-2 md:grid-cols-3">
           <Button type="button" variant="success" onClick={() => onGenerate('full')} disabled={isGenerating}>

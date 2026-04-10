@@ -251,7 +251,6 @@ function withRodeVoorwaardenByMode(
 const CALCULATION_ESTIMATE_SECONDS = 300;
 const CALCULATION_STUCK_SECONDS = 20 * 60;
 const WORK_DESCRIPTION_AUTOSAVE_DEBOUNCE_MS = 3500;
-const WORK_DESCRIPTION_REMOTE_SYNC_PAUSE_MS = 3000;
 const WORK_DESCRIPTION_SAVING_INDICATOR_DELAY_MS = 900;
 
 function truncatePromptText(value: string, maxLength: number): string {
@@ -357,6 +356,8 @@ export default function QuotePage() {
     const [quoteNotesSavedAt, setQuoteNotesSavedAt] = useState<Date | null>(null);
     const quoteNotesSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSyncedQuoteNotesRef = useRef('');
+    const quoteNotesLastEditAtRef = useRef<number>(0);
+    const quoteNotesDirtyRef = useRef<boolean>(false);
 
     const [materials, setMaterials] = useState<{
         groot: MaterialItem[];
@@ -939,13 +940,28 @@ export default function QuotePage() {
         fetchData();
     }, [id, user, isUserLoading, firestore]);
 
+    const handleQuoteNotesChange = useCallback((value: string) => {
+        quoteNotesDirtyRef.current = true;
+        quoteNotesLastEditAtRef.current = Date.now();
+        setQuoteNotes(value);
+    }, []);
+
     useEffect(() => {
         if (!quote) return;
+
         const rawNotes = (quote as any)?.notities;
         const nextNotes = typeof rawNotes === 'string' ? rawNotes : '';
+        const hasUnsavedLocalNotes = quoteNotesDirtyRef.current && quoteNotes !== lastSyncedQuoteNotesRef.current;
+
+        if (hasUnsavedLocalNotes) {
+            return;
+        }
+
+        if (nextNotes !== quoteNotes) {
+            setQuoteNotes(nextNotes);
+        }
         lastSyncedQuoteNotesRef.current = nextNotes;
-        setQuoteNotes(nextNotes);
-    }, [quote]);
+    }, [quote, quoteNotes]);
 
     useEffect(() => {
         if (!firestore || !id || firebaseLoading) return;
@@ -956,6 +972,7 @@ export default function QuotePage() {
         }
 
         quoteNotesSaveTimerRef.current = setTimeout(async () => {
+            const saveStartedAt = Date.now();
             setIsAutoSavingQuoteNotes(true);
             try {
                 await updateDoc(doc(firestore, 'quotes', id), {
@@ -963,6 +980,9 @@ export default function QuotePage() {
                     updatedAt: serverTimestamp(),
                 } as any);
                 lastSyncedQuoteNotesRef.current = quoteNotes;
+                if (quoteNotesLastEditAtRef.current <= saveStartedAt) {
+                    quoteNotesDirtyRef.current = false;
+                }
                 setQuote((prev) => (prev ? ({ ...prev, notities: quoteNotes } as any) : prev));
                 setQuoteNotesSavedAt(new Date());
             } catch (error) {
@@ -2295,6 +2315,7 @@ export default function QuotePage() {
             korteBeschrijving: normalizedData?.korteBeschrijving,
             werkbeschrijving: generateWorkSummary(normalizedData?.werkbeschrijving, 800),
             werkbeschrijvingFull: normalizedData?.werkbeschrijving || [],
+            werkbeschrijvingStructured: workDescriptionStructured,
             grootmaterialen: materials.groot.map(m => ({
                 aantal: m.aantal,
                 product: m.product,
@@ -2954,6 +2975,7 @@ export default function QuotePage() {
             korteBeschrijving: normalizedData?.korteBeschrijving,
             werkbeschrijving: generateWorkSummary(normalizedData?.werkbeschrijving || []),
             werkbeschrijvingFull: normalizeWerkbeschrijving(normalizedData?.werkbeschrijving || []),
+            werkbeschrijvingStructured: workDescriptionStructured,
             grootmaterialen: materials.groot.map(m => ({
                 aantal: m.aantal,
                 product: m.product,
@@ -3410,19 +3432,25 @@ export default function QuotePage() {
 
     const showWerkbeschrijvingWarning = !loading && isWerkbeschrijvingEmpty;
 
+    const applyLocalWorkDescriptionUpdate = useCallback(
+        (
+            next:
+                | WorkDescriptionStructured
+                | ((prev: WorkDescriptionStructured) => WorkDescriptionStructured)
+        ) => {
+            workDescriptionDirtyRef.current = true;
+            workDescriptionLastEditAtRef.current = Date.now();
+            setWorkDescriptionStructured(next);
+        },
+        [],
+    );
+
     const handleWorkDescriptionChange = useCallback((next: WorkDescriptionStructured) => {
-        workDescriptionDirtyRef.current = true;
-        workDescriptionLastEditAtRef.current = Date.now();
-        setWorkDescriptionStructured(next);
-    }, []);
+        applyLocalWorkDescriptionUpdate(next);
+    }, [applyLocalWorkDescriptionUpdate]);
 
     useEffect(() => {
-        const msSinceLastEdit = Date.now() - workDescriptionLastEditAtRef.current;
-        const isLikelyTyping =
-            workDescriptionDirtyRef.current
-            && msSinceLastEdit < WORK_DESCRIPTION_REMOTE_SYNC_PAUSE_MS;
-
-        if (isLikelyTyping) {
+        if (workDescriptionDirtyRef.current) {
             return;
         }
 
@@ -3449,7 +3477,9 @@ export default function QuotePage() {
         }
 
         setWorkDescriptionStructured(next);
-        lastSyncedWerkbeschrijvingRef.current = serialized;
+        lastSyncedWerkbeschrijvingRef.current = JSON.stringify({
+            structured: next,
+        });
     }, [currentWerkbeschrijvingStructured, detectedWorkDescriptionTemplate]);
 
     useEffect(() => {
@@ -3597,7 +3627,7 @@ export default function QuotePage() {
                 : null;
 
             if (generatedStructured && flattenStructuredWorkDescription(generatedStructured).length > 0) {
-                setWorkDescriptionStructured(generatedStructured);
+                applyLocalWorkDescriptionUpdate(generatedStructured);
                 toast({
                     title: 'Werkbeschrijving bijgewerkt',
                     description: 'AI-output is verwerkt in de structuur.',
@@ -3616,7 +3646,7 @@ export default function QuotePage() {
             }
 
             if (action === 'uitvoering-only') {
-                setWorkDescriptionStructured((prev) => ({
+                applyLocalWorkDescriptionUpdate((prev) => ({
                     ...prev,
                     sections: {
                         ...prev.sections,
@@ -3629,7 +3659,7 @@ export default function QuotePage() {
                     korteTitel: workDescriptionStructured.title,
                     korteBeschrijving: workDescriptionStructured.context,
                 });
-                setWorkDescriptionStructured(inferred);
+                applyLocalWorkDescriptionUpdate(inferred);
             }
 
             toast({
@@ -3650,7 +3680,7 @@ export default function QuotePage() {
     const handleApplyWorkDescriptionTemplate = useCallback(() => {
         if (!detectedWorkDescriptionTemplate) return;
 
-        setWorkDescriptionStructured((prev) => {
+        applyLocalWorkDescriptionUpdate((prev) => {
             const templateSections = cloneTemplateSections(detectedWorkDescriptionTemplate);
             const next = {
                 ...prev,
@@ -3668,7 +3698,7 @@ export default function QuotePage() {
             title: 'Template toegepast',
             description: `Template "${detectedWorkDescriptionTemplate.label}" is toegevoegd op lege secties.`,
         });
-    }, [detectedWorkDescriptionTemplate, toast]);
+    }, [detectedWorkDescriptionTemplate, toast, applyLocalWorkDescriptionUpdate]);
 
     const LoadingPanel = () => (
         <div className="flex flex-col items-center justify-center py-20 gap-6">
@@ -5215,7 +5245,7 @@ export default function QuotePage() {
                                     </div>
                                     <textarea
                                         value={quoteNotes}
-                                        onChange={(e) => setQuoteNotes(e.target.value)}
+                                        onChange={(e) => handleQuoteNotesChange(e.target.value)}
                                         placeholder="Voeg notities toe voor deze offerte..."
                                         className="min-h-[280px] w-full rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:border-border focus:bg-background"
                                     />

@@ -17,7 +17,7 @@ import { PlanningGrid } from '@/components/planning/PlanningGrid';
 import { ScheduleModal } from '@/components/planning/ScheduleModal';
 import { SchedulingBanner } from '@/components/planning/SchedulingBanner';
 import { MobileMonthCalendar } from '@/components/planning/MobileMonthCalendar';
-import { format, addDays, addWeeks, addMonths, subDays, subWeeks, subMonths } from 'date-fns';
+import { format, addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, isToday } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { DEFAULT_PLANNING_SETTINGS, PlanningSettings } from '@/lib/types-planning';
@@ -389,6 +389,7 @@ function PlanningPageContent() {
     }, [hydratedEntries, employeeNameById]);
 
     const showMobileLayout = isMobile;
+    const selectedMobileDateIsToday = isToday(selectedMobileDate);
     const mobileDayEntries = useMemo(() => {
         return mobilePlanningEntries.filter((item) => {
             return (
@@ -780,7 +781,12 @@ function PlanningPageContent() {
                 </div>
 
                 {/* Mobile Date Label */}
-                <div className="sm:hidden text-center text-sm font-medium text-foreground">
+                <div
+                    className={cn(
+                        "sm:hidden text-center text-sm font-medium text-foreground",
+                        showMobileLayout && selectedMobileDateIsToday && "text-emerald-300"
+                    )}
+                >
                     {getDateRangeLabel()}
                 </div>
 
@@ -807,12 +813,26 @@ function PlanningPageContent() {
                                 Tik op een dag in de kalender om direct in te plannen.
                             </div>
                         ) : mobileDayEntries.length === 0 ? (
-                            <div className="rounded-xl border border-border bg-card/60 p-5 text-sm text-muted-foreground">
+                            <div
+                                className={cn(
+                                    "rounded-xl border p-5 text-sm",
+                                    selectedMobileDateIsToday
+                                        ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-100"
+                                        : "border-border bg-card/60 text-muted-foreground"
+                                )}
+                            >
                                 Geen planning op {format(selectedMobileDate, 'EEEE d MMMM', { locale: nl })}.
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+                                <div
+                                    className={cn(
+                                        "rounded-xl border px-4 py-3 text-sm",
+                                        selectedMobileDateIsToday
+                                            ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-100"
+                                            : "border-cyan-500/25 bg-cyan-500/10 text-cyan-100"
+                                    )}
+                                >
                                     {format(selectedMobileDate, 'EEEE d MMMM', { locale: nl })}
                                 </div>
                                 {mobileDayEntries.map((item) => (

@@ -1,5 +1,9 @@
 import { jsPDF } from 'jspdf';
-import { formatCurrency } from './quote-calculations';
+import {
+    formatCurrency,
+    sanitizeWorkDescriptionStructured,
+    type WorkDescriptionStructured,
+} from './quote-calculations';
 import { QuotePDFSettings } from '@/components/quote/QuoteSettings';
 import {
     defaultQuotePdfTextSettings,
@@ -38,6 +42,7 @@ export interface PDFQuoteData {
     korteBeschrijving?: string;
     werkbeschrijving: string;
     werkbeschrijvingFull: string[];
+    werkbeschrijvingStructured?: WorkDescriptionStructured;
     grootmaterialen: Array<{
         aantal: number;
         product: string;
@@ -577,6 +582,12 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     // PAGE 2: FULL WERKBESCHRIJVING (if enabled)
     // ═══════════════════════════════════════════════════════════════
 
+    const structuredWorkDescription = sanitizeWorkDescriptionStructured(data.werkbeschrijvingStructured);
+    const hasStructuredWorkDescription =
+        structuredWorkDescription.sections.voorbereiding.length > 0
+        || structuredWorkDescription.sections.uitvoering.length > 0
+        || structuredWorkDescription.sections.afwerking.length > 0;
+
     if (data.settings.showFullWerkbeschrijving && data.werkbeschrijvingFull && data.werkbeschrijvingFull.length > 0) {
         doc.addPage();
         y = margin;
@@ -601,23 +612,53 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.text(introText, margin, y);
         y += 10;
 
-        // Numbered list of all steps
-        data.werkbeschrijvingFull.forEach((stap, index) => {
-            checkPageBreak(15);
-
-            const stepNumber = `${index + 1}.`;
-            const stepText = doc.splitTextToSize(stap, pageWidth - margin - 30);
-
+        const drawSection = (label: string, rows: string[]) => {
+            if (rows.length === 0) return;
+            checkPageBreak(18);
             doc.setFont('helvetica', 'bold');
-            doc.setTextColor(80, 80, 80);
-            doc.text(stepNumber, margin, y);
+            doc.setFontSize(10);
+            doc.setTextColor(45, 45, 45);
+            doc.text(label, margin, y);
+            y += 6;
 
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(50, 50, 50);
-            doc.text(stepText, margin + 10, y);
+            doc.setFontSize(9);
+            rows.forEach((stap, index) => {
+                checkPageBreak(15);
+                const stepNumber = `${index + 1}.`;
+                const stepText = doc.splitTextToSize(stap, pageWidth - margin - 30);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(80, 80, 80);
+                doc.text(stepNumber, margin, y);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(50, 50, 50);
+                doc.text(stepText, margin + 10, y);
+                y += Math.max(stepText.length * 4.5, 6) + 2;
+            });
+            y += 3;
+        };
 
-            y += Math.max(stepText.length * 4.5, 6) + 2;
-        });
+        if (hasStructuredWorkDescription) {
+            drawSection('VOORBEREIDING', structuredWorkDescription.sections.voorbereiding);
+            drawSection('UITVOERING', structuredWorkDescription.sections.uitvoering);
+            drawSection('AFWERKING', structuredWorkDescription.sections.afwerking);
+        } else {
+            data.werkbeschrijvingFull.forEach((stap, index) => {
+                checkPageBreak(15);
+
+                const stepNumber = `${index + 1}.`;
+                const stepText = doc.splitTextToSize(stap, pageWidth - margin - 30);
+
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(80, 80, 80);
+                doc.text(stepNumber, margin, y);
+
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(50, 50, 50);
+                doc.text(stepText, margin + 10, y);
+
+                y += Math.max(stepText.length * 4.5, 6) + 2;
+            });
+        }
 
         y += 5;
         drawLine(y);
