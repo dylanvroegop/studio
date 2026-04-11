@@ -5,27 +5,131 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Plus, Search, Filter, ArrowLeft, ChevronDown, Star, Pencil, Copy, Sparkles, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-} from '@/components/ui/alert-dialog';
 import { PriceImportRequestForm } from '@/components/PriceImportRequestForm';
 import { cn } from '@/lib/utils';
 import { reportOperationalError } from '@/lib/report-operational-error';
+
+type InlineDialogContextValue = {
+  onOpenChange?: (open: boolean) => void;
+};
+
+const InlineDialogContext = React.createContext<InlineDialogContextValue | null>(null);
+
+function Dialog({
+  open,
+  onOpenChange,
+  children,
+}: {
+  open: boolean;
+  onOpenChange?: (open: boolean) => void;
+  children: React.ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <InlineDialogContext.Provider value={{ onOpenChange }}>
+      {children}
+    </InlineDialogContext.Provider>
+  );
+}
+
+const DialogContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, children, ...props }, ref) => {
+    const ctx = React.useContext(InlineDialogContext);
+
+    return (
+      <div
+        className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            ctx?.onOpenChange?.(false);
+          }
+        }}
+      >
+        <div
+          ref={ref}
+          {...props}
+          onMouseDown={(event) => event.stopPropagation()}
+          className={cn(
+            'relative w-full max-h-[92vh] overflow-auto rounded-2xl border border-border bg-card text-foreground shadow-2xl',
+            className
+          )}
+        >
+          {children}
+          <button
+            type="button"
+            onClick={() => ctx?.onOpenChange?.(false)}
+            className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Sluiten"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    );
+  }
+);
+DialogContent.displayName = 'DialogContent';
+
+function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('flex flex-col space-y-1.5 text-center sm:text-left', className)} {...props} />;
+}
+
+function DialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
+  return <h2 className={cn('text-lg font-semibold leading-none tracking-tight', className)} {...props} />;
+}
+
+function DialogDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn('text-sm text-muted-foreground', className)} {...props} />;
+}
+
+function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2', className)} {...props} />;
+}
+
+const AlertDialog = Dialog;
+const AlertDialogContent = DialogContent;
+const AlertDialogHeader = DialogHeader;
+const AlertDialogTitle = DialogTitle;
+const AlertDialogDescription = DialogDescription;
+const AlertDialogFooter = DialogFooter;
+
+function AlertDialogCancel({
+  asChild,
+  children,
+  onClick,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean; children: React.ReactNode }) {
+  const ctx = React.useContext(InlineDialogContext);
+
+  if (asChild && React.isValidElement(children)) {
+    const child = children as React.ReactElement<any>;
+    return React.cloneElement(child, {
+      ...props,
+      onClick: (event: React.MouseEvent<HTMLElement>) => {
+        child.props?.onClick?.(event);
+        onClick?.(event as any);
+        if (!event.defaultPrevented) {
+          ctx?.onOpenChange?.(false);
+        }
+      },
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      {...props}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) {
+          ctx?.onOpenChange?.(false);
+        }
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 // Centralized logic for naming.
 function constructFinalName(baseName: string): string {
@@ -1836,34 +1940,21 @@ export function MaterialSelectionModal({
                       </div>
 
                       <div className="lg:hidden">
-                        <Select
-                          value={Array.isArray(categoryFilter) ? 'custom_filter' : categoryFilter}
-                          onValueChange={(value) => {
-                            applyCategoryFilter(value);
-                          }}
-                        >
-                          <SelectTrigger className="w-full h-10 text-xs border-muted-foreground/20 bg-transparent">
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <Filter className="h-3 w-3" />
-                              <span className="truncate max-w-[220px]">
-                                {Array.isArray(categoryFilter)
-                                  ? categoryFilter.join(', ')
-                                  : categoryFilter === 'all'
-                                    ? 'Filter op categorie...'
-                                    : categoryFilter}
-                              </span>
-                            </div>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Toon alles</SelectItem>
-                            {Array.isArray(categoryFilter) && (
-                              <SelectItem value="custom_filter" className="hidden">Geselecteerde Groep</SelectItem>
-                            )}
-                            {uniqueCategories.map(cat => (
-                              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        <div className="relative">
+                          <Filter className="pointer-events-none absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                          <select
+                            value={Array.isArray(categoryFilter) ? 'all' : categoryFilter}
+                            onChange={(event) => applyCategoryFilter(event.target.value)}
+                            className="h-10 w-full rounded-md border border-muted-foreground/20 bg-transparent pl-8 pr-2 text-xs text-muted-foreground outline-none transition-colors focus:border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/30"
+                          >
+                            <option value="all">Filter op categorie...</option>
+                            {uniqueCategories.map((cat) => (
+                              <option key={cat} value={cat}>
+                                {cat}
+                              </option>
                             ))}
-                          </SelectContent>
-                        </Select>
+                          </select>
+                        </div>
                       </div>
 
                       <Button
@@ -2207,16 +2298,17 @@ export function MaterialSelectionModal({
                   <div className="grid grid-cols-1 md:grid-cols-[130px_1fr_1fr] gap-3 items-end">
                     <div className="space-y-2">
                       <div className="text-sm font-medium">Eenheid *</div>
-                      <Select value={customEenheid} onValueChange={setCustomEenheid}>
-                        <SelectTrigger className="h-10 text-xs">
-                          <SelectValue placeholder="Kies" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {EENHEDEN.filter(e => !e.includes('p/m')).map((e) => (
-                            <SelectItem key={e} value={e}>{e}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <select
+                        value={customEenheid}
+                        onChange={(event) => setCustomEenheid(event.target.value)}
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground outline-none transition-colors focus:border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/30"
+                      >
+                        {EENHEDEN.filter((e) => !e.includes('p/m')).map((e) => (
+                          <option key={e} value={e}>
+                            {e}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="space-y-2">
                       <div className="text-sm font-medium">Excl. btw</div>

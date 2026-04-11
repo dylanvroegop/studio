@@ -221,7 +221,7 @@ export function AppNavigation() {
     return (
         <>
             {isMobile ? (
-                <div className="fixed left-3 top-3 z-[60]">
+                <div className="fixed left-3 top-3 z-[80]">
                     <Sheet open={menuOpen} onOpenChange={handleMenuOpenChange}>
                         {!menuOpen && (
                             <SheetTrigger asChild>
@@ -251,7 +251,7 @@ export function AppNavigation() {
                 </div>
             ) : (
                 <>
-                    <div className="fixed left-4 top-4 z-[60]">
+                    <div className="fixed left-4 top-4 z-[80]">
                         {!menuOpen && (
                             <Button
                                 size="icon"
@@ -267,7 +267,7 @@ export function AppNavigation() {
 
                     <aside
                         className={cn(
-                            'fixed inset-y-0 left-0 z-40 w-[15.84rem] transform transition-transform duration-200 ease-out',
+                            'fixed inset-y-0 left-0 z-[70] w-[15.84rem] transform transition-transform duration-200 ease-out pointer-events-auto',
                             menuOpen ? 'translate-x-0' : '-translate-x-full'
                         )}
                     >

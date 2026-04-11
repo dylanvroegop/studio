@@ -1118,7 +1118,7 @@ export async function POST(req: Request) {
         {
           ok: false,
           code: CALCULATOR_UNAVAILABLE_CODE,
-          message: 'Onze calculator is op dit moment tijdelijk niet beschikbaar. Probeer het over ongeveer 1 uur opnieuw.',
+          message: 'Onze calculator is op dit moment tijdelijk niet beschikbaar. Je gegevens zijn opgeslagen. Probeer het over ongeveer 1 uur opnieuw.',
           retryAfterMinutes: 60,
         },
         { status: 503 }

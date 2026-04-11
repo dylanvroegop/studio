@@ -2269,6 +2269,13 @@ export default function QuotePage() {
     useEffect(() => {
         if (!firestore || !user || !id || !totals) return;
 
+        // Keep current detail-page UI in sync immediately, without waiting for Firestore roundtrip.
+        setQuote((prev) => (
+            prev
+                ? ({ ...prev, totaalbedrag: totals.totaalInclBtw, amount: totals.totaalInclBtw } as Quote)
+                : prev
+        ));
+
         const updateFirebasePrice = async () => {
             try {
                 const docRef = doc(firestore, 'quotes', id);
@@ -3488,6 +3495,7 @@ export default function QuotePage() {
     })();
 
     const hasStoredCalculatedTotal = storedQuoteTotal !== null;
+    const hasCalculationResult = Boolean(calculation?.data_json) || hasStoredCalculatedTotal;
     const laborTotalHours = (calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0;
     const laborHoursPerDay = Number(userProfile?.settings?.planningSettings?.defaultWorkdayHours) || 8;
     const laborRateExcl = Number(quoteSettings?.uurTariefExclBtw) || 0;
@@ -3497,8 +3505,7 @@ export default function QuotePage() {
     const footerQuoteTotalIncl = footerQuoteTotalExcl * (1 + footerVatRate / 100);
     const calculationInProgress =
         quote?.status === 'in_behandeling' &&
-        !calculation?.data_json &&
-        !hasStoredCalculatedTotal;
+        !hasCalculationResult;
     const calculationTimerStorageKey = `offerte_calculation_started_at_${id}`;
 
     useEffect(() => {
@@ -3549,6 +3556,31 @@ export default function QuotePage() {
     const isCalculationTimedOut =
         calculationInProgress &&
         calculationElapsedSeconds >= CALCULATION_STUCK_SECONDS;
+    const showCalculationBanner = quote?.status === 'in_behandeling' && !hasCalculationResult;
+    const calculationBannerMessage = calculationInProgress
+        ? 'We berekenen nu de materialen en uren. Je kunt op deze pagina blijven; de uitkomst verschijnt automatisch.'
+        : 'Calculatie draait nog op de achtergrond. Waarden kunnen nog wijzigen tot de berekening volledig klaar is.';
+
+    useEffect(() => {
+        if (!firestore || !id) return;
+        if (quote?.status !== 'in_behandeling') return;
+        if (!hasCalculationResult) return;
+
+        // Result exists, so move quote out of processing state without requiring a page refresh.
+        setQuote((prev) => (
+            prev
+                ? ({ ...prev, status: 'concept' } as Quote)
+                : prev
+        ));
+
+        void updateDoc(doc(firestore, 'quotes', id), {
+            status: 'concept',
+            calculationError: null,
+            updatedAt: serverTimestamp(),
+        }).catch((err) => {
+            console.warn('Kon offerte status niet automatisch afronden na calculatie:', err);
+        });
+    }, [firestore, id, quote?.status, hasCalculationResult]);
 
     const handleRetryCalculation = async () => {
         if (!user || isRetryingCalculation) return;
@@ -4370,16 +4402,27 @@ export default function QuotePage() {
                     </div>
                 ) : (
                     <>
+                    {showCalculationBanner && (
+                        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                            <div className="flex items-start gap-3">
+                                <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-amber-300" />
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium text-amber-200">Calculatie wordt uitgevoerd</p>
+                                    <p className="text-xs text-amber-100/80">{calculationBannerMessage}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                        <div className="sm:hidden space-y-1.5 rounded-xl border border-border bg-card p-2">
+                        <div className="relative z-30 pointer-events-auto sm:hidden space-y-1.5 rounded-xl border border-border bg-card p-2">
                             <TabsList className="h-auto w-full justify-between gap-1 bg-transparent p-0">
-                                <TabsTrigger value="overzicht" className="h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                <TabsTrigger value="overzicht" className="relative z-[31] h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     Overzicht
                                 </TabsTrigger>
-                                <TabsTrigger value="materialen" className="h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                <TabsTrigger value="materialen" className="relative z-[31] h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     Materialen
                                 </TabsTrigger>
-                                <TabsTrigger value="pdf" className="h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                                <TabsTrigger value="pdf" className="relative z-[31] h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                                     PDF
                                 </TabsTrigger>
                             </TabsList>
@@ -4394,9 +4437,9 @@ export default function QuotePage() {
                             </Button>
                         </div>
 
-                        <div className="hidden w-full items-center gap-2 rounded-lg border border-border bg-card p-1 sm:flex">
+                        <div className="relative z-30 pointer-events-auto hidden w-full items-center gap-2 rounded-lg border border-border bg-card p-1 sm:flex">
                             <TabsList className="h-auto w-full justify-start gap-1 bg-transparent p-0">
-                                <TabsTrigger value="materialen" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="materialen" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <Package size={16} />
                                     Materialen
                                     {materialsWithoutPrice > 0 && (
@@ -4406,30 +4449,30 @@ export default function QuotePage() {
                                         </div>
                                     )}
                                 </TabsTrigger>
-                                <TabsTrigger value="overzicht" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="overzicht" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <Euro size={16} />
                                     Overzicht
                                 </TabsTrigger>
-                                <TabsTrigger value="nacalculatie" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="nacalculatie" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <ClipboardList size={16} />
                                     Nacalculatie
                                 </TabsTrigger>
-                                <TabsTrigger value="tekeningen" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="tekeningen" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <PenTool size={16} />
                                     Tekeningen
                                 </TabsTrigger>
-                                <TabsTrigger value="pdf" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="pdf" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <FileText size={16} />
                                     PDF
                                 </TabsTrigger>
-                                <TabsTrigger value="fotos" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="fotos" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <ImageIcon size={16} />
                                     Foto&apos;s
                                 </TabsTrigger>
                                 <TabsTrigger
                                     value="werkbeschrijving"
                                     className={cn(
-                                        "items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground",
+                                        "relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground",
                                         showWerkbeschrijvingWarning && "text-red-400 data-[state=active]:text-red-400"
                                     )}
                                 >
@@ -4437,7 +4480,7 @@ export default function QuotePage() {
                                     Werkbeschrijving
                                     {showWerkbeschrijvingWarning && <AlertCircle size={12} className="text-red-500" />}
                                 </TabsTrigger>
-                                <TabsTrigger value="notities" className="items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="notities" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <MessageSquare size={16} />
                                     Notities
                                 </TabsTrigger>
@@ -5974,14 +6017,18 @@ export default function QuotePage() {
                 korteBeschrijving={normalizedData?.korteBeschrijving}
             />
 
-            <MaterialSelectionModal
-                open={!!activeCategory}
-                onOpenChange={(open) => !open && setActiveCategory(null)}
-                existingMaterials={alleMaterialen}
-                onSelectExisting={handleSelectMaterial}
-                onMaterialAdded={handleSelectMaterial} // Handle custom created materials same way
-                defaultCategory="all"
-            />
+            {activeCategory && (
+                <MaterialSelectionModal
+                    open
+                    onOpenChange={(open) => {
+                        if (!open) setActiveCategory(null);
+                    }}
+                    existingMaterials={alleMaterialen}
+                    onSelectExisting={handleSelectMaterial}
+                    onMaterialAdded={handleSelectMaterial} // Handle custom created materials same way
+                    defaultCategory="all"
+                />
+            )}
 
             <AlertDialog open={confirmResetToNieuwOpen} onOpenChange={setConfirmResetToNieuwOpen}>
                 <AlertDialogContent className="rounded-2xl">

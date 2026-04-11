@@ -2397,6 +2397,7 @@ export default function OverzichtPage() {
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Onze calculator is op dit moment tijdelijk uit door onderhoud of een storing bij de verwerkingsserver.
+              Je gegevens zijn al opgeslagen.
             </p>
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-200">
               Probeer het over ongeveer 1 uur opnieuw.

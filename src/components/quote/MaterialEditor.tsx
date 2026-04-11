@@ -11,15 +11,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-    AlertDialog,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogCancel,
-} from '@/components/ui/alert-dialog';
 
 const DISALLOWED_NUMBER_KEYS = new Set(['e', 'E', '+', '-']);
 const DISALLOWED_NUMBER_PASTE = /[eE+-]/;
@@ -251,27 +242,15 @@ function MaterialRow({
                 )}
                 {onRemoveItem && (
                     <td className="px-2 py-2 text-right sm:px-6 sm:py-3">
-                        <DropdownMenu modal={false}>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-9 w-9 shrink-0 rounded-lg text-red-300/80 transition-all hover:bg-red-500/10 hover:text-red-300"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                    <span className="sr-only">Verwijder materiaal</span>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                    className="cursor-pointer text-destructive focus:text-destructive"
-                                    onClick={() => setShowDeleteDialog(true)}
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                    Verwijderen
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setShowDeleteDialog(true)}
+                            className="h-9 w-9 shrink-0 rounded-lg text-red-300/80 transition-all hover:bg-red-500/10 hover:text-red-300"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Verwijder materiaal</span>
+                        </Button>
                     </td>
                 )}
             </tr>
@@ -282,51 +261,46 @@ function MaterialRow({
                     </td>
                 </tr>
             )}
-
-            {/* Delete Confirmation Dialog */}
-            <AlertDialog
-                open={showDeleteDialog}
-                onOpenChange={(open) => {
-                    setShowDeleteDialog(open);
-                    if (!open) setDontAutoIncludeNextTime(false);
-                }}
-            >
-                <AlertDialogContent className="rounded-2xl">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Materiaal verwijderen?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Weet je zeker dat je <span className="font-semibold text-zinc-300">{item.product || 'dit materiaal'}</span> wilt verwijderen?
-                            Deze actie kan niet ongedaan worden gemaakt.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    {showDontAutoIncludeOption && (
-                        <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
-                            <label htmlFor={`dont-auto-include-${index}`} className="flex items-center justify-between gap-3">
-                                <span className="text-sm text-foreground">
-                                    Niet meer automatisch mee berekenen voor volgende keer
-                                </span>
-                                <Switch
-                                    id={`dont-auto-include-${index}`}
-                                    checked={dontAutoIncludeNextTime}
-                                    onCheckedChange={(checked) => setDontAutoIncludeNextTime(Boolean(checked))}
-                                />
-                            </label>
+            {showDeleteDialog && (
+                <tr className="bg-red-500/[0.06]">
+                    <td colSpan={totalColumns} className="px-3 py-3 sm:px-6">
+                        <div className="rounded-xl border border-red-500/30 bg-red-500/[0.08] p-3">
+                            <div className="text-sm text-zinc-200">
+                                Weet je zeker dat je <span className="font-semibold">{item.product || 'dit materiaal'}</span> wilt verwijderen?
+                            </div>
+                            {showDontAutoIncludeOption && (
+                                <div className="mt-3 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                                    <label htmlFor={`dont-auto-include-${index}`} className="flex items-center justify-between gap-3">
+                                        <span className="text-sm text-foreground">
+                                            Niet meer automatisch mee berekenen voor volgende keer
+                                        </span>
+                                        <Switch
+                                            id={`dont-auto-include-${index}`}
+                                            checked={dontAutoIncludeNextTime}
+                                            onCheckedChange={(checked) => setDontAutoIncludeNextTime(Boolean(checked))}
+                                        />
+                                    </label>
+                                </div>
+                            )}
+                            <div className="mt-3 flex gap-2">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => {
+                                        setShowDeleteDialog(false);
+                                        setDontAutoIncludeNextTime(false);
+                                    }}
+                                >
+                                    Annuleren
+                                </Button>
+                                <Button type="button" variant="destructiveSoft" onClick={handleDelete}>
+                                    Verwijderen
+                                </Button>
+                            </div>
                         </div>
-                    )}
-                    <AlertDialogFooter className="gap-2 sm:gap-2">
-                        <AlertDialogCancel disabled={false} className="rounded-xl">
-                            Annuleren
-                        </AlertDialogCancel>
-                        <Button
-                            type="button"
-                            onClick={handleDelete}
-                            variant="destructiveSoft"
-                        >
-                            Verwijderen
-                        </Button>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+                    </td>
+                </tr>
+            )}
         </>
     );
 }

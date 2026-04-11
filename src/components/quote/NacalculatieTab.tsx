@@ -17,7 +17,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 
@@ -220,28 +219,27 @@ export function NacalculatieTab({ quoteId, userId, defaultHourlyRateExcl }: Naca
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-1">
               <Label>Status</Label>
-              <Select
+              <select
                 value={docState.status}
-                onValueChange={(value) =>
+                onChange={(event) =>
                   setDocState((prev) =>
                     prev
                       ? {
                           ...prev,
-                          status: value === 'afgerond' || value === 'in_progress' ? value : 'concept',
+                          status:
+                            event.target.value === 'afgerond' || event.target.value === 'in_progress'
+                              ? event.target.value
+                              : 'concept',
                         }
                       : prev
                   )
                 }
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/30"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Status kiezen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="concept">Concept</SelectItem>
-                  <SelectItem value="in_progress">In uitvoering</SelectItem>
-                  <SelectItem value="afgerond">Afgerond</SelectItem>
-                </SelectContent>
-              </Select>
+                <option value="concept">Concept</option>
+                <option value="in_progress">In uitvoering</option>
+                <option value="afgerond">Afgerond</option>
+              </select>
             </div>
             <div className="rounded-md border border-border p-3">
               <div className="text-xs text-muted-foreground">Werkelijke uren</div>

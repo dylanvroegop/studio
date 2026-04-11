@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DataJson } from '@/lib/quote-calculations';
 import { useUser } from '@/firebase/provider';
 
@@ -35,10 +35,17 @@ export function useQuoteData(quoteId: string) {
     const [calculation, setCalculation] = useState<QuoteCalculation | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const calculationRef = useRef<QuoteCalculation | null>(null);
+
+    useEffect(() => {
+        calculationRef.current = calculation;
+    }, [calculation]);
 
     useEffect(() => {
         let isMounted = true;
         let pollTimer: NodeJS.Timeout;
+        const POLL_INTERVAL_MS = 3000;
+        const RETRY_INTERVAL_MS = 5000;
 
         async function fetchQuoteData() {
             if (!user) return;
@@ -74,7 +81,9 @@ export function useQuoteData(quoteId: string) {
                 const hasDataJson = Boolean(data?.data_json);
 
                 if (isMounted) {
+                    setError(null);
                     setCalculation(data);
+                    calculationRef.current = data;
 
                     if (!data) {
                         // No calculation has been started yet.
@@ -87,14 +96,24 @@ export function useQuoteData(quoteId: string) {
                     } else {
                         setLoading(true);
                         // Still processing, poll in 3s.
-                        pollTimer = setTimeout(fetchQuoteData, 3000);
+                        pollTimer = setTimeout(fetchQuoteData, POLL_INTERVAL_MS);
                     }
                 }
             } catch (err) {
                 console.error('Fetch error:', err);
                 if (isMounted) {
-                    setError(err instanceof Error ? err.message : 'Failed to fetch quote data');
-                    setLoading(false);
+                    const message = err instanceof Error ? err.message : 'Failed to fetch quote data';
+                    setError(message);
+
+                    const hasResolvedData = Boolean(calculationRef.current?.data_json);
+                    if (hasResolvedData) {
+                        setLoading(false);
+                        return;
+                    }
+
+                    // Keep polling after transient API/network errors so the UI updates without manual refresh.
+                    setLoading(true);
+                    pollTimer = setTimeout(fetchQuoteData, RETRY_INTERVAL_MS);
                 }
             }
         }
