@@ -11,9 +11,7 @@ function renderRows(rows: string[]): string[] {
 }
 
 export function WorkDescriptionPreview({ value }: WorkDescriptionPreviewProps) {
-  const voorbereiding = renderRows(value.sections.voorbereiding);
   const uitvoering = renderRows(value.sections.uitvoering);
-  const afwerking = renderRows(value.sections.afwerking);
   const legacyNotes = Array.isArray(value.legacyNotes)
     ? value.legacyNotes.map((item) => item.trim()).filter(Boolean)
     : [];
@@ -30,15 +28,6 @@ export function WorkDescriptionPreview({ value }: WorkDescriptionPreviewProps) {
       </div>
 
       <section className="space-y-2">
-        <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Voorbereiding</h4>
-        <ol className="space-y-1 text-sm text-foreground/90">
-          {voorbereiding.length > 0 ? voorbereiding.map((item, index) => (
-            <li key={`preview-voorbereiding-${index}`}>{index + 1}. {item}</li>
-          )) : <li className="text-muted-foreground">Geen stappen ingevuld.</li>}
-        </ol>
-      </section>
-
-      <section className="space-y-2">
         <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Uitvoering</h4>
         <ol className="space-y-1 text-sm text-foreground/90">
           {uitvoering.length > 0 ? uitvoering.map((item, index) => (
@@ -46,16 +35,6 @@ export function WorkDescriptionPreview({ value }: WorkDescriptionPreviewProps) {
           )) : <li className="text-muted-foreground">Geen stappen ingevuld.</li>}
         </ol>
       </section>
-
-      <section className="space-y-2">
-        <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Afwerking</h4>
-        <ol className="space-y-1 text-sm text-foreground/90">
-          {afwerking.length > 0 ? afwerking.map((item, index) => (
-            <li key={`preview-afwerking-${index}`}>{index + 1}. {item}</li>
-          )) : <li className="text-muted-foreground">Geen stappen ingevuld.</li>}
-        </ol>
-      </section>
-
       {legacyNotes.length > 0 ? (
         <section className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-300">Overgenomen notities</h4>

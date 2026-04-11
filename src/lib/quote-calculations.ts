@@ -610,13 +610,6 @@ export function normalizeDataJson(input: any): DataJson {
         Number.NaN
     );
 
-    console.log('🔍 [NORMALIZE] totaal_uren lookup:', {
-        direct_root_totaal: directRootTotaalCandidate,
-        base_root_totaal: baseTotaalCandidate,
-        uren_spec_totaal: urenSpecTotaalCandidate,
-        spec_sum: urenSpecificatie.reduce((sum: number, it: any) => sum + toNumber(it.uren, 0), 0)
-    });
-
     const totaalUrenCandidate = Number.isFinite(directRootTotaalCandidate)
         ? directRootTotaalCandidate
         : Number.isFinite(urenSpecTotaalCandidate)
@@ -625,15 +618,6 @@ export function normalizeDataJson(input: any): DataJson {
     const totaal_uren = Number.isFinite(totaalUrenCandidate)
         ? totaalUrenCandidate
         : urenSpecificatie.reduce((sum: number, it: any) => sum + toNumber(it.uren, 0), 0);
-
-    console.log('🔍 [NORMALIZE] Final totaal_uren:', totaal_uren);
-    console.log('🔍 [NORMALIZE] transport_berekening lookup:', {
-        has_zero_root: !!rootFromZero,
-        has_transport: !!rawTransportBerekening,
-        ratePerKm: rawTransportBerekening?.ratePerKm,
-        distanceKm: rawTransportBerekening?.distanceKm,
-        roundTripTravelCost: rawTransportBerekening?.roundTripTravelCost,
-    });
 
     return {
         ...base,

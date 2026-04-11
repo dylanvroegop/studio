@@ -25,7 +25,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, Download, Mail, Settings, PenTool, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -50,6 +50,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import Link from "next/link";
 import { SendQuoteModal, type QuoteAttachmentOptions } from '@/components/quote/SendQuoteModal';
+import { SendQuoteWhatsAppModal } from '@/components/quote/SendQuoteWhatsAppModal';
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialListExportDialog } from '@/components/quote/MaterialListExportDialog';
 import { WorkDescriptionWorkspace } from '@/components/quote/work-description/WorkDescriptionWorkspace';
@@ -387,8 +388,11 @@ export default function QuotePage() {
     // Fetch calculation data from Supabase
     const { calculation, loading: calculationLoading, error: calculationError, updateDataJson } = useQuoteData(id);
 
-    // Normalize calculation data
-    const normalizedData = calculation?.data_json ? normalizeDataJson(calculation.data_json) : null;
+    // Normalize calculation data once per payload to keep downstream effects stable.
+    const normalizedData = useMemo(
+        () => (calculation?.data_json ? normalizeDataJson(calculation.data_json) : null),
+        [calculation?.data_json],
+    );
 
     // Firebase hooks
     const { user, isUserLoading } = useUser();
@@ -419,6 +423,10 @@ export default function QuotePage() {
     const [photoActionId, setPhotoActionId] = useState<string | null>(null);
     const [selectedPhoto, setSelectedPhoto] = useState<QuotePhotoAttachment | null>(null);
     const hasEditedPdfTextSettingsRef = useRef(false);
+    const facturatieSyncInitializedRef = useRef(false);
+    const facturatieHydratingRef = useRef(false);
+    const lastSavedFacturatiePayloadRef = useRef('');
+    const lastHydratedFacturatieSourceRef = useRef('');
     const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('onderVoorbehoud');
     const [activeTab, setActiveTab] = useState('materialen');
     const [workDescriptionMode, setWorkDescriptionMode] = useState<'edit' | 'preview'>('edit');
@@ -459,6 +467,7 @@ export default function QuotePage() {
     const hasEditedMaterialsRef = useRef(false);
     const materialPresetSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSavedMaterialPresetRef = useRef<string>('');
+    const lastSyncedQuoteTotalRef = useRef<number | null>(null);
 
     // Refresh captured drawings when entering the PDF tab.
     // Avoid depending on calculation data object references, which can cause
@@ -519,6 +528,7 @@ export default function QuotePage() {
     const [isSavingMaterialPackage, setIsSavingMaterialPackage] = useState(false);
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+    const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
     const [isMobileMoreActionsOpen, setIsMobileMoreActionsOpen] = useState(false);
     const [isMobileMoreSectionsOpen, setIsMobileMoreSectionsOpen] = useState(false);
     const [isPlanningTypeDialogOpen, setIsPlanningTypeDialogOpen] = useState(false);
@@ -628,6 +638,10 @@ export default function QuotePage() {
         lastSavedMaterialPresetRef.current = '';
         setSelectedMaterialPackageId('NIEUW');
         templateAutoAppliedRef.current = false;
+        facturatieSyncInitializedRef.current = false;
+        facturatieHydratingRef.current = false;
+        lastSavedFacturatiePayloadRef.current = '';
+        lastHydratedFacturatieSourceRef.current = '';
     }, [id]);
 
     useEffect(() => {
@@ -654,43 +668,84 @@ export default function QuotePage() {
     // Init & sync facturatie instellingen (voorschot) vanuit quote
     useEffect(() => {
         if (!quote) return;
+        const sourceSignature = JSON.stringify({
+            quoteFacturatie: (quote as any)?.facturatie ?? null,
+            quotePdfTeksten: (quote as any)?.pdfTeksten ?? null,
+            quoteAlgemeneVoorwaarden: (quote as any)?.algemeneVoorwaarden ?? null,
+            userDefaultPdfTeksten: (userProfile as any)?.defaultPdfTeksten ?? null,
+            userDefaultAlgemeneVoorwaarden: (userProfile as any)?.defaultAlgemeneVoorwaarden ?? null,
+        });
+        if (sourceSignature === lastHydratedFacturatieSourceRef.current) return;
+        lastHydratedFacturatieSourceRef.current = sourceSignature;
+
+        facturatieHydratingRef.current = true;
+
         const f = (quote as any)?.facturatie;
-        if (f && typeof f === 'object') {
-            setVoorschotIngeschakeld(
-                typeof f.voorschotIngeschakeld === 'boolean' ? f.voorschotIngeschakeld : true
-            );
-            if (typeof f.voorschotPercentage === 'number' && Number.isFinite(f.voorschotPercentage)) {
-                setVoorschotPercentage(f.voorschotPercentage);
-            }
-            if (f.onderVoorbehoud !== undefined) {
-                setOnderVoorbehoud(!!f.onderVoorbehoud);
-            }
-        }
+        const nextVoorschotIngeschakeld =
+            f && typeof f === 'object' && typeof f.voorschotIngeschakeld === 'boolean'
+                ? f.voorschotIngeschakeld
+                : true;
+        const nextVoorschotPercentage =
+            f && typeof f === 'object' && typeof f.voorschotPercentage === 'number' && Number.isFinite(f.voorschotPercentage)
+                ? f.voorschotPercentage
+                : 50;
+        const nextOnderVoorbehoud =
+            f && typeof f === 'object' && f.onderVoorbehoud !== undefined
+                ? !!f.onderVoorbehoud
+                : false;
+
+        setVoorschotIngeschakeld((prev) => (prev === nextVoorschotIngeschakeld ? prev : nextVoorschotIngeschakeld));
+        setVoorschotPercentage((prev) => (prev === nextVoorschotPercentage ? prev : nextVoorschotPercentage));
+        setOnderVoorbehoud((prev) => (prev === nextOnderVoorbehoud ? prev : nextOnderVoorbehoud));
+
         const quotePdfTeksten = (quote as any)?.pdfTeksten;
         const userDefaultPdfTeksten = (userProfile as any)?.defaultPdfTeksten;
-        setPdfTextSettings(sanitizeQuotePdfTextSettings(quotePdfTeksten ?? userDefaultPdfTeksten));
+        const nextPdfTextSettings = sanitizeQuotePdfTextSettings(quotePdfTeksten ?? userDefaultPdfTeksten);
+        setPdfTextSettings((prev) => {
+            const prevSig = JSON.stringify(prev);
+            const nextSig = JSON.stringify(nextPdfTextSettings);
+            return prevSig === nextSig ? prev : nextPdfTextSettings;
+        });
         hasEditedPdfTextSettingsRef.current = false;
 
         const quoteAlgemeneVoorwaarden = (quote as any)?.algemeneVoorwaarden;
-        if (quoteAlgemeneVoorwaarden && typeof quoteAlgemeneVoorwaarden === 'object') {
-            setAlgemeneVoorwaardenTitel(String(quoteAlgemeneVoorwaarden.titel || 'ALGEMENE VOORWAARDEN'));
-            setAlgemeneVoorwaardenTekst(String(quoteAlgemeneVoorwaarden.tekst || ''));
-            setAlgemeneVoorwaardenPdfUrl(String(quoteAlgemeneVoorwaarden.pdfUrl || ''));
-            setAlgemeneVoorwaardenPdfBestandsnaam(String(quoteAlgemeneVoorwaarden.pdfBestandsnaam || ''));
-        } else {
-            const userDefaultAlgemeneVoorwaarden = (userProfile as any)?.defaultAlgemeneVoorwaarden;
-            if (userDefaultAlgemeneVoorwaarden && typeof userDefaultAlgemeneVoorwaarden === 'object') {
-                setAlgemeneVoorwaardenTitel(String(userDefaultAlgemeneVoorwaarden.titel || 'ALGEMENE VOORWAARDEN'));
-                setAlgemeneVoorwaardenTekst(String(userDefaultAlgemeneVoorwaarden.tekst || ''));
-                setAlgemeneVoorwaardenPdfUrl(String(userDefaultAlgemeneVoorwaarden.pdfUrl || ''));
-                setAlgemeneVoorwaardenPdfBestandsnaam(String(userDefaultAlgemeneVoorwaarden.pdfBestandsnaam || ''));
-            } else {
-                setAlgemeneVoorwaardenTitel('ALGEMENE VOORWAARDEN');
-                setAlgemeneVoorwaardenTekst('');
-                setAlgemeneVoorwaardenPdfUrl('');
-                setAlgemeneVoorwaardenPdfBestandsnaam('');
-            }
-        }
+        const userDefaultAlgemeneVoorwaarden = (userProfile as any)?.defaultAlgemeneVoorwaarden;
+        const resolvedVoorwaarden =
+            quoteAlgemeneVoorwaarden && typeof quoteAlgemeneVoorwaarden === 'object'
+                ? quoteAlgemeneVoorwaarden
+                : userDefaultAlgemeneVoorwaarden && typeof userDefaultAlgemeneVoorwaarden === 'object'
+                    ? userDefaultAlgemeneVoorwaarden
+                    : null;
+
+        const nextAvTitel = String(resolvedVoorwaarden?.titel || 'ALGEMENE VOORWAARDEN');
+        const nextAvTekst = String(resolvedVoorwaarden?.tekst || '');
+        const nextAvPdfUrl = String(resolvedVoorwaarden?.pdfUrl || '');
+        const nextAvBestandsnaam = String(resolvedVoorwaarden?.pdfBestandsnaam || '');
+
+        setAlgemeneVoorwaardenTitel((prev) => (prev === nextAvTitel ? prev : nextAvTitel));
+        setAlgemeneVoorwaardenTekst((prev) => (prev === nextAvTekst ? prev : nextAvTekst));
+        setAlgemeneVoorwaardenPdfUrl((prev) => (prev === nextAvPdfUrl ? prev : nextAvPdfUrl));
+        setAlgemeneVoorwaardenPdfBestandsnaam((prev) => (prev === nextAvBestandsnaam ? prev : nextAvBestandsnaam));
+
+        lastSavedFacturatiePayloadRef.current = JSON.stringify({
+            facturatie: {
+                voorschotIngeschakeld: nextVoorschotIngeschakeld,
+                voorschotPercentage: nextVoorschotPercentage,
+                onderVoorbehoud: nextOnderVoorbehoud,
+            },
+            pdfTeksten: nextPdfTextSettings,
+            algemeneVoorwaarden: {
+                titel: nextAvTitel,
+                tekst: nextAvTekst,
+                pdfUrl: nextAvPdfUrl,
+                pdfBestandsnaam: nextAvBestandsnaam,
+            },
+        });
+        facturatieSyncInitializedRef.current = true;
+        const hydrationTimer = window.setTimeout(() => {
+            facturatieHydratingRef.current = false;
+        }, 0);
+        return () => window.clearTimeout(hydrationTimer);
     }, [quote, userProfile]);
 
     // Zoek bestaande voorschotfactuur id (voor link in UI)
@@ -711,8 +766,23 @@ export default function QuotePage() {
     // Debounced save facturatie to quote doc
     useEffect(() => {
         if (!user || !firestore || !id) return;
-        if (!quote) return;
-        if (!userProfile) return;
+        if (!facturatieSyncInitializedRef.current) return;
+        if (facturatieHydratingRef.current) return;
+        const payloadSignature = JSON.stringify({
+            facturatie: {
+                voorschotIngeschakeld,
+                voorschotPercentage,
+                onderVoorbehoud,
+            },
+            pdfTeksten: pdfTextSettings,
+            algemeneVoorwaarden: {
+                titel: algemeneVoorwaardenTitel,
+                tekst: algemeneVoorwaardenTekst,
+                pdfUrl: algemeneVoorwaardenPdfUrl,
+                pdfBestandsnaam: algemeneVoorwaardenPdfBestandsnaam,
+            },
+        });
+        if (payloadSignature === lastSavedFacturatiePayloadRef.current) return;
         const timer = setTimeout(async () => {
             try {
                 const quoteRef = doc(firestore, 'quotes', id);
@@ -731,6 +801,7 @@ export default function QuotePage() {
                     },
                     updatedAt: new Date(),
                 });
+                lastSavedFacturatiePayloadRef.current = payloadSignature;
 
                 if (hasEditedPdfTextSettingsRef.current) {
                     const userRef = doc(firestore, 'users', user.uid);
@@ -748,20 +819,6 @@ export default function QuotePage() {
                         { merge: true }
                     );
                     hasEditedPdfTextSettingsRef.current = false;
-                } else {
-                    const userRef = doc(firestore, 'users', user.uid);
-                    await setDoc(
-                        userRef,
-                        {
-                            defaultAlgemeneVoorwaarden: {
-                                titel: algemeneVoorwaardenTitel,
-                                tekst: algemeneVoorwaardenTekst,
-                                pdfUrl: algemeneVoorwaardenPdfUrl,
-                                pdfBestandsnaam: algemeneVoorwaardenPdfBestandsnaam,
-                            },
-                        },
-                        { merge: true }
-                    );
                 }
             } catch (e) {
                 console.error('Fout bij opslaan facturatie:', e);
@@ -780,8 +837,6 @@ export default function QuotePage() {
         user,
         firestore,
         id,
-        quote,
-        userProfile,
     ]);
 
     // Fetch Materials for Modal
@@ -796,7 +851,6 @@ export default function QuotePage() {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 const json = await res.json();
-                console.log('[DEBUG] fetchMaterials response:', json);
 
                 if (res.ok && json.ok) {
                     const materialenData = (json.data || []).map((m: any) => {
@@ -816,7 +870,6 @@ export default function QuotePage() {
                             categorie: m.categorie || m.subsectie || 'Overig',
                         };
                     });
-                    console.log(`[DEBUG] Parsed ${materialenData.length} materials`);
                     setAlleMaterialen(materialenData);
                 } else {
                     const message = json?.message || json?.error || 'Kon materialen niet laden.';
@@ -2257,22 +2310,32 @@ export default function QuotePage() {
     };
 
     // Calculate totals when data is available
-    const totals = normalizedData && quoteSettings
-        ? calculateQuoteTotals({
-            ...normalizedData,
-            grootmaterialen: materials.groot,
-            verbruiksartikelen: materials.verbruik,
-        }, quoteSettings)
-        : null;
+    const totals = useMemo(
+        () => (normalizedData && quoteSettings
+            ? calculateQuoteTotals({
+                ...normalizedData,
+                grootmaterialen: materials.groot,
+                verbruiksartikelen: materials.verbruik,
+            }, quoteSettings)
+            : null),
+        [normalizedData, quoteSettings, materials.groot, materials.verbruik],
+    );
+    const totalInclBtw = totals?.totaalInclBtw ?? null;
 
     // Sync calculated totals to Firebase for Dashboard visibility
     useEffect(() => {
-        if (!firestore || !user || !id || !totals) return;
+        if (!firestore || !user || !id) return;
+        if (typeof totalInclBtw !== 'number' || !Number.isFinite(totalInclBtw)) return;
+        if (lastSyncedQuoteTotalRef.current === totalInclBtw) return;
 
         // Keep current detail-page UI in sync immediately, without waiting for Firestore roundtrip.
         setQuote((prev) => (
             prev
-                ? ({ ...prev, totaalbedrag: totals.totaalInclBtw, amount: totals.totaalInclBtw } as Quote)
+                ? (
+                    ((prev as Quote & { totaalbedrag?: number }).totaalbedrag === totalInclBtw && prev.amount === totalInclBtw)
+                        ? prev
+                        : ({ ...prev, totaalbedrag: totalInclBtw, amount: totalInclBtw } as Quote)
+                )
                 : prev
         ));
 
@@ -2280,10 +2343,11 @@ export default function QuotePage() {
             try {
                 const docRef = doc(firestore, 'quotes', id);
                 await updateDoc(docRef, {
-                    totaalbedrag: totals.totaalInclBtw,
-                    amount: totals.totaalInclBtw, // Sync both for compatibility
+                    totaalbedrag: totalInclBtw,
+                    amount: totalInclBtw, // Sync both for compatibility
                     updatedAt: new Date(),
                 });
+                lastSyncedQuoteTotalRef.current = totalInclBtw;
             } catch (err) {
                 console.error("Failed to sync price to Firestore:", err);
             }
@@ -2292,7 +2356,7 @@ export default function QuotePage() {
         // Debounce to avoid rapid writes during slider/input changes
         const timer = setTimeout(updateFirebasePrice, 2000);
         return () => clearTimeout(timer);
-    }, [totals, firestore, user, id]);
+    }, [totalInclBtw, firestore, user, id]);
 
     // Handle updating settings
     const handleUpdateSettings = async (newSettings: QuoteCalculationSettings) => {
@@ -2524,6 +2588,43 @@ export default function QuotePage() {
         const safeKlantNaam = sanitizeFileNamePart(klantNaam) || 'Klant';
         const safeOfferteNummer = sanitizeFileNamePart(offerteNummer || 'CONCEPT');
         return `${safeKlantNaam} - ${safeOfferteNummer}.pdf`;
+    };
+
+    const createShareableOffertePdfLink = async (): Promise<string | null> => {
+        if (!user || !id) return null;
+
+        try {
+            const baseData = preparePDFData();
+            const offerteData: PDFQuoteData = {
+                ...baseData,
+                settings: {
+                    ...baseData.settings,
+                    showTekeningen: false,
+                    showFullWerkbeschrijving: false,
+                },
+            };
+
+            const offerteBlob = await generateQuotePDF(offerteData);
+            const safeOfferteNummer = sanitizeFileNamePart(baseData.offerteNummer || 'CONCEPT').replace(/\s+/g, '-');
+            const storagePath = `users/${user.uid}/quotes/${id}/shared/offerte-${safeOfferteNummer}-${Date.now()}.pdf`;
+            const storage = getStorage();
+            const fileRef = storageRef(storage, storagePath);
+
+            await uploadBytes(fileRef, offerteBlob, { contentType: 'application/pdf' });
+            return await getDownloadURL(fileRef);
+        } catch (error) {
+            console.error('Error creating shareable offerte PDF link:', error);
+            const message = error instanceof Error ? error.message : 'Kon geen deelbare PDF-link maken.';
+            void reportOperationalError({
+                source: 'create_shareable_offerte_pdf_link',
+                title: 'PDF-link maken mislukt',
+                message,
+                context: {
+                    quoteId: id,
+                },
+            });
+            return null;
+        }
     };
 
     const receiptAttachments = useMemo<ReceiptAttachment[]>(() => {
@@ -3974,9 +4075,9 @@ export default function QuotePage() {
             const next = {
                 ...prev,
                 sections: {
-                    voorbereiding: prev.sections.voorbereiding.length > 0 ? prev.sections.voorbereiding : templateSections.voorbereiding,
+                    voorbereiding: [],
                     uitvoering: prev.sections.uitvoering.length > 0 ? prev.sections.uitvoering : templateSections.uitvoering,
-                    afwerking: prev.sections.afwerking.length > 0 ? prev.sections.afwerking : templateSections.afwerking,
+                    afwerking: [],
                 },
             };
             return next;
@@ -4376,6 +4477,15 @@ export default function QuotePage() {
                                     ) : (
                                         <Download size={18} />
                                     )}
+                                </Button>
+                                <Button
+                                    variant="success"
+                                    className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
+                                    onClick={() => setIsWhatsAppModalOpen(true)}
+                                    aria-label="WhatsApp"
+                                    title="WhatsApp"
+                                >
+                                    <MessageCircle size={16} />
                                 </Button>
                                 <Button
                                     variant="success"
@@ -5787,6 +5897,17 @@ export default function QuotePage() {
                                     className="h-11 justify-start gap-2"
                                     onClick={() => {
                                         setIsMobileMoreActionsOpen(false);
+                                        setIsWhatsAppModalOpen(true);
+                                    }}
+                                >
+                                    <MessageCircle className="h-4 w-4" />
+                                    Versturen via WhatsApp
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="h-11 justify-start gap-2"
+                                    onClick={() => {
+                                        setIsMobileMoreActionsOpen(false);
                                         void handleDownloadPDF();
                                     }}
                                     disabled={!totals || loading || isGeneratingPDF}
@@ -6015,6 +6136,33 @@ export default function QuotePage() {
                 afzenderNaam={businessData?.contactNaam || user?.displayName || userProfile?.naam || ''}
                 korteTitel={normalizedData?.korteTitel}
                 korteBeschrijving={normalizedData?.korteBeschrijving}
+            />
+
+            <SendQuoteWhatsAppModal
+                isOpen={isWhatsAppModalOpen}
+                onClose={() => setIsWhatsAppModalOpen(false)}
+                klantInfo={klantInfo}
+                offerteNummer={(quote as any)?.offerteNummer || 'CONCEPT'}
+                werkbeschrijving={normalizedData?.werkbeschrijving}
+                onDownloadPDF={handleDownloadPDF}
+                onMarkAsSent={handleMarkQuoteAsSent}
+                totaalInclBtw={totals?.totaalInclBtw || 0}
+                geldigTot={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                })}
+                bedrijfsnaam={
+                    userProfile?.settings?.bedrijfsnaam ||
+                    userProfile?.bedrijfsnaam ||
+                    userProfile?.companyName ||
+                    businessData?.bedrijfsnaam ||
+                    ''
+                }
+                afzenderNaam={businessData?.contactNaam || user?.displayName || userProfile?.naam || ''}
+                korteTitel={normalizedData?.korteTitel}
+                korteBeschrijving={normalizedData?.korteBeschrijving}
+                onCreateShareableOffertePdfLink={createShareableOffertePdfLink}
             />
 
             {activeCategory && (

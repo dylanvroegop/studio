@@ -178,15 +178,6 @@ export function WorkDescriptionWorkspace({
       ) : (
         <div className="space-y-3">
           <WorkDescriptionSectionEditor
-            title="Voorbereiding"
-            rows={ensureRows(value.sections.voorbereiding)}
-            placeholder="Bijv. Werkplek afzetten en materialen controleren"
-            onChangeRow={(index, rowValue) => updateSectionRow('voorbereiding', index, rowValue)}
-            onAddRow={() => addSectionRow('voorbereiding')}
-            onRemoveRow={(index) => removeSectionRow('voorbereiding', index)}
-            onMoveRow={(index, direction) => moveSectionRow('voorbereiding', index, direction)}
-          />
-          <WorkDescriptionSectionEditor
             title="Uitvoering"
             rows={ensureRows(value.sections.uitvoering)}
             placeholder="Bijv. Isolatiemateriaal plaatsen volgens maatvoering"
@@ -194,15 +185,6 @@ export function WorkDescriptionWorkspace({
             onAddRow={() => addSectionRow('uitvoering')}
             onRemoveRow={(index) => removeSectionRow('uitvoering', index)}
             onMoveRow={(index, direction) => moveSectionRow('uitvoering', index, direction)}
-          />
-          <WorkDescriptionSectionEditor
-            title="Afwerking"
-            rows={ensureRows(value.sections.afwerking)}
-            placeholder="Bijv. Naden afwerken en werkplek schoon opleveren"
-            onChangeRow={(index, rowValue) => updateSectionRow('afwerking', index, rowValue)}
-            onAddRow={() => addSectionRow('afwerking')}
-            onRemoveRow={(index) => removeSectionRow('afwerking', index)}
-            onMoveRow={(index, direction) => moveSectionRow('afwerking', index, direction)}
           />
         </div>
       )}

@@ -36,6 +36,8 @@ export function useQuoteData(quoteId: string) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const calculationRef = useRef<QuoteCalculation | null>(null);
+    const lastSyncedDataJsonSignatureRef = useRef<string | null>(null);
+    const inFlightDataJsonSignatureRef = useRef<string | null>(null);
 
     useEffect(() => {
         calculationRef.current = calculation;
@@ -55,7 +57,6 @@ export function useQuoteData(quoteId: string) {
                 // But generally, we want the UI to know we are "waiting" for completion.
                 // We'll keep loading=true as long as we don't have a 'completed' status.
 
-                console.log('Fetching for quoteId:', quoteId);
                 const token = await getUserTokenSafe(user);
                 if (!token) {
                     throw new Error('Authenticatie tijdelijk niet beschikbaar. Controleer je internetverbinding en probeer opnieuw.');
@@ -84,6 +85,7 @@ export function useQuoteData(quoteId: string) {
                     setError(null);
                     setCalculation(data);
                     calculationRef.current = data;
+                    lastSyncedDataJsonSignatureRef.current = data?.data_json ? JSON.stringify(data.data_json) : null;
 
                     if (!data) {
                         // No calculation has been started yet.
@@ -131,28 +133,37 @@ export function useQuoteData(quoteId: string) {
 
     // Function to update the data_json (for price edits)
     const updateDataJson = async (newDataJson: QuoteCalculation['data_json']) => {
-        console.log('💾 [updateDataJson] Starting update...', {
-            hasCalculation: !!calculation,
-            calculationId: calculation?.id,
-            groot: (newDataJson as any)?.grootmaterialen?.length,
-            verbruik: (newDataJson as any)?.verbruiksartikelen?.length
-        });
-
-        if (!calculation) {
-            console.error('❌ [updateDataJson] No calculation!');
+        const currentCalculation = calculationRef.current;
+        if (!currentCalculation) {
             return;
         }
 
         if (!user) {
-            console.error('❌ [updateDataJson] No user authenticated!');
             return;
         }
 
+        const nextSignature = JSON.stringify(newDataJson);
+        const currentSignature = currentCalculation.data_json
+            ? JSON.stringify(currentCalculation.data_json)
+            : null;
+
+        // Prevent duplicate writes when nothing actually changed.
+        if (nextSignature === currentSignature || nextSignature === lastSyncedDataJsonSignatureRef.current) {
+            return;
+        }
+
+        // Prevent overlapping duplicate requests for the same payload.
+        if (inFlightDataJsonSignatureRef.current === nextSignature) {
+            return;
+        }
+
+        inFlightDataJsonSignatureRef.current = nextSignature;
+
         try {
-            console.log('📤 [updateDataJson] Calling API route...');
             const token = await getUserTokenSafe(user);
             if (!token) {
                 setError('Authenticatie tijdelijk niet beschikbaar. Controleer je internetverbinding en probeer opnieuw.');
+                inFlightDataJsonSignatureRef.current = null;
                 return;
             }
 
@@ -163,48 +174,41 @@ export function useQuoteData(quoteId: string) {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    calculation_id: calculation.id,
+                    calculation_id: currentCalculation.id,
                     data_json: newDataJson
                 })
             });
 
             const result = await response.json();
 
-            console.log('📥 [updateDataJson] API response:', {
-                ok: result.ok,
-                hasData: !!result.data,
-                status: response.status
-            });
-
             if (!result.ok) {
-                console.error('❌ [updateDataJson] API error:', result.message);
                 throw new Error(result.message || 'Failed to update');
             }
 
             // Update was successful, use the returned data
             if (result.data) {
-                console.log('✅ [updateDataJson] Update successful, setting calculation');
-                console.log('🔍 [DEBUG] Returned data_json totaal_uren:', (result.data.data_json as any)?.totaal_uren);
-                setCalculation(prev => {
-                    const updated = prev ? { ...prev, data_json: result.data.data_json } : null;
-                    console.log('🔧 [STATE] setCalculation called:', {
-                        prev_totaal: (prev?.data_json as any)?.totaal_uren,
-                        new_totaal: (result.data.data_json as any)?.totaal_uren,
-                        same_ref: prev?.data_json === result.data.data_json
-                    });
-                    return updated;
-                });
+                const returnedSignature = JSON.stringify(result.data.data_json);
+                setCalculation(prev => prev ? { ...prev, data_json: result.data.data_json } : null);
+                calculationRef.current = currentCalculation
+                    ? { ...currentCalculation, data_json: result.data.data_json }
+                    : currentCalculation;
+                lastSyncedDataJsonSignatureRef.current = returnedSignature;
             } else {
-                console.log('⚠️ [updateDataJson] No data returned, using optimistic update');
                 setCalculation(prev => prev ? { ...prev, data_json: newDataJson } : null);
+                calculationRef.current = currentCalculation
+                    ? { ...currentCalculation, data_json: newDataJson }
+                    : currentCalculation;
+                lastSyncedDataJsonSignatureRef.current = nextSignature;
             }
         } catch (err) {
-            console.error('❌ [updateDataJson] Failed to update quote data:', err);
+            console.error('Failed to update quote data:', err);
             const message = extractErrorMessage(err);
             setError(message.includes('auth/network-request-failed')
                 ? 'Geen verbinding met authenticatie. Controleer je internet en probeer opnieuw.'
                 : message);
             return;
+        } finally {
+            inFlightDataJsonSignatureRef.current = null;
         }
     };
 
