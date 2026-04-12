@@ -46,3 +46,13 @@ firestore-debug.log
 
 # mcp
 mcp.json
+
+# large generated/exported files (excluded from AI indexing)
+fetched_n8n_workflow.json
+fetched_calculator_workflow.json
+n8n_workflows.json
+n8n-code-node.js
+sync_ids_robust.sql
+update_ids.sql
+*.tsbuildinfo
+package-lock.json
