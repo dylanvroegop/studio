@@ -3,7 +3,6 @@ import admin from 'firebase-admin';
 import { parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { JOB_REGISTRY } from '@/lib/job-registry';
-import { getMaterialRule } from '@/lib/klus-regels-static';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
   commitCalculationQuotaReservation,
@@ -15,6 +14,14 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const CALCULATOR_UNAVAILABLE_CODE = 'calculator_unavailable';
+
+type KlusRegelsRow = {
+  id?: string | number | null;
+  klus_type?: string | null;
+  klus_regels?: unknown;
+  created_at?: string | null;
+  pending_updates?: string | null;
+};
 
 /** Firebase Admin via ADC (werkt op Firebase App Hosting)*/
 function krijgFirebaseAdminApp() {
@@ -678,94 +685,159 @@ export async function POST(req: Request) {
         });
       };
 
-      // Strip waste multipliers and premature final ceil() from embedded rule formulas
-      // so all calculations follow: basis (decimaal) -> afval -> 1x afronden op eindresultaat.
-      const stripWasteFromFormula = (formula: string): string => (
-        formula
-          .replace(/\s*\*\s*\(1\s*\+\s*waste\/100\)/g, '')
-          .replace(/\(1\s*\+\s*waste\/100\)\s*\*\s*/g, '')
-          .replace(/\s*\*\s*\(1\s*\+\s*\(user_input_wastePercentage\s*\/\s*100\)\)/g, '')
-          .replace(/\(1\s*\+\s*\(user_input_wastePercentage\s*\/\s*100\)\)\s*\*\s*/g, '')
-          .replace(/\s*\*\s*wastePercentage\b/g, '')
-          .replace(/\bwastePercentage\s*\*\s*/g, '')
-          .replace(/\s*\*\s*waste_multiplier\b/g, '')
-          .replace(/\bwaste_multiplier\s*\*\s*/g, '')
-          // Prevent early rounding of final material quantities.
-          .replace(/\baantal\s*=\s*ceil\(\s*([^;]+?)\s*\)/gi, 'aantal = ($1)')
-          .replace(/\bstuks\s*=\s*ceil\(\s*([^;]+?)\s*\)/gi, 'stuks = ($1)')
-          .replace(/\btotaal\s*=\s*ceil\(\s*([^;]+?)\s*\)/gi, 'totaal = ($1)')
+      const normalizeLookupValue = (value: unknown): string => (
+        typeof value === 'string' ? value.trim().toLowerCase() : ''
       );
 
-      const sanitizeRuleObject = (rule: any): any => {
-        if (Array.isArray(rule)) {
-          return rule.map((item) => sanitizeRuleObject(item));
-        }
-        if (!rule || typeof rule !== 'object') return rule;
+      const findSectionRuleInTree = (
+        node: unknown,
+        normalizedSectionKey: string,
+        depth = 0
+      ): Record<string, any> | null => {
+        if (!node || typeof node !== 'object' || depth > 12) return null;
 
-        const next: Record<string, any> = {};
-        Object.entries(rule).forEach(([key, value]) => {
-          if ((key === 'formula' || key === 'primary_formula' || key === 'fallback_formula') && typeof value === 'string') {
-            next[key] = stripWasteFromFormula(value);
-          } else if (value && typeof value === 'object') {
-            next[key] = sanitizeRuleObject(value);
-          } else {
-            next[key] = value;
+        if (Array.isArray(node)) {
+          for (const item of node) {
+            const foundInArray = findSectionRuleInTree(item, normalizedSectionKey, depth + 1);
+            if (foundInArray) return foundInArray;
           }
-        });
-        return next;
+          return null;
+        }
+
+        const objectNode = node as Record<string, unknown>;
+        const direct = objectNode[normalizedSectionKey];
+        if (direct && typeof direct === 'object' && !Array.isArray(direct)) {
+          return direct as Record<string, any>;
+        }
+
+        const embeddedSectionKey = normalizeLookupValue(objectNode.sectionKey);
+        if (embeddedSectionKey === normalizedSectionKey) {
+          return objectNode as Record<string, any>;
+        }
+
+        const preferredContainers = [
+          'regels',
+          'rules',
+          'sections',
+          'section_rules',
+          'material_rules',
+          'materialen',
+        ];
+        for (const containerKey of preferredContainers) {
+          const containerValue = objectNode[containerKey];
+          if (!containerValue || typeof containerValue !== 'object') continue;
+          const containerDirect = (containerValue as Record<string, unknown>)[normalizedSectionKey];
+          if (containerDirect && typeof containerDirect === 'object' && !Array.isArray(containerDirect)) {
+            return containerDirect as Record<string, any>;
+          }
+        }
+
+        for (const value of Object.values(objectNode)) {
+          if (!value || typeof value !== 'object') continue;
+          const foundNested = findSectionRuleInTree(value, normalizedSectionKey, depth + 1);
+          if (foundNested) return foundNested;
+        }
+
+        return null;
       };
 
-      const appendWasteRoundingPolicy = (rule: any): any => {
-        if (!rule || typeof rule !== 'object') return rule;
-        return {
-          ...rule,
-          waste_rounding_policy: {
-            order: 'bereken_basis_zonder_tussentijds_afronden -> pas_afval_toe -> rond_eenmalig_naar_boven',
-            final_rounding: 'ceil',
-            no_intermediate_rounding: true,
-            notes: [
-              'Rond nooit aantal/stuks/totaal af voordat afval is toegepast.',
-              'Voorbeeld correct: 120.1 * 1.1 = 132.11 -> ceil = 133.',
-              'Voorbeeld incorrect: ceil(120.1)=121; 121 * 1.1 = 133.1 -> ceil = 134.'
-            ],
-          },
-        };
+      const resolveSectionRuleFromKlusRegels = (
+        klusRegels: unknown,
+        sectionKey: string | null
+      ): { rule: Record<string, any> | null; status: 'resolved' | 'missing'; resolvedBy: string } => {
+        const normalizedSectionKey = normalizeLookupValue(sectionKey);
+        if (!normalizedSectionKey) {
+          return { rule: null, status: 'missing', resolvedBy: 'missing_section_key' };
+        }
+
+        const direct = findSectionRuleInTree(klusRegels, normalizedSectionKey);
+        if (direct) {
+          return { rule: direct, status: 'resolved', resolvedBy: 'direct_section_key' };
+        }
+
+        if (normalizedSectionKey.endsWith('_2')) {
+          const mirrored = normalizedSectionKey.replace(/_2$/, '_1');
+          const mirroredRule = findSectionRuleInTree(klusRegels, mirrored);
+          if (mirroredRule) {
+            return { rule: mirroredRule, status: 'resolved', resolvedBy: 'mirrored_side_fallback' };
+          }
+        }
+
+        return { rule: null, status: 'missing', resolvedBy: 'not_found' };
       };
 
-      const sanitizeEntryRule = (entry: any) => {
-        if (!entry || typeof entry !== 'object' || !entry.rule || typeof entry.rule !== 'object') return entry;
-        const sanitizedRule = sanitizeRuleObject(entry.rule);
-        return {
-          ...entry,
-          rule: appendWasteRoundingPolicy(sanitizedRule),
-        };
+      const deriveJobSlug = (job: any): string => {
+        const maatwerkObj = job?.maatwerk;
+        return String(
+          job?.meta?.slug
+          || (maatwerkObj as any)?.meta?.slug
+          || job?.materialen?.jobKey
+          || ''
+        ).toLowerCase();
       };
 
-      const GOLFPLAAT_OVERLAP_LOGIC =
-        'plaatlengte volgt daklengte; dakbreedte wordt gevuld met werkende breedte (plaatbreedte - 50mm overlap)';
-      const GOLFPLAAT_OVERLAP_FORMULA =
-        'dak_breedte_mm = (maatwerk_item.breedte ?? maatwerk_item.hoogte); if material.breedte_m exists then werkende_breedte_mm = max(1, (material.breedte_m * 1000) - 50); else if material.werkende_breedte_mm exists then werkende_breedte_mm = material.werkende_breedte_mm; else werkende_breedte_mm = null; if werkende_breedte_mm exists then rows = ceil(dak_lengte_mm / material.lengte_mm); cols = ceil(dak_breedte_mm / werkende_breedte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(dak_netto_m2 / plaat_m2); aantal = ceil(stuks)';
+      const klusRegelsByType = new Map<string, KlusRegelsRow>();
+      try {
+        const jobSlugSet = new Set<string>();
+        if (quote.klussen) {
+          Object.values(quote.klussen).forEach((job: any) => {
+            const slug = deriveJobSlug(job);
+            if (slug) jobSlugSet.add(slug);
+          });
+        }
 
-      const normalizeGolfplaatRuleEntry = (
-        entry: Record<string, any>,
+        const jobSlugs = Array.from(jobSlugSet);
+        if (jobSlugs.length > 0) {
+          const { supabaseAdmin } = await import('@/lib/supabase-admin');
+          const { data: klusRegelsRows, error: klusRegelsError } = await supabaseAdmin
+            .from('klus_regels')
+            .select('id, klus_type, klus_regels, created_at, pending_updates')
+            .in('klus_type', jobSlugs);
+
+          if (!klusRegelsError && Array.isArray(klusRegelsRows)) {
+            klusRegelsRows.forEach((row: any) => {
+              const klusType = normalizeLookupValue(row?.klus_type);
+              if (klusType) {
+                klusRegelsByType.set(klusType, row as KlusRegelsRow);
+              }
+
+              const metaSlug = normalizeLookupValue((row?.klus_regels as any)?.meta?.slug);
+              if (metaSlug && !klusRegelsByType.has(metaSlug)) {
+                klusRegelsByType.set(metaSlug, row as KlusRegelsRow);
+              }
+            });
+          } else if (klusRegelsError) {
+            console.warn('Kon klus_regels niet ophalen uit Supabase:', klusRegelsError.message);
+          }
+        }
+      } catch (err) {
+        console.warn('Fout bij laden van klus_regels uit Supabase:', err);
+      }
+
+      const resolveRuleAttachmentFromSupabase = (
         jobSlug: string,
-        sectionKey: string | null,
-      ): Record<string, any> => {
-        if (!entry || typeof entry !== 'object') return entry;
-        if (!jobSlug.includes('golfplaat-dak')) return entry;
-        if (sectionKey !== 'golfplaten') return entry;
+        sectionKey: string | null
+      ): {
+        rule: Record<string, any> | null;
+        ruleMeta: Record<string, any>;
+        klusRegelsRow: KlusRegelsRow | null;
+      } => {
+        const normalizedJobSlug = normalizeLookupValue(jobSlug);
+        const klusRegelsRow = normalizedJobSlug ? (klusRegelsByType.get(normalizedJobSlug) || null) : null;
+        const resolution = resolveSectionRuleFromKlusRegels(klusRegelsRow?.klus_regels, sectionKey);
 
-        const next = { ...entry };
-        const rule = next.rule && typeof next.rule === 'object'
-          ? { ...next.rule }
-          : {};
-
-        next.rule = {
-          ...rule,
-          logic: GOLFPLAAT_OVERLAP_LOGIC,
-          formula: GOLFPLAAT_OVERLAP_FORMULA,
+        return {
+          rule: resolution.rule,
+          ruleMeta: {
+            source: 'supabase_klus_regels',
+            slug: normalizedJobSlug || null,
+            sectionKey: sectionKey ?? null,
+            status: resolution.status,
+            resolvedBy: resolution.resolvedBy,
+            klusRegelsId: klusRegelsRow?.id ?? null,
+          },
+          klusRegelsRow,
         };
-        return next;
       };
 
       const normalizeEpdmDaktrimSectionKey = (
@@ -789,24 +861,18 @@ export async function POST(req: Request) {
         return sectionKey;
       };
 
-      const refreshStaticRuleForSection = (
+      const attachSupabaseRuleForSection = (
         entry: Record<string, any>,
         jobSlug: string,
         sectionKey: string | null
       ): Record<string, any> => {
-        if (!entry || typeof entry !== 'object' || !sectionKey) return entry;
-        const attachment = getMaterialRule(jobSlug, sectionKey);
-        if (!attachment) return entry;
-        const strippedRule = attachment.rule && typeof attachment.rule === 'object'
-          ? (() => {
-            const { required_inputs, missing_input_behavior, ...rest } = attachment.rule as Record<string, any>;
-            return rest;
-          })()
-          : null;
+        if (!entry || typeof entry !== 'object') return entry;
+        const attachment = resolveRuleAttachmentFromSupabase(jobSlug, sectionKey);
         return {
           ...entry,
-          rule: strippedRule,
-          rule_meta: attachment.rule_meta,
+          rule: attachment.rule,
+          section_rule_full: attachment.rule,
+          rule_meta: attachment.ruleMeta,
         };
       };
 
@@ -940,9 +1006,7 @@ export async function POST(req: Request) {
               }
 
               const finalSectionKey = normalizedSectionKey || slotKey;
-              enriched = normalizeGolfplaatRuleEntry(enriched, jobSlug, finalSectionKey);
-              enriched = refreshStaticRuleForSection(enriched, jobSlug, finalSectionKey);
-              enriched = sanitizeEntryRule(enriched);
+              enriched = attachSupabaseRuleForSection(enriched, jobSlug, finalSectionKey);
               const normalizedSlotKey =
                 jobSlug === 'epdm-dakbedekking'
                 && (slotKey === 'daktrim' || slotKey === 'daktrim_hoeken')
@@ -996,10 +1060,32 @@ export async function POST(req: Request) {
 
             // B3. Component materials are already in materialen_lijst with comp_ keys (picked up by B1)
 
+            const sectionRulesFull: Record<string, any> = {};
+            Object.values(normalizedMaterialenLijst).forEach((entry: any) => {
+              const sectionKey = typeof entry?.sectionKey === 'string'
+                ? entry.sectionKey
+                : null;
+              if (!sectionKey || sectionRulesFull[sectionKey] !== undefined) return;
+              const attachment = resolveRuleAttachmentFromSupabase(jobSlug, sectionKey);
+              sectionRulesFull[sectionKey] = attachment.rule;
+            });
+            const klusRegelsAttachment = resolveRuleAttachmentFromSupabase(jobSlug, null);
+            const fullKlusRegels = klusRegelsAttachment.klusRegelsRow
+              ? {
+                id: klusRegelsAttachment.klusRegelsRow.id ?? null,
+                klus_type: klusRegelsAttachment.klusRegelsRow.klus_type ?? null,
+                created_at: klusRegelsAttachment.klusRegelsRow.created_at ?? null,
+                pending_updates: klusRegelsAttachment.klusRegelsRow.pending_updates ?? null,
+                klus_regels: klusRegelsAttachment.klusRegelsRow.klus_regels ?? null,
+              }
+              : null;
+
             // B4. Overwrite materialen with the unified, labeled map
             enrichedJob.materialen = {
               ...enrichedJob.materialen,
               materialen_lijst: normalizedMaterialenLijst,
+              section_rules_full: sectionRulesFull,
+              klus_regels_full: fullKlusRegels,
               // lijst: removed to prevent double-counting
               kleinMateriaal: enrichedJob.kleinMateriaal || enrichedJob.materialen?.kleinMateriaal || null,
             };

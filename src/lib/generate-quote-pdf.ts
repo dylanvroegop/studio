@@ -967,21 +967,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.text(ondertekeningNaam, margin, y);
     y += 5;
 
-    if (signatureAsset) {
-        const { width: signatureWidth, height: signatureHeight } = fitImageWithinBox(
-            signatureAsset.width,
-            signatureAsset.height,
-            50,
-            18,
-        );
-
-        if (signatureWidth > 0 && signatureHeight > 0) {
-            doc.addImage(signatureAsset.base64, signatureAsset.format, margin, y, signatureWidth, signatureHeight);
-            y += signatureHeight + 4;
-        } else {
-            y += 8;
-        }
-    }
+    // Signature image is rendered in the footer; avoid drawing a second signature on this page.
 
     // ═══════════════════════════════════════════════════════════════
     // OPTIONAL PAGE: ALGEMENE VOORWAARDEN

@@ -11,6 +11,7 @@ type ParsedBody = {
   quoteIds: string[];
   status: string | null;
   latestOnly: boolean;
+  preferCompletedFallback: boolean;
 };
 
 function normalizeString(value: unknown): string | null {
@@ -37,8 +38,9 @@ function parseBody(body: unknown): ParsedBody | null {
   const quoteIds = normalizeStringArray(row.quoteIds);
   const status = normalizeString(row.status);
   const latestOnly = row.latestOnly === true;
+  const preferCompletedFallback = row.preferCompletedFallback !== false;
 
-  return { quoteId, quoteIds, status, latestOnly };
+  return { quoteId, quoteIds, status, latestOnly, preferCompletedFallback };
 }
 
 function unauthorized() {
@@ -79,7 +81,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { quoteId, quoteIds, status, latestOnly } = parsed;
+    const { quoteId, quoteIds, status, latestOnly, preferCompletedFallback } = parsed;
     if (!quoteId && quoteIds.length === 0) {
       return NextResponse.json(
         { ok: false, message: 'Geef quoteId of quoteIds mee.' },
@@ -117,7 +119,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
       }
 
-      if (status || !data) {
+      if (status || !data || !preferCompletedFallback) {
         return NextResponse.json({ ok: true, row: data || null });
       }
 

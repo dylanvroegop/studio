@@ -76,6 +76,13 @@ function parseNonNegativeInt(value: unknown): number {
   return Math.floor(num);
 }
 
+function parseNullableNonNegativeInt(value: unknown): number | null {
+  if (value == null) return null;
+  const num = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(num) || num < 0) return null;
+  return Math.floor(num);
+}
+
 function sameDate(a: Date | null, b: Date | null): boolean {
   if (!a && !b) return true;
   if (!a || !b) return false;
@@ -202,11 +209,12 @@ function buildQuotaFromBusinessData(
   lastIncrementJobCount: number | null;
 } {
   const plan = resolveEffectivePlan(businessData, now);
-  const limit = getPlanLimit(plan);
+  const calculationQuota = (businessData.calculationQuota || {}) as Record<string, unknown>;
+  const customLimit = parseNullableNonNegativeInt(calculationQuota.limitOverride);
+  const limit = customLimit ?? getPlanLimit(plan);
   const isUnlimited = limit == null;
   const anchor = resolveCycleAnchor(businessData, plan, now);
   const cycle = computeCycleWindow(anchor, now);
-  const calculationQuota = (businessData.calculationQuota || {}) as Record<string, unknown>;
 
   const storedCycleStart = parseDate(calculationQuota.currentCycleStart);
   const isSameCycle = sameDate(storedCycleStart, cycle.start);

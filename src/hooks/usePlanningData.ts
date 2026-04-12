@@ -197,6 +197,14 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             planningType: PlanningEntryType;
             status: PlanningStatus;
             notes: string;
+            cache: {
+                clientName: string;
+                projectTitle: string;
+                projectAddress: string;
+                totalQuoteHours: number;
+                totalQuoteAmount?: number;
+                totalQuoteEarnings?: number;
+            };
         }>
     ) => {
         if (!user || !firestore) throw new Error('Not authenticated');
@@ -214,6 +222,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         if (data.planningType !== undefined) updateData.planningType = data.planningType;
         if (data.status !== undefined) updateData.status = data.status;
         if (data.notes !== undefined) updateData.notes = data.notes;
+        if (data.cache !== undefined) updateData.cache = data.cache;
 
         await updateDoc(docRef, updateData);
     }, [user, firestore]);

@@ -34,8 +34,25 @@ import { LogoUpload } from '@/components/settings/LogoUpload';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { v4 as uuidv4 } from 'uuid'; // Ensure uuid is installed or use a simple random string generator if not available. I will use crypto.randomUUID for simplicity or a simple helper if uuid is not guaranteed. I'll use a simple Math.random fallback to avoid adding deps if I can't confirm. Actually, crypto.randomUUID() is widely supported in modern browsers.
 import { useThemeMode } from '@/context/ThemeModeContext';
+
+interface DeleteConfirmationState {
+    title: string;
+    description: string;
+    confirmLabel?: string;
+    onConfirm: () => void;
+}
 
 
 function InstellingenPageContent() {
@@ -50,6 +67,7 @@ function InstellingenPageContent() {
     const [settings, setSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationState | null>(null);
     const [activeTab, setActiveTab] = useState('bedrijf');
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
     const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
@@ -123,6 +141,16 @@ function InstellingenPageContent() {
             setCurrentPackageItems([]);
         }
         setIsPackageDialogOpen(true);
+    };
+
+    const openDeleteConfirmation = (payload: DeleteConfirmationState) => {
+        setDeleteConfirmation(payload);
+    };
+
+    const confirmDeleteAction = () => {
+        if (!deleteConfirmation) return;
+        deleteConfirmation.onConfirm();
+        setDeleteConfirmation(null);
     };
 
     const savePackage = () => {
@@ -873,7 +901,13 @@ function InstellingenPageContent() {
                                                                 type="button"
                                                                 size="icon"
                                                                 variant="ghost"
-                                                                onClick={() => removeLeverancier(leverancier.id)}
+                                                                onClick={() =>
+                                                                    openDeleteConfirmation({
+                                                                        title: 'Leverancier verwijderen?',
+                                                                        description: `Weet je zeker dat je leverancier "${leverancier.naam || 'Nieuwe leverancier'}" wilt verwijderen?`,
+                                                                        onConfirm: () => removeLeverancier(leverancier.id),
+                                                                    })
+                                                                }
                                                                 className="text-destructive hover:text-destructive"
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
@@ -942,7 +976,13 @@ function InstellingenPageContent() {
                                                                     size="icon"
                                                                     variant="ghost"
                                                                     className="text-destructive hover:text-destructive"
-                                                                    onClick={() => removeLeverancierContact(leverancier.id, contact.id)}
+                                                                    onClick={() =>
+                                                                        openDeleteConfirmation({
+                                                                            title: 'Contact verwijderen?',
+                                                                            description: `Weet je zeker dat je contact "${contact.naam || contact.email || 'zonder naam'}" wilt verwijderen?`,
+                                                                            onConfirm: () => removeLeverancierContact(leverancier.id, contact.id),
+                                                                        })
+                                                                    }
                                                                 >
                                                                     <Trash2 className="h-4 w-4" />
                                                                 </Button>
@@ -1033,7 +1073,13 @@ function InstellingenPageContent() {
                                                         size="icon"
                                                         variant="ghost"
                                                         className="text-destructive hover:text-destructive"
-                                                        onClick={() => removeLeverancierTransportRegel(regel.id)}
+                                                        onClick={() =>
+                                                            openDeleteConfirmation({
+                                                                title: 'Transportregel verwijderen?',
+                                                                description: `Weet je zeker dat je transportregel "${regel.label || 'zonder naam'}" wilt verwijderen?`,
+                                                                onConfirm: () => removeLeverancierTransportRegel(regel.id),
+                                                            })
+                                                        }
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
@@ -1453,7 +1499,18 @@ function InstellingenPageContent() {
                                                     <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openPackageDialog(pkg)}>
                                                         <Edit2 className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive/70 hover:text-destructive" onClick={() => deletePackage(pkg.id)}>
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 text-destructive/70 hover:text-destructive"
+                                                        onClick={() =>
+                                                            openDeleteConfirmation({
+                                                                title: 'Pakket verwijderen?',
+                                                                description: `Weet je zeker dat je pakket "${pkg.naam}" wilt verwijderen?`,
+                                                                onConfirm: () => deletePackage(pkg.id),
+                                                            })
+                                                        }
+                                                    >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>
@@ -1631,7 +1688,15 @@ function InstellingenPageContent() {
                                                         size="icon"
                                                         variant="ghost"
                                                         className="h-8 w-8 text-destructive/70 hover:text-destructive"
-                                                        onClick={() => deleteEmployee(emp.id)}
+                                                        onClick={() =>
+                                                            openDeleteConfirmation({
+                                                                title: 'Medewerker verwijderen?',
+                                                                description: `Weet je zeker dat je medewerker "${emp.name}" wilt verwijderen?`,
+                                                                onConfirm: () => {
+                                                                    void deleteEmployee(emp.id);
+                                                                },
+                                                            })
+                                                        }
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
@@ -1799,7 +1864,13 @@ function InstellingenPageContent() {
                                                     size="icon"
                                                     variant="ghost"
                                                     className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0 mt-0.5"
-                                                    onClick={() => removePackageItem(item.id)}
+                                                    onClick={() =>
+                                                        openDeleteConfirmation({
+                                                            title: 'Item verwijderen?',
+                                                            description: `Weet je zeker dat je item "${item.naam || `Item ${index + 1}`}" wilt verwijderen?`,
+                                                            onConfirm: () => removePackageItem(item.id),
+                                                        })
+                                                    }
                                                 >
                                                     <X className="h-4 w-4" />
                                                 </Button>
@@ -1815,6 +1886,33 @@ function InstellingenPageContent() {
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
+
+                    <AlertDialog open={!!deleteConfirmation} onOpenChange={(open) => !open && setDeleteConfirmation(null)}>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>{deleteConfirmation?.title || 'Verwijderen?'}</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    {deleteConfirmation?.description || 'Weet je zeker dat je dit wilt verwijderen?'}
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel asChild>
+                                    <Button variant="ghost">Annuleren</Button>
+                                </AlertDialogCancel>
+                                <AlertDialogAction
+                                    asChild
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        confirmDeleteAction();
+                                    }}
+                                >
+                                    <Button variant="destructiveSoft">
+                                        {deleteConfirmation?.confirmLabel || 'Verwijderen'}
+                                    </Button>
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
 
                 </Tabs>
             </div>

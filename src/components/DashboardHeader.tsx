@@ -13,6 +13,7 @@ import {
   LogOut,
   Receipt,
   ReceiptText,
+  Sparkles,
   Settings,
   StickyNote,
   TrendingUp,
@@ -239,6 +240,12 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
       return {
         icon: StickyNote,
         iconClassName: 'text-rose-400',
+      };
+    }
+    if (pathname.startsWith('/preparation-agent')) {
+      return {
+        icon: Sparkles,
+        iconClassName: 'text-fuchsia-400',
       };
     }
     if (pathname.startsWith('/kennis')) {

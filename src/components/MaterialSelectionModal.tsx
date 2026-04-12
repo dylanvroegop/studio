@@ -521,6 +521,16 @@ export function MaterialSelectionModal({
   onCategoryFilterChange,
   nameContainsFilter
 }: MaterialSelectionModalProps) {
+  const normalizeMaterialIdentifier = (value: unknown): string => String(value ?? '').trim();
+  const isSelectedMaterial = useCallback((material: ExistingMaterial): boolean => {
+    const selectedId = normalizeMaterialIdentifier(selectedMaterialId);
+    if (!selectedId) return false;
+    return [
+      normalizeMaterialIdentifier((material as any).row_id),
+      normalizeMaterialIdentifier((material as any).id),
+      normalizeMaterialIdentifier((material as any).material_ref_id),
+    ].some((candidateId) => candidateId.length > 0 && candidateId === selectedId);
+  }, [selectedMaterialId]);
 
   const [step, setStep] = useState<'search' | 'choice' | 'form'>('search');
   const [savingCustom, setSavingCustom] = useState<boolean>(false);
@@ -1161,12 +1171,22 @@ export function MaterialSelectionModal({
       result = result.filter(m => (m.materiaalnaam || '').toLowerCase().includes(lower));
     }
 
+    const selectedMaterial = selectedMaterialId
+      ? existingMaterials.find((material) => isSelectedMaterial(material))
+      : undefined;
+
+    if (selectedMaterial) {
+      const selectedAlreadyInResult = result.some((material) => isSelectedMaterial(material));
+      if (!selectedAlreadyInResult) {
+        result = [selectedMaterial, ...result];
+      }
+    }
+
     return result.sort((a, b) => {
       // 1. Currently selected material ALWAYS first
-      if (selectedMaterialId) {
-        if (a.row_id === selectedMaterialId) return -1;
-        if (b.row_id === selectedMaterialId) return 1;
-      }
+      const aIsSelected = isSelectedMaterial(a);
+      const bIsSelected = isSelectedMaterial(b);
+      if (aIsSelected !== bIsSelected) return aIsSelected ? -1 : 1;
       // 2. Favorites first
       if (a.isFavorite !== b.isFavorite) {
         return a.isFavorite ? -1 : 1;
@@ -1176,7 +1196,7 @@ export function MaterialSelectionModal({
       const orderB = b.order_id ?? 999999;
       return orderA - orderB;
     });
-  }, [materialsAfterCategoryFilter, searchTerm, subCategoryFilter, selectedMaterialId]);
+  }, [materialsAfterCategoryFilter, searchTerm, subCategoryFilter, selectedMaterialId, existingMaterials, isSelectedMaterial]);
 
   const visibleMaterials = useMemo(() => {
     return allFilteredMaterials.slice(0, displayLimit);
@@ -2083,7 +2103,7 @@ export function MaterialSelectionModal({
                             <div
                               className={cn(
                                 "flex-1 flex items-center justify-between gap-3 p-4 cursor-pointer transition-colors",
-                                mat.row_id === selectedMaterialId
+                                isSelectedMaterial(mat)
                                   ? "bg-emerald-500/10 hover:bg-emerald-500/20"
                                   : "hover:bg-muted/50"
                               )}
@@ -2092,12 +2112,12 @@ export function MaterialSelectionModal({
                               <div className="flex-1 min-w-0">
                                 <div className={cn(
                                   "font-medium transition-colors break-words whitespace-normal text-sm",
-                                  mat.row_id === selectedMaterialId
+                                  isSelectedMaterial(mat)
                                     ? "text-emerald-600"
                                     : "text-foreground group-hover:text-emerald-600"
                                 )}>
                                   {mat.materiaalnaam}
-                                  {mat.row_id === selectedMaterialId && (
+                                  {isSelectedMaterial(mat) && (
                                     <span className="ml-2 text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
                                       Huidig
                                     </span>

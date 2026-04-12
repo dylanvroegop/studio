@@ -429,6 +429,7 @@ export default function GenericMeasurementPage() {
     behangklaar: { vullen: '0,3', afwerken: '0,1' },
     schilderklaar: { vullen: '0,4', afwerken: '0,15' },
   });
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
   const hasFilledMaterialInSnapshotEntry = (entry: any): boolean => {
     if (!entry || typeof entry !== 'object') return false;
     const material = entry.material;
@@ -625,7 +626,16 @@ export default function GenericMeasurementPage() {
   const showKoofSectionInUI = showKoofSection && (hasGevelKoofMaterialFromPreviousPage || hasExistingKoofEntries);
   const showVensterbankSectionInUI = showVensterbankSection && (!isGevelbekleding && !isNadenVullenJob || hasGevelVensterbankMaterialFromPreviousPage);
   const showDagkantSectionInUI = showDagkantSection && (!isGevelbekleding && !isNadenVullenJob || hasGevelDagkantMaterialFromPreviousPage);
-  const showStucwerkSectionInUI = isNadenVullenJob && hasNadenStucMaterialFromPreviousPage;
+  const showStucwerkSectionInUI = isNadenVullenJob;
+  const hasNadenDefaultsConfigured = useMemo(() => {
+    const values = [
+      nadenDefaults.behangklaar.vullen,
+      nadenDefaults.behangklaar.afwerken,
+      nadenDefaults.schilderklaar.vullen,
+      nadenDefaults.schilderklaar.afwerken,
+    ];
+    return values.some((value) => String(value || '').trim().length > 0);
+  }, [nadenDefaults]);
   const showOpeningsSectionInUI = showOpeningsSection;
   const floorProfileCountFields = useMemo(() => {
     if (jobSlug === 'massief-houten-vloer') {
@@ -1727,14 +1737,23 @@ export default function GenericMeasurementPage() {
       const hasNadenVerbruikValues =
         !isEmptyValue(item.naden_vullen_verbruik_per_m2) ||
         !isEmptyValue(item.naden_afwerken_verbruik_per_m2);
-      const shouldAutoDefaultAfwerking = hasNadenStucMaterialFromPreviousPage || hasNadenVerbruikValues;
+      const shouldAutoDefaultAfwerking = hasNadenDefaultsConfigured || hasNadenStucMaterialFromPreviousPage || hasNadenVerbruikValues;
       const afwerking = typeof item.naden_vullen_afwerking === 'string'
         ? item.naden_vullen_afwerking.toLowerCase()
         : '';
-      if (afwerking === 'behangklaar' || afwerking === 'schilderklaar') {
-        item.naden_vullen_afwerking = afwerking;
-      } else if (shouldAutoDefaultAfwerking) {
-        item.naden_vullen_afwerking = 'schilderklaar';
+      const activeAfwerking = (afwerking === 'behangklaar' || afwerking === 'schilderklaar')
+        ? afwerking
+        : (shouldAutoDefaultAfwerking ? 'schilderklaar' : '');
+      if (activeAfwerking === 'behangklaar' || activeAfwerking === 'schilderklaar') {
+        const activeAfwerkingKey = activeAfwerking as 'behangklaar' | 'schilderklaar';
+        item.naden_vullen_afwerking = activeAfwerkingKey;
+        const defaults = nadenDefaults[activeAfwerkingKey];
+        if (isEmptyValue(item.naden_vullen_verbruik_per_m2) && !isEmptyValue(defaults.vullen)) {
+          item.naden_vullen_verbruik_per_m2 = defaults.vullen;
+        }
+        if (isEmptyValue(item.naden_afwerken_verbruik_per_m2) && !isEmptyValue(defaults.afwerken)) {
+          item.naden_afwerken_verbruik_per_m2 = defaults.afwerken;
+        }
       } else {
         delete item.naden_vullen_afwerking;
       }
@@ -2080,7 +2099,10 @@ export default function GenericMeasurementPage() {
   };
   // Sync with Firestore preferences
   useEffect(() => {
-    if (!user || !firestore) return;
+    if (!user || !firestore) {
+      setPrefsLoaded(true);
+      return;
+    }
     const fetchPrefs = async () => {
       try {
         const userRef = doc(firestore, 'users', user.uid);
@@ -2105,6 +2127,8 @@ export default function GenericMeasurementPage() {
         }
       } catch (err) {
         console.error("Error fetching preferences:", err);
+      } finally {
+        setPrefsLoaded(true);
       }
     };
     fetchPrefs();
@@ -2235,6 +2259,7 @@ export default function GenericMeasurementPage() {
 
   // 4. Load Data
   useEffect(() => {
+    if (!prefsLoaded) return;
     async function loadData() {
       if (!quoteId || !klusId || !firestore) return;
       setDakpanWerkendeMaten(null);
@@ -2532,7 +2557,7 @@ export default function GenericMeasurementPage() {
             setItems(withGolfplaatAuto);
           } else {
             const emptyItem = createEmptyItem({
-              withNadenDefaults: hasNadenStucMaterialInContainer,
+              withNadenDefaults: hasNadenDefaultsConfigured || hasNadenStucMaterialInContainer,
               epdmDefaults: {
                 hasLoodMaterial: hasLoodMaterialInContainer,
                 hasDaktrimMaterial: hasDaktrimMaterialInContainer,
@@ -2580,7 +2605,7 @@ export default function GenericMeasurementPage() {
       }
     }
     loadData();
-  }, [quoteId, klusId, firestore, jobSlug]);
+  }, [quoteId, klusId, firestore, jobSlug, prefsLoaded, hasNadenDefaultsConfigured]);
 
   const createEmptyItem = (options?: {
     withNadenDefaults?: boolean;
@@ -2603,7 +2628,7 @@ export default function GenericMeasurementPage() {
       newItem.tussenstijlen = [];
     }
     if (isNadenVullenJob) {
-      const shouldSetNadenDefaults = options?.withNadenDefaults ?? hasNadenStucMaterialFromPreviousPage;
+      const shouldSetNadenDefaults = options?.withNadenDefaults ?? hasNadenDefaultsConfigured;
       const afwerkingDefault = 'schilderklaar';
       const afwerkingDefaults = nadenDefaults[afwerkingDefault];
       newItem.naden_vullen_verbruik_per_m2 = shouldSetNadenDefaults ? afwerkingDefaults.vullen : '';

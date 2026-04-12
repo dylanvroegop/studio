@@ -6,6 +6,16 @@ import { Plus, Trash2, Edit2, Box } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,6 +65,7 @@ export function JobComponentsManager({
 
     const [selectedType, setSelectedType] = useState<string>('');
     const [tempMeasurements, setTempMeasurements] = useState<Record<string, any>>({});
+    const [componentToDelete, setComponentToDelete] = useState<JobComponent | null>(null);
 
     // Controlled vs Uncontrolled editingId
     const [internalEditingId, setInternalEditingId] = useState<string | null>(null);
@@ -145,8 +156,10 @@ export function JobComponentsManager({
         setOpen(false);
     };
 
-    const handleDelete = (id: string) => {
-        onChange(components.filter((c) => c.id !== id));
+    const handleDelete = () => {
+        if (!componentToDelete) return;
+        onChange(components.filter((c) => c.id !== componentToDelete.id));
+        setComponentToDelete(null);
     };
 
     return (
@@ -209,7 +222,13 @@ export function JobComponentsManager({
                                         <Button variant="ghost" size="icon" onClick={() => handleEdit(comp)} disabled={disabled}>
                                             <Edit2 className="h-4 w-4" />
                                         </Button>
-                                        <Button variant="ghost" size="icon" onClick={() => handleDelete(comp.id)} disabled={disabled} className="text-destructive hover:text-destructive">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => setComponentToDelete(comp)}
+                                            disabled={disabled}
+                                            className="text-destructive hover:text-destructive"
+                                        >
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </div>
@@ -413,6 +432,32 @@ export function JobComponentsManager({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={!!componentToDelete} onOpenChange={(open) => !open && setComponentToDelete(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Onderdeel verwijderen?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Weet je zeker dat je <span className="font-medium">{componentToDelete?.label || 'dit onderdeel'}</span> wilt verwijderen?
+                            Deze actie kan niet ongedaan worden gemaakt.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button variant="ghost">Annuleren</Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            asChild
+                            onClick={(event) => {
+                                event.preventDefault();
+                                handleDelete();
+                            }}
+                        >
+                            <Button variant="destructiveSoft">Verwijderen</Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div >
     );
 }

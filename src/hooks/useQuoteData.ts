@@ -11,6 +11,12 @@ export interface QuoteCalculation {
     data_json: DataJson;
 }
 
+interface UseQuoteDataOptions {
+    pollWhenMissing?: boolean;
+    pollIntervalMs?: number;
+    preferCompletedFallback?: boolean;
+}
+
 function extractErrorMessage(err: unknown): string {
     if (err instanceof Error && typeof err.message === 'string') return err.message;
     return String(err ?? 'Onbekende fout');
@@ -30,8 +36,13 @@ async function getUserTokenSafe(user: { getIdToken: () => Promise<string> } | nu
     }
 }
 
-export function useQuoteData(quoteId: string) {
+export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
     const { user } = useUser();
+    const pollWhenMissing = options?.pollWhenMissing === true;
+    const pollIntervalMs = Number.isFinite(options?.pollIntervalMs)
+        ? Math.max(1000, Number(options?.pollIntervalMs))
+        : 5000;
+    const preferCompletedFallback = options?.preferCompletedFallback !== false;
     const [calculation, setCalculation] = useState<QuoteCalculation | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -46,7 +57,7 @@ export function useQuoteData(quoteId: string) {
     useEffect(() => {
         let isMounted = true;
         let pollTimer: NodeJS.Timeout;
-        const POLL_INTERVAL_MS = 3000;
+        const POLL_INTERVAL_MS = pollIntervalMs;
         const RETRY_INTERVAL_MS = 5000;
 
         async function fetchQuoteData() {
@@ -70,6 +81,7 @@ export function useQuoteData(quoteId: string) {
                     body: JSON.stringify({
                         quoteId,
                         latestOnly: true,
+                        preferCompletedFallback,
                     }),
                 });
 
@@ -88,8 +100,19 @@ export function useQuoteData(quoteId: string) {
                     lastSyncedDataJsonSignatureRef.current = data?.data_json ? JSON.stringify(data.data_json) : null;
 
                     if (!data) {
-                        // No calculation has been started yet.
+                        // Calculation may still be creating the row (n8n webhook path).
+                        if (pollWhenMissing) {
+                            setLoading(true);
+                            pollTimer = setTimeout(fetchQuoteData, POLL_INTERVAL_MS);
+                            return;
+                        }
                         setLoading(false);
+                        return;
+                    }
+
+                    if (data.status === 'failed') {
+                        setLoading(false);
+                        setError('De calculatie is mislukt. Start de berekening opnieuw.');
                         return;
                     }
 
@@ -97,7 +120,7 @@ export function useQuoteData(quoteId: string) {
                         setLoading(false);
                     } else {
                         setLoading(true);
-                        // Still processing, poll in 3s.
+                        // Still processing, keep polling with configured interval.
                         pollTimer = setTimeout(fetchQuoteData, POLL_INTERVAL_MS);
                     }
                 }
@@ -128,7 +151,7 @@ export function useQuoteData(quoteId: string) {
             isMounted = false;
             if (pollTimer) clearTimeout(pollTimer);
         };
-    }, [quoteId, user]);
+    }, [quoteId, user, pollWhenMissing, pollIntervalMs, preferCompletedFallback]);
 
 
     // Function to update the data_json (for price edits)

@@ -6,6 +6,16 @@ import { useUser, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { normalizeDataJson } from '@/lib/quote-calculations';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter as AlertDialogFooterLayout,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -97,6 +107,7 @@ export function ScheduleModal({
     const [quotes, setQuotes] = useState<Quote[]>([]);
     const [isLoadingQuotes, setIsLoadingQuotes] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
     const [pendingSave, setPendingSave] = useState(false);
     const [quoteMetricsById, setQuoteMetricsById] = useState<Record<string, { totalHours: number; totalEarnings: number }>>({});
 
@@ -112,6 +123,7 @@ export function ScheduleModal({
     const [totalHours, setTotalHours] = useState<number>(0);
     const [useAutoSplit, setUseAutoSplit] = useState(true);
     const [selectedPlanningType, setSelectedPlanningType] = useState<PlanningEntryType>(preselectedPlanningType);
+    const [manualProjectAddress, setManualProjectAddress] = useState<string>('');
     const initializedForOpenRef = useRef(false);
 
     const addOneHourToTime = (timeValue: string) => {
@@ -163,6 +175,7 @@ export function ScheduleModal({
     useEffect(() => {
         if (!isOpen) {
             // Reset to defaults when modal closes
+            setConfirmDeleteOpen(false);
             setSelectedQuoteId('');
             setSelectedEmployeeId(preselectedEmployee || '');
             setStartDate(
@@ -175,6 +188,7 @@ export function ScheduleModal({
             setTotalHours(0);
             setUseAutoSplit(true);
             setSelectedPlanningType(preselectedPlanningType);
+            setManualProjectAddress('');
         }
     }, [isOpen, preselectedDate, preselectedEmployee, planningSettings, preselectedPlanningType]);
 
@@ -200,6 +214,7 @@ export function ScheduleModal({
             setTotalHours(existingType === 'werkbespreking' ? 1 : existingEntry.scheduledHours);
             setUseAutoSplit(false);
             setSelectedPlanningType(existingType);
+            setManualProjectAddress(existingEntry.cache?.projectAddress || '');
         } else {
             setSelectedQuoteId(preselectedQuote?.id || '');
 
@@ -222,6 +237,7 @@ export function ScheduleModal({
             setTotalHours(preselectedHours || 0);
             setUseAutoSplit(planningSettings.allowAutoSplit);
             setSelectedPlanningType(preselectedPlanningType);
+            setManualProjectAddress(preselectedQuote ? getProjectAddress(preselectedQuote) : '');
         }
     }, [
         isOpen,
@@ -356,9 +372,23 @@ export function ScheduleModal({
         return preselectedQuote?.id ? preselectedQuote : undefined;
     }, [selectedQuoteId, quotes, preselectedQuote]);
 
-    const routeDestinationAddress = useMemo(
+    useEffect(() => {
+        if (!isOpen || existingEntry) return;
+        if (!selectedQuote) {
+            setManualProjectAddress('');
+            return;
+        }
+        setManualProjectAddress(getProjectAddress(selectedQuote));
+    }, [isOpen, existingEntry, selectedQuote]);
+
+    const derivedQuoteAddress = useMemo(
         () => (selectedQuote ? getProjectAddress(selectedQuote) : ''),
         [selectedQuote]
+    );
+
+    const routeDestinationAddress = useMemo(
+        () => manualProjectAddress.trim() || derivedQuoteAddress,
+        [manualProjectAddress, derivedQuoteAddress]
     );
 
     const routeMapsUrl = useMemo(
@@ -483,7 +513,7 @@ export function ScheduleModal({
 
             const info = quote.klantinformatie;
             const clientName = [info?.voornaam, info?.achternaam].filter(Boolean).join(' ') || info?.bedrijfsnaam || '';
-            const address = getProjectAddress(quote);
+            const address = routeDestinationAddress;
 
             const cache = {
                 ...(existingEntry?.cache || {}),
@@ -519,6 +549,7 @@ export function ScheduleModal({
                     endDate: entryEnd,
                     scheduledHours: hours,
                     planningType: selectedPlanningType,
+                    cache,
                 });
                 toast({ title: 'Planning bijgewerkt' });
             } else if (splitEntries) {
@@ -597,6 +628,7 @@ export function ScheduleModal({
         addMultipleEntries,
         addEntry,
         selectedPlanningType,
+        routeDestinationAddress,
         quoteMetricsById,
         view,
         onClose,
@@ -665,6 +697,7 @@ export function ScheduleModal({
         setIsSaving(true);
         try {
             await deleteEntry(existingEntry.id);
+            setConfirmDeleteOpen(false);
             toast({ title: 'Planning verwijderd' });
             onClose();
         } catch (err) {
@@ -764,11 +797,17 @@ export function ScheduleModal({
 
                     {selectedQuote && (
                         <div className="rounded-lg border border-border bg-muted/30 p-3">
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                                 <p className="text-sm font-medium text-foreground">{getClientName(selectedQuote)}</p>
-                                {routeDestinationAddress ? (
-                                    <p className="text-xs text-muted-foreground">{routeDestinationAddress}</p>
-                                ) : (
+                                <Label htmlFor="projectAddressInput" className="text-xs text-muted-foreground">Projectadres</Label>
+                                <Input
+                                    id="projectAddressInput"
+                                    value={manualProjectAddress}
+                                    onChange={(event) => setManualProjectAddress(event.target.value)}
+                                    placeholder="Bijv. Hoofdstraat 10, 1234 AB Utrecht"
+                                    disabled={isSaving}
+                                />
+                                {!routeDestinationAddress && (
                                     <p className="text-xs text-muted-foreground">Geen projectadres beschikbaar.</p>
                                 )}
                             </div>
@@ -779,7 +818,7 @@ export function ScheduleModal({
                                         variant="outline"
                                         className="h-8 gap-2"
                                         onClick={() => {
-                                            window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
+                                            window.location.assign(routeMapsUrl);
                                         }}
                                         title={routeDestinationAddress}
                                     >
@@ -952,7 +991,7 @@ export function ScheduleModal({
                     {existingEntry && (
                         <Button
                             variant="destructiveSoft"
-                            onClick={handleDelete}
+                            onClick={() => setConfirmDeleteOpen(true)}
                             disabled={isSaving}
                             className="sm:mr-auto"
                         >
@@ -972,6 +1011,34 @@ export function ScheduleModal({
                         {existingEntry ? 'Bijwerken' : selectedPlanningType === 'werkbespreking' ? 'Werkbespreking inplannen' : 'Klus inplannen'}
                     </Button>
                 </DialogFooter>
+
+                <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Planning verwijderen?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Deze planning wordt verwijderd. Dit kan niet ongedaan worden gemaakt.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooterLayout>
+                            <AlertDialogCancel asChild>
+                                <Button variant="ghost" disabled={isSaving}>Annuleren</Button>
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                                asChild
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    void handleDelete();
+                                }}
+                            >
+                                <Button variant="destructiveSoft" disabled={isSaving}>
+                                    {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                    Verwijderen
+                                </Button>
+                            </AlertDialogAction>
+                        </AlertDialogFooterLayout>
+                    </AlertDialogContent>
+                </AlertDialog>
             </DialogContent>
         </Dialog>
     );

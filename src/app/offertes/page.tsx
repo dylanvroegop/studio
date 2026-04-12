@@ -1241,8 +1241,15 @@ export default function OffertesPage() {
                         <div className="truncate text-xs text-muted-foreground/90">{fallbackTitel}</div>
                       ) : null}
                       <div className="flex items-end justify-between gap-2">
-                        <div className={cn('text-xl font-bold tabular-nums', showUncalculatedPlaceholder ? 'text-muted-foreground/75' : 'text-emerald-400')}>
-                          {amountLabel}
+                        <div className={cn('text-xl font-bold tabular-nums', showUncalculatedPlaceholder ? 'text-emerald-300' : 'text-emerald-400')}>
+                          {showUncalculatedPlaceholder ? (
+                            <span className="inline-flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+                              {amountLabel}
+                            </span>
+                          ) : (
+                            amountLabel
+                          )}
                         </div>
                         <div className="relative z-20 flex items-center gap-1">
                           <Button
@@ -1356,11 +1363,11 @@ export default function OffertesPage() {
                 const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
                 const amountClass = cn(
                   'text-2xl font-bold tabular-nums',
-                  showUncalculatedPlaceholder ? 'text-muted-foreground/75' : 'text-emerald-400'
+                  showUncalculatedPlaceholder ? 'text-emerald-300' : 'text-emerald-400'
                 );
                 const amountMobileClass = cn(
                   'mt-2 text-xl font-bold tabular-nums',
-                  showUncalculatedPlaceholder ? 'text-muted-foreground/75' : 'text-emerald-400'
+                  showUncalculatedPlaceholder ? 'text-emerald-300' : 'text-emerald-400'
                 );
 
                 return (
@@ -1400,13 +1407,29 @@ export default function OffertesPage() {
                           <div className="mt-1 truncate text-xs text-muted-foreground/90">{fallbackTitel}</div>
                         ) : null}
                         <div className={cn('sm:hidden', amountMobileClass)}>
-                          {amountLabel}
+                          {showUncalculatedPlaceholder ? (
+                            <span className="inline-flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+                              {amountLabel}
+                            </span>
+                          ) : (
+                            amountLabel
+                          )}
                         </div>
                       </div>
 
                       <div className="relative z-20 flex items-center gap-1 sm:gap-4">
                         <div className="hidden min-w-[140px] text-right sm:block">
-                          <div className={amountClass}>{amountLabel}</div>
+                          <div className={amountClass}>
+                            {showUncalculatedPlaceholder ? (
+                              <span className="inline-flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+                                {amountLabel}
+                              </span>
+                            ) : (
+                              amountLabel
+                            )}
+                          </div>
                         </div>
 
                         <Button

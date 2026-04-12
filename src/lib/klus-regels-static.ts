@@ -1,4 +1,4 @@
-export const KLUS_REGELS_STATIC_VERSION = 5;
+export const KLUS_REGELS_STATIC_VERSION = 6;
 
 export interface MaterialRuleMeta {
   source: 'static_file';
@@ -1546,8 +1546,11 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
     },
     constructieplaat: {
       logic: 'row_based_calculation',
-      method: 'ceil(ceil(wandhoogte / material.breedte) * wandlengte / material.lengte)',
+      method: 'liggend: horizontaal = material.lengte, verticaal = material.breedte',
+      formula: 'netto_m2 = max(0, bruto_m2 - openingen_m2); plaat_m2 = material.lengte_m * material.breedte_m; aantal = (netto_m2 / plaat_m2)',
       orientation: 'liggend',
+      orientation_axes: 'horizontaal=material.lengte_mm, verticaal=material.breedte_mm',
+      opening_handling: 'trek alle openingen (incl. deuropeningen) af via netto_m2',
       sectionKey: 'constructieplaat',
       wastePercentage: 'user_input',
     },
@@ -1562,8 +1565,11 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
     },
     constructieplaat_1: {
       logic: 'row_based_calculation',
-      method: 'ceil(ceil(wandhoogte / material.breedte) * wandlengte / material.lengte)',
+      method: 'liggend: horizontaal = material.lengte, verticaal = material.breedte',
+      formula: 'netto_m2 = max(0, bruto_m2 - openingen_m2); plaat_m2 = material.lengte_m * material.breedte_m; aantal = (netto_m2 / plaat_m2)',
       orientation: 'liggend',
+      orientation_axes: 'horizontaal=material.lengte_mm, verticaal=material.breedte_mm',
+      opening_handling: 'trek alle openingen (incl. deuropeningen) af via netto_m2',
       sectionKey: 'constructieplaat_1',
       wastePercentage: 'user_input',
     },
@@ -1640,6 +1646,11 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
     },
   },
   'hsb-voorzetwand': {
+    staanders_en_liggers: {
+      logic: 'hoh_stud_distribution',
+      formula: '((wandlengte / balkafstand) + 1) * wandhoogte',
+      sectionKey: 'staanders_en_liggers',
+    },
     plinten_vloer: {
       logic: 'linear meters',
       formula: 'wandlengte',
@@ -1651,6 +1662,11 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
     },
     constructieplaat: {
       logic: 'row_based_calculation',
+      method: 'liggend: horizontaal = material.lengte, verticaal = material.breedte',
+      formula: 'netto_m2 = max(0, bruto_m2 - openingen_m2); plaat_m2 = material.lengte_m * material.breedte_m; aantal = (netto_m2 / plaat_m2)',
+      orientation: 'liggend',
+      orientation_axes: 'horizontaal=material.lengte_mm, verticaal=material.breedte_mm',
+      opening_handling: 'trek alle openingen (incl. deuropeningen) af via netto_m2',
       sectionKey: 'constructieplaat',
     },
     deur_blad: {
@@ -1974,8 +1990,10 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
 const SLUG_ALIASES: Record<string, string> = {
   'hsb-buiten-wand': 'hbs-buiten-wand',
   'hsb-buitenwand': 'hbs-buiten-wand',
+  'hsb-tussenwand': 'hsb-voorzetwand',
   'balklaag-constructievloer': 'vliering-maken',
   'metalstud-wand': 'metalstud-voorzetwand',
+  'metalstud-tussenwand': 'metalstud-voorzetwand',
   'gevelbekleding-trespa': 'gevelbekleding-trespa-hpl',
   'dakrenovatie-pannen': 'hellend-dak',
   'dakrenovatie-epdm': 'epdm-dakbedekking',
@@ -2072,6 +2090,26 @@ const SECTION_KEY_ALIASES_BY_SLUG: Record<string, Record<string, string>> = {
     rachelwerk: 'rachelwerk_basis',
     rachels: 'rachelwerk_basis',
     regelwerk_basis: 'tengelwerk_basis',
+  },
+  'hsb-voorzetwand': {
+    staanders: 'staanders_en_liggers',
+    liggers: 'staanders_en_liggers',
+    constructieplaat_1: 'constructieplaat',
+    constructieplaat_2: 'constructieplaat',
+    afwerkplaat_1: 'afwerkplaat',
+    afwerkplaat_2: 'afwerkplaat',
+    beplating_1: 'afwerkplaat',
+    beplating_2: 'afwerkplaat',
+  },
+  'metalstud-voorzetwand': {
+    staanders: 'ms_staanders',
+    liggers: 'ms_liggers',
+    staanders_en_liggers: 'ms_staanders',
+    constructieplaat_1: 'constructieplaat_1',
+    constructieplaat_2: 'constructieplaat_1',
+    afwerkplaat_1: 'beplating_1',
+    afwerkplaat_2: 'beplating_1',
+    beplating_2: 'beplating_1',
   },
   'hellend-dak': {
     folie: 'folie_buiten',
@@ -2244,6 +2282,133 @@ function normalizeSectionKey(value?: string | null): string | null {
   return normalized || null;
 }
 
+const WALL_RULE_SLUGS = new Set([
+  'hsb-voorzetwand',
+  'metalstud-voorzetwand',
+  'hbs-buiten-wand',
+]);
+
+function isWallRuleSlug(slug: string): boolean {
+  return WALL_RULE_SLUGS.has(slug);
+}
+
+function buildWallFallbackRule(sectionKey: string): Record<string, any> {
+  const key = sectionKey.toLowerCase();
+
+  const areaRule = {
+    logic: 'netto_oppervlakte_gebaseerd',
+    formula: 'netto_m2 = max(0, bruto_m2 - openingen_m2); if material.lengte && material.breedte then plaat_m2 = material.lengte_m * material.breedte_m; aantal = ceil((netto_m2) / plaat_m2); else requires_manual_input',
+    required_inputs: ['material.lengte', 'material.breedte'],
+    missing_input_behavior: 'requires_manual_input',
+    wastePercentage: 'user_input',
+  };
+
+  const linearRule = {
+    logic: 'lineair_meters',
+    formula: 'if material.lengte exists then aantal = ceil((lineair_m1) / material.lengte_m); else requires_manual_input',
+    required_inputs: ['material.lengte'],
+    missing_input_behavior: 'requires_manual_input',
+    wastePercentage: 'user_input',
+  };
+
+  if (key.includes('gips_vuller') || key.includes('gips_finish')) {
+    return {
+      logic: 'verbruik_per_m2_op_netto_wand',
+      formula: 'netto_m2 = max(0, bruto_m2 - openingen_m2); if material.verbruik_per_m2 || material.verbruik exists then totaal = netto_m2 * (material.verbruik_per_m2 ?? material.verbruik); else requires_manual_input',
+      pack_handling: 'if packaging count known then aantal = ceil(totaal / verpakkingseenheid) else aantal = ceil(totaal)',
+      required_inputs: ['material.verbruik_per_m2 || material.verbruik'],
+      missing_input_behavior: 'requires_manual_input',
+      wastePercentage: 'user_input',
+    };
+  }
+
+  if (
+    key.includes('constructieplaat')
+    || key.includes('afwerkplaat')
+    || key.includes('beplating')
+    || key.includes('osb')
+    || key.includes('gips_binnen')
+    || key.includes('plaat_buiten')
+  ) {
+    return areaRule;
+  }
+
+  if (
+    key.includes('isolatie')
+    || key.includes('folie')
+  ) {
+    return {
+      ...areaRule,
+      pack_handling: 'if materiaalnaam matches /(pak\\s*(\\d+)st|\\((\\d+)st)/i then aantal = ceil(stuks / pack_size) else aantal = stuks',
+      formula: 'netto_m2 = max(0, bruto_m2 - openingen_m2); if material.lengte && material.breedte then element_m2 = material.lengte_m * material.breedte_m; stuks = ceil((netto_m2) / element_m2); else requires_manual_input',
+    };
+  }
+
+  if (
+    key.includes('staander')
+    || key.includes('ligger')
+    || key.includes('regelwerk')
+    || key.includes('rachel')
+    || key.includes('ms_')
+  ) {
+    return {
+      logic: 'lineair_hout_of_profielen',
+      formula: 'if material.lengte exists then aantal = ceil((totale_lengte_mm) / material.lengte_mm); else requires_manual_input',
+      required_inputs: ['material.lengte'],
+      missing_input_behavior: 'requires_manual_input',
+      wastePercentage: 'user_input',
+    };
+  }
+
+  if (
+    key.includes('plint')
+    || key.includes('hoek')
+    || key.includes('dagkant')
+    || key.includes('vensterbank')
+  ) {
+    return linearRule;
+  }
+
+  if (
+    key.includes('deur')
+    || key.includes('kozijn')
+    || key.includes('glas')
+    || key.includes('rooster')
+  ) {
+    return {
+      logic: 'stukgebaseerd_of_expliciet_aantal',
+      formula: 'if material.aantal exists then aantal = ceil(material.aantal); else if unit_count exists then aantal = ceil(unit_count); else requires_manual_input',
+      required_inputs: ['material.aantal || unit_count'],
+      missing_input_behavior: 'requires_manual_input',
+      wastePercentage: 'user_input',
+    };
+  }
+
+  return {
+    logic: 'fallback_wall_rule_manual',
+    formula: 'if material.aantal exists then aantal = ceil(material.aantal); else requires_manual_input',
+    required_inputs: ['material.aantal'],
+    missing_input_behavior: 'requires_manual_input',
+    wastePercentage: 'user_input',
+  };
+}
+
+function ensureRuleCompleteness(
+  slug: string,
+  sectionKey: string,
+  rule: Record<string, any> | null
+): Record<string, any> | null {
+  if (!rule || typeof rule !== 'object') return rule;
+  if (!isWallRuleSlug(slug)) return rule;
+
+  const fallback = buildWallFallbackRule(sectionKey);
+  return {
+    ...fallback,
+    ...rule,
+    sectionKey,
+  };
+}
+
 function resolveRuleForSection(
   slug: string,
   rulesForSlug: Record<string, Record<string, any>>,
@@ -2298,6 +2463,24 @@ export function getMaterialRule(jobSlug: string, sectionKey?: string | null): Ma
 
   const rule = resolveRuleForSection(slug, rulesForSlug, normalizedSectionKey);
   if (!rule) {
+    if (isWallRuleSlug(slug)) {
+      const wallFallbackRule = buildWallFallbackRule(normalizedSectionKey);
+      const normalizedRuleWithWastePolicy = normalizeRuleObjectForWasteOrder({
+        ...wallFallbackRule,
+        sectionKey: normalizedSectionKey,
+      });
+      return {
+        rule: normalizedRuleWithWastePolicy,
+        rule_meta: {
+          source: 'static_file',
+          slug,
+          sectionKey: normalizedSectionKey,
+          version: KLUS_REGELS_STATIC_VERSION,
+          status: 'resolved',
+        },
+      };
+    }
+
     return {
       rule: null,
       rule_meta: {
@@ -2314,7 +2497,8 @@ export function getMaterialRule(jobSlug: string, sectionKey?: string | null): Ma
     typeof rule.sectionKey === 'string' && rule.sectionKey !== normalizedSectionKey
       ? { ...rule, sectionKey: normalizedSectionKey }
       : { ...rule };
-  const normalizedRuleWithWastePolicy = normalizeRuleObjectForWasteOrder(normalizedRule);
+  const completeRule = ensureRuleCompleteness(slug, normalizedSectionKey, normalizedRule);
+  const normalizedRuleWithWastePolicy = normalizeRuleObjectForWasteOrder(completeRule);
 
   return {
     rule: normalizedRuleWithWastePolicy,

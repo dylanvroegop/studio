@@ -25,7 +25,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -40,7 +40,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useParams, useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
@@ -384,9 +384,14 @@ export default function QuotePage() {
     const id = params?.id as string;
     const router = useRouter();
     const { toast } = useToast();
+    const [quote, setQuote] = useState<Quote | null>(null);
 
     // Fetch calculation data from Supabase
-    const { calculation, loading: calculationLoading, error: calculationError, updateDataJson } = useQuoteData(id);
+    const { calculation, loading: calculationLoading, error: calculationError, updateDataJson } = useQuoteData(id, {
+        pollWhenMissing: quote?.status === 'in_behandeling',
+        pollIntervalMs: 5000,
+        preferCompletedFallback: false,
+    });
 
     // Normalize calculation data once per payload to keep downstream effects stable.
     const normalizedData = useMemo(
@@ -400,7 +405,6 @@ export default function QuotePage() {
 
     const [quoteSettings, setQuoteSettings] = useState<QuoteCalculationSettings | null>(null);
     const [klantInfo, setKlantInfo] = useState<KlantInformatie | null>(null);
-    const [quote, setQuote] = useState<Quote | null>(null);
     const [firebaseLoading, setFirebaseLoading] = useState(true);
     const [firebaseError, setFirebaseError] = useState<string | null>(null);
 
@@ -570,6 +574,7 @@ export default function QuotePage() {
     const [compareMaterialView, setCompareMaterialView] = useState<'groot' | 'verbruik'>('groot');
     const [calculationElapsedSeconds, setCalculationElapsedSeconds] = useState(0);
     const [isRetryingCalculation, setIsRetryingCalculation] = useState(false);
+    const [isDevResetAndRecalculating, setIsDevResetAndRecalculating] = useState(false);
     const calculationTimerStartedAtRef = useRef<number | null>(null);
 
     // Fetch user profile and business details
@@ -967,7 +972,8 @@ export default function QuotePage() {
         }
     }, [calculation]);
 
-    // Fetch quote metadata from Firebase (Fallback for legacy data or metadata only)
+    // Keep quote metadata live while this page is open so calculation completion
+    // (written by background processing) appears without manual refresh.
     useEffect(() => {
         if (isUserLoading) return;
         if (!user) {
@@ -977,13 +983,13 @@ export default function QuotePage() {
         }
         if (!firestore || !id) return;
 
-        const fetchData = async () => {
-            setFirebaseLoading(true);
-            setFirebaseError(null);
-            try {
-                const docRef = doc(firestore, 'quotes', id);
-                const docSnap = await getDoc(docRef);
+        setFirebaseLoading(true);
+        setFirebaseError(null);
 
+        const docRef = doc(firestore, 'quotes', id);
+        const unsubscribe = onSnapshot(
+            docRef,
+            (docSnap) => {
                 if (!docSnap.exists()) {
                     setFirebaseError("Offerte niet gevonden");
                     setFirebaseLoading(false);
@@ -999,15 +1005,8 @@ export default function QuotePage() {
                     return;
                 }
 
+                setFirebaseError(null);
                 setQuote({ ...quoteData, id: docSnap.id } as Quote);
-
-                // Only set KlantInfo/Settings from Firebase if NOT already set by Supabase calculation
-                // (However, this runs async and independent of calculation loading...)
-                // Safer strategy: Only pull quote-level metadata here.
-                // Or: Check if we successfully loaded from calculation? 
-                // For now, let's allow Firebase to overwrite ONLY if calculation was missing it, 
-                // but since hooks run in parallel, it's safer to just rely on calculation for the 'meat' 
-                // and Firebase for the 'header' (offerteNummer, title).
 
                 // If calculation didn't have client info, try Firebase (legacy support)
                 setKlantInfo((prev) => {
@@ -1071,15 +1070,16 @@ export default function QuotePage() {
                     };
                 });
 
-            } catch (err: any) {
-                console.error("Error fetching firebase quote:", err);
-                setFirebaseError("Fout bij laden offerte gegevens.");
-            } finally {
                 setFirebaseLoading(false);
-            }
-        };
+            },
+            (err) => {
+                console.error("Error listening firebase quote:", err);
+                setFirebaseError("Fout bij laden offerte gegevens.");
+                setFirebaseLoading(false);
+            },
+        );
 
-        fetchData();
+        return () => unsubscribe();
     }, [id, user, isUserLoading, firestore]);
 
     const handleQuoteNotesChange = useCallback((value: string) => {
@@ -1523,7 +1523,7 @@ export default function QuotePage() {
         }
     };
 
-    const handleResetMaterialPackageToNieuw = async () => {
+    const handleResetMaterialPackageToNieuw = async (): Promise<boolean> => {
         hasEditedMaterialsRef.current = true;
         setIsMaterialPackagePickerOpen(false);
         setSelectedMaterialPackageId('NIEUW');
@@ -1560,6 +1560,7 @@ export default function QuotePage() {
                 title: 'Werkpakket gereset',
                 description: 'Je start nu zonder werkpakket.',
             });
+            return true;
         } catch (error) {
             console.error('Kon werkpakket niet resetten:', error);
             toast({
@@ -1567,6 +1568,7 @@ export default function QuotePage() {
                 title: 'Reset mislukt',
                 description: 'Kon niet terugzetten naar Nieuw.',
             });
+            return false;
         } finally {
             isUpdatingRef.current = false;
         }
@@ -3597,6 +3599,9 @@ export default function QuotePage() {
 
     const hasStoredCalculatedTotal = storedQuoteTotal !== null;
     const hasCalculationResult = Boolean(calculation?.data_json) || hasStoredCalculatedTotal;
+    const supabaseCalculationInProgress =
+        calculation?.status === 'pending' ||
+        calculation?.status === 'processing';
     const laborTotalHours = (calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0;
     const laborHoursPerDay = Number(userProfile?.settings?.planningSettings?.defaultWorkdayHours) || 8;
     const laborRateExcl = Number(quoteSettings?.uurTariefExclBtw) || 0;
@@ -3605,8 +3610,8 @@ export default function QuotePage() {
     const footerQuoteTotalExcl = totalMaterialExcl + laborTotalExcl;
     const footerQuoteTotalIncl = footerQuoteTotalExcl * (1 + footerVatRate / 100);
     const calculationInProgress =
-        quote?.status === 'in_behandeling' &&
-        !hasCalculationResult;
+        quote?.status === 'in_behandeling' ||
+        supabaseCalculationInProgress;
     const calculationTimerStorageKey = `offerte_calculation_started_at_${id}`;
 
     useEffect(() => {
@@ -3645,8 +3650,13 @@ export default function QuotePage() {
         return () => window.clearInterval(intervalId);
     }, [calculationInProgress, calculationTimerStorageKey, quote?.calculationStartedAt, quote?.updatedAt]);
 
-    const loading = calculationLoading || calculationInProgress || firebaseLoading || isUserLoading;
+    const loading = firebaseLoading || isUserLoading;
     const error = calculationError || firebaseError;
+    const calculationBlockedTabs = ['materialen', 'overzicht', 'nacalculatie', 'tekeningen', 'pdf', 'werkbeschrijving'] as const;
+    const isCalculationBlockedTab = calculationBlockedTabs.includes(activeTab as typeof calculationBlockedTabs[number]);
+    const showCalculationLoadingPanel =
+        isCalculationBlockedTab &&
+        (calculationInProgress || (quote?.status === 'in_behandeling' && calculationLoading));
     const calculationProgressPercentage = Math.min(
         100,
         (calculationElapsedSeconds / CALCULATION_ESTIMATE_SECONDS) * 100
@@ -3657,7 +3667,7 @@ export default function QuotePage() {
     const isCalculationTimedOut =
         calculationInProgress &&
         calculationElapsedSeconds >= CALCULATION_STUCK_SECONDS;
-    const showCalculationBanner = quote?.status === 'in_behandeling' && !hasCalculationResult;
+    const showCalculationBanner = calculationInProgress;
     const calculationBannerMessage = calculationInProgress
         ? 'We berekenen nu de materialen en uren. Je kunt op deze pagina blijven; de uitkomst verschijnt automatisch.'
         : 'Calculatie draait nog op de achtergrond. Waarden kunnen nog wijzigen tot de berekening volledig klaar is.';
@@ -3665,6 +3675,7 @@ export default function QuotePage() {
     useEffect(() => {
         if (!firestore || !id) return;
         if (quote?.status !== 'in_behandeling') return;
+        if (supabaseCalculationInProgress) return;
         if (!hasCalculationResult) return;
 
         // Result exists, so move quote out of processing state without requiring a page refresh.
@@ -3681,10 +3692,10 @@ export default function QuotePage() {
         }).catch((err) => {
             console.warn('Kon offerte status niet automatisch afronden na calculatie:', err);
         });
-    }, [firestore, id, quote?.status, hasCalculationResult]);
+    }, [firestore, id, quote?.status, hasCalculationResult, supabaseCalculationInProgress]);
 
-    const handleRetryCalculation = async () => {
-        if (!user || isRetryingCalculation) return;
+    const handleRetryCalculation = async (): Promise<boolean> => {
+        if (!user || isRetryingCalculation) return false;
 
         setIsRetryingCalculation(true);
         try {
@@ -3728,14 +3739,29 @@ export default function QuotePage() {
                 title: 'Calculatie opnieuw gestart',
                 description: 'We proberen de berekening opnieuw uit te voeren.',
             });
+            return true;
         } catch (err: any) {
             toast({
                 variant: 'destructive',
                 title: 'Opnieuw starten mislukt',
                 description: err?.message || 'Kon calculatie niet opnieuw starten.',
             });
+            return false;
         } finally {
             setIsRetryingCalculation(false);
+        }
+    };
+
+    const handleDevResetAndRecalculate = async (): Promise<void> => {
+        if (isDevResetAndRecalculating || isRetryingCalculation) return;
+
+        setIsDevResetAndRecalculating(true);
+        try {
+            const resetSucceeded = await handleResetMaterialPackageToNieuw();
+            if (!resetSucceeded) return;
+            await handleRetryCalculation();
+        } finally {
+            setIsDevResetAndRecalculating(false);
         }
     };
 
@@ -4102,7 +4128,7 @@ export default function QuotePage() {
                                 : 'MATERIALEN BEREKENEN'
                         : 'LADEN'}
                 </div>
-                <div className={`text-sm text-center ${isCalculationTimedOut ? 'text-rose-200' : 'text-muted-foreground animate-pulse'}`}>
+                <div className={`text-sm text-center ${isCalculationTimedOut ? 'text-rose-200' : calculationInProgress ? 'text-emerald-300 animate-pulse' : 'text-muted-foreground animate-pulse'}`}>
                     {calculationInProgress
                         ? isCalculationTimedOut
                             ? 'De berekening duurt langer dan 20 minuten. Probeer de calculatie opnieuw.'
@@ -4111,6 +4137,9 @@ export default function QuotePage() {
                                 : 'De AI berekent de benodigde materialen en uren...'
                         : 'Even geduld afrubelen...'}
                 </div>
+                {calculationInProgress && !isCalculationTimedOut && (
+                    <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
+                )}
                 {calculationInProgress && (
                     isCalculationTimedOut ? (
                         <div className="w-full space-y-3 pt-1">
@@ -4341,6 +4370,10 @@ export default function QuotePage() {
         });
         router.push(`/planning?${params.toString()}`);
     }, [id, normalizedData?.totaal_uren, router]);
+    const openClientEditor = useCallback(() => {
+        const redirect = encodeURIComponent(`/offertes/${id}`);
+        router.push(`/offertes/${id}/klant?successRedirect=${redirect}`);
+    }, [id, router]);
 
     return (
         <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
@@ -4357,10 +4390,36 @@ export default function QuotePage() {
                                 </h1>
                                 {quote?.titel && <span className="text-muted-foreground font-normal hidden sm:inline">• {quote.titel}</span>}
                             </div>
-                            {klantInfo && (
-                                <p className="text-sm text-muted-foreground">
-                                    {klantInfo.voornaam} {klantInfo.achternaam} • {klantInfo.plaats}
-                                </p>
+                            {klantInfo ? (
+                                <div className="flex items-center justify-center gap-2 sm:justify-start">
+                                    <p className="max-w-[60vw] truncate text-sm text-muted-foreground sm:max-w-none">
+                                        {klantInfo.voornaam} {klantInfo.achternaam} • {klantInfo.plaats}
+                                    </p>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                                        onClick={openClientEditor}
+                                        aria-label="Klantgegevens bewerken"
+                                        title="Klantgegevens bewerken"
+                                    >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-center gap-2 sm:justify-start">
+                                    <p className="text-sm text-muted-foreground">Geen klant gekoppeld</p>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={openClientEditor}
+                                    >
+                                        Klant toevoegen
+                                    </Button>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -5091,13 +5150,14 @@ export default function QuotePage() {
 
                         {/* Overzicht Tab */}
                         <TabsContent value="overzicht" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            {loading ? (
+                            {showCalculationLoadingPanel || loading ? (
                                 <LoadingPanel />
                             ) : !calculation?.data_json ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                    <Package size={48} className="mx-auto text-muted mb-4" />
-                                    <h3 className="text-lg font-medium text-foreground mb-2">Nog geen calculatie</h3>
-                                    <p className="text-muted-foreground">
+                                    <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-emerald-400" />
+                                    <Package size={40} className="mx-auto text-emerald-400/80 mb-4" />
+                                    <h3 className="text-lg font-medium text-emerald-300 mb-2">Nog geen calculatie</h3>
+                                    <p className="text-emerald-200/80">
                                         De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
                                     </p>
                                 </div>
@@ -5107,10 +5167,7 @@ export default function QuotePage() {
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                         <ClientInfoCard
                                             klantInfo={klantInfo}
-                                            onEditClient={() => {
-                                                const redirect = encodeURIComponent(`/offertes/${id}`);
-                                                router.push(`/offertes/${id}/klant?successRedirect=${redirect}`);
-                                            }}
+                                            onEditClient={openClientEditor}
                                         />
                                         <div className="lg:col-span-2 flex flex-col gap-4">
 
@@ -5147,7 +5204,7 @@ export default function QuotePage() {
                         </TabsContent>
 
                         <TabsContent value="nacalculatie" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            {isUserLoading || !user ? (
+                            {showCalculationLoadingPanel || isUserLoading || !user ? (
                                 <LoadingPanel />
                             ) : (
                                 <NacalculatieTab
@@ -5159,18 +5216,19 @@ export default function QuotePage() {
                         </TabsContent>
 
                         <TabsContent value="tekeningen" className="mt-6 space-y-6">
-                            {loading ? <LoadingPanel /> : quote && <DrawingsTab quote={quote} />}
+                            {showCalculationLoadingPanel || loading ? <LoadingPanel /> : quote && <DrawingsTab quote={quote} />}
                         </TabsContent>
 
                         {/* Materialen Tab */}
                         <TabsContent value="materialen" className="mt-6 space-y-6 pb-44 sm:pb-32">
-                            {loading ? (
+                            {showCalculationLoadingPanel || loading ? (
                                 <LoadingPanel />
                             ) : !calculation?.data_json ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                    <Package size={48} className="mx-auto text-muted mb-4" />
-                                    <h3 className="text-lg font-medium text-foreground mb-2">Nog geen materialen</h3>
-                                    <p className="text-muted-foreground">
+                                    <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-emerald-400" />
+                                    <Package size={40} className="mx-auto text-emerald-400/80 mb-4" />
+                                    <h3 className="text-lg font-medium text-emerald-300 mb-2">Nog geen materialen</h3>
+                                    <p className="text-emerald-200/80">
                                         De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
                                     </p>
                                 </div>
@@ -5218,6 +5276,25 @@ export default function QuotePage() {
                                                 <Sparkles className="mr-2 hidden h-4 w-4 text-muted-foreground sm:inline-block" />
                                                 Nieuw
                                             </Button>
+
+                                            {process.env.NODE_ENV !== 'production' && (
+                                                <Button
+                                                    type="button"
+                                                    variant="destructive"
+                                                    className="h-10 rounded-xl px-3 font-semibold"
+                                                    onClick={() => { void handleDevResetAndRecalculate(); }}
+                                                    disabled={isDevResetAndRecalculating || isRetryingCalculation}
+                                                >
+                                                    {(isDevResetAndRecalculating || isRetryingCalculation) ? (
+                                                        <>
+                                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                            Dev reset + herbereken...
+                                                        </>
+                                                    ) : (
+                                                        'Dev: reset + herbereken'
+                                                    )}
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
 
@@ -5501,14 +5578,14 @@ export default function QuotePage() {
                                     variant="outline"
                                     className="gap-2"
                                     onClick={() => setIsPdfFocusMode(true)}
-                                    disabled={loading || !isDrawingsReady}
+                                    disabled={showCalculationLoadingPanel || loading || !isDrawingsReady}
                                 >
                                     <Maximize2 className="h-4 w-4" />
                                     Focusmodus
                                 </Button>
                             </div>
 
-                            {loading ? (
+                            {showCalculationLoadingPanel || loading ? (
                                 <LoadingPanel />
                             ) : !isDrawingsReady ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
@@ -5523,8 +5600,17 @@ export default function QuotePage() {
                         </TabsContent>
 
                         <TabsContent value="werkbeschrijving" className="mt-6">
-                            {loading ? (
+                            {showCalculationLoadingPanel || loading ? (
                                 <LoadingPanel />
+                            ) : !calculation?.data_json ? (
+                                <div className="bg-card rounded-lg border border-border p-12 text-center">
+                                    <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-emerald-400" />
+                                    <FileText size={48} className="mx-auto text-emerald-400 mb-4" />
+                                    <h3 className="text-lg font-medium text-emerald-300 mb-2">Nog geen werkbeschrijving</h3>
+                                    <p className="text-emerald-200/80">
+                                        De werkbeschrijving wordt automatisch gevuld zodra de calculatie is voltooid.
+                                    </p>
+                                </div>
                             ) : (
                                 <WorkDescriptionWorkspace
                                     value={workDescriptionStructured}

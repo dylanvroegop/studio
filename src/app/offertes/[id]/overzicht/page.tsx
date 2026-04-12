@@ -441,7 +441,19 @@ type GebruikerInstellingen = {
   verzendKostenStandaardId?: string | null;
   collapsedSections?: Record<string, boolean>;
   standaardUurTarief?: number | null;
+  standaardUurtarief?: number | null;
 };
+
+type UurTariefSource = 'default' | 'custom';
+
+function getStandaardUurTarief(instellingen?: GebruikerInstellingen | null): number | null {
+  if (!instellingen) return null;
+  const normalized =
+    instellingen.standaardUurtarief
+    ?? instellingen.standaardUurTarief
+    ?? null;
+  return typeof normalized === 'number' && Number.isFinite(normalized) ? normalized : null;
+}
 
 /* ---------------------------------------------
  Bouwplaatskosten helpers
@@ -690,6 +702,7 @@ export default function OverzichtPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [jobToDelete, setJobToDelete] = useState<{ id: string; title: string } | null>(null);
   const [isDeletingJob, setIsDeletingJob] = useState(false);
+  const [deleteIncompleteDialogOpen, setDeleteIncompleteDialogOpen] = useState(false);
   const [isDeletingIncompleteJobs, setIsDeletingIncompleteJobs] = useState(false);
 
   // Transport
@@ -700,6 +713,7 @@ export default function OverzichtPage() {
 
   // Uurtarief
   const [uurTarief, setUurTarief] = useState('');
+  const [uurTariefSource, setUurTariefSource] = useState<UurTariefSource>('default');
 
   // Bouwplaatskosten
   const [bouwplaatskosten, setBouwplaatskosten] = useState<BouwplaatsItem[]>([]);
@@ -774,6 +788,7 @@ export default function OverzichtPage() {
   const isHydratingRef = useRef(true);
   const lastSavedJsonRef = useRef<string>('');
   const lastSavedUurtariefRef = useRef<number | null>(null);
+  const lastSavedUurtariefSourceRef = useRef<UurTariefSource | null>(null);
   const saveTimerRef = useRef<any>(null);
   const saveUurtariefTimerRef = useRef<any>(null);
 
@@ -915,7 +930,8 @@ export default function OverzichtPage() {
         setDefaultsConfirmed(!!instellingen.defaultsConfirmed);
         setStandaardTransport((instellingen.standaardTransport as any) ?? null);
         setStandaardWinstMarge((instellingen.standaardWinstMarge as any) ?? null);
-        setStandaardUurTarief(instellingen.standaardUurTarief ?? null);
+        const standaardUurTariefWaarde = getStandaardUurTarief(instellingen);
+        setStandaardUurTarief(standaardUurTariefWaarde);
 
         // Load collapsed sections state
         if (instellingen.collapsedSections && typeof instellingen.collapsedSections === 'object') {
@@ -948,7 +964,25 @@ export default function OverzichtPage() {
         setPrijsPerKm('');
         setVasteTransportkosten('');
         setTunnelkosten('');
-        setUurTarief(numberToEuroInputString(data.instellingen?.uurTariefExclBtw ?? instellingen.standaardUurTarief ?? 50)); // Fallback 50 if missing
+        const rawUurTarief = data.instellingen?.uurTariefExclBtw;
+        const savedUurTarief = typeof rawUurTarief === 'number' && Number.isFinite(rawUurTarief)
+          ? rawUurTarief
+          : null;
+        const rawSource = (data.instellingen as any)?.uurTariefSource;
+        const savedSource: UurTariefSource | null =
+          rawSource === 'custom' || rawSource === 'default'
+            ? rawSource
+            : null;
+        const effectiveSource: UurTariefSource = savedSource ?? 'default';
+        const effectiveUurTarief =
+          effectiveSource === 'custom'
+            ? (savedUurTarief ?? standaardUurTariefWaarde ?? 50)
+            : (standaardUurTariefWaarde ?? savedUurTarief ?? 50);
+
+        setUurTariefSource(effectiveSource);
+        setUurTarief(numberToEuroInputString(effectiveUurTarief));
+        lastSavedUurtariefRef.current = savedUurTarief;
+        lastSavedUurtariefSourceRef.current = savedSource;
         setBouwplaatskosten([]);
         setVerzendkosten([]);
         setWinstMarge({ mode: 'percentage', percentage: 10, fixedAmount: null, basis: 'totaal' });
@@ -1430,20 +1464,22 @@ export default function OverzichtPage() {
     saveUurtariefTimerRef.current = setTimeout(async () => {
       const val = euroNLToNumberOrNull(uurTarief);
       if (val === null) return; // Invalid input, skip save
-      if (val === lastSavedUurtariefRef.current) return;
+      if (val === lastSavedUurtariefRef.current && uurTariefSource === lastSavedUurtariefSourceRef.current) return;
 
       const ref = doc(firestore, 'quotes', quoteId);
       await updateDoc(ref, {
         'instellingen.uurTariefExclBtw': val,
+        'instellingen.uurTariefSource': uurTariefSource,
         updatedAt: serverTimestamp(),
       });
       lastSavedUurtariefRef.current = val;
+      lastSavedUurtariefSourceRef.current = uurTariefSource;
     }, 800);
 
     return () => {
       if (saveUurtariefTimerRef.current) clearTimeout(saveUurtariefTimerRef.current);
     };
-  }, [quoteId, quote, firestore, user, uurTarief]);
+  }, [quoteId, quote, firestore, user, uurTarief, uurTariefSource]);
 
   /* ---------------------------------------------
    Handlers: bouwplaatskosten (regels)
@@ -1589,6 +1625,7 @@ export default function OverzichtPage() {
 
     await schrijfGebruikerInstellingen({
       standaardUurTarief: val,
+      standaardUurtarief: val,
     });
 
     setStandaardUurTarief(val);
@@ -1999,10 +2036,6 @@ export default function OverzichtPage() {
     if (incompleteJobIds.length === 0) return;
 
     const count = incompleteJobIds.length;
-    const confirmed = window.confirm(
-      `Weet je zeker dat je ${count} onvolledige klus${count === 1 ? '' : 'sen'} wilt verwijderen?`
-    );
-    if (!confirmed) return;
 
     setIsDeletingIncompleteJobs(true);
 
@@ -2025,6 +2058,7 @@ export default function OverzichtPage() {
         title: 'Onvolledige klussen verwijderd',
         description: `${count} klus${count === 1 ? '' : 'sen'} zijn verwijderd.`,
       });
+      setDeleteIncompleteDialogOpen(false);
     } catch (err: any) {
       console.error('Bulk delete incomplete jobs error:', err);
       toast({
@@ -2457,6 +2491,46 @@ export default function OverzichtPage() {
                 className={cn(isDeletingJob && 'opacity-70')}
               >
                 {isDeletingJob ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verwijderen…
+                  </>
+                ) : (
+                  'Verwijderen'
+                )}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteIncompleteDialogOpen} onOpenChange={setDeleteIncompleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Onvolledige klussen verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Je verwijdert {incompleteJobIds.length} onvolledige klus{incompleteJobIds.length === 1 ? '' : 'sen'} definitief.
+              Dit kan niet ongedaan gemaakt worden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="ghost" disabled={isDeletingIncompleteJobs}>Annuleren</Button>
+            </AlertDialogCancel>
+            <AlertDialogAction
+              asChild
+              onClick={(e) => {
+                e.preventDefault();
+                void deleteAllIncompleteJobs();
+              }}
+            >
+              <Button
+                variant="destructiveSoft"
+                disabled={isDeletingIncompleteJobs || incompleteJobIds.length === 0}
+                className={cn(isDeletingIncompleteJobs && 'opacity-70')}
+              >
+                {isDeletingIncompleteJobs ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Verwijderen…
@@ -3095,7 +3169,7 @@ export default function OverzichtPage() {
       />
 
 
-      <div className="flex-1 px-4 py-6 md:py-10 pb-52 sm:pb-40">
+      <div className="flex-1 px-4 py-6 md:py-10 pb-[14rem] sm:pb-[9rem]">
         <div className="mx-auto max-w-5xl space-y-6 sm:space-y-8">
 
           {/* Klussen */}
@@ -3108,7 +3182,7 @@ export default function OverzichtPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={deleteAllIncompleteJobs}
+                    onClick={() => setDeleteIncompleteDialogOpen(true)}
                     disabled={isDeletingIncompleteJobs || incompleteJobIds.length === 0}
                     className="h-8 border-red-500/30 bg-red-500/5 text-red-700 dark:text-red-300 hover:bg-red-500/10 hover:text-red-800 dark:hover:text-red-200 disabled:opacity-40"
                   >
@@ -3596,7 +3670,10 @@ export default function OverzichtPage() {
                   <div className="w-32">
                     <EuroInput
                       value={uurTarief}
-                      onChange={setUurTarief}
+                      onChange={(value) => {
+                        setUurTarief(value);
+                        setUurTariefSource('custom');
+                      }}
                       inputClassName="bg-muted/40 border-border rounded-lg"
                       placeholder="50,00"
                     />
@@ -3714,7 +3791,10 @@ export default function OverzichtPage() {
             </OverzichtSection>
           </section>
 
-          {/* Sticky bottom bar - matching HSB editor footer */}
+          {/* Extra scrollruimte zodat fixed footer geen content afdekt */}
+          <div aria-hidden className="h-24 sm:h-10" />
+
+          {/* Sticky (always visible) bottom bar */}
           <div className="mobile-calm-pane fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
             <div className="max-w-5xl mx-auto px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Button variant="outline" asChild className="w-full sm:w-auto">
