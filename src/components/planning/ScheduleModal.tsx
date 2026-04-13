@@ -23,13 +23,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Calendar, Clock, User, Briefcase, Trash2, Navigation } from 'lucide-react';
 import { Employee, PlanningEntry, PlanningEntryType, PlanningSettings, TimelineView } from '@/lib/types-planning';
-import { autoSplitJob, calculateEndDateFromHours, formatHoursDisplay } from '@/lib/planning-utils';
+import { autoSplitJob, calculateEndDateFromHours } from '@/lib/planning-utils';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { buildAddressString, buildGoogleMapsDirectionsUrl, hasMinimalAddress } from '@/lib/maps';
+import { buildGoogleMapsDirectionsUrl, resolveQuoteProjectAddress } from '@/lib/maps';
 import { getPlanningQuoteMetrics } from '@/lib/planning-earnings';
 
 interface Quote {
@@ -124,6 +124,7 @@ export function ScheduleModal({
     const [useAutoSplit, setUseAutoSplit] = useState(true);
     const [selectedPlanningType, setSelectedPlanningType] = useState<PlanningEntryType>(preselectedPlanningType);
     const [manualProjectAddress, setManualProjectAddress] = useState<string>('');
+    const [hasManualProjectAddressOverride, setHasManualProjectAddressOverride] = useState(false);
     const initializedForOpenRef = useRef(false);
 
     const addOneHourToTime = (timeValue: string) => {
@@ -189,6 +190,7 @@ export function ScheduleModal({
             setUseAutoSplit(true);
             setSelectedPlanningType(preselectedPlanningType);
             setManualProjectAddress('');
+            setHasManualProjectAddressOverride(false);
         }
     }, [isOpen, preselectedDate, preselectedEmployee, planningSettings, preselectedPlanningType]);
 
@@ -214,7 +216,9 @@ export function ScheduleModal({
             setTotalHours(existingType === 'werkbespreking' ? 1 : existingEntry.scheduledHours);
             setUseAutoSplit(false);
             setSelectedPlanningType(existingType);
-            setManualProjectAddress(existingEntry.cache?.projectAddress || '');
+            const cachedProjectAddress = existingEntry.cache?.projectAddress?.trim() || '';
+            setManualProjectAddress(cachedProjectAddress);
+            setHasManualProjectAddressOverride(Boolean(cachedProjectAddress));
         } else {
             setSelectedQuoteId(preselectedQuote?.id || '');
 
@@ -237,7 +241,8 @@ export function ScheduleModal({
             setTotalHours(preselectedHours || 0);
             setUseAutoSplit(planningSettings.allowAutoSplit);
             setSelectedPlanningType(preselectedPlanningType);
-            setManualProjectAddress(preselectedQuote ? getProjectAddress(preselectedQuote) : '');
+            setManualProjectAddress(preselectedQuote ? resolveQuoteProjectAddress(preselectedQuote) : '');
+            setHasManualProjectAddressOverride(false);
         }
     }, [
         isOpen,
@@ -331,33 +336,6 @@ export function ScheduleModal({
         return parts.join(' - ') || 'Naamloze offerte';
     };
 
-    const getProjectAddress = (quote: Quote) => {
-        const info = quote.klantinformatie as any;
-        if (!info) return '';
-
-        const projectAddressCandidate = info?.projectAdres
-            || info?.projectadres
-            || {
-                straat: info?.projectStraat,
-                huisnummer: info?.projectHuisnummer,
-                postcode: info?.projectPostcode,
-                plaats: info?.projectPlaats,
-            };
-
-        const factuurAddressCandidate = info?.factuuradres || {
-            straat: info?.straat,
-            huisnummer: info?.huisnummer,
-            postcode: info?.postcode,
-            plaats: info?.plaats,
-        };
-
-        const hasProjectAddress = hasMinimalAddress(projectAddressCandidate);
-        const preferredAddress = hasProjectAddress ? projectAddressCandidate : factuurAddressCandidate;
-
-        if (!hasMinimalAddress(preferredAddress)) return '';
-        return buildAddressString(preferredAddress);
-    };
-
     const getClientName = (quote: Quote) => {
         const info = quote.klantinformatie;
         const fullName = [info?.voornaam, info?.achternaam].filter(Boolean).join(' ').trim();
@@ -373,22 +351,35 @@ export function ScheduleModal({
     }, [selectedQuoteId, quotes, preselectedQuote]);
 
     useEffect(() => {
-        if (!isOpen || existingEntry) return;
+        if (!isOpen) return;
+
         if (!selectedQuote) {
             setManualProjectAddress('');
+            setHasManualProjectAddressOverride(false);
             return;
         }
-        setManualProjectAddress(getProjectAddress(selectedQuote));
+
+        if (existingEntry) {
+            const cachedProjectAddress = existingEntry.cache?.projectAddress?.trim() || '';
+            if (cachedProjectAddress) {
+                setManualProjectAddress(cachedProjectAddress);
+                setHasManualProjectAddressOverride(true);
+                return;
+            }
+        }
+
+        setManualProjectAddress(resolveQuoteProjectAddress(selectedQuote));
+        setHasManualProjectAddressOverride(false);
     }, [isOpen, existingEntry, selectedQuote]);
 
     const derivedQuoteAddress = useMemo(
-        () => (selectedQuote ? getProjectAddress(selectedQuote) : ''),
+        () => (selectedQuote ? resolveQuoteProjectAddress(selectedQuote) : ''),
         [selectedQuote]
     );
 
     const routeDestinationAddress = useMemo(
-        () => manualProjectAddress.trim() || derivedQuoteAddress,
-        [manualProjectAddress, derivedQuoteAddress]
+        () => (hasManualProjectAddressOverride ? manualProjectAddress.trim() : derivedQuoteAddress),
+        [hasManualProjectAddressOverride, manualProjectAddress, derivedQuoteAddress]
     );
 
     const routeMapsUrl = useMemo(
@@ -631,6 +622,7 @@ export function ScheduleModal({
         routeDestinationAddress,
         quoteMetricsById,
         view,
+        user?.uid,
         onClose,
     ]);
 
@@ -803,7 +795,10 @@ export function ScheduleModal({
                                 <Input
                                     id="projectAddressInput"
                                     value={manualProjectAddress}
-                                    onChange={(event) => setManualProjectAddress(event.target.value)}
+                                    onChange={(event) => {
+                                        setManualProjectAddress(event.target.value);
+                                        setHasManualProjectAddressOverride(true);
+                                    }}
                                     placeholder="Bijv. Hoofdstraat 10, 1234 AB Utrecht"
                                     disabled={isSaving}
                                 />

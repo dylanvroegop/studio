@@ -244,6 +244,7 @@ export async function GET(request: Request) {
       .get();
 
     const dayAggregation = new Map<string, DayPendingItem>();
+    const scheduledHoursByQuote = new Map<string, number>();
     planningSnapshot.docs.forEach((document) => {
       const row = { id: document.id, ...document.data() } as PlanningRow;
       if (safeString(row.status).toLowerCase() === 'cancelled') return;
@@ -270,6 +271,13 @@ export async function GET(request: Request) {
       const quoteTotalHours = getQuoteTotalHours(row.cache);
       const planningType = normalizePlanningType(row.planningType);
       if (planningType === 'werkbespreking') return;
+
+      const currentScheduledForQuote = scheduledHoursByQuote.get(quoteId) || 0;
+      scheduledHoursByQuote.set(
+        quoteId,
+        Number((currentScheduledForQuote + scheduledHours).toFixed(2)),
+      );
+
       const lastEligibleDate = minDateOnly(endDateOnly, cutoffWorkDate);
       eachDateOnlyInclusive(startDateOnly, lastEligibleDate).forEach((workDate) => {
         const promptKey = `${quoteId}:${workDate}`;
@@ -463,6 +471,7 @@ export async function GET(request: Request) {
       .map((item) => {
         const quoteTotalHours = canonicalQuoteHoursByQuoteId.get(item.quoteId)
           || quoteTotalHoursByProjectPrompt.get(item.promptKey)
+          || scheduledHoursByQuote.get(item.quoteId)
           || 0;
         if (quoteTotalHours <= 0) return item;
         const alreadyLogged = loggedHoursByQuote.get(item.quoteId) || 0;

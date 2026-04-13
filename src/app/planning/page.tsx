@@ -29,6 +29,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getPlanningQuoteMetrics } from '@/lib/planning-earnings';
+import { resolveQuoteProjectAddress } from '@/lib/maps';
 
 interface Quote {
     id: string;
@@ -40,6 +41,38 @@ interface Quote {
         voornaam?: string;
         achternaam?: string;
         bedrijfsnaam?: string;
+        straat?: string;
+        huisnummer?: string;
+        postcode?: string;
+        plaats?: string;
+        projectStraat?: string;
+        projectHuisnummer?: string;
+        projectPostcode?: string;
+        projectPlaats?: string;
+        projectadres?: {
+            straat?: string;
+            huisnummer?: string;
+            postcode?: string;
+            plaats?: string;
+        };
+        projectAdres?: {
+            straat?: string;
+            huisnummer?: string;
+            postcode?: string;
+            plaats?: string;
+        };
+        factuuradres?: {
+            straat?: string;
+            huisnummer?: string;
+            postcode?: string;
+            plaats?: string;
+        };
+        factuurAdres?: {
+            straat?: string;
+            huisnummer?: string;
+            postcode?: string;
+            plaats?: string;
+        };
     };
     offerteNummer?: number;
 }
@@ -441,6 +474,7 @@ function PlanningPageContent() {
             const clientName = schedulingQuote.klantinformatie?.bedrijfsnaam ||
                 `${schedulingQuote.klantinformatie?.voornaam || ''} ${schedulingQuote.klantinformatie?.achternaam || ''}`.trim() ||
                 'Onbekend';
+            const projectAddress = resolveQuoteProjectAddress(schedulingQuote);
             const schedulingDurationHours = schedulingType === 'werkbespreking'
                 ? 1
                 : schedulingHours;
@@ -456,7 +490,7 @@ function PlanningPageContent() {
                 projectTitle: schedulingType === 'werkbespreking'
                     ? `Werkbespreking${schedulingQuote.titel ? ` · ${schedulingQuote.titel}` : ''}`
                     : (schedulingQuote.titel || ''),
-                projectAddress: '',
+                projectAddress,
                 totalQuoteHours: schedulingDurationHours,
                 totalQuoteAmount: Number((schedulingQuote as any)?.totaalbedrag || (schedulingQuote as any)?.amount || 0) || 0,
                 totalQuoteEarnings: quoteFinanceById[schedulingQuote.id]?.totalEarnings || 0,

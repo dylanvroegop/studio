@@ -17,6 +17,11 @@ const ALLOWED_SOURCES: TimeEntrySource[] = [
   'login_prompt_adjust',
 ];
 
+const PROMPT_SOURCES: TimeEntrySource[] = [
+  'login_prompt_confirm',
+  'login_prompt_adjust',
+];
+
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice('Bearer '.length).trim();
@@ -130,34 +135,111 @@ export async function POST(request: Request) {
     }
     const quotedHours = quotedHoursRaw > 0 ? quotedHoursRaw : null;
 
-    const { data, error } = await supabaseAdmin
-      .from('time_entries')
-      .insert({
-        user_id: uid,
-        quote_id: quoteId,
-        work_date: workDate,
-        worked_hours: workedHours,
-        worked_days: workedDays,
-        quoted_hours: quotedHours,
-        source: sourceRaw,
-        note,
-        start_time: startTime,
-        end_time: endTime,
-        break_duration_minutes: breakDurationMinutes,
-        exact_minutes: exactMinutes,
-        rounding_rule: roundingRule,
-      })
-      .select('*')
-      .single();
+    const entryPayload = {
+      quote_id: quoteId,
+      work_date: workDate,
+      worked_hours: workedHours,
+      worked_days: workedDays,
+      quoted_hours: quotedHours,
+      source: sourceRaw,
+      note,
+      start_time: startTime,
+      end_time: endTime,
+      break_duration_minutes: breakDurationMinutes,
+      exact_minutes: exactMinutes,
+      rounding_rule: roundingRule,
+      updated_at: new Date().toISOString(),
+    };
 
-    if (error && isMissingRelationError(error.message)) {
-      return NextResponse.json(
-        { ok: false, message: 'Database tabel voor uren ontbreekt. Voer de uren-migratie uit.' },
-        { status: 409 }
-      );
+    let data: Record<string, unknown> | null = null;
+    const isPromptSave = Boolean(promptKey && PROMPT_SOURCES.includes(sourceRaw));
+
+    if (isPromptSave) {
+      const { data: existingRows, error: existingError } = await supabaseAdmin
+        .from('time_entries')
+        .select('id')
+        .eq('user_id', uid)
+        .eq('quote_id', quoteId)
+        .eq('work_date', workDate)
+        .in('source', PROMPT_SOURCES)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (existingError && isMissingRelationError(existingError.message)) {
+        return NextResponse.json(
+          { ok: false, message: 'Database tabel voor uren ontbreekt. Voer de uren-migratie uit.' },
+          { status: 409 }
+        );
+      }
+      if (existingError) {
+        return NextResponse.json({ ok: false, message: existingError.message }, { status: 500 });
+      }
+
+      const existingId = Array.isArray(existingRows) ? safeString(existingRows[0]?.id) : '';
+      if (existingId) {
+        const { data: updatedRows, error: updateError } = await supabaseAdmin
+          .from('time_entries')
+          .update(entryPayload)
+          .eq('id', existingId)
+          .eq('user_id', uid)
+          .select('*')
+          .limit(1);
+
+        if (updateError && isMissingRelationError(updateError.message)) {
+          return NextResponse.json(
+            { ok: false, message: 'Database tabel voor uren ontbreekt. Voer de uren-migratie uit.' },
+            { status: 409 }
+          );
+        }
+        if (updateError) {
+          return NextResponse.json({ ok: false, message: updateError.message }, { status: 500 });
+        }
+        data = (Array.isArray(updatedRows) ? (updatedRows[0] as Record<string, unknown> | undefined) : undefined) || null;
+      } else {
+        const { data: insertedRows, error: insertError } = await supabaseAdmin
+          .from('time_entries')
+          .insert({
+            user_id: uid,
+            ...entryPayload,
+          })
+          .select('*')
+          .limit(1);
+
+        if (insertError && isMissingRelationError(insertError.message)) {
+          return NextResponse.json(
+            { ok: false, message: 'Database tabel voor uren ontbreekt. Voer de uren-migratie uit.' },
+            { status: 409 }
+          );
+        }
+        if (insertError) {
+          return NextResponse.json({ ok: false, message: insertError.message }, { status: 500 });
+        }
+        data = (Array.isArray(insertedRows) ? (insertedRows[0] as Record<string, unknown> | undefined) : undefined) || null;
+      }
+    } else {
+      const { data: insertedRows, error: insertError } = await supabaseAdmin
+        .from('time_entries')
+        .insert({
+          user_id: uid,
+          ...entryPayload,
+        })
+        .select('*')
+        .limit(1);
+
+      if (insertError && isMissingRelationError(insertError.message)) {
+        return NextResponse.json(
+          { ok: false, message: 'Database tabel voor uren ontbreekt. Voer de uren-migratie uit.' },
+          { status: 409 }
+        );
+      }
+      if (insertError) {
+        return NextResponse.json({ ok: false, message: insertError.message }, { status: 500 });
+      }
+      data = (Array.isArray(insertedRows) ? (insertedRows[0] as Record<string, unknown> | undefined) : undefined) || null;
     }
-    if (error || !data) {
-      return NextResponse.json({ ok: false, message: error?.message || 'Kon niet opslaan' }, { status: 500 });
+
+    if (!data) {
+      return NextResponse.json({ ok: false, message: 'Kon niet opslaan' }, { status: 500 });
     }
 
     if (promptKey) {
@@ -166,6 +248,74 @@ export async function POST(request: Request) {
         .delete()
         .eq('user_id', uid)
         .eq('prompt_key', promptKey);
+    }
+
+    return NextResponse.json({ ok: true, data });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Onbekende fout';
+    return NextResponse.json({ ok: false, message }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const uid = await getUid(request);
+    if (!uid) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
+
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
+
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!body) return NextResponse.json({ ok: false, message: 'Body ontbreekt' }, { status: 400 });
+
+    const id = safeString(body.id);
+    const workDate = safeString(body.workDate || body.date);
+    const workedHours = safeNumber(body.workedHours ?? body.hours);
+    const workedDaysRaw = safeNumber(body.workedDays ?? body.days);
+    const sourceRaw = safeString(body.source) as TimeEntrySource;
+
+    if (!id) return NextResponse.json({ ok: false, message: 'id is verplicht' }, { status: 400 });
+    if (!isValidDateOnly(workDate)) return NextResponse.json({ ok: false, message: 'workDate is ongeldig' }, { status: 400 });
+    if (!Number.isFinite(workedHours) || workedHours <= 0 || workedHours > 24) {
+      return NextResponse.json({ ok: false, message: 'workedHours is ongeldig' }, { status: 400 });
+    }
+    const workedDays = workedDaysRaw > 0 ? workedDaysRaw : Number((workedHours / 8).toFixed(2));
+    if (!Number.isFinite(workedDays) || workedDays <= 0 || workedDays > 31) {
+      return NextResponse.json({ ok: false, message: 'workedDays is ongeldig' }, { status: 400 });
+    }
+    if (sourceRaw && !ALLOWED_SOURCES.includes(sourceRaw)) {
+      return NextResponse.json({ ok: false, message: 'source is ongeldig' }, { status: 400 });
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      work_date: workDate,
+      worked_hours: workedHours,
+      worked_days: workedDays,
+      updated_at: new Date().toISOString(),
+    };
+    if (sourceRaw) updatePayload.source = sourceRaw;
+
+    const { data: updatedRows, error: updateError } = await supabaseAdmin
+      .from('time_entries')
+      .update(updatePayload)
+      .eq('id', id)
+      .eq('user_id', uid)
+      .select('*')
+      .limit(1);
+
+    if (updateError && isMissingRelationError(updateError.message)) {
+      return NextResponse.json(
+        { ok: false, message: 'Database tabel voor uren ontbreekt. Voer de uren-migratie uit.' },
+        { status: 409 }
+      );
+    }
+    if (updateError) {
+      return NextResponse.json({ ok: false, message: updateError.message }, { status: 500 });
+    }
+
+    const data = (Array.isArray(updatedRows) ? (updatedRows[0] as Record<string, unknown> | undefined) : undefined) || null;
+    if (!data) {
+      return NextResponse.json({ ok: false, message: 'Boeking niet gevonden' }, { status: 404 });
     }
 
     return NextResponse.json({ ok: true, data });

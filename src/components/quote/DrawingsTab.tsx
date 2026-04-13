@@ -314,14 +314,16 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
                 <Button
                     type="button"
                     variant="outline"
-                    className="gap-2"
+                    size="icon"
+                    className="shrink-0"
                     onClick={() => {
                         void handleExportDrawingsPdf();
                     }}
                     disabled={isExportingPdf || snapshotEntries.length === 0}
+                    aria-label={isExportingPdf ? 'PDF genereren...' : 'Exporteer tekeningen als PDF'}
+                    title={isExportingPdf ? 'PDF genereren...' : 'Exporteer tekeningen als PDF'}
                 >
                     {isExportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    {isExportingPdf ? 'PDF genereren...' : 'Exporteer tekeningen als PDF'}
                 </Button>
             </div>
 

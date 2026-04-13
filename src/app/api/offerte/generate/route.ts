@@ -497,6 +497,11 @@ export async function POST(req: Request) {
         if (!Array.isArray(items)) return [];
         return items.map((item: any) => {
           const newItem = { ...item };
+          const toNumberSafe = (value: unknown): number | unknown => {
+            if (value === undefined || value === null || value === '') return value;
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : value;
+          };
           NUMERIC_DIMENSION_KEYS.forEach(key => {
             if (newItem[key] !== undefined && newItem[key] !== null && newItem[key] !== '') {
               const parsed = Number(newItem[key]);
@@ -506,8 +511,22 @@ export async function POST(req: Request) {
           if (Array.isArray(newItem.openings)) {
             newItem.openings = newItem.openings.map((op: any) => {
               const newOp = { ...op };
+              // Firestore stores opening dimensions as openingWidth/openingHeight;
+              // normalize them back to width/height for downstream calculation rules.
+              if (newOp.width === undefined && newOp.openingWidth !== undefined) {
+                newOp.width = newOp.openingWidth;
+              }
+              if (newOp.height === undefined && newOp.openingHeight !== undefined) {
+                newOp.height = newOp.openingHeight;
+              }
+              if (newOp.fromLeft === undefined && newOp.vanLinks !== undefined) {
+                newOp.fromLeft = newOp.vanLinks;
+              }
+              if (newOp.fromBottom === undefined && newOp.vanOnder !== undefined) {
+                newOp.fromBottom = newOp.vanOnder;
+              }
               ['width', 'height', 'fromLeft', 'fromBottom'].forEach(k => {
-                if (newOp[k] !== undefined) newOp[k] = Number(newOp[k]);
+                if (newOp[k] !== undefined) newOp[k] = toNumberSafe(newOp[k]);
               });
               return newOp;
             });
@@ -872,7 +891,8 @@ export async function POST(req: Request) {
         sectionKey: string | null
       ): {
         rule: Record<string, any> | null;
-        ruleMeta: Record<string, any>;
+        status: 'resolved' | 'missing';
+        resolvedBy: string;
         klusRegelsRow: KlusRegelsRow | null;
       } => {
         const normalizedJobSlug = normalizeLookupValue(jobSlug);
@@ -881,14 +901,8 @@ export async function POST(req: Request) {
 
         return {
           rule: resolution.rule,
-          ruleMeta: {
-            source: 'supabase_klus_regels',
-            slug: normalizedJobSlug || null,
-            sectionKey: sectionKey ?? null,
-            status: resolution.status,
-            resolvedBy: resolution.resolvedBy,
-            klusRegelsId: klusRegelsRow?.id ?? null,
-          },
+          status: resolution.status,
+          resolvedBy: resolution.resolvedBy,
           klusRegelsRow,
         };
       };
@@ -931,8 +945,6 @@ export async function POST(req: Request) {
         return {
           ...entry,
           rule: normalizedRule,
-          section_rule_full: normalizedRule,
-          rule_meta: attachment.ruleMeta,
         };
       };
 
@@ -942,7 +954,7 @@ export async function POST(req: Request) {
         const materialLookupId = getMaterialLookupId(mat);
         if (materialLookupId && materialMap.has(materialLookupId)) {
           const full = materialMap.get(materialLookupId);
-          // Keep entry-level metadata (rule, rule_meta, context, wastePercentage, etc.) intact.
+          // Keep entry-level metadata (rule, context, wastePercentage, etc.) intact.
           return {
             ...entry,
             material: {
@@ -1066,11 +1078,12 @@ export async function POST(req: Request) {
               }
 
               const finalSectionKey = normalizedSectionKey || slotKey;
+              const sectionRuleAttachment = resolveRuleAttachmentFromSupabase(jobSlug, finalSectionKey);
               enriched = attachSupabaseRuleForSection(enriched, jobSlug, finalSectionKey);
               if (
                 !isComponentEntry
                 && normalizedSectionKey
-                && (!enriched.rule || enriched.rule_meta?.status !== 'resolved')
+                && (!sectionRuleAttachment.rule || sectionRuleAttachment.status !== 'resolved')
               ) {
                 throw new Error(`Supabase section rule ontbreekt voor klus '${jobSlug}' en sectionKey '${normalizedSectionKey}'`);
               }
@@ -1127,38 +1140,10 @@ export async function POST(req: Request) {
 
             // B3. Component materials are already in materialen_lijst with comp_ keys (picked up by B1)
 
-            const sectionRulesFull: Record<string, any> = {};
-            Object.values(normalizedMaterialenLijst).forEach((entry: any) => {
-              const sectionKey = typeof entry?.sectionKey === 'string'
-                ? entry.sectionKey
-                : null;
-              if (!sectionKey || sectionRulesFull[sectionKey] !== undefined) return;
-              const attachment = resolveRuleAttachmentFromSupabase(jobSlug, sectionKey);
-              sectionRulesFull[sectionKey] =
-                attachment.rule && typeof attachment.rule === 'object'
-                  ? {
-                    ...attachment.rule,
-                    sectionKey,
-                  }
-                  : attachment.rule;
-            });
-            const klusRegelsAttachment = resolveRuleAttachmentFromSupabase(jobSlug, null);
-            const fullKlusRegels = klusRegelsAttachment.klusRegelsRow
-              ? {
-                id: klusRegelsAttachment.klusRegelsRow.id ?? null,
-                klus_type: klusRegelsAttachment.klusRegelsRow.klus_type ?? null,
-                created_at: klusRegelsAttachment.klusRegelsRow.created_at ?? null,
-                pending_updates: klusRegelsAttachment.klusRegelsRow.pending_updates ?? null,
-                klus_regels: klusRegelsAttachment.klusRegelsRow.klus_regels ?? null,
-              }
-              : null;
-
             // B4. Overwrite materialen with the unified, labeled map
             enrichedJob.materialen = {
               ...enrichedJob.materialen,
               materialen_lijst: normalizedMaterialenLijst,
-              section_rules_full: sectionRulesFull,
-              klus_regels_full: fullKlusRegels,
               // lijst: removed to prevent double-counting
               kleinMateriaal: enrichedJob.kleinMateriaal || enrichedJob.materialen?.kleinMateriaal || null,
             };
@@ -1167,6 +1152,9 @@ export async function POST(req: Request) {
             // C. CLEANUP — Remove all redundant/legacy keys
             // ═══════════════════════════════════════════
             delete enrichedJob.components;
+            delete enrichedJob.werkwijze;
+            delete enrichedJob.visualisatieUrl;
+            delete enrichedJob.visualisatieSnapshots;
             delete enrichedJob.material_notities;
             delete enrichedJob.maatwerk_notities;
             delete enrichedJob.measurements;
@@ -1215,7 +1203,24 @@ export async function POST(req: Request) {
     const optimizedQuote = removeEmptyFields(quote);
 
     const klantinformatie = optimizedQuote?.klantinformatie || {};
-    const { klantinformatie: _skipKlantinformatie, ...quoteZonderKlantinformatie } = optimizedQuote || {};
+    const {
+      klantinformatie: _skipKlantinformatie,
+      pdfTeksten: _skipPdfTeksten,
+      algemeneVoorwaarden: _skipAlgemeneVoorwaarden,
+      createdAt: _skipCreatedAt,
+      updatedAt: _skipUpdatedAt,
+      status: _skipStatus,
+      totaalbedrag: _skipTotaalbedrag,
+      amount: _skipAmount,
+      facturatie: _skipFacturatie,
+      calculationStartedAt: _skipCalculationStartedAt,
+      calculationFailedAt: _skipCalculationFailedAt,
+      calculationError: _skipCalculationError,
+      calculationCompletedAt: _skipCalculationCompletedAt,
+      visualisatieUrl: _skipVisualisatieUrl,
+      visualisatieSnapshots: _skipVisualisatieSnapshots,
+      ...quoteZonderKlantinformatie
+    } = optimizedQuote || {};
     const bedrijf = await haalBedrijfsgegevensOp(db, optimizedQuote);
     const payload = {
       quoteId,

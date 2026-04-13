@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
@@ -65,6 +65,35 @@ function distributeEvenly(totalValue: number, count: number): number[] {
   return output;
 }
 
+function parseDecimalInput(value: string): number {
+  const normalized = value.replace(',', '.').trim();
+  if (!normalized) return Number.NaN;
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : Number.NaN;
+}
+
+function nearlyEqual(a: number, b: number, epsilon = 0.001): boolean {
+  return Math.abs(a - b) <= epsilon;
+}
+
+function getDefaultWorkedDays(item: PendingHourPrompt): number {
+  return item.pendingDaysCount || (item.pendingDates || []).length || 1;
+}
+
+function getDayPromptKeys(item: PendingHourPrompt): string[] {
+  const fromSegments = (item.pendingDates || [])
+    .map((segment) => String(segment.dayPromptKey || '').trim())
+    .filter(Boolean);
+  if (fromSegments.length > 0) return fromSegments;
+  return item.promptKey ? [item.promptKey] : [];
+}
+
+function isResolvedByLocalState(item: PendingHourPrompt, resolvedPromptKeys: Set<string>): boolean {
+  if (resolvedPromptKeys.has(item.promptKey)) return true;
+  const dayKeys = getDayPromptKeys(item);
+  return dayKeys.length > 0 && dayKeys.every((key) => resolvedPromptKeys.has(key));
+}
+
 export function PendingHoursPrompt() {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
@@ -73,13 +102,14 @@ export function PendingHoursPrompt() {
   const [items, setItems] = useState<PendingHourPrompt[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [adjustMode, setAdjustMode] = useState(false);
   const [workedHours, setWorkedHours] = useState('');
   const [workedDays, setWorkedDays] = useState('');
   const [quotedHours, setQuotedHours] = useState('');
   const [note, setNote] = useState('');
   const [dismissedForSession, setDismissedForSession] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const submitLockRef = useRef(false);
+  const resolvedPromptKeysRef = useRef<Set<string>>(new Set());
 
   const currentItem = useMemo(() => items[0] || null, [items]);
 
@@ -98,14 +128,16 @@ export function PendingHoursPrompt() {
       if (!response.ok || !payload?.ok || !Array.isArray(payload.items)) {
         throw new Error(payload?.message || 'Kon openstaande uren niet laden.');
       }
-      setItems(payload.items);
-      if (options?.manual && payload.items.length === 0) {
+      const filteredItems = payload.items.filter((item) => !isResolvedByLocalState(item, resolvedPromptKeysRef.current));
+      setItems(filteredItems);
+      if (options?.manual && filteredItems.length === 0) {
         setManualOpen(false);
         toast({
           title: 'Geen openstaande uren',
           description: 'Er zijn nu geen prompts om te tonen.',
         });
       }
+      return filteredItems;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Onbekende fout';
       toast({
@@ -113,6 +145,7 @@ export function PendingHoursPrompt() {
         description: message,
         variant: 'destructive',
       });
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -129,6 +162,7 @@ export function PendingHoursPrompt() {
       if (!user || isUserLoading) return;
       setDismissedForSession(false);
       setManualOpen(true);
+      resolvedPromptKeysRef.current.clear();
       void loadPending({ manual: true });
     };
 
@@ -137,12 +171,17 @@ export function PendingHoursPrompt() {
   }, [isUserLoading, loadPending, user]);
 
   useEffect(() => {
+    if (user) return;
+    resolvedPromptKeysRef.current.clear();
+    submitLockRef.current = false;
+  }, [user]);
+
+  useEffect(() => {
     if (!currentItem) return;
     setWorkedHours(String(currentItem.suggestedHours));
-    setWorkedDays(String(currentItem.pendingDaysCount || (currentItem.pendingDates || []).length || 1));
+    setWorkedDays(String(getDefaultWorkedDays(currentItem)));
     setQuotedHours('');
     setNote('');
-    setAdjustMode(false);
   }, [currentItem]);
 
   const removeCurrentItem = () => {
@@ -165,11 +204,12 @@ export function PendingHoursPrompt() {
   };
 
   const submitPromptAction = async (action: 'later' | 'not_worked') => {
-    if (!currentItem) return;
+    if (!currentItem || submitLockRef.current) return;
     if (action === 'later') {
       closeForSession();
       return;
     }
+    submitLockRef.current = true;
     setIsSubmitting(true);
     try {
       await withUserToken(async (token) => {
@@ -191,7 +231,10 @@ export function PendingHoursPrompt() {
           throw new Error(payload?.message || 'Kon actie niet opslaan.');
         }
       });
+      resolvedPromptKeysRef.current.add(currentItem.promptKey);
+      getDayPromptKeys(currentItem).forEach((key) => resolvedPromptKeysRef.current.add(key));
       removeCurrentItem();
+      await loadPending();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Onbekende fout';
       toast({
@@ -201,14 +244,16 @@ export function PendingHoursPrompt() {
       });
     } finally {
       setIsSubmitting(false);
+      submitLockRef.current = false;
     }
   };
 
-  const saveEntry = async (source: 'login_prompt_confirm' | 'login_prompt_adjust') => {
-    if (!currentItem) return;
-    const parsedWorked = Number(workedHours);
-    const parsedWorkedDays = Number(workedDays);
-    const parsedQuoted = quotedHours.trim() ? Number(quotedHours) : null;
+  const saveEntry = async () => {
+    if (!currentItem || submitLockRef.current) return;
+    const parsedWorked = parseDecimalInput(workedHours);
+    const parsedWorkedDays = parseDecimalInput(workedDays);
+    const parsedQuoted = quotedHours.trim() ? parseDecimalInput(quotedHours) : null;
+    const trimmedNote = note.trim();
     if (!Number.isFinite(parsedWorked) || parsedWorked <= 0 || parsedWorked > 500) {
       toast({ title: 'Werkelijke uren zijn ongeldig', variant: 'destructive' });
       return;
@@ -222,6 +267,17 @@ export function PendingHoursPrompt() {
       return;
     }
 
+    const isConfirmFlow = (
+      parsedQuoted === null
+      && !trimmedNote
+      && nearlyEqual(parsedWorked, currentItem.suggestedHours)
+      && nearlyEqual(parsedWorkedDays, getDefaultWorkedDays(currentItem))
+    );
+    const source: 'login_prompt_confirm' | 'login_prompt_adjust' = isConfirmFlow
+      ? 'login_prompt_confirm'
+      : 'login_prompt_adjust';
+
+    submitLockRef.current = true;
     const pendingDates = (currentItem.pendingDates || []).length > 0
       ? (currentItem.pendingDates || [])
       : [{ workDate: currentItem.workDate, suggestedHours: currentItem.suggestedHours }];
@@ -248,7 +304,7 @@ export function PendingHoursPrompt() {
               workedHours: workedDistribution[index],
               workedDays: workedDaysDistribution[index],
               quotedHours: quotedDistribution ? quotedDistribution[index] : null,
-              note: note.trim() || null,
+              note: trimmedNote || null,
               source,
               promptKey: segment.dayPromptKey || currentItem.promptKey,
             }),
@@ -260,7 +316,13 @@ export function PendingHoursPrompt() {
         }
       });
 
+      resolvedPromptKeysRef.current.add(currentItem.promptKey);
+      pendingDates
+        .map((segment) => String(segment.dayPromptKey || '').trim() || currentItem.promptKey)
+        .filter(Boolean)
+        .forEach((key) => resolvedPromptKeysRef.current.add(key));
       removeCurrentItem();
+      await loadPending();
       toast({
         title: 'Uren opgeslagen',
         description: `${formatHours(parsedWorked)} en ${parsedWorkedDays.toFixed(2).replace(/\.?0+$/, '')} dagen op ${currentItem.quoteLabel}`,
@@ -274,6 +336,7 @@ export function PendingHoursPrompt() {
       });
     } finally {
       setIsSubmitting(false);
+      submitLockRef.current = false;
     }
   };
 
@@ -306,7 +369,7 @@ export function PendingHoursPrompt() {
         <DialogHeader>
           <DialogTitle>Openstaande uren</DialogTitle>
           <DialogDescription>
-            Je hebt openstaande uren op <strong>{currentItem.quoteLabel}</strong> van {rangeText}. Wil je {formatHours(currentItem.suggestedHours)} registreren voor dit project?
+            Je hebt openstaande uren op <strong>{currentItem.quoteLabel}</strong> van {rangeText}. Controleer de voorgestelde {formatHours(currentItem.suggestedHours)} en pas direct aan waar nodig.
           </DialogDescription>
         </DialogHeader>
 
@@ -325,53 +388,51 @@ export function PendingHoursPrompt() {
           </div>
         </div>
 
-        {adjustMode ? (
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="worked-hours">Werkelijk gewerkt (uur)</Label>
-              <Input
-                id="worked-hours"
-                type="number"
-                step="0.25"
-                value={workedHours}
-                onChange={(event) => setWorkedHours(event.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="worked-days">Werkelijk gewerkt (dagen)</Label>
-              <Input
-                id="worked-days"
-                type="number"
-                step="0.25"
-                value={workedDays}
-                onChange={(event) => setWorkedDays(event.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quoted-hours">Geoffreerd (optioneel)</Label>
-              <Input
-                id="quoted-hours"
-                type="number"
-                step="0.25"
-                value={quotedHours}
-                onChange={(event) => setQuotedHours(event.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="hours-note">Notitie (optioneel)</Label>
-              <Input
-                id="hours-note"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                placeholder="Bijv. Meerwerk door extra afwerking"
-                disabled={isSubmitting}
-              />
-            </div>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="worked-hours">Werkelijk gewerkt (uur)</Label>
+            <Input
+              id="worked-hours"
+              type="number"
+              step="0.25"
+              value={workedHours}
+              onChange={(event) => setWorkedHours(event.target.value)}
+              disabled={isSubmitting}
+            />
           </div>
-        ) : null}
+          <div className="space-y-2">
+            <Label htmlFor="worked-days">Werkelijk gewerkt (dagen)</Label>
+            <Input
+              id="worked-days"
+              type="number"
+              step="0.25"
+              value={workedDays}
+              onChange={(event) => setWorkedDays(event.target.value)}
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="quoted-hours">Geoffreerd (optioneel)</Label>
+            <Input
+              id="quoted-hours"
+              type="number"
+              step="0.25"
+              value={quotedHours}
+              onChange={(event) => setQuotedHours(event.target.value)}
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="hours-note">Notitie (optioneel)</Label>
+            <Input
+              id="hours-note"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Bijv. Meerwerk door extra afwerking"
+              disabled={isSubmitting}
+            />
+          </div>
+        </div>
 
         <DialogFooter className="flex-wrap gap-2 sm:justify-between">
           <div className="flex flex-wrap gap-2">
@@ -383,25 +444,9 @@ export function PendingHoursPrompt() {
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {!adjustMode ? (
-              <>
-                <Button variant="outline" onClick={() => setAdjustMode(true)} disabled={isSubmitting}>
-                  Pas aan
-                </Button>
-                <Button onClick={() => void saveEntry('login_prompt_confirm')} disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ja, opslaan'}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="outline" onClick={() => setAdjustMode(false)} disabled={isSubmitting}>
-                  Terug
-                </Button>
-                <Button onClick={() => void saveEntry('login_prompt_adjust')} disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Opslaan'}
-                </Button>
-              </>
-            )}
+            <Button onClick={() => void saveEntry()} disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Opslaan'}
+            </Button>
           </div>
         </DialogFooter>
       </DialogContent>

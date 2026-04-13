@@ -2,12 +2,20 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Pencil } from 'lucide-react';
+import { Loader2, Pencil, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -33,6 +41,16 @@ type TimeEntryRow = {
   workedHours: number;
 };
 
+function mapTimeEntryRow(row: Record<string, unknown>): TimeEntryRow | null {
+  const date = String(row.work_date || row.date || '');
+  if (!date) return null;
+  return {
+    id: String(row.id || crypto.randomUUID()),
+    date,
+    workedHours: Number(row.worked_hours ?? row.workedHours ?? row.hours ?? 0),
+  };
+}
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('nl-NL', {
     style: 'currency',
@@ -50,12 +68,6 @@ function formatSignedPercent(value: number): string {
   const numeric = Number.isFinite(value) ? value * 100 : 0;
   const sign = numeric > 0 ? '+' : '';
   return `${sign}${numeric.toFixed(1)}%`;
-}
-
-function formatSignedCurrency(value: number): string {
-  const numeric = Number.isFinite(value) ? value : 0;
-  const sign = numeric > 0 ? '+' : '';
-  return `${sign}${formatCurrency(numeric)}`;
 }
 
 function formatProjectDate(value: string | null): string {
@@ -348,6 +360,9 @@ export default function WinstPage() {
   const [hoursSaving, setHoursSaving] = useState<boolean>(false);
   const [hoursHistory, setHoursHistory] = useState<TimeEntryRow[]>([]);
   const [hoursHistoryLoading, setHoursHistoryLoading] = useState<boolean>(false);
+  const [hoursEditingEntryId, setHoursEditingEntryId] = useState<string | null>(null);
+  const [hoursEntryToDelete, setHoursEntryToDelete] = useState<TimeEntryRow | null>(null);
+  const [hoursDeleting, setHoursDeleting] = useState<boolean>(false);
   const [metricsRefreshTick, setMetricsRefreshTick] = useState<number>(0);
 
   useEffect(() => {
@@ -435,14 +450,9 @@ export default function WinstPage() {
 
         const filtered = payload.data
           .filter((row) => String(row.quote_id || row.quoteId || '') === hoursEditorProject.projectId)
-          .map((row) => ({
-            id: String(row.id || crypto.randomUUID()),
-            date: String(row.work_date || row.date || ''),
-            workedHours: Number(row.worked_hours ?? row.workedHours ?? row.hours ?? 0),
-          }))
-          .filter((row) => row.date)
-          .sort((a, b) => b.date.localeCompare(a.date))
-          .slice(0, 8);
+          .map((row) => mapTimeEntryRow(row))
+          .filter((row): row is TimeEntryRow => Boolean(row))
+          .sort((a, b) => b.date.localeCompare(a.date));
 
         if (!cancelled) setHoursHistory(filtered);
       } catch (error) {
@@ -472,6 +482,8 @@ export default function WinstPage() {
     setHoursEditorDate(format(new Date(), 'yyyy-MM-dd'));
     setHoursEditorValue('');
     setHoursHistory([]);
+    setHoursEditingEntryId(null);
+    setHoursEntryToDelete(null);
   };
 
   const handleSaveProjectHours = async () => {
@@ -498,13 +510,15 @@ export default function WinstPage() {
     setHoursSaving(true);
     try {
       const token = await user.getIdToken();
+      const editingEntryId = hoursEditingEntryId;
       const response = await fetch('/api/uren/entries', {
-        method: 'POST',
+        method: editingEntryId ? 'PATCH' : 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          id: editingEntryId || undefined,
           quoteId: hoursEditorProject.projectId,
           workDate: hoursEditorDate,
           workedHours: hours,
@@ -512,18 +526,33 @@ export default function WinstPage() {
         }),
       });
 
-      const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
-      if (!response.ok || !payload?.ok) {
+      const payload = (await response.json().catch(() => null)) as { ok?: boolean; data?: Record<string, unknown>; message?: string } | null;
+      if (!response.ok || !payload?.ok || !payload.data) {
         throw new Error(payload?.message || `HTTP ${response.status}`);
+      }
+      const savedRow = mapTimeEntryRow(payload.data);
+      if (!savedRow) throw new Error('Ongeldige API respons');
+
+      if (editingEntryId) {
+        setHoursHistory((prev) =>
+          prev
+            .map((entry) => (entry.id === editingEntryId ? savedRow : entry))
+            .sort((a, b) => b.date.localeCompare(a.date))
+        );
+      } else {
+        setHoursHistory((prev) =>
+          [savedRow, ...prev]
+            .sort((a, b) => b.date.localeCompare(a.date))
+        );
       }
 
       toast({
-        title: 'Uren opgeslagen',
-        description: `${hours.toFixed(2)} uur toegevoegd op ${hoursEditorDate}.`,
+        title: editingEntryId ? 'Uren bijgewerkt' : 'Uren opgeslagen',
+        description: `${hours.toFixed(2)} uur ${editingEntryId ? 'bijgewerkt' : 'toegevoegd'} op ${hoursEditorDate}.`,
       });
+      setHoursEditingEntryId(null);
       setHoursEditorValue('');
       setMetricsRefreshTick((prev) => prev + 1);
-      setHoursEditorProject(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Onbekende fout';
       toast({
@@ -533,6 +562,57 @@ export default function WinstPage() {
       });
     } finally {
       setHoursSaving(false);
+    }
+  };
+
+  const handleStartEditHoursEntry = (entry: TimeEntryRow) => {
+    setHoursEditingEntryId(entry.id);
+    setHoursEditorDate(entry.date);
+    setHoursEditorValue(entry.workedHours.toString());
+  };
+
+  const handleDeleteHoursEntry = async () => {
+    if (!user || !hoursEntryToDelete) return;
+
+    setHoursDeleting(true);
+    try {
+      const token = await user.getIdToken();
+      const entryToDelete = hoursEntryToDelete;
+      const response = await fetch('/api/uren/entries', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: entryToDelete.id }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || `HTTP ${response.status}`);
+      }
+
+      setHoursHistory((prev) => prev.filter((entry) => entry.id !== entryToDelete.id));
+      if (hoursEditingEntryId === entryToDelete.id) {
+        setHoursEditingEntryId(null);
+        setHoursEditorDate(format(new Date(), 'yyyy-MM-dd'));
+        setHoursEditorValue('');
+      }
+      setHoursEntryToDelete(null);
+      setMetricsRefreshTick((prev) => prev + 1);
+      toast({
+        title: 'Uren verwijderd',
+        description: `${entryToDelete.workedHours.toFixed(2)} uur op ${entryToDelete.date} is verwijderd.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Onbekende fout';
+      toast({
+        title: 'Verwijderen mislukt',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setHoursDeleting(false);
     }
   };
 
@@ -967,7 +1047,15 @@ export default function WinstPage() {
         </div>
       </main>
 
-      <Dialog open={Boolean(hoursEditorProject)} onOpenChange={(open) => !open && setHoursEditorProject(null)}>
+      <Dialog
+        open={Boolean(hoursEditorProject)}
+        onOpenChange={(open) => {
+          if (open || hoursSaving || hoursDeleting) return;
+          setHoursEditorProject(null);
+          setHoursEditingEntryId(null);
+          setHoursEntryToDelete(null);
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Uren bijwerken</DialogTitle>
@@ -979,6 +1067,25 @@ export default function WinstPage() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {hoursEditingEntryId ? (
+              <div className="flex items-center justify-between rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs">
+                <p className="text-cyan-100">Je bewerkt een bestaande urenregel.</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-cyan-100 hover:text-cyan-50"
+                  onClick={() => {
+                    setHoursEditingEntryId(null);
+                    setHoursEditorDate(format(new Date(), 'yyyy-MM-dd'));
+                    setHoursEditorValue('');
+                  }}
+                  disabled={hoursSaving}
+                >
+                  Nieuwe invoer
+                </Button>
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Datum</p>
@@ -1000,19 +1107,55 @@ export default function WinstPage() {
             </div>
 
             <div className="rounded-lg border border-border/60 bg-background/40 p-3">
-              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Recente uren voor dit project</p>
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Uren voor dit project</p>
+              <p className="mt-1 text-xs text-muted-foreground">Gebruik het potlood om te bewerken en de prullenbak om te verwijderen.</p>
               {hoursHistoryLoading ? (
                 <p className="mt-2 text-sm text-muted-foreground">Laden...</p>
               ) : hoursHistory.length === 0 ? (
                 <p className="mt-2 text-sm text-muted-foreground">Nog geen uren gevonden voor dit project.</p>
               ) : (
-                <div className="mt-2 space-y-1.5">
+                <div className="mt-2 max-h-72 space-y-1.5 overflow-y-auto pr-1">
                   {hoursHistory.map((entry) => (
-                    <div key={entry.id} className="flex items-center justify-between rounded-md border border-border/50 px-2.5 py-1.5 text-sm">
-                      <span className="text-muted-foreground">
-                        {format(new Date(entry.date), 'd MMM yyyy', { locale: nl })}
-                      </span>
-                      <span className="font-medium text-foreground">{entry.workedHours.toFixed(2)}u</span>
+                    <div
+                      key={entry.id}
+                      className={cn(
+                        'flex items-center justify-between rounded-md border border-border/50 px-2.5 py-1.5 text-sm',
+                        hoursEditingEntryId === entry.id && 'border-cyan-500/50 bg-cyan-500/10'
+                      )}
+                    >
+                      <div>
+                        <p className="text-muted-foreground">
+                          {format(new Date(entry.date), 'd MMM yyyy', { locale: nl })}
+                        </p>
+                        {hoursEditingEntryId === entry.id ? (
+                          <p className="text-[11px] font-medium text-cyan-200">Wordt nu bewerkt</p>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="min-w-16 text-right font-medium text-foreground">{entry.workedHours.toFixed(2)}u</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          onClick={() => handleStartEditHoursEntry(entry)}
+                          disabled={hoursSaving || hoursDeleting}
+                          title="Urenregel bewerken"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-red-400"
+                          onClick={() => setHoursEntryToDelete(entry)}
+                          disabled={hoursSaving || hoursDeleting}
+                          title="Urenregel verwijderen"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1021,15 +1164,50 @@ export default function WinstPage() {
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setHoursEditorProject(null)} disabled={hoursSaving}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setHoursEditorProject(null);
+                setHoursEditingEntryId(null);
+                setHoursEntryToDelete(null);
+              }}
+              disabled={hoursSaving || hoursDeleting}
+            >
               Sluiten
             </Button>
-            <Button type="button" onClick={() => void handleSaveProjectHours()} disabled={hoursSaving}>
-              {hoursSaving ? 'Opslaan...' : 'Uren opslaan'}
+            <Button type="button" onClick={() => void handleSaveProjectHours()} disabled={hoursSaving || hoursDeleting}>
+              {hoursSaving ? 'Opslaan...' : hoursEditingEntryId ? 'Wijziging opslaan' : 'Uren opslaan'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={Boolean(hoursEntryToDelete)}
+        onOpenChange={(open) => {
+          if (!open && !hoursDeleting) setHoursEntryToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Urenregel verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {hoursEntryToDelete
+                ? `${hoursEntryToDelete.workedHours.toFixed(2)} uur op ${formatProjectDate(hoursEntryToDelete.date)} wordt verwijderd.`
+                : 'Deze urenregel wordt verwijderd.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setHoursEntryToDelete(null)} disabled={hoursDeleting}>
+              Annuleren
+            </Button>
+            <Button type="button" variant="destructiveSoft" onClick={() => void handleDeleteHoursEntry()} disabled={hoursDeleting}>
+              {hoursDeleting ? 'Verwijderen...' : 'Verwijderen'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
