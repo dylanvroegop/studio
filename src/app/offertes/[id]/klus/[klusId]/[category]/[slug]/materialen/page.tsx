@@ -74,7 +74,6 @@ import {
 } from '@/components/ui/select';
 
 import { cn } from '@/lib/utils';
-import { getMaterialRule, KLUS_REGELS_STATIC_VERSION } from '@/lib/klus-regels-static';
 import { reportOperationalError } from '@/lib/report-operational-error';
 import { useUser, useFirestore } from '@/firebase';
 
@@ -5352,29 +5351,6 @@ export default function GenericMaterialsPageRedesigned() {
         return rest;
       };
 
-      const fallbackRuleMeta = (sectionKey?: string | null) => ({
-        source: 'static_file' as const,
-        slug: jobSlug,
-        sectionKey: sectionKey ?? null,
-        version: KLUS_REGELS_STATIC_VERSION,
-        status: 'missing' as const,
-      });
-
-      const withRuleAttachment = (entry: Record<string, any>, sectionKey?: string | null): Record<string, any> => {
-        const attachment = getMaterialRule(jobSlug, sectionKey);
-        const strippedRule = attachment?.rule && typeof attachment.rule === 'object'
-          ? (() => {
-            const { required_inputs, missing_input_behavior, ...rest } = attachment.rule as Record<string, any>;
-            return rest;
-          })()
-          : null;
-        return {
-          ...entry,
-          rule: strippedRule,
-          rule_meta: attachment?.rule_meta ?? fallbackRuleMeta(sectionKey),
-        };
-      };
-
       const catalogById = new Map<string, any>();
       const catalogByName = new Map<string, any>();
       (alleMaterialen || []).forEach((m: any) => {
@@ -5451,7 +5427,7 @@ export default function GenericMaterialsPageRedesigned() {
                 : entry.aantal;
               const cleanedWithMultiplier = applySectionMultiplierToMaterial(cleaned, sectionMultiplier);
               const indexedKey = `${k}__${idx}`;
-              materialenLijst[indexedKey] = withRuleAttachment({
+              materialenLijst[indexedKey] = {
                 sectionKey: normalizedSectionKey,
                 material: cleanedWithMultiplier,
                 aantal: finalAantal,
@@ -5461,7 +5437,7 @@ export default function GenericMaterialsPageRedesigned() {
                 wastePercentage: typeof wasteByEntryKey[indexedKey] === 'number'
                   ? wasteByEntryKey[indexedKey]
                   : getDefaultWastePercentage(normalizedSectionKey, sectionLabelByKey[k], JOB_TITEL)
-              }, normalizedSectionKey);
+              };
             }
           });
           return;
@@ -5480,7 +5456,7 @@ export default function GenericMaterialsPageRedesigned() {
               ? normalizedSectionKey
               : k;
 
-          materialenLijst[storageKey] = withRuleAttachment({
+          materialenLijst[storageKey] = {
             sectionKey: normalizedSectionKey,
             material: cleanedWithMultiplier,
             ...(isHellendDakJob ? { hellend_dak_multiplier: sectionMultiplier } : {}),
@@ -5488,7 +5464,7 @@ export default function GenericMaterialsPageRedesigned() {
             wastePercentage: typeof wasteByEntryKey[k] === 'number'
               ? wasteByEntryKey[k]
               : getDefaultWastePercentage(normalizedSectionKey, sectionLabelByKey[k], JOB_TITEL)
-          }, normalizedSectionKey);
+          };
         }
       });
 
@@ -5497,7 +5473,7 @@ export default function GenericMaterialsPageRedesigned() {
       Object.entries(customMap).forEach(([gid, cm]: [string, any]) => {
         const cleaned = ensurePriceSnapshot(cleanMaterialData(cm));
         if (cleaned) {
-          materialenLijst[gid] = withRuleAttachment({
+          materialenLijst[gid] = {
             material: cleaned,
             title: cm.title,
             context: JOB_TITEL,
@@ -5505,7 +5481,7 @@ export default function GenericMaterialsPageRedesigned() {
             wastePercentage: typeof wasteByEntryKey[gid] === 'number'
               ? wasteByEntryKey[gid]
               : getDefaultWastePercentage(null, cm.title, JOB_TITEL)
-          }, null);
+          };
         }
       });
 
@@ -5519,7 +5495,7 @@ export default function GenericMaterialsPageRedesigned() {
           if (cleaned) {
             // Push to main list for AI/Overview
             const globalKey = `comp_${c.id}_${m.sectionKey || idx}`;
-            materialenLijst[globalKey] = withRuleAttachment({
+            materialenLijst[globalKey] = {
               material: cleaned,
               sectionKey: m.sectionKey,
               context: c.label || c.type,
@@ -5527,7 +5503,7 @@ export default function GenericMaterialsPageRedesigned() {
               wastePercentage: typeof wasteByEntryKey[globalKey] === 'number'
                 ? wasteByEntryKey[globalKey]
                 : getDefaultWastePercentage(m.sectionKey || null, m.sectionKey, c.label || c.type)
-            }, m.sectionKey || null);
+            };
           }
 
           return {

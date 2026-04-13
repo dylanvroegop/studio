@@ -575,6 +575,7 @@ export default function QuotePage() {
     const [calculationElapsedSeconds, setCalculationElapsedSeconds] = useState(0);
     const [isRetryingCalculation, setIsRetryingCalculation] = useState(false);
     const [isDevResetAndRecalculating, setIsDevResetAndRecalculating] = useState(false);
+    const [devRecalculateTarget, setDevRecalculateTarget] = useState<'test' | 'production' | null>(null);
     const calculationTimerStartedAtRef = useRef<number | null>(null);
 
     // Fetch user profile and business details
@@ -3694,7 +3695,7 @@ export default function QuotePage() {
         });
     }, [firestore, id, quote?.status, hasCalculationResult, supabaseCalculationInProgress]);
 
-    const handleRetryCalculation = async (): Promise<boolean> => {
+    const handleRetryCalculation = async (webhookTarget: 'test' | 'production' = 'production'): Promise<boolean> => {
         if (!user || isRetryingCalculation) return false;
 
         setIsRetryingCalculation(true);
@@ -3706,7 +3707,7 @@ export default function QuotePage() {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({ quoteId: id }),
+                body: JSON.stringify({ quoteId: id, webhookTarget }),
             });
 
             const responseText = await response.text().catch(() => '');
@@ -3737,7 +3738,9 @@ export default function QuotePage() {
 
             toast({
                 title: 'Calculatie opnieuw gestart',
-                description: 'We proberen de berekening opnieuw uit te voeren.',
+                description: webhookTarget === 'test'
+                    ? 'We sturen de berekening naar de TEST webhook.'
+                    : 'We sturen de berekening naar de PRODUCTION webhook.',
             });
             return true;
         } catch (err: any) {
@@ -3752,16 +3755,18 @@ export default function QuotePage() {
         }
     };
 
-    const handleDevResetAndRecalculate = async (): Promise<void> => {
+    const handleDevResetAndRecalculate = async (target: 'test' | 'production'): Promise<void> => {
         if (isDevResetAndRecalculating || isRetryingCalculation) return;
 
+        setDevRecalculateTarget(target);
         setIsDevResetAndRecalculating(true);
         try {
             const resetSucceeded = await handleResetMaterialPackageToNieuw();
             if (!resetSucceeded) return;
-            await handleRetryCalculation();
+            await handleRetryCalculation(target);
         } finally {
             setIsDevResetAndRecalculating(false);
+            setDevRecalculateTarget(null);
         }
     };
 
@@ -5278,22 +5283,41 @@ export default function QuotePage() {
                                             </Button>
 
                                             {process.env.NODE_ENV !== 'production' && (
-                                                <Button
-                                                    type="button"
-                                                    variant="destructive"
-                                                    className="h-10 rounded-xl px-3 font-semibold"
-                                                    onClick={() => { void handleDevResetAndRecalculate(); }}
-                                                    disabled={isDevResetAndRecalculating || isRetryingCalculation}
-                                                >
-                                                    {(isDevResetAndRecalculating || isRetryingCalculation) ? (
-                                                        <>
-                                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                            Dev reset + herbereken...
-                                                        </>
-                                                    ) : (
-                                                        'Dev: reset + herbereken'
-                                                    )}
-                                                </Button>
+                                                <div className="col-span-2 grid grid-cols-2 gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant="secondary"
+                                                        className="h-10 rounded-xl px-3 font-semibold"
+                                                        onClick={() => { void handleDevResetAndRecalculate('test'); }}
+                                                        disabled={isDevResetAndRecalculating || isRetryingCalculation}
+                                                    >
+                                                        {(isDevResetAndRecalculating || isRetryingCalculation) && devRecalculateTarget === 'test' ? (
+                                                            <>
+                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                Reset + bereken (test)...
+                                                            </>
+                                                        ) : (
+                                                            'Reset + bereken (test)'
+                                                        )}
+                                                    </Button>
+
+                                                    <Button
+                                                        type="button"
+                                                        variant="destructive"
+                                                        className="h-10 rounded-xl px-3 font-semibold"
+                                                        onClick={() => { void handleDevResetAndRecalculate('production'); }}
+                                                        disabled={isDevResetAndRecalculating || isRetryingCalculation}
+                                                    >
+                                                        {(isDevResetAndRecalculating || isRetryingCalculation) && devRecalculateTarget === 'production' ? (
+                                                            <>
+                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                Reset + bereken (prod)...
+                                                            </>
+                                                        ) : (
+                                                            'Reset + bereken (prod)'
+                                                        )}
+                                                    </Button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>

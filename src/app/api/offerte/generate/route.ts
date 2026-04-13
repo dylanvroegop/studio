@@ -23,6 +23,8 @@ type KlusRegelsRow = {
   pending_updates?: string | null;
 };
 
+type N8nWebhookTarget = 'test' | 'production';
+
 /** Firebase Admin via ADC (werkt op Firebase App Hosting)*/
 function krijgFirebaseAdminApp() {
   if (admin.apps.length > 0) return admin.app();
@@ -268,18 +270,34 @@ function isTestWebhookNietActief(status: number, body: string): boolean {
   return heeftWebhook && (nietGeregistreerd || nietGevonden);
 }
 
-async function postN8nMetTestFallback(payload: unknown, secret: string): Promise<void> {
+const DEFAULT_TEST_WEBHOOK_URL = 'https://n8n.srv1553475.hstgr.cloud/webhook-test/offerte-test';
+
+function resolveWebhookTarget(value: unknown): N8nWebhookTarget {
+  return value === 'test' ? 'test' : 'production';
+}
+
+function getWebhookUrlForTarget(target: N8nWebhookTarget): string {
   const productieUrl = process.env.N8N_WEBHOOK_URL?.trim();
   if (!productieUrl) throw new Error('ENV ontbreekt: N8N_WEBHOOK_URL');
 
-  // Never send production traffic to webhook-test endpoints.
-  const allowTestFallback =
-    process.env.NODE_ENV !== 'production'
-    && process.env.N8N_WEBHOOK_ALLOW_TEST_FALLBACK !== 'false';
-  const explicieteTestUrl = allowTestFallback ? process.env.N8N_WEBHOOK_TEST_URL?.trim() : null;
-  const testUrl = allowTestFallback
-    ? (explicieteTestUrl || bepaalTestWebhookUrl(productieUrl))
-    : null;
+  if (target === 'production') {
+    if (productieUrl.includes('/webhook-test/')) {
+      throw new Error('N8N_WEBHOOK_URL wijst naar webhook-test, maar production target is vereist.');
+    }
+    return productieUrl;
+  }
+
+  const explicieteTestUrl = process.env.N8N_WEBHOOK_TEST_URL?.trim();
+  if (explicieteTestUrl) return explicieteTestUrl;
+
+  const afgeleideTestUrl = bepaalTestWebhookUrl(productieUrl);
+  if (afgeleideTestUrl) return afgeleideTestUrl;
+
+  return DEFAULT_TEST_WEBHOOK_URL;
+}
+
+async function postN8n(payload: unknown, secret: string, target: N8nWebhookTarget): Promise<void> {
+  const webhookUrl = getWebhookUrlForTarget(target);
 
   const headers = {
     'content-type': 'application/json',
@@ -302,29 +320,12 @@ async function postN8nMetTestFallback(payload: unknown, secret: string): Promise
     return { ok: res.ok, status: res.status, text };
   };
 
-  if (testUrl && testUrl !== productieUrl) {
-    let testResult: { ok: boolean; status: number; text: string } | null = null;
-
-    try {
-      testResult = await post(testUrl);
-    } catch (err) {
-      console.warn('n8n test webhook request faalde, fallback naar productie.', err);
+  const result = await post(webhookUrl);
+  if (!result.ok) {
+    if (target === 'test' && isTestWebhookNietActief(result.status, result.text)) {
+      throw new Error(`n8n test webhook niet actief (${result.status}).`);
     }
-
-    if (testResult?.ok) return;
-
-    if (testResult && !isTestWebhookNietActief(testResult.status, testResult.text)) {
-      throw new Error(`n8n test error ${testResult.status}: ${testResult.text}`);
-    }
-
-    if (testResult) {
-      console.warn(`n8n test webhook niet actief (status ${testResult.status}), fallback naar productie.`);
-    }
-  }
-
-  const productieResult = await post(productieUrl);
-  if (!productieResult.ok) {
-    throw new Error(`n8n productie error ${productieResult.status}: ${productieResult.text}`);
+    throw new Error(`n8n ${target} error ${result.status}: ${result.text}`);
   }
 }
 
@@ -368,6 +369,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, message: 'quoteId ontbreekt' }, { status: 400 });
     }
     quoteIdForError = quoteId;
+    const webhookTarget = resolveWebhookTarget(body.webhookTarget);
 
     if (!process.env.N8N_WEBHOOK_URL) throw new Error('ENV ontbreekt: N8N_WEBHOOK_URL');
     if (!process.env.N8N_HEADER_SECRET) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
@@ -689,6 +691,50 @@ export async function POST(req: Request) {
         typeof value === 'string' ? value.trim().toLowerCase() : ''
       );
 
+      const buildSectionKeyCandidates = (sectionKey: string): string[] => {
+        const normalized = normalizeLookupValue(sectionKey);
+        if (!normalized) return [];
+
+        const candidates: string[] = [];
+        const seen = new Set<string>();
+        const addCandidate = (value: string | null | undefined) => {
+          const candidate = normalizeLookupValue(value);
+          if (!candidate || seen.has(candidate)) return;
+          seen.add(candidate);
+          candidates.push(candidate);
+        };
+
+        addCandidate(normalized);
+
+        const sideMatch = normalized.match(/^(.*)_([12])$/);
+        if (sideMatch) {
+          const base = sideMatch[1];
+          const side = sideMatch[2];
+          addCandidate(base);
+          if (side === '2') addCandidate(`${base}_1`);
+        }
+
+        // Support common naming differences between UI section keys and Supabase rules.
+        if (normalized.startsWith('beplating_')) {
+          const sideSuffix = normalized.replace('beplating_', '');
+          addCandidate(`afwerkplaat_${sideSuffix}`);
+          addCandidate('afwerkplaat');
+        }
+        if (normalized.startsWith('afwerkplaat_')) {
+          const sideSuffix = normalized.replace('afwerkplaat_', '');
+          addCandidate(`beplating_${sideSuffix}`);
+          addCandidate('beplating');
+        }
+        if (normalized.startsWith('constructieplaat_')) {
+          addCandidate('constructieplaat');
+        }
+        if (normalized.includes('_en_')) {
+          addCandidate(normalized.replace('_en_', '_'));
+        }
+
+        return candidates;
+      };
+
       const findSectionRuleInTree = (
         node: unknown,
         normalizedSectionKey: string,
@@ -750,17 +796,17 @@ export async function POST(req: Request) {
           return { rule: null, status: 'missing', resolvedBy: 'missing_section_key' };
         }
 
-        const direct = findSectionRuleInTree(klusRegels, normalizedSectionKey);
-        if (direct) {
-          return { rule: direct, status: 'resolved', resolvedBy: 'direct_section_key' };
-        }
-
-        if (normalizedSectionKey.endsWith('_2')) {
-          const mirrored = normalizedSectionKey.replace(/_2$/, '_1');
-          const mirroredRule = findSectionRuleInTree(klusRegels, mirrored);
-          if (mirroredRule) {
-            return { rule: mirroredRule, status: 'resolved', resolvedBy: 'mirrored_side_fallback' };
-          }
+        const candidates = buildSectionKeyCandidates(normalizedSectionKey);
+        for (const candidate of candidates) {
+          const found = findSectionRuleInTree(klusRegels, candidate);
+          if (!found) continue;
+          return {
+            rule: found,
+            status: 'resolved',
+            resolvedBy: candidate === normalizedSectionKey
+              ? 'direct_section_key'
+              : `section_key_candidate:${candidate}`,
+          };
         }
 
         return { rule: null, status: 'missing', resolvedBy: 'not_found' };
@@ -777,16 +823,16 @@ export async function POST(req: Request) {
       };
 
       const klusRegelsByType = new Map<string, KlusRegelsRow>();
-      try {
-        const jobSlugSet = new Set<string>();
-        if (quote.klussen) {
-          Object.values(quote.klussen).forEach((job: any) => {
-            const slug = deriveJobSlug(job);
-            if (slug) jobSlugSet.add(slug);
-          });
-        }
+      const jobSlugSet = new Set<string>();
+      if (quote.klussen) {
+        Object.values(quote.klussen).forEach((job: any) => {
+          const slug = deriveJobSlug(job);
+          if (slug) jobSlugSet.add(slug);
+        });
+      }
+      const jobSlugs = Array.from(jobSlugSet).map((slug) => normalizeLookupValue(slug)).filter(Boolean);
 
-        const jobSlugs = Array.from(jobSlugSet);
+      try {
         if (jobSlugs.length > 0) {
           const { supabaseAdmin } = await import('@/lib/supabase-admin');
           const { data: klusRegelsRows, error: klusRegelsError } = await supabaseAdmin
@@ -794,7 +840,11 @@ export async function POST(req: Request) {
             .select('id, klus_type, klus_regels, created_at, pending_updates')
             .in('klus_type', jobSlugs);
 
-          if (!klusRegelsError && Array.isArray(klusRegelsRows)) {
+          if (klusRegelsError) {
+            throw new Error(`Kon klus_regels niet ophalen uit Supabase: ${klusRegelsError.message}`);
+          }
+
+          if (Array.isArray(klusRegelsRows)) {
             klusRegelsRows.forEach((row: any) => {
               const klusType = normalizeLookupValue(row?.klus_type);
               if (klusType) {
@@ -806,12 +856,15 @@ export async function POST(req: Request) {
                 klusRegelsByType.set(metaSlug, row as KlusRegelsRow);
               }
             });
-          } else if (klusRegelsError) {
-            console.warn('Kon klus_regels niet ophalen uit Supabase:', klusRegelsError.message);
           }
         }
       } catch (err) {
-        console.warn('Fout bij laden van klus_regels uit Supabase:', err);
+        throw new Error(`Fout bij laden van klus_regels uit Supabase: ${String((err as any)?.message || err)}`);
+      }
+
+      const missingKlusRegels = jobSlugs.filter((slug) => !klusRegelsByType.has(slug));
+      if (missingKlusRegels.length > 0) {
+        throw new Error(`Supabase klus_regels ontbreekt voor klus_type: ${missingKlusRegels.join(', ')}`);
       }
 
       const resolveRuleAttachmentFromSupabase = (
@@ -868,10 +921,17 @@ export async function POST(req: Request) {
       ): Record<string, any> => {
         if (!entry || typeof entry !== 'object') return entry;
         const attachment = resolveRuleAttachmentFromSupabase(jobSlug, sectionKey);
+        const normalizedRule =
+          attachment.rule && typeof attachment.rule === 'object'
+            ? {
+              ...attachment.rule,
+              sectionKey: sectionKey ?? ((attachment.rule as Record<string, any>).sectionKey ?? null),
+            }
+            : attachment.rule;
         return {
           ...entry,
-          rule: attachment.rule,
-          section_rule_full: attachment.rule,
+          rule: normalizedRule,
+          section_rule_full: normalizedRule,
           rule_meta: attachment.ruleMeta,
         };
       };
@@ -1007,6 +1067,13 @@ export async function POST(req: Request) {
 
               const finalSectionKey = normalizedSectionKey || slotKey;
               enriched = attachSupabaseRuleForSection(enriched, jobSlug, finalSectionKey);
+              if (
+                !isComponentEntry
+                && normalizedSectionKey
+                && (!enriched.rule || enriched.rule_meta?.status !== 'resolved')
+              ) {
+                throw new Error(`Supabase section rule ontbreekt voor klus '${jobSlug}' en sectionKey '${normalizedSectionKey}'`);
+              }
               const normalizedSlotKey =
                 jobSlug === 'epdm-dakbedekking'
                 && (slotKey === 'daktrim' || slotKey === 'daktrim_hoeken')
@@ -1067,7 +1134,13 @@ export async function POST(req: Request) {
                 : null;
               if (!sectionKey || sectionRulesFull[sectionKey] !== undefined) return;
               const attachment = resolveRuleAttachmentFromSupabase(jobSlug, sectionKey);
-              sectionRulesFull[sectionKey] = attachment.rule;
+              sectionRulesFull[sectionKey] =
+                attachment.rule && typeof attachment.rule === 'object'
+                  ? {
+                    ...attachment.rule,
+                    sectionKey,
+                  }
+                  : attachment.rule;
             });
             const klusRegelsAttachment = resolveRuleAttachmentFromSupabase(jobSlug, null);
             const fullKlusRegels = klusRegelsAttachment.klusRegelsRow
@@ -1134,12 +1207,8 @@ export async function POST(req: Request) {
       }
 
     } catch (e) {
-      console.warn("Error during N8N payload optimization:", e);
-      // Fallback: If optimization crashes, sending raw (but flattened) list is better than failing
-      // But 'klussen' logic above handles the flattening. This catch is for extra safety.
-      if (quote.klussen && !Array.isArray(quote.klussen)) {
-        quote.klussen = Object.values(quote.klussen).map((j: any) => { const { uiState, ...r } = j; return r; });
-      }
+      console.error("Error during N8N payload optimization:", e);
+      throw e;
     }
 
     // Clean the entire quote object to remove empty arrays, objects, strings, nulls
@@ -1156,7 +1225,7 @@ export async function POST(req: Request) {
       bedrijf,
     };
 
-    await postN8nMetTestFallback(payload, process.env.N8N_HEADER_SECRET);
+    await postN8n(payload, process.env.N8N_HEADER_SECRET, webhookTarget);
 
     // Best effort: sync totaal direct to Firestore so quotes list stays up-to-date.
     await syncQuoteTotalsFromSupabase(db, quoteId, uid);
