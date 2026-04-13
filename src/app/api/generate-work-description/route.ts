@@ -48,6 +48,18 @@ function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function pickFirstString(
+  source: Record<string, unknown> | null | undefined,
+  keys: string[],
+): string {
+  if (!source) return '';
+  for (const key of keys) {
+    const value = safeString(source[key]);
+    if (value) return value;
+  }
+  return '';
+}
+
 function normalizeStepRows(input: unknown, max = 100): string[] {
   if (!Array.isArray(input)) return [];
   return input
@@ -105,16 +117,56 @@ function extractDirectStructured(result: unknown): WorkDescriptionStructured | n
     afwerking?: unknown;
     output?: unknown;
   };
+  let parsedOutput: {
+    werkbeschrijving_structured?: unknown;
+    werkbeschrijvingStructured?: unknown;
+    korteTitel?: unknown;
+    korteBeschrijving?: unknown;
+    hoofdtitel?: unknown;
+    samenvatting?: unknown;
+    werkbeschrijving?: unknown;
+  } | null = null;
+  if (typeof row.output === 'string' && row.output.trim()) {
+    try {
+      parsedOutput = JSON.parse(row.output) as {
+        werkbeschrijving_structured?: unknown;
+        werkbeschrijvingStructured?: unknown;
+        korteTitel?: unknown;
+        korteBeschrijving?: unknown;
+        hoofdtitel?: unknown;
+        samenvatting?: unknown;
+        werkbeschrijving?: unknown;
+      };
+    } catch {
+      parsedOutput = null;
+    }
+  }
 
   const directCandidate = row.werkbeschrijving_structured ?? row.werkbeschrijvingStructured;
   if (directCandidate) {
     const structured = sanitizeWorkDescriptionStructured(directCandidate);
-    if (hasStructuredContent(structured)) return structured;
+    if (hasStructuredContent(structured)) {
+      const rowRecord = row as unknown as Record<string, unknown>;
+      const parsedRecord = (parsedOutput || {}) as Record<string, unknown>;
+      return {
+        ...structured,
+        title: structured.title
+          || pickFirstString(rowRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title'])
+          || pickFirstString(parsedRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title']),
+        context: structured.context
+          || pickFirstString(rowRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context'])
+          || pickFirstString(parsedRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context']),
+      };
+    }
   }
 
   const n8nRows = extractDirectWerkbeschrijving(row);
-  const n8nTitle = safeString(row.korteTitel) || safeString(row.hoofdtitel);
-  const n8nSummary = safeString(row.korteBeschrijving) || safeString(row.samenvatting);
+  const rowRecord = row as unknown as Record<string, unknown>;
+  const parsedRecord = (parsedOutput || {}) as Record<string, unknown>;
+  const n8nTitle = pickFirstString(rowRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title'])
+    || pickFirstString(parsedRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title']);
+  const n8nSummary = pickFirstString(rowRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context'])
+    || pickFirstString(parsedRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context']);
   if (n8nRows.length > 0 || n8nTitle || n8nSummary) {
     const structured = toStructuredWorkDescription({
       korteTitel: n8nTitle,
@@ -124,29 +176,29 @@ function extractDirectStructured(result: unknown): WorkDescriptionStructured | n
     if (hasStructuredContent(structured)) return structured;
   }
 
-  if (typeof row.output === 'string' && row.output.trim()) {
+  if (parsedOutput) {
     try {
-      const parsed = JSON.parse(row.output) as {
-        werkbeschrijving_structured?: unknown;
-        werkbeschrijvingStructured?: unknown;
-        korteTitel?: unknown;
-        korteBeschrijving?: unknown;
-        hoofdtitel?: unknown;
-        samenvatting?: unknown;
-        werkbeschrijving?: unknown;
-      };
-
-      const parsedDirectCandidate = parsed.werkbeschrijving_structured ?? parsed.werkbeschrijvingStructured;
+      const parsedDirectCandidate = parsedOutput.werkbeschrijving_structured ?? parsedOutput.werkbeschrijvingStructured;
       if (parsedDirectCandidate) {
         const structured = sanitizeWorkDescriptionStructured(parsedDirectCandidate);
-        if (hasStructuredContent(structured)) return structured;
+        if (hasStructuredContent(structured)) {
+          return {
+            ...structured,
+            title: structured.title
+              || pickFirstString(parsedRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title'])
+              || pickFirstString(rowRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title']),
+            context: structured.context
+              || pickFirstString(parsedRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context'])
+              || pickFirstString(rowRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context']),
+          };
+        }
       }
 
-      const parsedRows = normalizeStepRows(parsed.werkbeschrijving);
+      const parsedRows = normalizeStepRows(parsedOutput.werkbeschrijving);
       if (parsedRows.length > 0) {
         const structured = toStructuredWorkDescription({
-          korteTitel: safeString(parsed.korteTitel) || safeString(parsed.hoofdtitel),
-          korteBeschrijving: safeString(parsed.korteBeschrijving) || safeString(parsed.samenvatting),
+          korteTitel: pickFirstString(parsedRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title']),
+          korteBeschrijving: pickFirstString(parsedRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context']),
           werkbeschrijving: parsedRows,
         });
         if (hasStructuredContent(structured)) return structured;

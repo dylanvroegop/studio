@@ -277,7 +277,7 @@ function createQuoteNoteSectionId(): string {
 function createQuoteNoteSection(index: number, overrides?: Partial<QuoteNoteSection>): QuoteNoteSection {
     return {
         id: overrides?.id || createQuoteNoteSectionId(),
-        title: overrides?.title ?? `Klus ${index + 1}`,
+        title: overrides?.title ?? '',
         notes: overrides?.notes ?? '',
     };
 }
@@ -293,16 +293,16 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
     let activeSection: { title: string; notesLines: string[] } | null = null;
 
     for (const line of lines) {
-        const titleMatch = line.match(/^###\s+(.+)$/);
+        const titleMatch = line.match(/^###\s*(.*)$/);
         if (titleMatch) {
-            const title = titleMatch[1].trim() || `Klus ${sections.length + 1}`;
+            const title = titleMatch[1].trim();
             activeSection = { title, notesLines: [] };
             sections.push(activeSection);
             continue;
         }
 
         if (!activeSection) {
-            activeSection = { title: 'Klus 1', notesLines: [] };
+            activeSection = { title: '', notesLines: [] };
             sections.push(activeSection);
         }
 
@@ -321,8 +321,8 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
 
 function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
     const cleanedSections = sections
-        .map((section, index) => ({
-            title: section.title.trim() || `Klus ${index + 1}`,
+        .map((section) => ({
+            title: section.title.trim(),
             notes: section.notes.trim(),
         }))
         .filter((section) => section.title.length > 0 || section.notes.length > 0);
@@ -331,6 +331,9 @@ function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
 
     return cleanedSections
         .map((section) => (
+            section.title.length === 0
+                ? section.notes
+                :
             section.notes
                 ? `### ${section.title}\n${section.notes}`
                 : `### ${section.title}`
@@ -1114,7 +1117,7 @@ export default function QuotePage() {
         if (quoteNoteSections.length <= 1) {
             const resetSection = {
                 ...quoteNoteSections[0],
-                title: 'Klus 1',
+                title: '',
                 notes: '',
             };
             syncQuoteNoteSectionsToQuoteNotes([resetSection]);

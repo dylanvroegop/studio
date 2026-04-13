@@ -10,6 +10,7 @@ import {
   Clock3,
   FileText,
   LayoutDashboard,
+  Landmark,
   LogOut,
   Receipt,
   ReceiptText,
@@ -204,6 +205,12 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
       return {
         icon: Receipt,
         iconClassName: 'text-teal-400',
+      };
+    }
+    if (pathname.startsWith('/bank-overzicht')) {
+      return {
+        icon: Landmark,
+        iconClassName: 'text-lime-400',
       };
     }
     if (pathname.startsWith('/winst')) {
