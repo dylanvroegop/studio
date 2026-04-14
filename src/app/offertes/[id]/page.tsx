@@ -2521,8 +2521,8 @@ export default function QuotePage() {
             projectLocatie: klantInfo.afwijkendProjectadres && klantInfo.projectAdres
                 ? `${klantInfo.projectAdres.straat} ${klantInfo.projectAdres.huisnummer}, ${klantInfo.projectAdres.plaats}`
                 : `${klantInfo.straat} ${klantInfo.huisnummer}, ${klantInfo.plaats}`,
-            korteTitel: normalizedData?.korteTitel,
-            korteBeschrijving: normalizedData?.korteBeschrijving,
+            korteTitel: workDescriptionStructured.title || normalizedData?.korteTitel,
+            korteBeschrijving: workDescriptionStructured.context || normalizedData?.korteBeschrijving,
             werkbeschrijving: generateWorkSummary(normalizedData?.werkbeschrijving, 800),
             werkbeschrijvingFull: normalizedData?.werkbeschrijving || [],
             werkbeschrijvingStructured: workDescriptionStructured,
@@ -2997,6 +2997,7 @@ export default function QuotePage() {
         offerteNummer: string,
         klantNaam: string,
         projectTitel: string,
+        werkbeschrijvingStructuredValue?: WorkDescriptionStructured,
     ): Promise<Blob> => {
         const { jsPDF } = await import('jspdf');
         const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -3011,50 +3012,117 @@ export default function QuotePage() {
             y = margin;
         };
 
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
-        doc.setTextColor(25, 25, 25);
-        doc.text('WERKBESCHRIJVING', margin, y);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(100, 100, 100);
-        doc.text(`Offerte #${offerteNummer}`, pageWidth - margin, y, { align: 'right' });
-        y += 7;
-        doc.setDrawColor(220, 220, 220);
-        doc.line(margin, y, pageWidth - margin, y);
-        y += 8;
+        const structured = toStructuredWorkDescription({ werkbeschrijving_structured: werkbeschrijvingStructuredValue });
+        const jobs = Array.isArray(structured.jobs) && structured.jobs.length > 0
+            ? structured.jobs
+            : [{
+                title: structured.title,
+                context: structured.context,
+                sections: structured.sections,
+                legacyNotes: structured.legacyNotes || [],
+            }];
+        const hasMultipleJobs = jobs.length > 1;
 
-        const intro = [
-            projectTitel ? `Project: ${projectTitel}` : '',
-            klantNaam ? `Klant: ${klantNaam}` : '',
-        ].filter(Boolean).join('  |  ');
-
-        if (intro) {
-            doc.setFontSize(9);
-            doc.setTextColor(90, 90, 90);
-            const introLines = doc.splitTextToSize(intro, pageWidth - (margin * 2));
-            doc.text(introLines, margin, y);
-            y += introLines.length * 4.3 + 5;
-        }
-
-        doc.setFontSize(9);
-        doc.setTextColor(40, 40, 40);
-        const stappen = werkbeschrijvingStappen.length > 0
-            ? werkbeschrijvingStappen
-            : ['Geen werkbeschrijving beschikbaar.'];
-
-        stappen.forEach((stap, index) => {
-            const nummer = `${index + 1}.`;
-            const regels = doc.splitTextToSize(stap, pageWidth - (margin * 2) - 10);
-            const ruimte = Math.max(6, regels.length * 4.5) + 2;
-            addPageIfNeeded(ruimte + 2);
-
+        const drawHeader = (title: string) => {
             doc.setFont('helvetica', 'bold');
-            doc.text(nummer, margin, y);
+            doc.setFontSize(16);
+            doc.setTextColor(25, 25, 25);
+            doc.text('WERKBESCHRIJVING', margin, y);
             doc.setFont('helvetica', 'normal');
-            doc.text(regels, margin + 8, y);
-            y += ruimte;
-        });
+            doc.setFontSize(9);
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Offerte #${offerteNummer}`, pageWidth - margin, y, { align: 'right' });
+            y += 7;
+            doc.setDrawColor(220, 220, 220);
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 8;
+
+            if (title.trim()) {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                doc.setTextColor(35, 35, 35);
+                const titleLines = doc.splitTextToSize(title.trim(), pageWidth - (margin * 2));
+                doc.text(titleLines, margin, y);
+                y += titleLines.length * 4.8 + 3;
+            }
+        };
+
+        if (hasMultipleJobs) {
+            jobs.forEach((job, jobIndex) => {
+                if (jobIndex > 0) {
+                    doc.addPage();
+                    y = margin;
+                }
+                drawHeader(job.title || `Klus ${jobIndex + 1}`);
+
+                const context = String(job.context || '').trim();
+                if (context) {
+                    doc.setFont('helvetica', 'italic');
+                    doc.setFontSize(9);
+                    doc.setTextColor(90, 90, 90);
+                    const contextLines = doc.splitTextToSize(context, pageWidth - (margin * 2));
+                    doc.text(contextLines, margin, y);
+                    y += contextLines.length * 4.3 + 5;
+                }
+
+                const stappen = [
+                    ...job.sections.voorbereiding,
+                    ...job.sections.uitvoering,
+                    ...job.sections.afwerking,
+                    ...(job.legacyNotes || []),
+                ].map((line) => String(line || '').trim()).filter(Boolean);
+                const resolvedStappen = stappen.length > 0 ? stappen : ['Geen werkbeschrijving beschikbaar.'];
+
+                doc.setFontSize(9);
+                doc.setTextColor(40, 40, 40);
+                resolvedStappen.forEach((stap, index) => {
+                    const nummer = `${index + 1}.`;
+                    const regels = doc.splitTextToSize(stap, pageWidth - (margin * 2) - 10);
+                    const ruimte = Math.max(6, regels.length * 4.5) + 2;
+                    addPageIfNeeded(ruimte + 2);
+
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(nummer, margin, y);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(regels, margin + 8, y);
+                    y += ruimte;
+                });
+            });
+        } else {
+            drawHeader(projectTitel || jobs[0]?.title || '');
+
+            const intro = [
+                projectTitel ? `Project: ${projectTitel}` : '',
+                klantNaam ? `Klant: ${klantNaam}` : '',
+            ].filter(Boolean).join('  |  ');
+
+            if (intro) {
+                doc.setFontSize(9);
+                doc.setTextColor(90, 90, 90);
+                const introLines = doc.splitTextToSize(intro, pageWidth - (margin * 2));
+                doc.text(introLines, margin, y);
+                y += introLines.length * 4.3 + 5;
+            }
+
+            doc.setFontSize(9);
+            doc.setTextColor(40, 40, 40);
+            const stappen = werkbeschrijvingStappen.length > 0
+                ? werkbeschrijvingStappen
+                : ['Geen werkbeschrijving beschikbaar.'];
+
+            stappen.forEach((stap, index) => {
+                const nummer = `${index + 1}.`;
+                const regels = doc.splitTextToSize(stap, pageWidth - (margin * 2) - 10);
+                const ruimte = Math.max(6, regels.length * 4.5) + 2;
+                addPageIfNeeded(ruimte + 2);
+
+                doc.setFont('helvetica', 'bold');
+                doc.text(nummer, margin, y);
+                doc.setFont('helvetica', 'normal');
+                doc.text(regels, margin + 8, y);
+                y += ruimte;
+            });
+        }
 
         return doc.output('blob');
     };
@@ -3221,6 +3289,7 @@ export default function QuotePage() {
                     offerteNummer,
                     klantNaam,
                     projectTitel,
+                    workDescriptionStructured,
                 );
                 downloadBlobWithName(werkbeschrijvingBlob, `Werkbeschrijving-${offerteNummer}.pdf`);
             }
@@ -3342,8 +3411,8 @@ export default function QuotePage() {
                 email: klantInfo?.emailadres || '',
             },
             projectLocatie: resolvedProjectLocatie,
-            korteTitel: normalizedData?.korteTitel,
-            korteBeschrijving: normalizedData?.korteBeschrijving,
+            korteTitel: workDescriptionStructured.title || normalizedData?.korteTitel,
+            korteBeschrijving: workDescriptionStructured.context || normalizedData?.korteBeschrijving,
             werkbeschrijving: generateWorkSummary(normalizedData?.werkbeschrijving || []),
             werkbeschrijvingFull: normalizeWerkbeschrijving(normalizedData?.werkbeschrijving || []),
             werkbeschrijvingStructured: workDescriptionStructured,
@@ -3776,6 +3845,7 @@ export default function QuotePage() {
     const currentWerkbeschrijvingStructured = useMemo(
         () => toStructuredWorkDescription({
             werkbeschrijving: normalizedData?.werkbeschrijving,
+            werkbeschrijving_jobs: (normalizedData as any)?.werkbeschrijving_jobs,
             werkbeschrijving_structured: (normalizedData as any)?.werkbeschrijving_structured,
             korteTitel: normalizedData?.korteTitel,
             korteBeschrijving: normalizedData?.korteBeschrijving,
@@ -3942,6 +4012,7 @@ export default function QuotePage() {
                 korteTitel: parsedStructured.title,
                 korteBeschrijving: parsedStructured.context,
                 werkbeschrijving: parsedWerkbeschrijving,
+                werkbeschrijving_jobs: parsedStructured.jobs,
                 werkbeschrijving_structured: parsedStructured,
             })
                 .then(() => {
@@ -4071,11 +4142,38 @@ export default function QuotePage() {
 
             if (action === 'uitvoering-only') {
                 applyLocalWorkDescriptionUpdate((prev) => ({
-                    ...prev,
-                    sections: {
-                        ...prev.sections,
-                        uitvoering: generated,
-                    },
+                    ...(() => {
+                        const normalizedPrev = toStructuredWorkDescription({ werkbeschrijving_structured: prev });
+                        const jobs = Array.isArray(normalizedPrev.jobs) && normalizedPrev.jobs.length > 0
+                            ? normalizedPrev.jobs
+                            : [{
+                                title: normalizedPrev.title,
+                                context: normalizedPrev.context,
+                                sections: normalizedPrev.sections,
+                                legacyNotes: normalizedPrev.legacyNotes || [],
+                            }];
+                        const activeIndex = Math.max(0, Math.min(normalizedPrev.activeJobIndex || 0, jobs.length - 1));
+                        const nextJobs = jobs.map((job, idx) => idx === activeIndex
+                            ? {
+                                ...job,
+                                sections: {
+                                    ...job.sections,
+                                    uitvoering: generated,
+                                },
+                            }
+                            : job
+                        );
+                        const active = nextJobs[activeIndex];
+                        return {
+                            ...normalizedPrev,
+                            title: active.title,
+                            context: active.context,
+                            sections: active.sections,
+                            legacyNotes: active.legacyNotes,
+                            jobs: nextJobs,
+                            activeJobIndex: activeIndex,
+                        };
+                    })(),
                 }));
             } else {
                 const inferred = toStructuredWorkDescription({
@@ -4106,13 +4204,36 @@ export default function QuotePage() {
 
         applyLocalWorkDescriptionUpdate((prev) => {
             const templateSections = cloneTemplateSections(detectedWorkDescriptionTemplate);
+            const normalizedPrev = toStructuredWorkDescription({ werkbeschrijving_structured: prev });
+            const jobs = Array.isArray(normalizedPrev.jobs) && normalizedPrev.jobs.length > 0
+                ? normalizedPrev.jobs
+                : [{
+                    title: normalizedPrev.title,
+                    context: normalizedPrev.context,
+                    sections: normalizedPrev.sections,
+                    legacyNotes: normalizedPrev.legacyNotes || [],
+                }];
+            const activeIndex = Math.max(0, Math.min(normalizedPrev.activeJobIndex || 0, jobs.length - 1));
+            const nextJobs = jobs.map((job, idx) => idx === activeIndex
+                ? {
+                    ...job,
+                    sections: {
+                        voorbereiding: [],
+                        uitvoering: job.sections.uitvoering.length > 0 ? job.sections.uitvoering : templateSections.uitvoering,
+                        afwerking: [],
+                    },
+                }
+                : job
+            );
+            const active = nextJobs[activeIndex];
             const next = {
-                ...prev,
-                sections: {
-                    voorbereiding: [],
-                    uitvoering: prev.sections.uitvoering.length > 0 ? prev.sections.uitvoering : templateSections.uitvoering,
-                    afwerking: [],
-                },
+                ...normalizedPrev,
+                title: active.title,
+                context: active.context,
+                sections: active.sections,
+                legacyNotes: active.legacyNotes || [],
+                jobs: nextJobs,
+                activeJobIndex: activeIndex,
             };
             return next;
         });
@@ -5403,6 +5524,27 @@ export default function QuotePage() {
                                         hideHeader
                                     />
 
+                                    <MaterialEditor
+                                        title="KLEIN MATERIAAL"
+                                        items={materials.verbruik}
+                                        onUpdateItem={handleUpdateVerbruiksItem}
+                                        onRemoveItem={(index) => handleRemoveItem('verbruik', index)}
+                                        onAddItem={(item) => handleAddItem('verbruik', item)}
+                                        subtotal={verbruikSubtotal}
+                                        vatRate={quoteSettings?.btwTarief}
+                                        showLineTotalInclBtw={false}
+                                        onAddClick={() => setActiveCategory('verbruik')}
+                                        enableCalculationViewToggle
+                                        calculationTextFields={['waarom_dit', 'toelichting', 'hoe_berekend']}
+                                        calculationToggleLabel="Laat toelichting zien"
+                                        calculationRowLabel="Toelichting"
+                                        showDontAutoIncludeOption={false}
+                                        viewMode="split"
+                                        categoryStyle="verbruik"
+                                        showAdvancedControlsMenu
+                                        hideHeader
+                                    />
+
                                     <Dialog open={isGrootCompareOpen} onOpenChange={setIsGrootCompareOpen}>
                                         <DialogContent className="sm:max-w-6xl max-h-[94vh] overflow-hidden">
                                             <DialogHeader>
@@ -6247,8 +6389,8 @@ export default function QuotePage() {
                     ''
                 }
                 afzenderNaam={businessData?.contactNaam || user?.displayName || userProfile?.naam || ''}
-                korteTitel={normalizedData?.korteTitel}
-                korteBeschrijving={normalizedData?.korteBeschrijving}
+                korteTitel={workDescriptionStructured.title || normalizedData?.korteTitel}
+                korteBeschrijving={workDescriptionStructured.context || normalizedData?.korteBeschrijving}
             />
 
             <SendQuoteWhatsAppModal
@@ -6273,8 +6415,8 @@ export default function QuotePage() {
                     ''
                 }
                 afzenderNaam={businessData?.contactNaam || user?.displayName || userProfile?.naam || ''}
-                korteTitel={normalizedData?.korteTitel}
-                korteBeschrijving={normalizedData?.korteBeschrijving}
+                korteTitel={workDescriptionStructured.title || normalizedData?.korteTitel}
+                korteBeschrijving={workDescriptionStructured.context || normalizedData?.korteBeschrijving}
                 onCreateShareableOffertePdfLink={createShareableOffertePdfLink}
             />
 

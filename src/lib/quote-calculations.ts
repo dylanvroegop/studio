@@ -26,6 +26,7 @@ export type DataJson = {
     uren_specificatie?: UrenItem[];
     werkbeschrijving?: string[] | any;
     werkbeschrijving_structured?: WorkDescriptionStructured | any;
+    werkbeschrijving_jobs?: WorkDescriptionJob[] | any;
     transport_berekening?: {
         ratePerKm?: number;
         distanceKm?: number;
@@ -40,6 +41,17 @@ export type DataJson = {
 
 export type WorkDescriptionSectionKey = 'voorbereiding' | 'uitvoering' | 'afwerking';
 
+export type WorkDescriptionJob = {
+    title: string;
+    context: string;
+    sections: {
+        voorbereiding: string[];
+        uitvoering: string[];
+        afwerking: string[];
+    };
+    legacyNotes?: string[];
+};
+
 export type WorkDescriptionStructured = {
     title: string;
     context: string;
@@ -48,6 +60,8 @@ export type WorkDescriptionStructured = {
         uitvoering: string[];
         afwerking: string[];
     };
+    jobs: WorkDescriptionJob[];
+    activeJobIndex?: number;
     legacyNotes?: string[];
 };
 
@@ -125,6 +139,17 @@ export type CalculationResult = QuoteTotals;
 
 type AnyObject = Record<string, any>;
 
+const EMPTY_WORK_DESCRIPTION_JOB: WorkDescriptionJob = {
+    title: '',
+    context: '',
+    sections: {
+        voorbereiding: [],
+        uitvoering: [],
+        afwerking: [],
+    },
+    legacyNotes: [],
+};
+
 const EMPTY_WORK_DESCRIPTION_STRUCTURED: WorkDescriptionStructured = {
     title: '',
     context: '',
@@ -133,6 +158,8 @@ const EMPTY_WORK_DESCRIPTION_STRUCTURED: WorkDescriptionStructured = {
         uitvoering: [],
         afwerking: [],
     },
+    jobs: [],
+    activeJobIndex: 0,
     legacyNotes: [],
 };
 
@@ -145,21 +172,62 @@ function normalizeWorkDescriptionText(value: unknown): string {
 }
 
 function normalizeWorkDescriptionItems(value: unknown): string[] {
-    if (!Array.isArray(value)) return [];
-    return value
-        .map((item) => {
-            if (typeof item === 'string') return item.trim();
-            if (isObject(item)) {
-                const stap = normalizeWorkDescriptionText(item.stap);
-                if (stap) return stap;
-                const text = normalizeWorkDescriptionText(item.text);
-                if (text) return text;
-                const description = normalizeWorkDescriptionText(item.description);
-                if (description) return description;
+    const flattenValue = (input: unknown, depth = 0): string[] => {
+        if (depth > 4 || input == null) return [];
+        if (typeof input === 'string') {
+            const trimmed = input.trim();
+            if (!trimmed) return [];
+            const parsed = safeJsonParse(trimmed);
+            if (parsed !== trimmed) {
+                return flattenValue(parsed, depth + 1);
             }
-            return '';
-        })
-        .filter(Boolean);
+            return [trimmed];
+        }
+        if (Array.isArray(input)) {
+            return input.flatMap((item) => flattenValue(item, depth + 1));
+        }
+        if (isObject(input)) {
+            const row = input as Record<string, unknown>;
+            const direct =
+                normalizeWorkDescriptionText(row.stap)
+                || normalizeWorkDescriptionText(row.text)
+                || normalizeWorkDescriptionText(row.description);
+            if (direct) return [direct];
+
+            if (Array.isArray(row.jobs)) {
+                return row.jobs.flatMap((job) => {
+                    if (!isObject(job)) return [];
+                    const jobRow = job as Record<string, unknown>;
+                    return flattenValue(jobRow.werkbeschrijving ?? jobRow.sections ?? jobRow, depth + 1);
+                });
+            }
+
+            return flattenValue(
+                row.werkbeschrijving
+                ?? row.output
+                ?? row.result
+                ?? row.sections
+                ?? row.items
+                ?? row.data,
+                depth + 1
+            );
+        }
+        return [];
+    };
+
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((item) => flattenValue(item)).filter(Boolean);
+}
+
+function normalizeLegacyRows(value: unknown): string[] {
+    if (typeof value === 'string') {
+        return value
+            .replace(/\r/g, '\n')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+    }
+    return normalizeWorkDescriptionItems(value);
 }
 
 function toWorkDescriptionSectionKey(input: string): WorkDescriptionSectionKey | null {
@@ -187,7 +255,64 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
             uitvoering: [...value.sections.uitvoering],
             afwerking: [...value.sections.afwerking],
         },
+        jobs: Array.isArray(value.jobs)
+            ? value.jobs.map((job) => ({
+                title: normalizeWorkDescriptionText(job?.title),
+                context: normalizeWorkDescriptionText(job?.context),
+                sections: {
+                    voorbereiding: normalizeWorkDescriptionItems(job?.sections?.voorbereiding),
+                    uitvoering: normalizeWorkDescriptionItems(job?.sections?.uitvoering),
+                    afwerking: normalizeWorkDescriptionItems(job?.sections?.afwerking),
+                },
+                legacyNotes: normalizeWorkDescriptionItems(job?.legacyNotes),
+            }))
+            : [],
+        activeJobIndex: Number.isFinite(Number(value.activeJobIndex))
+            ? Math.max(0, Math.floor(Number(value.activeJobIndex)))
+            : 0,
         legacyNotes: [...(value.legacyNotes || [])],
+    };
+}
+
+function normalizeWorkDescriptionJob(input: unknown): WorkDescriptionJob {
+    if (!isObject(input)) {
+        return {
+            ...EMPTY_WORK_DESCRIPTION_JOB,
+            sections: {
+                voorbereiding: [],
+                uitvoering: [],
+                afwerking: [],
+            },
+            legacyNotes: [],
+        };
+    }
+
+    const row = input as Record<string, unknown>;
+    const sectionsValue = isObject(row.sections) ? row.sections as Record<string, unknown> : {};
+    const fallbackRows = normalizeLegacyRows(
+        row.werkbeschrijving ?? row.stappen ?? row.steps ?? row.uitvoering ?? row.items ?? row.description ?? row.text
+    );
+
+    const voorbereiding = normalizeWorkDescriptionItems(sectionsValue.voorbereiding ?? row.voorbereiding);
+    const uitvoering = normalizeWorkDescriptionItems(
+        sectionsValue.uitvoering
+        ?? row.uitvoering
+        ?? row.werkbeschrijving
+        ?? row.stappen
+        ?? row.steps
+        ?? row.items
+    );
+    const afwerking = normalizeWorkDescriptionItems(sectionsValue.afwerking ?? row.afwerking);
+
+    return {
+        title: normalizeWorkDescriptionText(row.korteTitel ?? row.korte_titel ?? row.title),
+        context: normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving ?? row.context ?? row.samenvatting),
+        sections: {
+            voorbereiding,
+            uitvoering: uitvoering.length > 0 ? uitvoering : fallbackRows,
+            afwerking,
+        },
+        legacyNotes: normalizeWorkDescriptionItems(row.legacyNotes),
     };
 }
 
@@ -199,16 +324,71 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
     const row = input as Record<string, unknown>;
     const sectionsValue = isObject(row.sections) ? row.sections as Record<string, unknown> : {};
 
-    const normalized: WorkDescriptionStructured = {
-        title: normalizeWorkDescriptionText(row.title),
-        context: normalizeWorkDescriptionText(row.context),
+    const jobCandidates: unknown[] = [];
+    if (Array.isArray(row.jobs)) jobCandidates.push(...row.jobs);
+    if (Array.isArray(row.werkbeschrijving_jobs)) jobCandidates.push(...row.werkbeschrijving_jobs);
+    if (Array.isArray(row.werkbeschrijvingJobs)) jobCandidates.push(...row.werkbeschrijvingJobs);
+
+    const normalizedJobs = jobCandidates
+        .map((job) => normalizeWorkDescriptionJob(job))
+        .filter((job) =>
+            job.title
+            || job.context
+            || job.sections.voorbereiding.length > 0
+            || job.sections.uitvoering.length > 0
+            || job.sections.afwerking.length > 0
+            || (job.legacyNotes?.length || 0) > 0
+        );
+
+    const fallbackJob = normalizeWorkDescriptionJob({
+        korteTitel: row.korteTitel ?? row.korte_titel ?? row.title,
+        korteBeschrijving: row.korteBeschrijving ?? row.korte_beschrijving ?? row.context,
         sections: {
-            voorbereiding: normalizeWorkDescriptionItems(sectionsValue.voorbereiding ?? row.voorbereiding),
-            uitvoering: normalizeWorkDescriptionItems(sectionsValue.uitvoering ?? row.uitvoering),
-            afwerking: normalizeWorkDescriptionItems(sectionsValue.afwerking ?? row.afwerking),
+            voorbereiding: sectionsValue.voorbereiding ?? row.voorbereiding,
+            uitvoering: sectionsValue.uitvoering ?? row.uitvoering,
+            afwerking: sectionsValue.afwerking ?? row.afwerking,
         },
+        werkbeschrijving: row.werkbeschrijving ?? row.description ?? row.text ?? row.output,
+        legacyNotes: row.legacyNotes,
+    });
+    const hasFallbackContent =
+        fallbackJob.title
+        || fallbackJob.context
+        || fallbackJob.sections.voorbereiding.length > 0
+        || fallbackJob.sections.uitvoering.length > 0
+        || fallbackJob.sections.afwerking.length > 0
+        || (fallbackJob.legacyNotes?.length || 0) > 0;
+
+    const jobs = normalizedJobs.length > 0
+        ? normalizedJobs
+        : (hasFallbackContent ? [fallbackJob] : []);
+    const resolvedActiveJobIndex = Number.isFinite(Number(row.activeJobIndex))
+        ? Math.max(0, Math.min(Math.floor(Number(row.activeJobIndex)), Math.max(0, jobs.length - 1)))
+        : 0;
+    const activeJob = jobs[resolvedActiveJobIndex] || jobs[0];
+
+    const normalized: WorkDescriptionStructured = {
+        title: normalizeWorkDescriptionText(row.title) || activeJob?.title || '',
+        context: normalizeWorkDescriptionText(row.context) || activeJob?.context || '',
+        sections: {
+            voorbereiding: activeJob
+                ? [...activeJob.sections.voorbereiding]
+                : normalizeWorkDescriptionItems(sectionsValue.voorbereiding ?? row.voorbereiding),
+            uitvoering: activeJob
+                ? [...activeJob.sections.uitvoering]
+                : normalizeWorkDescriptionItems(sectionsValue.uitvoering ?? row.uitvoering),
+            afwerking: activeJob
+                ? [...activeJob.sections.afwerking]
+                : normalizeWorkDescriptionItems(sectionsValue.afwerking ?? row.afwerking),
+        },
+        jobs,
+        activeJobIndex: resolvedActiveJobIndex,
         legacyNotes: normalizeWorkDescriptionItems(row.legacyNotes),
     };
+
+    if ((!normalized.legacyNotes || normalized.legacyNotes.length === 0) && activeJob?.legacyNotes?.length) {
+        normalized.legacyNotes = [...activeJob.legacyNotes];
+    }
 
     return normalized;
 }
@@ -222,13 +402,18 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
         const row = input as Record<string, unknown>;
 
         const directStructured = sanitizeWorkDescriptionStructured(
-            row.werkbeschrijving_structured ?? row.werkbeschrijvingStructured
+            row.werkbeschrijving_structured
+            ?? row.werkbeschrijvingStructured
+            ?? row.werkbeschrijving_jobs
+            ?? row.werkbeschrijvingJobs
+            ?? row.jobs
         );
         const hasStructuredContent = directStructured.title
             || directStructured.context
             || directStructured.sections.voorbereiding.length > 0
             || directStructured.sections.uitvoering.length > 0
             || directStructured.sections.afwerking.length > 0
+            || directStructured.jobs.length > 0
             || (directStructured.legacyNotes?.length || 0) > 0;
 
         if (hasStructuredContent) {
@@ -242,6 +427,27 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
         base.context = normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving ?? row.context);
 
         const legacyRaw = row.werkbeschrijving ?? row.description ?? row.text ?? row.output ?? input;
+        const parsedLegacyRaw = (() => {
+            let current: any = legacyRaw;
+            for (let i = 0; i < 4; i += 1) {
+                if (typeof current !== 'string') return current;
+                const parsed = safeJsonParse(current);
+                if (parsed === current) return parsed;
+                current = parsed;
+            }
+            return current;
+        })();
+
+        if (isObject(parsedLegacyRaw) && Array.isArray((parsedLegacyRaw as any).jobs)) {
+            const fromJobs = sanitizeWorkDescriptionStructured(parsedLegacyRaw);
+            const hasJobs = fromJobs.jobs.length > 0;
+            if (hasJobs) {
+                if (!fromJobs.title) fromJobs.title = base.title;
+                if (!fromJobs.context) fromJobs.context = base.context;
+                return fromJobs;
+            }
+        }
+
         const lines = normalizeWerkbeschrijving(legacyRaw);
         let currentSection: WorkDescriptionSectionKey = 'uitvoering';
 
@@ -258,11 +464,34 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
             base.sections[currentSection].push(cleaned);
         });
 
+        base.jobs = [{
+            title: base.title,
+            context: base.context,
+            sections: {
+                voorbereiding: [...base.sections.voorbereiding],
+                uitvoering: [...base.sections.uitvoering],
+                afwerking: [...base.sections.afwerking],
+            },
+            legacyNotes: [...(base.legacyNotes || [])],
+        }];
+        base.activeJobIndex = 0;
+
         return base;
     }
 
     const lines = normalizeWerkbeschrijving(input);
     base.sections.uitvoering = lines;
+    base.jobs = [{
+        title: base.title,
+        context: base.context,
+        sections: {
+            voorbereiding: [...base.sections.voorbereiding],
+            uitvoering: [...base.sections.uitvoering],
+            afwerking: [...base.sections.afwerking],
+        },
+        legacyNotes: [...(base.legacyNotes || [])],
+    }];
+    base.activeJobIndex = 0;
     return base;
 }
 
@@ -270,6 +499,18 @@ export function flattenStructuredWorkDescription(input: unknown): string[] {
     const structured = sanitizeWorkDescriptionStructured(
         isObject(input) ? input : toStructuredWorkDescription(input)
     );
+
+    if (structured.jobs.length > 0) {
+        return structured.jobs
+            .flatMap((job) => [
+                ...job.sections.voorbereiding,
+                ...job.sections.uitvoering,
+                ...job.sections.afwerking,
+                ...(job.legacyNotes || []),
+            ])
+            .map((line) => String(line || '').trim())
+            .filter(Boolean);
+    }
 
     return [
         ...structured.sections.voorbereiding,
@@ -367,7 +608,27 @@ export function normalizeWerkbeschrijving(input: any): string[] {
 
     // Case 1: Already a flat array of strings
     if (Array.isArray(input) && input.every((x) => typeof x === "string")) {
-        return input;
+        const parseNestedJsonString = (value: string, maxDepth = 4): any => {
+            let current: any = value;
+            for (let i = 0; i < maxDepth; i += 1) {
+                if (typeof current !== 'string') return current;
+                const parsed = safeJsonParse(current);
+                if (parsed === current) return parsed;
+                current = parsed;
+            }
+            return current;
+        };
+
+        const normalized = input.flatMap((row) => {
+            const trimmed = String(row || '').trim();
+            if (!trimmed) return [];
+            const parsed = parseNestedJsonString(trimmed);
+            if (parsed && parsed !== trimmed) {
+                return normalizeWerkbeschrijving(parsed);
+            }
+            return [trimmed];
+        });
+        return normalized;
     }
 
     // Case 2: Array of objects with 'stap' property: [ { stap: "..." }, ... ]
@@ -384,6 +645,11 @@ export function normalizeWerkbeschrijving(input: any): string[] {
     // Case 3: Object with a 'werkbeschrijving' property (the n8n wrap)
     if (isObject(input) && input.werkbeschrijving) {
         return normalizeWerkbeschrijving(input.werkbeschrijving);
+    }
+
+    // Case 3b: Multi-job model
+    if (isObject(input) && Array.isArray(input.jobs)) {
+        return input.jobs.flatMap((job: any) => normalizeWerkbeschrijving(job?.werkbeschrijving ?? job?.sections ?? job));
     }
 
     // Case 4: Structured model
@@ -524,11 +790,16 @@ export function normalizeDataJson(input: any): DataJson {
     const rawInst = findProp(base, 'instellingen');
     const rawExtras = findProp(base, 'extras');
     const rawWerk = findProp(base, 'werkbeschrijving');
+    const rawWerkJobs =
+        findProp(base, 'werkbeschrijving_jobs') ||
+        findProp(base, 'werkbeschrijvingJobs') ||
+        findProp(base, 'jobs');
     const rawWerkStructured =
         findProp(base, 'werkbeschrijving_structured') ||
         findProp(base, 'werkbeschrijvingStructured');
     const structuredWerkbeschrijving = toStructuredWorkDescription({
         werkbeschrijving: rawWerk,
+        werkbeschrijving_jobs: rawWerkJobs,
         werkbeschrijving_structured: rawWerkStructured,
         korteTitel: findProp(base, 'korteTitel') || findProp(base, 'korte_titel'),
         korteBeschrijving: findProp(base, 'korteBeschrijving') || findProp(base, 'korte_beschrijving'),
@@ -632,6 +903,7 @@ export function normalizeDataJson(input: any): DataJson {
         totaal_uren,
         uren_specificatie: urenSpecificatie,
         werkbeschrijving: flattenedWerkbeschrijving,
+        werkbeschrijving_jobs: structuredWerkbeschrijving.jobs,
         werkbeschrijving_structured: structuredWerkbeschrijving,
     };
 }

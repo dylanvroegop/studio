@@ -59,6 +59,19 @@ function buildManualDataJson(quoteData: QuoteDataShape): Record<string, unknown>
         uitvoering: werkomschrijving ? [werkomschrijving] : [],
         afwerking: [],
       },
+      jobs: [
+        {
+          title: '',
+          context: '',
+          sections: {
+            voorbereiding: [],
+            uitvoering: werkomschrijving ? [werkomschrijving] : [],
+            afwerking: [],
+          },
+          legacyNotes: [],
+        },
+      ],
+      activeJobIndex: 0,
       legacyNotes: [],
     },
     klantinformatie: quoteData.klantinformatie ?? null,

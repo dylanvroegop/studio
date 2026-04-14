@@ -63,14 +63,51 @@ function pickFirstString(
 function normalizeStepRows(input: unknown, max = 100): string[] {
   if (!Array.isArray(input)) return [];
   return input
-    .map((entry) => {
-      if (typeof entry === 'string') return entry.trim();
+    .flatMap((entry) => {
+      if (typeof entry === 'string') {
+        const text = entry.trim();
+        if (!text) return '';
+        const parsed = parseJsonDeep(text);
+        if (parsed && parsed !== text) {
+          const nested = extractRowsFromUnknown(parsed);
+          if (nested.length > 0) return nested;
+        }
+        return text;
+      }
       if (!entry || typeof entry !== 'object') return '';
       const row = entry as Record<string, unknown>;
-      return safeString(row.stap) || safeString(row.step) || safeString(row.description) || safeString(row.text);
+      const direct =
+        safeString(row.stap)
+        || safeString(row.step)
+        || safeString(row.description)
+        || safeString(row.text);
+
+      if (direct) {
+        const parsed = parseJsonDeep(direct);
+        if (parsed && parsed !== direct) {
+          const nested = extractRowsFromUnknown(parsed);
+          if (nested.length > 0) return nested;
+        }
+      }
+
+      const nestedRows = extractRowsFromUnknown(row.werkbeschrijving ?? row.output ?? row.data ?? null);
+      if (nestedRows.length > 0) return nestedRows;
+
+      return direct;
     })
     .filter(Boolean)
     .slice(0, max);
+}
+
+function parseJsonDeep(input: string, maxDepth = 4): unknown | null {
+  let current: unknown = input;
+  for (let depth = 0; depth < maxDepth; depth += 1) {
+    if (typeof current !== 'string') return current;
+    const parsed = parseJsonString(current);
+    if (!parsed || parsed === current) return parsed;
+    current = parsed;
+  }
+  return current;
 }
 
 function extractDirectWerkbeschrijving(result: unknown): string[] {
@@ -81,11 +118,12 @@ function extractDirectWerkbeschrijving(result: unknown): string[] {
   if (direct.length > 0) return direct;
 
   if (typeof row.output === 'string' && row.output.trim()) {
-    try {
-      const parsed = JSON.parse(row.output) as { werkbeschrijving?: unknown };
-      return normalizeStepRows(parsed.werkbeschrijving);
-    } catch {
-      return [];
+    const parsed = parseJsonDeep(row.output);
+    if (parsed && typeof parsed === 'object') {
+      const parsedRow = parsed as { werkbeschrijving?: unknown };
+      const parsedDirect = normalizeStepRows(parsedRow.werkbeschrijving);
+      if (parsedDirect.length > 0) return parsedDirect;
+      return extractRowsFromUnknown(parsed);
     }
   }
 
@@ -96,7 +134,10 @@ function hasStructuredContent(value: WorkDescriptionStructured): boolean {
   return Boolean(
     value.title
     || value.context
+    || value.jobs.length > 0
+    || value.sections.voorbereiding.length > 0
     || value.sections.uitvoering.length > 0
+    || value.sections.afwerking.length > 0
     || (value.legacyNotes?.length || 0) > 0
   );
 }
@@ -118,6 +159,7 @@ function extractDirectStructured(result: unknown): WorkDescriptionStructured | n
     output?: unknown;
   };
   let parsedOutput: {
+    jobs?: unknown;
     werkbeschrijving_structured?: unknown;
     werkbeschrijvingStructured?: unknown;
     korteTitel?: unknown;
@@ -127,8 +169,10 @@ function extractDirectStructured(result: unknown): WorkDescriptionStructured | n
     werkbeschrijving?: unknown;
   } | null = null;
   if (typeof row.output === 'string' && row.output.trim()) {
-    try {
-      parsedOutput = JSON.parse(row.output) as {
+    const parsed = parseJsonDeep(row.output);
+    if (parsed && typeof parsed === 'object') {
+      parsedOutput = parsed as {
+        jobs?: unknown;
         werkbeschrijving_structured?: unknown;
         werkbeschrijvingStructured?: unknown;
         korteTitel?: unknown;
@@ -137,7 +181,7 @@ function extractDirectStructured(result: unknown): WorkDescriptionStructured | n
         samenvatting?: unknown;
         werkbeschrijving?: unknown;
       };
-    } catch {
+    } else {
       parsedOutput = null;
     }
   }
@@ -160,24 +204,16 @@ function extractDirectStructured(result: unknown): WorkDescriptionStructured | n
     }
   }
 
-  const n8nRows = extractDirectWerkbeschrijving(row);
   const rowRecord = row as unknown as Record<string, unknown>;
   const parsedRecord = (parsedOutput || {}) as Record<string, unknown>;
-  const n8nTitle = pickFirstString(rowRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title'])
-    || pickFirstString(parsedRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title']);
-  const n8nSummary = pickFirstString(rowRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context'])
-    || pickFirstString(parsedRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context']);
-  if (n8nRows.length > 0 || n8nTitle || n8nSummary) {
-    const structured = toStructuredWorkDescription({
-      korteTitel: n8nTitle,
-      korteBeschrijving: n8nSummary,
-      werkbeschrijving: n8nRows,
-    });
-    if (hasStructuredContent(structured)) return structured;
-  }
 
   if (parsedOutput) {
     try {
+      const structuredFromParsedOutput = sanitizeWorkDescriptionStructured(parsedOutput);
+      if (hasStructuredContent(structuredFromParsedOutput)) {
+        return structuredFromParsedOutput;
+      }
+
       const parsedDirectCandidate = parsedOutput.werkbeschrijving_structured ?? parsedOutput.werkbeschrijvingStructured;
       if (parsedDirectCandidate) {
         const structured = sanitizeWorkDescriptionStructured(parsedDirectCandidate);
@@ -206,6 +242,25 @@ function extractDirectStructured(result: unknown): WorkDescriptionStructured | n
     } catch {
       // ignore malformed JSON output wrapper
     }
+  }
+
+  const structuredFromRow = sanitizeWorkDescriptionStructured(row);
+  if (hasStructuredContent(structuredFromRow)) {
+    return structuredFromRow;
+  }
+
+  const n8nRows = extractDirectWerkbeschrijving(row);
+  const n8nTitle = pickFirstString(rowRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title'])
+    || pickFirstString(parsedRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title']);
+  const n8nSummary = pickFirstString(rowRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context'])
+    || pickFirstString(parsedRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context']);
+  if (n8nRows.length > 0 || n8nTitle || n8nSummary) {
+    const structured = toStructuredWorkDescription({
+      korteTitel: n8nTitle,
+      korteBeschrijving: n8nSummary,
+      werkbeschrijving: n8nRows,
+    });
+    if (hasStructuredContent(structured)) return structured;
   }
 
   return null;
@@ -256,27 +311,95 @@ function toLines(text: string): string[] {
     .filter(Boolean);
 }
 
+function parseJsonString(input: string): unknown | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const candidates = [trimmed];
+  const fencedMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fencedMatch?.[1]) {
+    candidates.push(fencedMatch[1].trim());
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // continue
+    }
+  }
+
+  return null;
+}
+
+function extractRowsFromUnknown(input: unknown): string[] {
+  if (!input) return [];
+  if (Array.isArray(input)) return normalizeStepRows(input, 100);
+  if (typeof input === 'string') {
+    const parsedFromString = parseJsonDeep(input);
+    if (parsedFromString && parsedFromString !== input) {
+      const nestedRows = extractRowsFromUnknown(parsedFromString);
+      if (nestedRows.length > 0) return nestedRows;
+    }
+    return toLines(input);
+  }
+  if (typeof input !== 'object') return [];
+
+  const row = input as Record<string, unknown>;
+
+  const directRows = normalizeStepRows(
+    row.werkbeschrijving ?? row.stappen ?? row.steps ?? row.uitvoering ?? row.items,
+    100
+  );
+  if (directRows.length > 0) return directRows;
+
+  if (Array.isArray(row.jobs)) {
+    const jobStepRows = row.jobs
+      .flatMap((job) => {
+        if (!job || typeof job !== 'object') return [];
+        const jobRow = job as Record<string, unknown>;
+        return normalizeStepRows(jobRow.werkbeschrijving ?? jobRow.steps ?? jobRow.stappen, 100);
+      })
+      .filter(Boolean)
+      .slice(0, 100);
+    if (jobStepRows.length > 0) return jobStepRows;
+
+    const jobRows = row.jobs
+      .map((job) => {
+        if (!job || typeof job !== 'object') return '';
+        const jobRow = job as Record<string, unknown>;
+        return (
+          safeString(jobRow.korteBeschrijving)
+          || safeString(jobRow.beschrijving)
+          || safeString(jobRow.description)
+          || safeString(jobRow.korteTitel)
+          || safeString(jobRow.title)
+        );
+      })
+      .filter(Boolean)
+      .slice(0, 100);
+    if (jobRows.length > 0) return jobRows;
+  }
+
+  const nestedCandidates = [row.output, row.description, row.text, row.result, row.content];
+  for (const candidate of nestedCandidates) {
+    const rows = extractRowsFromUnknown(candidate);
+    if (rows.length > 0) return rows;
+  }
+
+  return [];
+}
+
 function parseWorkDescription(output: string): string[] {
   const directLines = toLines(output);
-  if (directLines.length > 1) return directLines;
+  if (directLines.length > 1 && !output.trim().startsWith('{') && !output.trim().startsWith('[')) {
+    return directLines;
+  }
 
-  try {
-    const parsed = JSON.parse(output) as {
-      werkbeschrijving?: unknown;
-      description?: unknown;
-      text?: unknown;
-      output?: unknown;
-    };
-    const candidate = parsed.werkbeschrijving ?? parsed.description ?? parsed.text ?? parsed.output;
-    if (Array.isArray(candidate)) {
-      return normalizeStepRows(candidate, 100);
-    }
-    if (typeof candidate === 'string') {
-      const lines = toLines(candidate);
-      if (lines.length > 0) return lines;
-    }
-  } catch {
-    // ignore invalid JSON and keep fallback below
+  const parsed = parseJsonDeep(output);
+  if (parsed) {
+    const rows = extractRowsFromUnknown(parsed);
+    if (rows.length > 0) return rows;
   }
 
   return directLines.length > 0 ? directLines : [output.trim()];
@@ -455,6 +578,7 @@ async function persistWorkDescription(
     const merged = {
       ...existingJson,
       werkbeschrijving,
+      ...(werkbeschrijvingStructured?.jobs?.length ? { werkbeschrijving_jobs: werkbeschrijvingStructured.jobs } : {}),
       ...(werkbeschrijvingStructured ? { werkbeschrijving_structured: werkbeschrijvingStructured } : {}),
     };
 
@@ -475,6 +599,7 @@ async function persistWorkDescription(
       status: 'completed',
       data_json: {
         werkbeschrijving,
+        ...(werkbeschrijvingStructured?.jobs?.length ? { werkbeschrijving_jobs: werkbeschrijvingStructured.jobs } : {}),
         ...(werkbeschrijvingStructured ? { werkbeschrijving_structured: werkbeschrijvingStructured } : {}),
       },
     });

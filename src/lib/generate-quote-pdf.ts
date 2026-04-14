@@ -583,45 +583,23 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     // ═══════════════════════════════════════════════════════════════
 
     const structuredWorkDescription = sanitizeWorkDescriptionStructured(data.werkbeschrijvingStructured);
-    const hasStructuredWorkDescription =
-        structuredWorkDescription.sections.voorbereiding.length > 0
-        || structuredWorkDescription.sections.uitvoering.length > 0
-        || structuredWorkDescription.sections.afwerking.length > 0;
+    const structuredJobs = structuredWorkDescription.jobs.length > 0
+        ? structuredWorkDescription.jobs
+        : [{
+            title: structuredWorkDescription.title,
+            context: structuredWorkDescription.context,
+            sections: structuredWorkDescription.sections,
+            legacyNotes: structuredWorkDescription.legacyNotes || [],
+        }];
+    const hasStructuredWorkDescription = structuredJobs.some((job) =>
+        job.sections.voorbereiding.length > 0
+        || job.sections.uitvoering.length > 0
+        || job.sections.afwerking.length > 0
+        || (job.legacyNotes?.length || 0) > 0
+    );
 
     if (data.settings.showFullWerkbeschrijving && data.werkbeschrijvingFull && data.werkbeschrijvingFull.length > 0) {
-        doc.addPage();
-        y = margin;
-
-        drawSectionPageHeader('WERKBESCHRIJVING');
-
-        if (data.korteTitel && data.korteTitel.trim().length > 0) {
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(40, 40, 40);
-            const titleLines = doc.splitTextToSize(data.korteTitel.trim(), pageWidth - (margin * 2));
-            doc.text(titleLines, margin, y);
-            y += titleLines.length * 5 + 4;
-        }
-
-        doc.setFontSize(9);
-        doc.setTextColor(50, 50, 50);
-
-        // Introduction text
-        doc.setFont('helvetica', 'normal');
-        const introText = 'De werkzaamheden worden uitgevoerd volgens onderstaande stappen:';
-        doc.text(introText, margin, y);
-        y += 10;
-
-        const drawSection = (label: string, rows: string[]) => {
-            if (rows.length === 0) return;
-            checkPageBreak(18);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(10);
-            doc.setTextColor(45, 45, 45);
-            doc.text(label, margin, y);
-            y += 6;
-
-            doc.setFontSize(9);
+        const drawStepList = (rows: string[]) => {
             rows.forEach((stap, index) => {
                 checkPageBreak(15);
                 const stepNumber = `${index + 1}.`;
@@ -634,42 +612,120 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                 doc.text(stepText, margin + 10, y);
                 y += Math.max(stepText.length * 4.5, 6) + 2;
             });
-            y += 3;
         };
 
-        if (hasStructuredWorkDescription) {
-            drawSection('VOORBEREIDING', structuredWorkDescription.sections.voorbereiding);
-            drawSection('UITVOERING', structuredWorkDescription.sections.uitvoering);
-            drawSection('AFWERKING', structuredWorkDescription.sections.afwerking);
-        } else {
-            data.werkbeschrijvingFull.forEach((stap, index) => {
-                checkPageBreak(15);
+        if (hasStructuredWorkDescription && structuredJobs.length > 1) {
+            structuredJobs.forEach((job, jobIndex) => {
+                doc.addPage();
+                y = margin;
 
-                const stepNumber = `${index + 1}.`;
-                const stepText = doc.splitTextToSize(stap, pageWidth - margin - 30);
+                drawSectionPageHeader('WERKBESCHRIJVING');
 
+                const jobTitle = String(job.title || '').trim() || `Werkzaamheden ${jobIndex + 1}`;
+                doc.setFontSize(14);
                 doc.setFont('helvetica', 'bold');
-                doc.setTextColor(80, 80, 80);
-                doc.text(stepNumber, margin, y);
+                doc.setTextColor(35, 35, 35);
+                const titleLines = doc.splitTextToSize(jobTitle, pageWidth - (margin * 2));
+                doc.text(titleLines, margin, y);
+                y += titleLines.length * 5.3 + 3;
+
+                const jobContext = String(job.context || '').trim();
+                if (jobContext) {
+                    doc.setFontSize(9);
+                    doc.setFont('helvetica', 'italic');
+                    doc.setTextColor(90, 90, 90);
+                    const contextLines = doc.splitTextToSize(jobContext, pageWidth - (margin * 2));
+                    doc.text(contextLines, margin, y);
+                    y += contextLines.length * 4.3 + 4;
+                }
+
+                drawLine(y);
+                y += 8;
+
+                const rows = [
+                    ...job.sections.voorbereiding,
+                    ...job.sections.uitvoering,
+                    ...job.sections.afwerking,
+                    ...(job.legacyNotes || []),
+                ].map((line) => String(line || '').trim()).filter(Boolean);
 
                 doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9);
                 doc.setTextColor(50, 50, 50);
-                doc.text(stepText, margin + 10, y);
 
-                y += Math.max(stepText.length * 4.5, 6) + 2;
+                if (rows.length > 0) {
+                    drawStepList(rows);
+                } else {
+                    const fallback = doc.splitTextToSize('Geen stappen beschikbaar voor deze klus.', pageWidth - (margin * 2));
+                    doc.text(fallback, margin, y);
+                    y += fallback.length * 4.5 + 2;
+                }
             });
+        } else {
+            doc.addPage();
+            y = margin;
+
+            drawSectionPageHeader('WERKBESCHRIJVING');
+
+            const singleJob = structuredJobs[0];
+            const resolvedTitle = String(singleJob?.title || data.korteTitel || '').trim();
+            if (resolvedTitle) {
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(40, 40, 40);
+                const titleLines = doc.splitTextToSize(resolvedTitle, pageWidth - (margin * 2));
+                doc.text(titleLines, margin, y);
+                y += titleLines.length * 5 + 4;
+            }
+
+            const resolvedContext = String(singleJob?.context || data.korteBeschrijving || '').trim();
+            if (resolvedContext) {
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'italic');
+                doc.setTextColor(90, 90, 90);
+                const contextLines = doc.splitTextToSize(resolvedContext, pageWidth - (margin * 2));
+                doc.text(contextLines, margin, y);
+                y += contextLines.length * 4.3 + 4;
+            }
+
+            doc.setFontSize(9);
+            doc.setTextColor(50, 50, 50);
+            doc.setFont('helvetica', 'normal');
+            const introText = 'De werkzaamheden worden uitgevoerd volgens onderstaande stappen:';
+            doc.text(introText, margin, y);
+            y += 10;
+
+            const drawSection = (label: string, rows: string[]) => {
+                if (rows.length === 0) return;
+                checkPageBreak(18);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(10);
+                doc.setTextColor(45, 45, 45);
+                doc.text(label, margin, y);
+                y += 6;
+                doc.setFontSize(9);
+                drawStepList(rows);
+                y += 3;
+            };
+
+            if (hasStructuredWorkDescription) {
+                drawSection('VOORBEREIDING', singleJob?.sections.voorbereiding || []);
+                drawSection('UITVOERING', singleJob?.sections.uitvoering || []);
+                drawSection('AFWERKING', singleJob?.sections.afwerking || []);
+            } else {
+                drawStepList(data.werkbeschrijvingFull);
+            }
+
+            y += 5;
+            drawLine(y);
+            y += 8;
+
+            doc.setFontSize(8);
+            doc.setTextColor(100, 100, 100);
+            doc.setFont('helvetica', 'italic');
+            const footerNote = 'Bovenstaande werkzaamheden worden vakkundig uitgevoerd volgens de geldende normen en richtlijnen.';
+            doc.text(footerNote, margin, y);
         }
-
-        y += 5;
-        drawLine(y);
-        y += 8;
-
-        // Footer note
-        doc.setFontSize(8);
-        doc.setTextColor(100, 100, 100);
-        doc.setFont('helvetica', 'italic');
-        const footerNote = 'Bovenstaande werkzaamheden worden vakkundig uitgevoerd volgens de geldende normen en richtlijnen.';
-        doc.text(footerNote, margin, y);
     }
 
     // ═══════════════════════════════════════════════════════════════

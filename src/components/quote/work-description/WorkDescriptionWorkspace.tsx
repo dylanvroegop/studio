@@ -1,12 +1,12 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { WorkDescriptionStructured } from '@/lib/quote-calculations';
+import { WorkDescriptionStructured, type WorkDescriptionJob, normalizeWerkbeschrijving } from '@/lib/quote-calculations';
 import { Loader2, Sparkles } from 'lucide-react';
-import { WorkDescriptionPreview } from './WorkDescriptionPreview';
 import { WorkDescriptionSectionEditor } from './WorkDescriptionSectionEditor';
 
 type Mode = 'edit' | 'preview';
@@ -29,17 +29,61 @@ function ensureRows(rows: string[]): string[] {
   return rows.length > 0 ? rows : [''];
 }
 
-function updateSectionRows(
+function normalizeJobs(value: WorkDescriptionStructured): WorkDescriptionJob[] {
+  const normalizeRows = (rows: unknown): string[] => normalizeWerkbeschrijving(rows || []);
+  if (Array.isArray(value.jobs) && value.jobs.length > 0) {
+    return value.jobs.map((job) => ({
+      ...job,
+      title: String(job?.title || ''),
+      context: String(job?.context || ''),
+      sections: {
+        voorbereiding: normalizeRows(job?.sections?.voorbereiding),
+        uitvoering: normalizeRows(job?.sections?.uitvoering),
+        afwerking: normalizeRows(job?.sections?.afwerking),
+      },
+      legacyNotes: normalizeRows(job?.legacyNotes || []),
+    }));
+  }
+  return [{
+    title: value.title || '',
+    context: value.context || '',
+    sections: {
+      voorbereiding: normalizeRows(value.sections?.voorbereiding),
+      uitvoering: normalizeRows(value.sections?.uitvoering),
+      afwerking: normalizeRows(value.sections?.afwerking),
+    },
+    legacyNotes: normalizeRows(value.legacyNotes || []),
+  }];
+}
+
+function clampIndex(index: number, maxExclusive: number): number {
+  if (maxExclusive <= 0) return 0;
+  if (!Number.isFinite(index)) return 0;
+  return Math.max(0, Math.min(Math.floor(index), maxExclusive - 1));
+}
+
+function applyJobUpdate(
   value: WorkDescriptionStructured,
-  section: SectionKey,
-  rows: string[]
+  activeJobIndex: number,
+  updater: (job: WorkDescriptionJob) => WorkDescriptionJob
 ): WorkDescriptionStructured {
+  const jobs = normalizeJobs(value);
+  const clamped = clampIndex(activeJobIndex, jobs.length);
+  const nextJobs = jobs.map((job, index) => (index === clamped ? updater(job) : job));
+  const active = nextJobs[clamped];
+
   return {
     ...value,
+    title: active?.title || '',
+    context: active?.context || '',
     sections: {
-      ...value.sections,
-      [section]: ensureRows(rows),
+      voorbereiding: [...(active?.sections.voorbereiding || [])],
+      uitvoering: [...(active?.sections.uitvoering || [])],
+      afwerking: [...(active?.sections.afwerking || [])],
     },
+    legacyNotes: [...(active?.legacyNotes || [])],
+    jobs: nextJobs,
+    activeJobIndex: clamped,
   };
 }
 
@@ -51,29 +95,76 @@ export function WorkDescriptionWorkspace({
   onGenerate,
   isGenerating,
   isAutoSaving,
-  templateLabel,
-  onApplyTemplate,
 }: WorkDescriptionWorkspaceProps) {
   const showDevTools = process.env.NODE_ENV === 'development';
+  const jobs = useMemo(() => normalizeJobs(value), [value]);
+  const [activeJobIndexLocal, setActiveJobIndexLocal] = useState<number>(() => clampIndex(value.activeJobIndex ?? 0, jobs.length));
+  const activeJobIndex = clampIndex(activeJobIndexLocal, jobs.length);
+  const activeJob = jobs[activeJobIndex];
+  const showJobTabs = jobs.length > 1;
+
+  useEffect(() => {
+    setActiveJobIndexLocal((prev) => clampIndex(value.activeJobIndex ?? prev, jobs.length));
+  }, [value.activeJobIndex, jobs.length]);
+
+  useEffect(() => {
+    if (mode === 'preview') onModeChange('edit');
+  }, [mode, onModeChange]);
+
+  const setActiveJobIndex = (nextIndex: number) => {
+    const clamped = clampIndex(nextIndex, jobs.length);
+    setActiveJobIndexLocal(clamped);
+    onChange({
+      ...value,
+      title: jobs[clamped]?.title || '',
+      context: jobs[clamped]?.context || '',
+      sections: {
+        voorbereiding: [...(jobs[clamped]?.sections.voorbereiding || [])],
+        uitvoering: [...(jobs[clamped]?.sections.uitvoering || [])],
+        afwerking: [...(jobs[clamped]?.sections.afwerking || [])],
+      },
+      legacyNotes: [...(jobs[clamped]?.legacyNotes || [])],
+      jobs,
+      activeJobIndex: clamped,
+    });
+  };
 
   const updateSectionRow = (section: SectionKey, index: number, rowValue: string) => {
-    const currentRows = [...value.sections[section]];
+    const currentRows = [...(activeJob?.sections?.[section] || [])];
     currentRows[index] = rowValue;
-    onChange(updateSectionRows(value, section, currentRows));
+    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
+      ...job,
+      sections: {
+        ...job.sections,
+        [section]: ensureRows(currentRows),
+      },
+    })));
   };
 
   const addSectionRow = (section: SectionKey) => {
-    const currentRows = [...value.sections[section], ''];
-    onChange(updateSectionRows(value, section, currentRows));
+    const currentRows = [...(activeJob?.sections?.[section] || []), ''];
+    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
+      ...job,
+      sections: {
+        ...job.sections,
+        [section]: ensureRows(currentRows),
+      },
+    })));
   };
 
   const removeSectionRow = (section: SectionKey, index: number) => {
-    const currentRows = value.sections[section].filter((_, rowIndex) => rowIndex !== index);
-    onChange(updateSectionRows(value, section, currentRows));
+    const currentRows = (activeJob?.sections?.[section] || []).filter((_, rowIndex) => rowIndex !== index);
+    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
+      ...job,
+      sections: {
+        ...job.sections,
+        [section]: ensureRows(currentRows),
+      },
+    })));
   };
 
   const moveSectionRow = (section: SectionKey, index: number, direction: 'up' | 'down') => {
-    const rows = [...value.sections[section]];
+    const rows = [...(activeJob?.sections?.[section] || [])];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= rows.length) return;
 
@@ -81,23 +172,56 @@ export function WorkDescriptionWorkspace({
     rows[index] = rows[targetIndex];
     rows[targetIndex] = temp;
 
-    onChange(updateSectionRows(value, section, rows));
+    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
+      ...job,
+      sections: {
+        ...job.sections,
+        [section]: ensureRows(rows),
+      },
+    })));
   };
 
   const clearAllSectionsKeepTitleAndContext = () => {
-    onChange({
-      ...value,
+    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
+      ...job,
       sections: {
         voorbereiding: [],
         uitvoering: [],
         afwerking: [],
       },
       legacyNotes: [],
-    });
+    })));
   };
 
   return (
     <div className="space-y-4">
+      {showJobTabs ? (
+        <div className="rounded-xl border border-border/70 bg-muted/20 p-2">
+          <div className="mb-2 px-1 text-xs font-medium tracking-wide text-muted-foreground">Klussen</div>
+          <div className="flex flex-wrap gap-1.5">
+            {jobs.map((job, index) => {
+              const isActive = index === activeJobIndex;
+              return (
+                <button
+                  key={`work-job-tab-${index}`}
+                  type="button"
+                  onClick={() => setActiveJobIndex(index)}
+                  className={[
+                    'inline-flex max-w-full items-center rounded-lg border px-3 py-1.5 text-sm transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                    isActive
+                      ? 'border-emerald-400/60 bg-emerald-500/15 text-emerald-100 shadow-[inset_0_-2px_0_rgba(52,211,153,0.65)]'
+                      : 'border-border/60 bg-background/60 text-muted-foreground hover:bg-background hover:text-foreground',
+                  ].join(' ')}
+                >
+                  <span className="truncate">{job.title.trim() || `Klus ${index + 1}`}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
       <Card className="border border-border bg-card/50">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Werkbeschrijving</CardTitle>
@@ -107,8 +231,8 @@ export function WorkDescriptionWorkspace({
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Hoofdtitel</Label>
               <Input
-                value={value.title}
-                onChange={(e) => onChange({ ...value, title: e.target.value })}
+                value={activeJob?.title || ''}
+                onChange={(e) => onChange(applyJobUpdate(value, activeJobIndex, (job) => ({ ...job, title: e.target.value })))}
                 placeholder="Bijv. Dakisolatie woning"
                 className="h-9"
               />
@@ -116,8 +240,8 @@ export function WorkDescriptionWorkspace({
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Korte context / samenvatting (optioneel)</Label>
               <Input
-                value={value.context}
-                onChange={(e) => onChange({ ...value, context: e.target.value })}
+                value={activeJob?.context || ''}
+                onChange={(e) => onChange(applyJobUpdate(value, activeJobIndex, (job) => ({ ...job, context: e.target.value })))}
                 placeholder="Bijv. renovatie zolderverdieping"
                 className="h-9"
               />
@@ -125,35 +249,13 @@ export function WorkDescriptionWorkspace({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant={mode === 'edit' ? 'secondary' : 'outline'}
-                size="sm"
-                onClick={() => onModeChange('edit')}
-              >
-                Bewerken
-              </Button>
-              <Button
-                type="button"
-                variant={mode === 'preview' ? 'secondary' : 'outline'}
-                size="sm"
-                onClick={() => onModeChange('preview')}
-              >
-                Preview
-              </Button>
-            </div>
+            <div />
 
             <div className="flex items-center gap-2">
               <Button type="button" variant="success" size="sm" onClick={() => onGenerate('full')} disabled={isGenerating}>
                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                 Genereer werkbeschrijving
               </Button>
-              {templateLabel && onApplyTemplate ? (
-                <Button type="button" variant="outline" size="sm" onClick={onApplyTemplate}>
-                  Template toepassen ({templateLabel})
-                </Button>
-              ) : null}
               {showDevTools ? (
                 <Button
                   type="button"
@@ -173,21 +275,17 @@ export function WorkDescriptionWorkspace({
         </CardContent>
       </Card>
 
-      {mode === 'preview' ? (
-        <WorkDescriptionPreview value={value} />
-      ) : (
-        <div className="space-y-3">
-          <WorkDescriptionSectionEditor
-            title="Uitvoering"
-            rows={ensureRows(value.sections.uitvoering)}
-            placeholder="Bijv. Isolatiemateriaal plaatsen volgens maatvoering"
-            onChangeRow={(index, rowValue) => updateSectionRow('uitvoering', index, rowValue)}
-            onAddRow={() => addSectionRow('uitvoering')}
-            onRemoveRow={(index) => removeSectionRow('uitvoering', index)}
-            onMoveRow={(index, direction) => moveSectionRow('uitvoering', index, direction)}
-          />
-        </div>
-      )}
+      <div className="space-y-3">
+        <WorkDescriptionSectionEditor
+          title="Uitvoering"
+          rows={ensureRows(activeJob?.sections?.uitvoering || [])}
+          placeholder="Bijv. Isolatiemateriaal plaatsen volgens maatvoering"
+          onChangeRow={(index, rowValue) => updateSectionRow('uitvoering', index, rowValue)}
+          onAddRow={() => addSectionRow('uitvoering')}
+          onRemoveRow={(index) => removeSectionRow('uitvoering', index)}
+          onMoveRow={(index, direction) => moveSectionRow('uitvoering', index, direction)}
+        />
+      </div>
     </div>
   );
 }
