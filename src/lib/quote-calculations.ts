@@ -890,10 +890,83 @@ export function normalizeDataJson(input: any): DataJson {
         ? totaalUrenCandidate
         : urenSpecificatie.reduce((sum: number, it: any) => sum + toNumber(it.uren, 0), 0);
 
+    const resolveSmallMaterialAmount = (value: any): number | null => {
+        const parsePositive = (inputValue: any): number | null => {
+            const parsed = toNumber(inputValue, Number.NaN);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+        };
+
+        if (value == null) return null;
+
+        const direct = parsePositive(value);
+        if (direct !== null) return direct;
+
+        if (!isObject(value)) return null;
+
+        const numericKeys = [
+            'totaal',
+            'total',
+            'amount',
+            'waarde',
+            'value',
+            'prijs',
+            'prijs_per_stuk',
+            'prijs_excl_btw',
+            'prijsExclBtw',
+            'kosten',
+            'subtotaal',
+            'subtotal',
+        ];
+
+        for (const key of numericKeys) {
+            if (!(key in value)) continue;
+            const parsed = parsePositive((value as AnyObject)[key]);
+            if (parsed !== null) return parsed;
+        }
+
+        return null;
+    };
+
+    const normalizedGrootMaterialen = normalizeMaterialen((base as any).grootmaterialen);
+    const normalizedVerbruiksartikelen = normalizeVerbruiksartikelen((base as any).verbruiksartikelen);
+    let resolvedVerbruiksartikelen = normalizedVerbruiksartikelen;
+
+    if (resolvedVerbruiksartikelen.length === 0) {
+        const fallbackSmallMaterialCandidates = [
+            findProp(base, 'kleinMateriaal'),
+            findProp(base, 'klein_materiaal'),
+            findProp(base, 'kleinMateriaalTotaal'),
+            findProp(base, 'klein_materiaal_totaal'),
+            findProp(base, 'verbruiksartikelen_totaal'),
+            findProp(base, 'verbruiksmaterialen_totaal'),
+        ];
+
+        for (const candidate of fallbackSmallMaterialCandidates) {
+            if (candidate == null) continue;
+
+            const nestedVerbruik = normalizeVerbruiksartikelen(candidate);
+            if (nestedVerbruik.length > 0) {
+                resolvedVerbruiksartikelen = nestedVerbruik;
+                break;
+            }
+
+            const amount = resolveSmallMaterialAmount(candidate);
+            if (amount !== null) {
+                resolvedVerbruiksartikelen = [{
+                    product: 'Klein materiaal (samengevat)',
+                    aantal: 1,
+                    prijs_per_stuk: Number(amount.toFixed(2)),
+                    toelichting: 'Samengevat totaal uit calculatie.',
+                }];
+                break;
+            }
+        }
+    }
+
     return {
         ...base,
-        grootmaterialen: normalizeMaterialen((base as any).grootmaterialen),
-        verbruiksartikelen: normalizeVerbruiksartikelen((base as any).verbruiksartikelen),
+        grootmaterialen: normalizedGrootMaterialen,
+        verbruiksartikelen: resolvedVerbruiksartikelen,
         klantinformatie: safeJsonParse(rawKlant),
         instellingen: safeJsonParse(rawInst),
         extras: safeJsonParse(rawExtras),

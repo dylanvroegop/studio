@@ -24,6 +24,7 @@ type KlusRegelsRow = {
 };
 
 type N8nWebhookTarget = 'test' | 'production';
+type N8nWebhookRequestedTarget = N8nWebhookTarget | 'auto';
 
 /** Firebase Admin via ADC (werkt op Firebase App Hosting)*/
 function krijgFirebaseAdminApp() {
@@ -272,8 +273,10 @@ function isTestWebhookNietActief(status: number, body: string): boolean {
 
 const DEFAULT_TEST_WEBHOOK_URL = 'https://n8n.srv1553475.hstgr.cloud/webhook-test/offerte-test';
 
-function resolveWebhookTarget(value: unknown): N8nWebhookTarget {
-  return value === 'test' ? 'test' : 'production';
+function resolveWebhookTarget(value: unknown): N8nWebhookRequestedTarget {
+  if (value === 'test') return 'test';
+  if (value === 'production') return 'production';
+  return 'auto';
 }
 
 function getWebhookUrlForTarget(target: N8nWebhookTarget): string {
@@ -296,7 +299,7 @@ function getWebhookUrlForTarget(target: N8nWebhookTarget): string {
   return DEFAULT_TEST_WEBHOOK_URL;
 }
 
-async function postN8n(payload: unknown, secret: string, target: N8nWebhookTarget): Promise<void> {
+async function postN8nForTarget(payload: unknown, secret: string, target: N8nWebhookTarget): Promise<void> {
   const webhookUrl = getWebhookUrlForTarget(target);
 
   const headers = {
@@ -326,6 +329,31 @@ async function postN8n(payload: unknown, secret: string, target: N8nWebhookTarge
       throw new Error(`n8n test webhook niet actief (${result.status}).`);
     }
     throw new Error(`n8n ${target} error ${result.status}: ${result.text}`);
+  }
+}
+
+async function postN8n(
+  payload: unknown,
+  secret: string,
+  target: N8nWebhookRequestedTarget
+): Promise<{ webhookTargetUsed: N8nWebhookTarget; fallbackFrom?: N8nWebhookTarget }> {
+  if (target === 'test' || target === 'production') {
+    await postN8nForTarget(payload, secret, target);
+    return { webhookTargetUsed: target };
+  }
+
+  try {
+    await postN8nForTarget(payload, secret, 'test');
+    return { webhookTargetUsed: 'test' };
+  } catch (testError) {
+    try {
+      await postN8nForTarget(payload, secret, 'production');
+      return { webhookTargetUsed: 'production', fallbackFrom: 'test' };
+    } catch (productionError) {
+      const testMessage = String((testError as { message?: unknown } | null)?.message ?? testError ?? 'Onbekende test-fout');
+      const productionMessage = String((productionError as { message?: unknown } | null)?.message ?? productionError ?? 'Onbekende production-fout');
+      throw new Error(`n8n auto fallback mislukt. Test: ${testMessage} | Production: ${productionMessage}`);
+    }
   }
 }
 
@@ -1230,7 +1258,7 @@ export async function POST(req: Request) {
       bedrijf,
     };
 
-    await postN8n(payload, process.env.N8N_HEADER_SECRET, webhookTarget);
+    const webhookResult = await postN8n(payload, process.env.N8N_HEADER_SECRET, webhookTarget);
 
     // Best effort: sync totaal direct to Firestore so quotes list stays up-to-date.
     await syncQuoteTotalsFromSupabase(db, quoteId, uid);
@@ -1244,7 +1272,11 @@ export async function POST(req: Request) {
       quotaReservationUid = null;
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      webhookTargetUsed: webhookResult.webhookTargetUsed,
+      fallbackFrom: webhookResult.fallbackFrom || null,
+    });
   } catch (e: any) {
     if (quotaReservationId && quotaReservationUid) {
       try {

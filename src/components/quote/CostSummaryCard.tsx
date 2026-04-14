@@ -17,7 +17,7 @@ interface CostSummaryCardProps {
     onUpdateWinstMargeAmountExcl?: (value: number) => void;
 }
 
-import { useState, type FocusEvent } from 'react';
+import { useState, type FocusEvent, type ReactNode } from 'react';
 import { Input } from '@/components/ui/input';
 import { Pencil } from 'lucide-react';
 
@@ -134,6 +134,21 @@ export function CostSummaryCard({
     const totaalExclZonderMarge = totals ? totals.subtotaalExclBtw : 0;
     const winstMargeExclBtw = totals ? totals.winstMarge : 0;
     const btwMetMarge = totals ? totals.btw : 0;
+    const vatMultiplier = 1 + (Number(settings?.btwTarief) || 0) / 100;
+    const amountGridClass = 'grid w-[190px] sm:w-[260px] grid-cols-2 gap-3 sm:gap-4 text-right';
+    const winstMargeBasisLabel =
+        settings?.extras?.winstMarge?.basis === 'materiaal'
+            ? 'over materialen'
+            : settings?.extras?.winstMarge?.basis === 'arbeid'
+                ? 'over arbeid'
+                : 'over totaal';
+    const formatIncl = (exclValue: number): string => formatCurrency(exclValue * vatMultiplier);
+    const renderAmountColumns = (exclNode: ReactNode, inclValue: number, inclClassName: string = 'text-foreground') => (
+        <div className={amountGridClass}>
+            <div className="text-foreground">{exclNode}</div>
+            <div className={inclClassName}>{formatIncl(inclValue)}</div>
+        </div>
+    );
 
     if (!totals || !settings) {
         return (
@@ -150,88 +165,103 @@ export function CostSummaryCard({
                 <Euro size={14} />
                 KOSTENOVERZICHT
             </h3>
+            <div className="mb-3 flex justify-end">
+                <div className={`${amountGridClass} text-[11px] uppercase tracking-wide text-muted-foreground`}>
+                    <span>Excl. btw</span>
+                    <span>Incl. btw</span>
+                </div>
+            </div>
 
             <div className="space-y-4">
                 <div className="rounded-lg border border-border p-3 space-y-2 bg-background/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Materialen (groot)</span>
-                        {editingField === 'groot' ? (
-                            <Input
-                                autoFocus
-                                type="text"
-                                value={tempFieldValue}
-                                onChange={(e) => setTempFieldValue(e.target.value)}
-                                onBlur={saveEditingAmount}
-                                onFocus={selectAllOnFocus}
-                                className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') saveEditingAmount();
-                                    if (e.key === 'Escape') cancelEditingAmount();
-                                }}
-                            />
-                        ) : (
-                            <button
-                                type="button"
-                                className="text-foreground flex items-center gap-1 hover:text-primary transition-colors"
-                                onClick={() => startEditingAmount('groot', totals.materialenGroot)}
-                            >
-                                {formatCurrency(totals.materialenGroot)}
-                                <Pencil size={12} className="text-muted-foreground" />
-                            </button>
+                        {renderAmountColumns(
+                            editingField === 'groot' ? (
+                                <Input
+                                    autoFocus
+                                    type="text"
+                                    value={tempFieldValue}
+                                    onChange={(e) => setTempFieldValue(e.target.value)}
+                                    onBlur={saveEditingAmount}
+                                    onFocus={selectAllOnFocus}
+                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveEditingAmount();
+                                        if (e.key === 'Escape') cancelEditingAmount();
+                                    }}
+                                />
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
+                                    onClick={() => startEditingAmount('groot', totals.materialenGroot)}
+                                >
+                                    {formatCurrency(totals.materialenGroot)}
+                                    <Pencil size={12} className="text-muted-foreground" />
+                                </button>
+                            ),
+                            totals.materialenGroot
                         )}
                     </div>
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Verbruiksartikelen</span>
-                        {editingField === 'verbruik' ? (
-                            <Input
-                                autoFocus
-                                type="text"
-                                value={tempFieldValue}
-                                onChange={(e) => setTempFieldValue(e.target.value)}
-                                onBlur={saveEditingAmount}
-                                onFocus={selectAllOnFocus}
-                                className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') saveEditingAmount();
-                                    if (e.key === 'Escape') cancelEditingAmount();
-                                }}
-                            />
-                        ) : (
-                            <button
-                                type="button"
-                                className="text-foreground flex items-center gap-1 hover:text-primary transition-colors"
-                                onClick={() => startEditingAmount('verbruik', totals.materialenVerbruik)}
-                            >
-                                {formatCurrency(totals.materialenVerbruik)}
-                                <Pencil size={12} className="text-muted-foreground" />
-                            </button>
+                        {renderAmountColumns(
+                            editingField === 'verbruik' ? (
+                                <Input
+                                    autoFocus
+                                    type="text"
+                                    value={tempFieldValue}
+                                    onChange={(e) => setTempFieldValue(e.target.value)}
+                                    onBlur={saveEditingAmount}
+                                    onFocus={selectAllOnFocus}
+                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveEditingAmount();
+                                        if (e.key === 'Escape') cancelEditingAmount();
+                                    }}
+                                />
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
+                                    onClick={() => startEditingAmount('verbruik', totals.materialenVerbruik)}
+                                >
+                                    {formatCurrency(totals.materialenVerbruik)}
+                                    <Pencil size={12} className="text-muted-foreground" />
+                                </button>
+                            ),
+                            totals.materialenVerbruik
                         )}
                     </div>
                     <div className="border-t border-border pt-2 flex justify-between text-sm">
                         <span className="text-muted-foreground">Subtotaal materialen</span>
-                        {editingField === 'subtotaal' ? (
-                            <Input
-                                autoFocus
-                                type="text"
-                                value={tempFieldValue}
-                                onChange={(e) => setTempFieldValue(e.target.value)}
-                                onBlur={saveEditingAmount}
-                                onFocus={selectAllOnFocus}
-                                className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') saveEditingAmount();
-                                    if (e.key === 'Escape') cancelEditingAmount();
-                                }}
-                            />
-                        ) : (
-                            <button
-                                type="button"
-                                className="text-foreground flex items-center gap-1 hover:text-primary transition-colors"
-                                onClick={() => startEditingAmount('subtotaal', totals.materialenTotaal)}
-                            >
-                                {formatCurrency(totals.materialenTotaal)}
-                                <Pencil size={12} className="text-muted-foreground" />
-                            </button>
+                        {renderAmountColumns(
+                            editingField === 'subtotaal' ? (
+                                <Input
+                                    autoFocus
+                                    type="text"
+                                    value={tempFieldValue}
+                                    onChange={(e) => setTempFieldValue(e.target.value)}
+                                    onBlur={saveEditingAmount}
+                                    onFocus={selectAllOnFocus}
+                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveEditingAmount();
+                                        if (e.key === 'Escape') cancelEditingAmount();
+                                    }}
+                                />
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
+                                    onClick={() => startEditingAmount('subtotaal', totals.materialenTotaal)}
+                                >
+                                    {formatCurrency(totals.materialenTotaal)}
+                                    <Pencil size={12} className="text-muted-foreground" />
+                                </button>
+                            ),
+                            totals.materialenTotaal
                         )}
                     </div>
                 </div>
@@ -298,7 +328,10 @@ export function CostSummaryCard({
                             )}
                             <span className="text-xs text-muted-foreground ml-1">excl. btw</span>)
                         </span>
-                        <span className="text-foreground">{formatCurrency(totals.arbeidTotaal)}</span>
+                        {renderAmountColumns(
+                            <span>{formatCurrency(totals.arbeidTotaal)}</span>,
+                            totals.arbeidTotaal
+                        )}
                     </div>
                 </div>
 
@@ -317,29 +350,32 @@ export function CostSummaryCard({
                                 totaal reistijd per klus; {totalTravelHoursPerKlus.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} uur
                             </span>
                         </span>
-                        {editingField === 'transport' ? (
-                            <Input
-                                autoFocus
-                                type="text"
-                                value={tempFieldValue}
-                                onChange={(e) => setTempFieldValue(e.target.value)}
-                                onBlur={saveEditingAmount}
-                                onFocus={selectAllOnFocus}
-                                className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') saveEditingAmount();
-                                    if (e.key === 'Escape') cancelEditingAmount();
-                                }}
-                            />
-                        ) : (
-                            <button
-                                type="button"
-                                className="text-foreground flex items-center gap-1 hover:text-primary transition-colors"
-                                onClick={() => startEditingAmount('transport', totals.transportTotaal)}
-                            >
-                                {formatCurrency(totals.transportTotaal)}
-                                <Pencil size={12} className="text-muted-foreground" />
-                            </button>
+                        {renderAmountColumns(
+                            editingField === 'transport' ? (
+                                <Input
+                                    autoFocus
+                                    type="text"
+                                    value={tempFieldValue}
+                                    onChange={(e) => setTempFieldValue(e.target.value)}
+                                    onBlur={saveEditingAmount}
+                                    onFocus={selectAllOnFocus}
+                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveEditingAmount();
+                                        if (e.key === 'Escape') cancelEditingAmount();
+                                    }}
+                                />
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
+                                    onClick={() => startEditingAmount('transport', totals.transportTotaal)}
+                                >
+                                    {formatCurrency(totals.transportTotaal)}
+                                    <Pencil size={12} className="text-muted-foreground" />
+                                </button>
+                            ),
+                            totals.transportTotaal
                         )}
                     </div>
                 </div>
@@ -349,7 +385,10 @@ export function CostSummaryCard({
                 <div className="rounded-lg border border-border p-3 space-y-2 bg-background/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Totaal excl. BTW</span>
-                        <span className="text-foreground">{formatCurrency(totaalExclZonderMarge)}</span>
+                        {renderAmountColumns(
+                            <span>{formatCurrency(totaalExclZonderMarge)}</span>,
+                            totaalExclZonderMarge
+                        )}
                     </div>
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">
@@ -380,42 +419,46 @@ export function CostSummaryCard({
                                             <Pencil size={12} className="text-muted-foreground" />
                                         </button>
                                     )}
-                                    over totaal)
-                                    {settings.extras.winstMarge.basis === 'materiaal' && <span className="text-xs text-muted-foreground ml-1">(over materialen)</span>}
-                                    {settings.extras.winstMarge.basis === 'arbeid' && <span className="text-xs text-muted-foreground ml-1">(over arbeid)</span>}
+                                    {winstMargeBasisLabel})
                                 </>
                             ) : (
                                 <>Winstmarge (vast)</>
                             )}
                         </span>
-                        {editingField === 'margeAmount' ? (
-                            <Input
-                                autoFocus
-                                type="text"
-                                value={tempFieldValue}
-                                onChange={(e) => setTempFieldValue(e.target.value)}
-                                onBlur={saveEditingAmount}
-                                onFocus={selectAllOnFocus}
-                                className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') saveEditingAmount();
-                                    if (e.key === 'Escape') cancelEditingAmount();
-                                }}
-                            />
-                        ) : (
-                            <button
-                                type="button"
-                                className="text-foreground flex items-center gap-1 hover:text-primary transition-colors"
-                                onClick={() => startEditingAmount('margeAmount', winstMargeExclBtw)}
-                            >
-                                {formatCurrency(winstMargeExclBtw)}
-                                <Pencil size={12} className="text-muted-foreground" />
-                            </button>
+                        {renderAmountColumns(
+                            editingField === 'margeAmount' ? (
+                                <Input
+                                    autoFocus
+                                    type="text"
+                                    value={tempFieldValue}
+                                    onChange={(e) => setTempFieldValue(e.target.value)}
+                                    onBlur={saveEditingAmount}
+                                    onFocus={selectAllOnFocus}
+                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveEditingAmount();
+                                        if (e.key === 'Escape') cancelEditingAmount();
+                                    }}
+                                />
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
+                                    onClick={() => startEditingAmount('margeAmount', winstMargeExclBtw)}
+                                >
+                                    {formatCurrency(winstMargeExclBtw)}
+                                    <Pencil size={12} className="text-muted-foreground" />
+                                </button>
+                            ),
+                            winstMargeExclBtw
                         )}
                     </div>
                     <div className="border-t border-border pt-2 flex justify-between text-sm">
                         <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
-                        <span className="text-foreground">{formatCurrency(btwMetMarge)}</span>
+                        {renderAmountColumns(
+                            <span>{formatCurrency(btwMetMarge)}</span>,
+                            btwMetMarge
+                        )}
                     </div>
                 </div>
 

@@ -16,7 +16,6 @@ import {
     flattenStructuredWorkDescription,
     type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
-import { ClientInfoCard } from '@/components/quote/ClientInfoCard';
 import { CostSummaryCard } from '@/components/quote/CostSummaryCard';
 import { MaterialEditor } from '@/components/quote/MaterialEditor';
 import { LaborBreakdown } from '@/components/quote/LaborBreakdown';
@@ -3307,6 +3306,7 @@ export default function QuotePage() {
             const offerteNummer = sanitizeFileNamePart(data.offerteNummer || 'CONCEPT');
             const klantNaam = sanitizeFileNamePart(data.klant?.naam || '');
             downloadBlobWithName(pdfBlob, getQuotePdfFileName(klantNaam, offerteNummer));
+            await handleMarkQuoteAsSent();
         } catch (err) {
             console.error("Error generating PDF:", err);
             const error = err instanceof Error ? err : new Error('Kon PDF niet genereren');
@@ -3767,7 +3767,7 @@ export default function QuotePage() {
         });
     }, [firestore, id, quote?.status, hasCalculationResult, supabaseCalculationInProgress]);
 
-    const handleRetryCalculation = async (webhookTarget: 'test' | 'production' = 'production'): Promise<boolean> => {
+    const handleRetryCalculation = async (webhookTarget: 'auto' | 'test' | 'production' = 'auto'): Promise<boolean> => {
         if (!user || isRetryingCalculation) return false;
 
         setIsRetryingCalculation(true);
@@ -3808,11 +3808,24 @@ export default function QuotePage() {
                     : prev
             ));
 
+            const usedTarget = payload?.webhookTargetUsed === 'test' || payload?.webhookTargetUsed === 'production'
+                ? payload.webhookTargetUsed
+                : null;
+            const usedFallback = payload?.fallbackFrom === 'test' && usedTarget === 'production';
+
             toast({
                 title: 'Calculatie opnieuw gestart',
-                description: webhookTarget === 'test'
-                    ? 'We sturen de berekening naar de TEST webhook.'
-                    : 'We sturen de berekening naar de PRODUCTION webhook.',
+                description: usedFallback
+                    ? 'TEST webhook faalde, doorgestuurd naar PRODUCTION webhook.'
+                    : usedTarget === 'test'
+                        ? 'We sturen de berekening naar de TEST webhook.'
+                        : usedTarget === 'production'
+                            ? 'We sturen de berekening naar de PRODUCTION webhook.'
+                            : webhookTarget === 'test'
+                                ? 'We sturen de berekening naar de TEST webhook.'
+                                : webhookTarget === 'production'
+                                    ? 'We sturen de berekening naar de PRODUCTION webhook.'
+                                    : 'Eerst TEST webhook geprobeerd; fallback naar PRODUCTION indien nodig.',
             });
             return true;
         } catch (err: any) {
@@ -4690,7 +4703,7 @@ export default function QuotePage() {
                 </div>
             </header>
 
-            <main className="mobile-calm mx-auto max-w-7xl p-4 pb-28 sm:p-6 sm:pb-10">
+            <main className="mobile-calm mx-auto max-w-7xl px-4 pt-1 pb-28 sm:px-6 sm:pt-2 sm:pb-10">
                 {error ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
                         <div className="text-red-400 font-medium">Fout bij laden: {error}</div>
@@ -5292,42 +5305,31 @@ export default function QuotePage() {
                                 </div>
                             ) : (
                                 <div className="space-y-6">
-                                    {/* Top row: Client + Cost Summary */}
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                        <ClientInfoCard
-                                            klantInfo={klantInfo}
-                                            onEditClient={openClientEditor}
-                                        />
-                                        <div className="lg:col-span-2 flex flex-col gap-4">
-
-                                            <CostSummaryCard
-                                                totals={totals}
-                                                settings={quoteSettings}
-                                                totalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
-                                                onUpdateHourlyRate={(newRate) => {
-                                                    if (!quoteSettings) return;
-                                                    handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
-                                                }}
-                                                onUpdateTotalHours={async (newHours) => {
-                                                    if (!calculation) return;
-                                                    // Assuming we can just update the total, note: this might desync from uren_specificatie
-                                                    // but since user explicitly requested editing total hours, we allow it.
-                                                    const root = unwrapRoot(calculation.data_json);
-                                                    await updateDataJson({
-                                                        ...root,
-                                                        totaal_uren: newHours,
-                                                    });
-                                                }}
-                                                onUpdateMaterialenGrootTotal={handleUpdateMaterialenGrootTotal}
-                                                onUpdateMaterialenVerbruikTotal={handleUpdateMaterialenVerbruikTotal}
-                                                onUpdateMaterialenSubtotal={handleUpdateMaterialenSubtotal}
-                                                onUpdateTransportTotal={handleUpdateTransportTotal}
-                                                onUpdateWinstMargePercentage={handleUpdateWinstMargePercentage}
-                                                onUpdateWinstMargeAmountExcl={handleUpdateWinstMargeAmountExcl}
-                                            />
-                                        </div>
-                                    </div>
-
+                                    <CostSummaryCard
+                                        totals={totals}
+                                        settings={quoteSettings}
+                                        totalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
+                                        onUpdateHourlyRate={(newRate) => {
+                                            if (!quoteSettings) return;
+                                            handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
+                                        }}
+                                        onUpdateTotalHours={async (newHours) => {
+                                            if (!calculation) return;
+                                            // Assuming we can just update the total, note: this might desync from uren_specificatie
+                                            // but since user explicitly requested editing total hours, we allow it.
+                                            const root = unwrapRoot(calculation.data_json);
+                                            await updateDataJson({
+                                                ...root,
+                                                totaal_uren: newHours,
+                                            });
+                                        }}
+                                        onUpdateMaterialenGrootTotal={handleUpdateMaterialenGrootTotal}
+                                        onUpdateMaterialenVerbruikTotal={handleUpdateMaterialenVerbruikTotal}
+                                        onUpdateMaterialenSubtotal={handleUpdateMaterialenSubtotal}
+                                        onUpdateTransportTotal={handleUpdateTransportTotal}
+                                        onUpdateWinstMargePercentage={handleUpdateWinstMargePercentage}
+                                        onUpdateWinstMargeAmountExcl={handleUpdateWinstMargeAmountExcl}
+                                    />
                                 </div>
                             )}
                         </TabsContent>

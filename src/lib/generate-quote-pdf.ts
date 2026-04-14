@@ -191,6 +191,23 @@ function buildSummaryLineTotalsWithHiddenMargin(totals: PDFQuoteData['totals']):
     };
 }
 
+function resolveSummaryHourlyRate(
+    baseHourlyRate: number,
+    totalHours: number,
+    summaryLaborTotal: number,
+): number {
+    const safeBaseRate = Number.isFinite(baseHourlyRate) ? baseHourlyRate : 0;
+    const safeHours = Number.isFinite(totalHours) ? totalHours : 0;
+    const safeLaborTotal = Number.isFinite(summaryLaborTotal) ? summaryLaborTotal : 0;
+
+    if (safeHours <= 0) return safeBaseRate;
+    const derivedRate = safeLaborTotal / safeHours;
+    if (!Number.isFinite(derivedRate) || derivedRate <= 0) return safeBaseRate;
+
+    // Keep current behavior when there is no meaningful difference.
+    return Math.abs(derivedRate - safeBaseRate) < 0.005 ? safeBaseRate : roundMoney(derivedRate);
+}
+
 export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const doc = new jsPDF({
         orientation: 'portrait',
@@ -446,12 +463,22 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.text('PROJECTOMSCHRIJVING', margin, y);
     y += 6;
 
-    const projectSubTitle = String(data.korteTitel || '').trim();
-    if (projectSubTitle) {
+    const structuredProjectTitles = (data.werkbeschrijvingStructured?.jobs || [])
+        .map((job) => String(job?.title || '').trim())
+        .filter(Boolean);
+    const uniqueStructuredProjectTitles = Array.from(new Set(structuredProjectTitles));
+    const fallbackProjectTitle = String(data.korteTitel || '').trim();
+    const projectTitleLines = uniqueStructuredProjectTitles.length > 0
+        ? uniqueStructuredProjectTitles
+        : (fallbackProjectTitle ? [fallbackProjectTitle] : []);
+
+    if (projectTitleLines.length > 0) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(110, 110, 110);
-        const subtitleLines = doc.splitTextToSize(projectSubTitle, pageWidth - (margin * 2));
+        const subtitleLines = projectTitleLines.flatMap((title) =>
+            doc.splitTextToSize(title, pageWidth - (margin * 2))
+        );
         doc.text(subtitleLines, margin, y);
         y += subtitleLines.length * 3.8 + 2;
     }
@@ -492,6 +519,11 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFontSize(9);
 
     const summaryLineTotals = buildSummaryLineTotalsWithHiddenMargin(data.totals);
+    const summaryHourlyRate = resolveSummaryHourlyRate(
+        data.totals.uurTarief,
+        data.totals.totaalUren,
+        summaryLineTotals.arbeid,
+    );
     const summaryItems: Array<[string, string]> = [];
 
     if (data.settings.showSummaryMaterialen) {
@@ -504,7 +536,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             arbeidLabelParts.push(`${data.totals.totaalUren} uur`);
         }
         if (data.settings.showSummaryArbeidTariefPerUurExclBtw) {
-            arbeidLabelParts.push(`${formatCurrency(data.totals.uurTarief)}/uur ex. btw`);
+            arbeidLabelParts.push(`${formatCurrency(summaryHourlyRate)}/uur ex. btw`);
         }
         const arbeidLabel = arbeidLabelParts.length > 0
             ? `Arbeid (${arbeidLabelParts.join(' · ')})`
