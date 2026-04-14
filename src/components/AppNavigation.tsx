@@ -3,14 +3,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { getIdTokenResult } from 'firebase/auth';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote, Sparkles, Landmark } from 'lucide-react';
+import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote, Sparkles, Landmark, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SupportSidePanel } from '@/components/SupportSidePanel';
+import { useUser } from '@/firebase';
 
 interface NavigationItem {
     href: string;
@@ -20,7 +22,7 @@ interface NavigationItem {
     iconColorClassActive?: string;
 }
 
-const navItems: NavigationItem[] = [
+const BASE_NAV_ITEMS: NavigationItem[] = [
     {
         href: '/dashboard',
         label: 'Dashboard',
@@ -122,6 +124,47 @@ function isActivePath(pathname: string, href: string): boolean {
 }
 
 function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string; onNavigate?: () => void; onClose?: () => void }) {
+    const { user, isUserLoading } = useUser();
+    const [isDeveloperAccess, setIsDeveloperAccess] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        if (!user || isUserLoading) {
+            setIsDeveloperAccess(false);
+            return;
+        }
+
+        const resolveClaims = async () => {
+            try {
+                const token = await getIdTokenResult(user, false);
+                const allowed = token.claims.dev === true || token.claims.admin === true;
+                if (!cancelled) setIsDeveloperAccess(allowed);
+            } catch {
+                if (!cancelled) setIsDeveloperAccess(false);
+            }
+        };
+
+        resolveClaims();
+        return () => {
+            cancelled = true;
+        };
+    }, [isUserLoading, user]);
+
+    const navItems: NavigationItem[] = isDeveloperAccess
+        ? [
+            ...BASE_NAV_ITEMS.slice(0, BASE_NAV_ITEMS.length - 1),
+            {
+                href: '/instellingen/persoonlijke-financien',
+                label: 'Persoonlijke Financiën',
+                icon: Wallet,
+                iconColorClass: 'text-emerald-400',
+                iconColorClassActive: 'text-emerald-300',
+            },
+            BASE_NAV_ITEMS[BASE_NAV_ITEMS.length - 1],
+        ]
+        : BASE_NAV_ITEMS;
+
     return (
         <div className="flex h-full flex-col border-r border-border bg-card/95 backdrop-blur-sm">
             <div className="border-b border-border px-6 py-4">

@@ -7,10 +7,10 @@ import { OpeningLabels } from './shared/OpeningLabels';
 
 type EPDMDrawingProps = Omit<RoofDrawingProps, 'edgeLeft' | 'edgeRight' | 'onEdgeChange'> & {
     dakrandWidth?: number;
-    edgeTop?: 'free' | 'wall';
-    edgeBottom?: 'free' | 'wall';
-    edgeLeft?: 'free' | 'wall';
-    edgeRight?: 'free' | 'wall';
+    edgeTop?: 'free' | 'wall' | 'goot';
+    edgeBottom?: 'free' | 'wall' | 'goot';
+    edgeLeft?: 'free' | 'wall' | 'goot';
+    edgeRight?: 'free' | 'wall' | 'goot';
     lood_top?: boolean;
     lood_right?: boolean;
     lood_bottom?: boolean;
@@ -25,7 +25,7 @@ type EPDMDrawingProps = Omit<RoofDrawingProps, 'edgeLeft' | 'edgeRight' | 'onEdg
     dakgoot_left?: boolean;
     hwa_aantal?: number | string | null;
     hwa_uitloop_aantal?: number | string | null;
-    onEdgeChange?: (side: 'top' | 'bottom' | 'left' | 'right', value: 'free' | 'wall') => void;
+    onEdgeChange?: (side: 'top' | 'bottom' | 'left' | 'right', value: 'free' | 'wall' | 'goot') => void;
 };
 
 const labelColor = "rgb(100, 116, 139)"; // Slate-500
@@ -270,7 +270,7 @@ export function EPDMDrawing({
 
                 let outlinePoints: { x: number; y: number }[] = [];
                 // Edges: [Start, End, SideName, isWall]
-                let edges: { p1: { x: number, y: number }, p2: { x: number, y: number }, side: 'top' | 'bottom' | 'left' | 'right', isWall: boolean }[] = [];
+                let edges: { p1: { x: number, y: number }, p2: { x: number, y: number }, side: 'top' | 'bottom' | 'left' | 'right', edgeType: 'free' | 'wall' | 'goot' }[] = [];
                 let outlinePath = '';
 
                 if (shape === 'slope') {
@@ -283,10 +283,10 @@ export function EPDMDrawing({
                     outlinePath = `M ${pBL.x} ${pBL.y} L ${pTL.x} ${pTL.y} L ${pTR.x} ${pTR.y} L ${pBR.x} ${pBR.y} Z`;
 
                     edges = [
-                        { p1: pTL, p2: pTR, side: 'top', isWall: edgeTop === 'wall' },
-                        { p1: pTR, p2: pBR, side: 'right', isWall: edgeRight === 'wall' },
-                        { p1: pBR, p2: pBL, side: 'bottom', isWall: edgeBottom === 'wall' },
-                        { p1: pBL, p2: pTL, side: 'left', isWall: edgeLeft === 'wall' }
+                        { p1: pTL, p2: pTR, side: 'top', edgeType: edgeTop },
+                        { p1: pTR, p2: pBR, side: 'right', edgeType: edgeRight },
+                        { p1: pBR, p2: pBL, side: 'bottom', edgeType: edgeBottom },
+                        { p1: pBL, p2: pTL, side: 'left', edgeType: edgeLeft }
                     ];
                 } else if (shape === 'rectangle') {
                     // Standard Rect
@@ -299,10 +299,10 @@ export function EPDMDrawing({
                     outlinePath = `M ${pBL.x} ${pBL.y} L ${pTL.x} ${pTL.y} L ${pTR.x} ${pTR.y} L ${pBR.x} ${pBR.y} Z`;
 
                     edges = [
-                        { p1: pTL, p2: pTR, side: 'top', isWall: edgeTop === 'wall' },
-                        { p1: pTR, p2: pBR, side: 'right', isWall: edgeRight === 'wall' },
-                        { p1: pBR, p2: pBL, side: 'bottom', isWall: edgeBottom === 'wall' },
-                        { p1: pBL, p2: pTL, side: 'left', isWall: edgeLeft === 'wall' }
+                        { p1: pTL, p2: pTR, side: 'top', edgeType: edgeTop },
+                        { p1: pTR, p2: pBR, side: 'right', edgeType: edgeRight },
+                        { p1: pBR, p2: pBL, side: 'bottom', edgeType: edgeBottom },
+                        { p1: pBL, p2: pTL, side: 'left', edgeType: edgeLeft }
                     ];
                 } else if (shape === 'gable') {
                     const midX = startX + rectW / 2;
@@ -374,9 +374,11 @@ export function EPDMDrawing({
                     p1: { x: number, y: number },
                     p2: { x: number, y: number },
                     thickness: number,
-                    isWall: boolean,
+                    edgeType: 'free' | 'wall' | 'goot',
                     side: 'top' | 'bottom' | 'left' | 'right'
                 ) => {
+                    const isWall = edgeType === 'wall';
+                    const isGoot = edgeType === 'goot';
                     const directionBySide: Record<'top' | 'right' | 'bottom' | 'left', string> = {
                         top: 'NOORD',
                         right: 'OOST',
@@ -384,7 +386,7 @@ export function EPDMDrawing({
                         left: 'WEST',
                     };
                     const edgeDirection = directionBySide[side];
-                    const edgeTypeLabel = isWall ? 'GEVEL' : 'VRIJSTAAND';
+                    const edgeTypeLabel = isWall ? 'GEVEL' : (isGoot ? 'GOOT' : 'VRIJSTAAND');
                     const edgeLabel = `${edgeTypeLabel} ${edgeDirection}`;
                     const edgeMaterials: Array<{ label: 'LOOD' | 'DAKTRIM' | 'DAKGOOT'; color: string }> = [];
                     if (loodBySide[side]) edgeMaterials.push({ label: 'LOOD', color: 'rgb(251, 146, 60)' });
@@ -431,12 +433,18 @@ export function EPDMDrawing({
                     const toggle = (e: React.MouseEvent) => {
                         e.stopPropagation();
                         if (dragStartRef.current) return; // Prevent click during drag
-                        if (onEdgeChange) onEdgeChange(side, isWall ? 'free' : 'wall');
+                        if (!onEdgeChange) return;
+                        const nextType: 'free' | 'wall' | 'goot' = edgeType === 'wall'
+                            ? 'free'
+                            : edgeType === 'free'
+                                ? 'goot'
+                                : 'wall';
+                        onEdgeChange(side, nextType);
                     };
 
                     // Beam Visualization
                     const sideHasDakgoot = dakgootBySide[side];
-                    const showBeam = !isWall && dakrandNum > 0 && !sideHasDakgoot;
+                    const showBeam = edgeType === 'free' && dakrandNum > 0 && !sideHasDakgoot;
                     const trimStartRaw =
                         side === 'right' ? (edgeTop === 'free' ? thickness : 0)
                             : side === 'left' ? (edgeBottom === 'free' ? thickness : 0)
@@ -466,7 +474,7 @@ export function EPDMDrawing({
 
                     return (
                         <g key={key} onClick={toggle} cursor="pointer">
-                            <title>{isWall ? "Wijzig naar Dakrand" : "Wijzig naar Muur"}</title>
+                            <title>{edgeType === 'wall' ? "Wijzig naar Vrijstaand" : edgeType === 'free' ? "Wijzig naar Goot" : "Wijzig naar Gevel"}</title>
 
                             {/* Visual Beam (Only if dakrand) */}
                             {showBeam && (
@@ -537,7 +545,7 @@ export function EPDMDrawing({
                                 {renderInteractiveEdge(
                                     `ctrl-${e.side}`,
                                     e.p1, e.p2,
-                                    drPx, e.isWall, e.side
+                                    drPx, e.edgeType, e.side
                                 )}
                             </React.Fragment>
                         ))}

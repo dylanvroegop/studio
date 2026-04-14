@@ -567,8 +567,13 @@ export function MaterialSelectionModal({
   const [customCategorie, setCustomCategorie] = useState<string>('');
   const [customSubsectie, setCustomSubsectie] = useState<string>('');
   const [customLeverancier, setCustomLeverancier] = useState<string>('');
+  const [customLengte, setCustomLengte] = useState<string>('');
+  const [customBreedte, setCustomBreedte] = useState<string>('');
+  const [customHoogte, setCustomHoogte] = useState<string>('');
+  const [customDikte, setCustomDikte] = useState<string>('');
   const [aiSourceImage, setAiSourceImage] = useState<File | null>(null);
   const [isAiExtracting, setIsAiExtracting] = useState(false);
+  const [isAiBulkExtracting, setIsAiBulkExtracting] = useState(false);
   const [aiExtractionSummary, setAiExtractionSummary] = useState<string | null>(null);
   const [isDraggingAiImage, setIsDraggingAiImage] = useState(false);
   const [safetyDialogOpen, setSafetyDialogOpen] = useState(false);
@@ -643,6 +648,10 @@ export function MaterialSelectionModal({
       setCustomCategorie('');
       setCustomSubsectie('');
       setCustomLeverancier('');
+      setCustomLengte('');
+      setCustomBreedte('');
+      setCustomHoogte('');
+      setCustomDikte('');
       setCategorieDropdownOpen(false);
       setSubsectieDropdownOpen(false);
       setLeverancierDropdownOpen(false);
@@ -651,6 +660,7 @@ export function MaterialSelectionModal({
       setShowAllLeverancierOptions(false);
       setAiSourceImage(null);
       setIsAiExtracting(false);
+      setIsAiBulkExtracting(false);
       setAiExtractionSummary(null);
       setIsDraggingAiImage(false);
       setSafetyDialogOpen(false);
@@ -1241,7 +1251,7 @@ export function MaterialSelectionModal({
   }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk]);
 
   const handleGenerateMaterialFromImage = async (fileOverride?: File | null) => {
-    if (isAiExtracting) return;
+    if (isAiExtracting || isAiBulkExtracting) return;
 
     const sourceImage = fileOverride ?? aiSourceImage;
     if (!sourceImage) {
@@ -1282,6 +1292,10 @@ export function MaterialSelectionModal({
           eenheid?: string;
           prijs_excl_btw?: number | null;
           prijs_incl_btw?: number | null;
+          lengte?: string;
+          breedte?: string;
+          hoogte?: string;
+          dikte?: string;
           categorie?: string;
           subsectie?: string;
           leverancier?: string;
@@ -1299,6 +1313,10 @@ export function MaterialSelectionModal({
       const nextCategoryRaw = (material.categorie || '').trim();
       const nextSubsectionRaw = (material.subsectie || '').trim();
       const nextSupplierRaw = (material.leverancier || '').trim();
+      const nextLengteRaw = (material.lengte || '').trim();
+      const nextBreedteRaw = (material.breedte || '').trim();
+      const nextHoogteRaw = (material.hoogte || '').trim();
+      const nextDikteRaw = (material.dikte || '').trim();
 
       const matchedCategory = pickBestMatchingOption(nextCategoryRaw, formCategoryOptions);
       const matchedSubsection = pickBestMatchingOption(nextSubsectionRaw, formSubsectionOptions);
@@ -1316,6 +1334,10 @@ export function MaterialSelectionModal({
       if (matchedCategory || nextCategoryRaw) setCustomCategorie(matchedCategory || nextCategoryRaw);
       if (matchedSubsection || nextSubsectionRaw) setCustomSubsectie(matchedSubsection || nextSubsectionRaw);
       if (matchedSupplier || nextSupplierRaw) setCustomLeverancier(matchedSupplier || nextSupplierRaw);
+      setCustomLengte(nextLengteRaw);
+      setCustomBreedte(nextBreedteRaw);
+      setCustomHoogte(nextHoogteRaw);
+      setCustomDikte(nextDikteRaw);
 
       const confidence = typeof material.confidence === 'number'
         ? `${Math.round(Math.max(0, Math.min(1, material.confidence)) * 100)}%`
@@ -1326,6 +1348,142 @@ export function MaterialSelectionModal({
       setError(message);
     } finally {
       setIsAiExtracting(false);
+    }
+  };
+
+  const handleGenerateCartMaterialsFromImage = async (fileOverride?: File | null) => {
+    if (isAiExtracting || isAiBulkExtracting) return;
+
+    const sourceImage = fileOverride ?? aiSourceImage;
+    if (!sourceImage) {
+      setError('Kies eerst een screenshot of foto.');
+      return;
+    }
+
+    setError(null);
+    setAiExtractionSummary(null);
+    setIsAiBulkExtracting(true);
+
+    try {
+      const { getAuth } = await import('firebase/auth');
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Niet ingelogd.');
+      const token = await currentUser.getIdToken();
+
+      const formData = new FormData();
+      formData.append('file', sourceImage);
+      formData.append('categories', JSON.stringify(formCategoryOptions));
+      formData.append('subsections', JSON.stringify(formSubsectionOptions));
+      formData.append('suppliers', JSON.stringify(uniqueLeveranciers));
+
+      const response = await fetch('/api/materialen/extract-cart-from-image', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const payload = await response.json().catch(() => null) as {
+        ok?: boolean;
+        message?: string;
+        materials?: Array<{
+          materiaalnaam?: string;
+          eenheid?: string;
+          prijs_excl_btw?: number | null;
+          prijs_incl_btw?: number | null;
+          lengte?: string;
+          breedte?: string;
+          hoogte?: string;
+          dikte?: string;
+          categorie?: string;
+          subsectie?: string;
+          leverancier?: string;
+        }>;
+      } | null;
+
+      if (!response.ok || !payload?.ok || !Array.isArray(payload.materials)) {
+        throw new Error(payload?.message || 'Kon winkelwagen-screenshot niet analyseren.');
+      }
+
+      const materials = payload.materials;
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const material of materials) {
+        const naam = (material.materiaalnaam || '').trim();
+        const eenheid = normalizeExtractedUnit(material.eenheid || '');
+        const excl = typeof material.prijs_excl_btw === 'number' ? material.prijs_excl_btw : null;
+        const incl = typeof material.prijs_incl_btw === 'number' ? material.prijs_incl_btw : null;
+        const resolvedExcl = excl ?? (incl != null ? Number((incl / 1.21).toFixed(2)) : null);
+        const resolvedIncl = incl ?? (excl != null ? Number((excl * 1.21).toFixed(2)) : null);
+
+        if (!naam || resolvedExcl == null || resolvedIncl == null) {
+          failCount += 1;
+          continue;
+        }
+
+        const nextCategoryRaw = (material.categorie || '').trim();
+        const nextSubsectionRaw = (material.subsectie || '').trim();
+        const nextSupplierRaw = (material.leverancier || '').trim();
+        const nextLengteRaw = (material.lengte || '').trim();
+        const nextBreedteRaw = (material.breedte || '').trim();
+        const nextHoogteRaw = (material.hoogte || '').trim();
+        const nextDikteRaw = (material.dikte || '').trim();
+
+        const matchedCategory = pickBestMatchingOption(nextCategoryRaw, formCategoryOptions);
+        const matchedSubsection = pickBestMatchingOption(nextSubsectionRaw, formSubsectionOptions);
+        const matchedSupplier = pickBestMatchingOption(nextSupplierRaw, uniqueLeveranciers);
+
+        const upsertPayload: Record<string, unknown> = {
+          materiaalnaam: constructFinalName(naam.charAt(0).toUpperCase() + naam.slice(1)),
+          eenheid: EENHEDEN.includes(eenheid) ? eenheid : 'stuk',
+          prijs: resolvedExcl,
+          prijs_excl_btw: resolvedExcl,
+          prijs_incl_btw: resolvedIncl,
+        };
+
+        const categoryToSend = matchedCategory || nextCategoryRaw;
+        const subcategoryToSend = matchedSubsection || nextSubsectionRaw;
+        const supplierToSend = matchedSupplier || nextSupplierRaw;
+        if (categoryToSend) upsertPayload.categorie = categoryToSend;
+        if (subcategoryToSend) upsertPayload.subsectie = subcategoryToSend;
+        if (supplierToSend) upsertPayload.leverancier = supplierToSend;
+        if (nextLengteRaw) upsertPayload.lengte = nextLengteRaw;
+        if (nextBreedteRaw) upsertPayload.breedte = nextBreedteRaw;
+        if (nextHoogteRaw) upsertPayload.hoogte = nextHoogteRaw;
+        if (nextDikteRaw) upsertPayload.dikte = nextDikteRaw;
+
+        const upsertRes = await fetch('/api/materialen/upsert', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+          body: JSON.stringify(upsertPayload),
+        });
+
+        const upsertJson = await upsertRes.json().catch(() => null) as { ok?: boolean } | null;
+        if (!upsertRes.ok || !upsertJson?.ok) {
+          failCount += 1;
+          continue;
+        }
+
+        successCount += 1;
+      }
+
+      if (successCount === 0) {
+        throw new Error('Geen materialen konden worden opgeslagen. Controleer de screenshotkwaliteit.');
+      }
+
+      if (failCount > 0) {
+        setAiExtractionSummary(`${successCount} materiaal(en) toegevoegd aan je materiaallijst, ${failCount} overgeslagen.`);
+      } else {
+        setAiExtractionSummary(`${successCount} materiaal(en) toegevoegd aan je materiaallijst.`);
+      }
+    } catch (extractError) {
+      const message = extractError instanceof Error ? extractError.message : 'Kon winkelwagen-screenshot niet analyseren.';
+      setError(message);
+    } finally {
+      setIsAiBulkExtracting(false);
     }
   };
 
@@ -1414,9 +1572,17 @@ export function MaterialSelectionModal({
       const categorie = customCategorie.trim();
       const subsectie = customSubsectie.trim();
       const leverancier = customLeverancier.trim();
+      const lengte = customLengte.trim();
+      const breedte = customBreedte.trim();
+      const hoogte = customHoogte.trim();
+      const dikte = customDikte.trim();
       if (categorie) payload.categorie = categorie;
       if (subsectie) payload.subsectie = subsectie;
       if (leverancier) payload.leverancier = leverancier;
+      if (lengte) payload.lengte = lengte;
+      if (breedte) payload.breedte = breedte;
+      if (hoogte) payload.hoogte = hoogte;
+      if (dikte) payload.dikte = dikte;
       if (shouldRunInBackground && backgroundClientId) {
         payload.pending_id = backgroundClientId;
         if (quoteId) payload.quote_id = quoteId;
@@ -1608,6 +1774,10 @@ export function MaterialSelectionModal({
     setCustomCategorie(mat.categorie || '');
     setCustomSubsectie(mat.subsectie || (mat as any).sub_categorie || '');
     setCustomLeverancier(mat.leverancier || '');
+    setCustomLengte((mat as any).lengte || '');
+    setCustomBreedte((mat as any).breedte || '');
+    setCustomHoogte((mat as any).hoogte || '');
+    setCustomDikte((mat as any).dikte || '');
 
     setStep('form');
   };
@@ -2279,16 +2449,28 @@ export function MaterialSelectionModal({
                         Upload een product-screenshot van bijvoorbeeld Bouwmaat. We vullen naam, prijs, eenheid en leverancier in.
                       </p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="gap-2"
-                      onClick={() => void handleGenerateMaterialFromImage()}
-                      disabled={!aiSourceImage || isAiExtracting}
-                    >
-                      {isAiExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                      {isAiExtracting ? 'Analyseren...' : 'Analyseer screenshot'}
-                    </Button>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="gap-2"
+                        onClick={() => void handleGenerateMaterialFromImage()}
+                        disabled={!aiSourceImage || isAiExtracting || isAiBulkExtracting}
+                      >
+                        {isAiExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        {isAiExtracting ? 'Analyseren...' : 'Analyseer screenshot'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={() => void handleGenerateCartMaterialsFromImage()}
+                        disabled={!aiSourceImage || isAiExtracting || isAiBulkExtracting}
+                      >
+                        {isAiBulkExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                        {isAiBulkExtracting ? 'Winkelwagen analyseren...' : 'Analyseer winkelwagen'}
+                      </Button>
+                    </div>
                   </div>
                   {aiSourceImage && (
                     <p className="text-[11px] text-muted-foreground">{aiSourceImage.name}</p>

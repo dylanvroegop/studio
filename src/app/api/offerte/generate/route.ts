@@ -671,8 +671,9 @@ export async function POST(req: Request) {
           const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? '').replace(',', '.'));
           return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
         };
-        const normalizeEdge = (value: any, fallback: 'free' | 'wall'): 'free' | 'wall' => {
+        const normalizeEdge = (value: any, fallback: 'free' | 'wall' | 'goot'): 'free' | 'wall' | 'goot' => {
           const normalized = String(value ?? '').trim().toLowerCase();
+          if (['goot', 'dakgoot', 'gutter'].includes(normalized)) return 'goot';
           if (normalized === 'free') return 'free';
           if (normalized === 'wall') return 'wall';
           return fallback;
@@ -683,7 +684,7 @@ export async function POST(req: Request) {
           const item = { ...rawItem } as Record<string, any>;
           const lengteMm = parseMm(item.lengte);
           const hoogteMm = parseMm(item.hoogte);
-          const edgeBySide: Record<'top' | 'right' | 'bottom' | 'left', 'free' | 'wall'> = {
+          const edgeBySide: Record<'top' | 'right' | 'bottom' | 'left', 'free' | 'wall' | 'goot'> = {
             top: normalizeEdge(item.edge_top, 'wall'),
             right: normalizeEdge(item.edge_right, 'free'),
             bottom: normalizeEdge(item.edge_bottom, 'free'),
@@ -709,6 +710,7 @@ export async function POST(req: Request) {
           }));
           const vrijeRanden = randen.filter((row) => row.type === 'free');
           const gevelRanden = randen.filter((row) => row.type === 'wall');
+          const gootRanden = randen.filter((row) => row.type === 'goot');
           const daktrimRanden = randen.filter((row) => row.daktrim);
           const loodRanden = randen.filter((row) => row.lood);
           const dakgootRanden = randen.filter((row) => row.dakgoot);
@@ -722,12 +724,14 @@ export async function POST(req: Request) {
           item.epdm_randen_summary = {
             vrije_randen_m1: Number(vrijeRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
             gevel_randen_m1: Number(gevelRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+            goot_randen_m1: Number(gootRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
             daktrim_randen_m1: Number(daktrimRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
             lood_randen_m1: Number(loodRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
             dakgoot_randen_m1: Number(dakgootRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
             daktrim_hoeken_auto: daktrimHoekenAuto,
             vrije_randen_detail: vrijeRanden.map((row) => `${row.richting}:${row.lengte_m1}m`),
             gevel_randen_detail: gevelRanden.map((row) => `${row.richting}:${row.lengte_m1}m`),
+            goot_randen_detail: gootRanden.map((row) => `${row.richting}:${row.lengte_m1}m`),
           };
 
           return item;

@@ -4,8 +4,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import Link from 'next/link';
-import { getIdTokenResult } from 'firebase/auth';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -18,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users, Palette, MoonStar, Sun, ReceiptText, Code2 } from 'lucide-react';
+import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users, Palette, MoonStar, Sun, ReceiptText } from 'lucide-react';
 import {
     UserSettings,
     DEFAULT_USER_SETTINGS,
@@ -68,7 +66,6 @@ function InstellingenPageContent() {
     const [settings, setSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [isDeveloperAccess, setIsDeveloperAccess] = useState(false);
     const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationState | null>(null);
     const [activeTab, setActiveTab] = useState('bedrijf');
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -285,29 +282,6 @@ function InstellingenPageContent() {
 
         fetchSettings();
     }, [user, firestore, isUserLoading]);
-
-    useEffect(() => {
-        let cancelled = false;
-        if (!user) {
-            setIsDeveloperAccess(false);
-            return;
-        }
-
-        const resolveDeveloperAccess = async () => {
-            try {
-                const token = await getIdTokenResult(user, false);
-                const allowed = token.claims.dev === true || token.claims.admin === true;
-                if (!cancelled) setIsDeveloperAccess(allowed);
-            } catch {
-                if (!cancelled) setIsDeveloperAccess(false);
-            }
-        };
-
-        resolveDeveloperAccess();
-        return () => {
-            cancelled = true;
-        };
-    }, [user]);
 
     // Save Settings
     const handleSave = async () => {
@@ -635,25 +609,6 @@ function InstellingenPageContent() {
             <DashboardHeader user={user} title="Instellingen" />
 
             <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-                {isDeveloperAccess ? (
-                    <Card className="border-emerald-500/30 bg-emerald-500/5">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-2 text-base">
-                                <Code2 className="h-4 w-4 text-emerald-400" />
-                                Developer tab
-                            </CardTitle>
-                            <CardDescription>
-                                Persoonlijke business/privé winst en kosten met maandprojectie.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Button asChild variant="outline" className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10">
-                                <Link href="/instellingen/persoonlijke-financien">Open persoonlijke financiën</Link>
-                            </Button>
-                        </CardContent>
-                    </Card>
-                ) : null}
-
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                     <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto p-1 gap-1">
                         <TabsTrigger value="uiterlijk" className="py-2.5">

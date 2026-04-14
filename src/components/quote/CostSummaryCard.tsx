@@ -7,11 +7,13 @@ interface CostSummaryCardProps {
     totals: CalculationResult | null;
     settings: QuoteSettings | null;
     totalUren: number;
+    extraKostenExcl?: number;
     onUpdateHourlyRate?: (rate: number) => void;
     onUpdateTotalHours?: (hours: number) => void;
     onUpdateMaterialenGrootTotal?: (value: number) => void;
     onUpdateMaterialenVerbruikTotal?: (value: number) => void;
     onUpdateMaterialenSubtotal?: (value: number) => void;
+    onUpdateExtraKostenTotal?: (value: number) => void;
     onUpdateTransportTotal?: (value: number) => void;
     onUpdateWinstMargePercentage?: (value: number) => void;
     onUpdateWinstMargeAmountExcl?: (value: number) => void;
@@ -25,11 +27,13 @@ export function CostSummaryCard({
     totals,
     settings,
     totalUren,
+    extraKostenExcl = 0,
     onUpdateHourlyRate,
     onUpdateTotalHours,
     onUpdateMaterialenGrootTotal,
     onUpdateMaterialenVerbruikTotal,
     onUpdateMaterialenSubtotal,
+    onUpdateExtraKostenTotal,
     onUpdateTransportTotal,
     onUpdateWinstMargePercentage,
     onUpdateWinstMargeAmountExcl,
@@ -39,7 +43,7 @@ export function CostSummaryCard({
 
     const [isEditingHours, setIsEditingHours] = useState(false);
     const [tempHours, setTempHours] = useState<string>('');
-    const [editingField, setEditingField] = useState<null | 'groot' | 'verbruik' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount'>(null);
+    const [editingField, setEditingField] = useState<null | 'groot' | 'verbruik' | 'extra' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount'>(null);
     const [tempFieldValue, setTempFieldValue] = useState<string>('');
 
     const startEditingRate = () => {
@@ -92,7 +96,7 @@ export function CostSummaryCard({
     };
 
     const startEditingAmount = (
-        field: 'groot' | 'verbruik' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount',
+        field: 'groot' | 'verbruik' | 'extra' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount',
         initialValue: number,
     ) => {
         setTempFieldValue(initialValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -116,6 +120,8 @@ export function CostSummaryCard({
             onUpdateMaterialenGrootTotal(parsed);
         } else if (editingField === 'verbruik' && onUpdateMaterialenVerbruikTotal) {
             onUpdateMaterialenVerbruikTotal(parsed);
+        } else if (editingField === 'extra' && onUpdateExtraKostenTotal) {
+            onUpdateExtraKostenTotal(parsed);
         } else if (editingField === 'subtotaal' && onUpdateMaterialenSubtotal) {
             onUpdateMaterialenSubtotal(parsed);
         } else if (editingField === 'transport' && onUpdateTransportTotal) {
@@ -160,20 +166,20 @@ export function CostSummaryCard({
     }
 
     return (
-        <div className="bg-card rounded-lg border border-border p-6">
-            <h3 className="font-semibold text-muted-foreground text-sm mb-4 flex items-center gap-2">
+        <div className="bg-card rounded-lg border border-border p-4">
+            <h3 className="font-semibold text-muted-foreground text-sm mb-3 flex items-center gap-2">
                 <Euro size={14} />
                 KOSTENOVERZICHT
             </h3>
-            <div className="mb-3 flex justify-end">
+            <div className="mb-2 flex justify-end">
                 <div className={`${amountGridClass} text-[11px] uppercase tracking-wide text-muted-foreground`}>
                     <span>Excl. btw</span>
                     <span>Incl. btw</span>
                 </div>
             </div>
 
-            <div className="space-y-4">
-                <div className="rounded-lg border border-border p-3 space-y-2 bg-background/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <div className="space-y-3">
+                <div className="rounded-lg border border-border p-2.5 space-y-1.5 bg-background/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Materialen (groot)</span>
                         {renderAmountColumns(
@@ -234,7 +240,37 @@ export function CostSummaryCard({
                             totals.materialenVerbruik
                         )}
                     </div>
-                    <div className="border-t border-border pt-2 flex justify-between text-sm">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Extra kosten</span>
+                        {renderAmountColumns(
+                            editingField === 'extra' ? (
+                                <Input
+                                    autoFocus
+                                    type="text"
+                                    value={tempFieldValue}
+                                    onChange={(e) => setTempFieldValue(e.target.value)}
+                                    onBlur={saveEditingAmount}
+                                    onFocus={selectAllOnFocus}
+                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveEditingAmount();
+                                        if (e.key === 'Escape') cancelEditingAmount();
+                                    }}
+                                />
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
+                                    onClick={() => startEditingAmount('extra', extraKostenExcl)}
+                                >
+                                    {formatCurrency(extraKostenExcl)}
+                                    <Pencil size={12} className="text-muted-foreground" />
+                                </button>
+                            ),
+                            extraKostenExcl
+                        )}
+                    </div>
+                    <div className="border-t border-border pt-1.5 flex justify-between text-sm">
                         <span className="text-muted-foreground">Subtotaal materialen</span>
                         {renderAmountColumns(
                             editingField === 'subtotaal' ? (
@@ -266,9 +302,9 @@ export function CostSummaryCard({
                     </div>
                 </div>
 
-                <div className="h-px bg-border/70" />
+                <div className="h-px bg-border/60" />
 
-                <div className="rounded-lg border border-border p-3 bg-background/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="rounded-lg border border-border p-2.5 bg-background/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground flex flex-wrap items-center gap-1">
                             Arbeid (
@@ -335,9 +371,9 @@ export function CostSummaryCard({
                     </div>
                 </div>
 
-                <div className="h-px bg-border/70" />
+                <div className="h-px bg-border/60" />
 
-                <div className="rounded-lg border border-border p-3 bg-background/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="rounded-lg border border-border p-2.5 bg-background/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">
                             <span className="block">
@@ -380,9 +416,9 @@ export function CostSummaryCard({
                     </div>
                 </div>
 
-                <div className="h-px bg-border/70" />
+                <div className="h-px bg-border/60" />
 
-                <div className="rounded-lg border border-border p-3 space-y-2 bg-background/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="rounded-lg border border-border p-2.5 space-y-1.5 bg-background/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Totaal excl. BTW</span>
                         {renderAmountColumns(
@@ -453,7 +489,7 @@ export function CostSummaryCard({
                             winstMargeExclBtw
                         )}
                     </div>
-                    <div className="border-t border-border pt-2 flex justify-between text-sm">
+                    <div className="border-t border-border pt-1.5 flex justify-between text-sm">
                         <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
                         {renderAmountColumns(
                             <span>{formatCurrency(btwMetMarge)}</span>,
@@ -462,7 +498,7 @@ export function CostSummaryCard({
                     </div>
                 </div>
 
-                <div className="border-t-2 border-primary/50 pt-3 flex justify-between">
+                <div className="border-t-2 border-primary/50 pt-2.5 flex justify-between">
                     <span className="font-semibold text-foreground">TOTAAL INCL. BTW</span>
                     <span className="font-bold text-lg text-primary">
                         {formatCurrency(totals.totaalInclBtw)}

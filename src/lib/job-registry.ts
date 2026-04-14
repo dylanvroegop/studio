@@ -237,28 +237,28 @@ const EPDM_FIELDS: MeasurementField[] = [
     key: 'edge_top',
     label: 'Rand Boven',
     type: 'select',
-    options: [{ label: 'Vrij (Dakrand)', value: 'free' }, { label: 'Muur (Gevel)', value: 'wall' }],
+    options: [{ label: 'Vrij (Dakrand)', value: 'free' }, { label: 'Muur (Gevel)', value: 'wall' }, { label: 'Goot', value: 'goot' }],
     defaultValue: 'wall'
   },
   {
     key: 'edge_bottom',
     label: 'Rand Onder',
     type: 'select',
-    options: [{ label: 'Vrij (Dakrand)', value: 'free' }, { label: 'Muur (Gevel)', value: 'wall' }],
+    options: [{ label: 'Vrij (Dakrand)', value: 'free' }, { label: 'Muur (Gevel)', value: 'wall' }, { label: 'Goot', value: 'goot' }],
     defaultValue: 'free'
   },
   {
     key: 'edge_left',
     label: 'Rand Links',
     type: 'select',
-    options: [{ label: 'Vrij (Dakrand)', value: 'free' }, { label: 'Muur (Gevel)', value: 'wall' }],
+    options: [{ label: 'Vrij (Dakrand)', value: 'free' }, { label: 'Muur (Gevel)', value: 'wall' }, { label: 'Goot', value: 'goot' }],
     defaultValue: 'free'
   },
   {
     key: 'edge_right',
     label: 'Rand Rechts',
     type: 'select',
-    options: [{ label: 'Vrij (Dakrand)', value: 'free' }, { label: 'Muur (Gevel)', value: 'wall' }],
+    options: [{ label: 'Vrij (Dakrand)', value: 'free' }, { label: 'Muur (Gevel)', value: 'wall' }, { label: 'Goot', value: 'goot' }],
     defaultValue: 'free'
   },
 

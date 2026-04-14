@@ -880,7 +880,7 @@ export default function OffertesPage() {
 
   async function setQuoteDecisionStatus(
     quote: QuoteRow,
-    nextStatus: 'geaccepteerd' | 'afgewezen' | 'concept'
+    nextStatus: 'geaccepteerd' | 'afgewezen' | 'concept' | 'verzonden'
   ): Promise<void> {
     if (!firestore) return;
     setUpdatingAcceptanceQuoteId(quote.id);
@@ -1285,8 +1285,7 @@ export default function OffertesPage() {
                               <DropdownMenuLabel>Offerte acties</DropdownMenuLabel>
                               <DropdownMenuItem
                                 disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
-                                onSelect={(e) => {
-                                  e.preventDefault();
+                                onSelect={() => {
                                   if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
                                   void setQuoteDecisionStatus(q, 'geaccepteerd');
                                 }}
@@ -1295,8 +1294,7 @@ export default function OffertesPage() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
-                                onSelect={(e) => {
-                                  e.preventDefault();
+                                onSelect={() => {
                                   if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
                                   void setQuoteDecisionStatus(q, 'afgewezen');
                                 }}
@@ -1305,8 +1303,16 @@ export default function OffertesPage() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
-                                onSelect={(e) => {
-                                  e.preventDefault();
+                                onSelect={() => {
+                                  if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                  void setQuoteDecisionStatus(q, 'verzonden');
+                                }}
+                              >
+                                Status: Verstuurd
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                                onSelect={() => {
                                   if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
                                   void setQuoteDecisionStatus(q, 'concept');
                                 }}
@@ -1316,8 +1322,7 @@ export default function OffertesPage() {
                               <DropdownMenuSeparator />
                               {isArchived ? (
                                 <DropdownMenuItem
-                                  onSelect={(e) => {
-                                    e.preventDefault();
+                                  onSelect={() => {
                                     void restoreQuote(q);
                                   }}
                                 >
@@ -1326,8 +1331,7 @@ export default function OffertesPage() {
                                 </DropdownMenuItem>
                               ) : (
                                 <DropdownMenuItem
-                                  onSelect={(e) => {
-                                    e.preventDefault();
+                                  onSelect={() => {
                                     openArchiveDialog(q);
                                   }}
                                 >
@@ -1466,8 +1470,7 @@ export default function OffertesPage() {
                             <DropdownMenuLabel>Offerte acties</DropdownMenuLabel>
                             <DropdownMenuItem
                               disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
-                              onSelect={(e) => {
-                                e.preventDefault();
+                              onSelect={() => {
                                 if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
                                 void setQuoteDecisionStatus(q, 'geaccepteerd');
                               }}
@@ -1476,8 +1479,7 @@ export default function OffertesPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
-                              onSelect={(e) => {
-                                e.preventDefault();
+                              onSelect={() => {
                                 if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
                                 void setQuoteDecisionStatus(q, 'afgewezen');
                               }}
@@ -1486,8 +1488,16 @@ export default function OffertesPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
-                              onSelect={(e) => {
-                                e.preventDefault();
+                              onSelect={() => {
+                                if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                void setQuoteDecisionStatus(q, 'verzonden');
+                              }}
+                            >
+                              Status: Verstuurd
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                              onSelect={() => {
                                 if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
                                 void setQuoteDecisionStatus(q, 'concept');
                               }}
@@ -1497,8 +1507,7 @@ export default function OffertesPage() {
                             <DropdownMenuSeparator />
                             {isArchived ? (
                               <DropdownMenuItem
-                                onSelect={(e) => {
-                                  e.preventDefault();
+                                onSelect={() => {
                                   void restoreQuote(q);
                                 }}
                               >
@@ -1507,8 +1516,7 @@ export default function OffertesPage() {
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
-                                onSelect={(e) => {
-                                  e.preventDefault();
+                                onSelect={() => {
                                   openArchiveDialog(q);
                                 }}
                               >

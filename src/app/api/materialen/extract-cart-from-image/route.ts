@@ -8,11 +8,27 @@ export const dynamic = 'force-dynamic';
 
 const OPENAI_MODEL = 'gpt-5.2';
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const MAX_MATERIALS = 50;
 
 type OptionSets = {
   categories: string[];
   subsections: string[];
   suppliers: string[];
+};
+
+type ExtractedMaterial = {
+  materiaalnaam: string;
+  eenheid: string;
+  prijs_excl_btw: number | null;
+  prijs_incl_btw: number | null;
+  lengte: string;
+  breedte: string;
+  hoogte: string;
+  dikte: string;
+  categorie: string;
+  subsectie: string;
+  leverancier: string;
+  confidence: number;
 };
 
 function extractBearerToken(authHeader: string | null): string | null {
@@ -84,26 +100,31 @@ function buildExtractionPrompt(options: OptionSets): string {
   const suppliersText = options.suppliers.length > 0 ? options.suppliers.join(', ') : '(geen lijst meegegeven)';
 
   return `
-Je extraheert productgegevens uit een screenshot van een Nederlandse bouwmaterialen-webshop (zoals Bouwmaat).
+Je extraheert ALLE productregels uit een screenshot van een Nederlandse bouwmaterialen-webshop winkelwagen/checkout.
 
-Geef ALTIJD exact 1 JSON object terug (geen markdown, geen uitleg) met exact deze velden:
+Geef ALTIJD exact 1 JSON object terug (geen markdown, geen uitleg) met exact deze vorm:
 {
-  "materiaalnaam": string,
-  "eenheid": string,
-  "prijs_excl_btw": number | null,
-  "prijs_incl_btw": number | null,
-  "lengte": string,
-  "breedte": string,
-  "hoogte": string,
-  "dikte": string,
-  "categorie": string,
-  "subsectie": string,
-  "leverancier": string,
-  "confidence": number
+  "materials": [
+    {
+      "materiaalnaam": string,
+      "eenheid": string,
+      "prijs_excl_btw": number | null,
+      "prijs_incl_btw": number | null,
+      "lengte": string,
+      "breedte": string,
+      "hoogte": string,
+      "dikte": string,
+      "categorie": string,
+      "subsectie": string,
+      "leverancier": string,
+      "confidence": number
+    }
+  ]
 }
 
 Regels:
 - Gebruik alleen informatie die zichtbaar is in de screenshot.
+- Neem ALLE zichtbare productregels op in "materials".
 - Gebruik lege string "" als tekst niet betrouwbaar leesbaar is.
 - Gebruik null voor onbekende prijzen.
 - "confidence" is een getal 0..1.
@@ -234,7 +255,7 @@ function normalizeConfidence(raw: unknown): number {
   return Number(raw.toFixed(2));
 }
 
-function normalizeMaterialPayload(input: Record<string, unknown>) {
+function normalizeMaterial(input: Record<string, unknown>): ExtractedMaterial {
   const prijsExcl = normalizeNumber(input.prijs_excl_btw);
   const prijsIncl = normalizeNumber(input.prijs_incl_btw);
   return {
@@ -251,6 +272,17 @@ function normalizeMaterialPayload(input: Record<string, unknown>) {
     leverancier: safeString(input.leverancier),
     confidence: normalizeConfidence(input.confidence),
   };
+}
+
+function normalizeMaterials(payload: Record<string, unknown>): ExtractedMaterial[] {
+  const rows = Array.isArray(payload.materials) ? payload.materials : [];
+  const result = rows
+    .filter((row) => row && typeof row === 'object')
+    .slice(0, MAX_MATERIALS)
+    .map((row) => normalizeMaterial(row as Record<string, unknown>))
+    .filter((row) => row.materiaalnaam.length > 0);
+
+  return result;
 }
 
 async function callOpenAiExtraction(params: {
@@ -327,7 +359,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Afbeelding is te groot (max 8MB).' }, { status: 400 });
     }
 
-    const filename = safeString(image.name) || `materiaal-${Date.now()}.jpg`;
+    const filename = safeString(image.name) || `winkelwagen-${Date.now()}.jpg`;
     const contentType = inferContentType(safeString(image.type), filename);
     if (!isSupportedImage(contentType, filename)) {
       return NextResponse.json({ ok: false, message: 'Alleen JPG, PNG, WEBP of HEIC/HEIF zijn toegestaan.' }, { status: 400 });
@@ -343,15 +375,18 @@ export async function POST(request: Request) {
       options,
     });
 
-    const material = normalizeMaterialPayload(extracted);
+    const materials = normalizeMaterials(extracted);
+    if (materials.length === 0) {
+      return NextResponse.json({ ok: false, message: 'Geen materialen gevonden in screenshot.' }, { status: 422 });
+    }
 
     return NextResponse.json({
       ok: true,
       model: OPENAI_MODEL,
-      material,
+      materials,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Kon materiaalgegevens niet extraheren.';
+    const message = error instanceof Error ? error.message : 'Kon materialen niet extraheren.';
     return NextResponse.json({ ok: false, message }, { status: 500 });
   }
 }

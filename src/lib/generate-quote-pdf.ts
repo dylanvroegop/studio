@@ -123,6 +123,52 @@ function roundMoney(value: number): number {
     return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
 }
 
+function normalizeWhitespace(value: string): string {
+    return value.replace(/\s+/g, ' ').trim();
+}
+
+function capitalizeWordPart(part: string): string {
+    if (!part) return part;
+    if (/^\d+$/.test(part)) return part;
+    if (/^[A-Z0-9.&]+$/.test(part) && part.length <= 4) return part;
+    const lower = part.toLowerCase();
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+function toDutchTitleCase(value: string): string {
+    const smallWords = new Set(['de', 'den', 'der', 'het', 'of', 'op', 'te', 'ter', 'ten', 'van', 'von', "'t"]);
+    const normalized = normalizeWhitespace(value);
+    if (!normalized) return '';
+
+    return normalized
+        .split(' ')
+        .map((token, tokenIndex) => {
+            const hyphenParts = token.split('-');
+            const transformed = hyphenParts.map((hyphenPart, hyphenIndex) => {
+                const apostropheParts = hyphenPart.split("'");
+                const rebuilt = apostropheParts.map((apostrophePart, apostropheIndex) => {
+                    const lower = apostrophePart.toLowerCase();
+                    const isFirst = tokenIndex === 0 && hyphenIndex === 0 && apostropheIndex === 0;
+                    if (!isFirst && smallWords.has(lower)) return lower;
+                    return capitalizeWordPart(apostrophePart);
+                });
+                return rebuilt.join("'");
+            });
+            return transformed.join('-');
+        })
+        .join(' ');
+}
+
+function normalizeDutchPostcode(value: string): string {
+    return normalizeWhitespace(value).toUpperCase();
+}
+
+function normalizeCommonWording(value: string): string {
+    return value.replace(/\bofferte\s+acceptatie\b/gi, (match) =>
+        match.charAt(0) === match.charAt(0).toUpperCase() ? 'Offerteacceptatie' : 'offerteacceptatie'
+    );
+}
+
 function fitImageWithinBox(
     sourceWidth: number,
     sourceHeight: number,
@@ -225,6 +271,20 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const prijsAfspraakLabel = isOnderVoorbehoud ? 'Richtprijs op nacalculatie' : 'Vaste aanneemsom';
     const tekstInstellingen = sanitizeQuotePdfTextSettings(data.tekstInstellingen);
     const offerNumberLabel = `Offerte #${data.offerteNummer}`;
+    const displayBedrijf = {
+        ...data.bedrijf,
+        naam: toDutchTitleCase(String(data.bedrijf.naam || '')),
+        adres: toDutchTitleCase(String(data.bedrijf.adres || '')),
+        postcode: normalizeDutchPostcode(String(data.bedrijf.postcode || '')),
+        plaats: toDutchTitleCase(String(data.bedrijf.plaats || '')),
+    };
+    const displayKlant = {
+        ...data.klant,
+        naam: toDutchTitleCase(String(data.klant.naam || '')),
+        adres: toDutchTitleCase(String(data.klant.adres || '')),
+        postcode: normalizeDutchPostcode(String(data.klant.postcode || '')),
+        plaats: toDutchTitleCase(String(data.klant.plaats || '')),
+    };
 
     // Helper: draw horizontal line
     const drawLine = (yPos: number, color: number = 200) => {
@@ -381,34 +441,34 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
 
     // Left column - Bedrijf
     doc.setFont('helvetica', 'bold');
-    doc.text(data.bedrijf.naam, colLeft, y);
-    doc.text(data.klant.naam, colRight, y);
+    doc.text(displayBedrijf.naam, colLeft, y);
+    doc.text(displayKlant.naam, colRight, y);
     doc.setFont('helvetica', 'normal');
     y += 5;
 
-    doc.text(data.bedrijf.adres, colLeft, y);
-    doc.text(data.klant.adres, colRight, y);
+    doc.text(displayBedrijf.adres, colLeft, y);
+    doc.text(displayKlant.adres, colRight, y);
     y += 5;
 
-    doc.text(`${data.bedrijf.postcode} ${data.bedrijf.plaats}`, colLeft, y);
-    doc.text(`${data.klant.postcode} ${data.klant.plaats}`, colRight, y);
+    doc.text(`${displayBedrijf.postcode} ${displayBedrijf.plaats}`.trim(), colLeft, y);
+    doc.text(`${displayKlant.postcode} ${displayKlant.plaats}`.trim(), colRight, y);
     y += 5;
 
     doc.setTextColor(100, 100, 100);
-    doc.text(`Tel: ${data.bedrijf.telefoon}`, colLeft, y);
-    doc.text(`Tel: ${data.klant.telefoon}`, colRight, y);
+    doc.text(`Tel: ${displayBedrijf.telefoon}`, colLeft, y);
+    doc.text(`Tel: ${displayKlant.telefoon}`, colRight, y);
     y += 5;
 
-    doc.text(`Email: ${data.bedrijf.email}`, colLeft, y);
-    doc.text(`Email: ${data.klant.email}`, colRight, y);
+    doc.text(`Email: ${displayBedrijf.email}`, colLeft, y);
+    doc.text(`Email: ${displayKlant.email}`, colRight, y);
     y += 5;
 
-    doc.text(`KVK: ${data.bedrijf.kvk}`, colLeft, y);
+    doc.text(`KVK: ${displayBedrijf.kvk}`, colLeft, y);
     y += 5;
-    doc.text(`BTW: ${data.bedrijf.btw}`, colLeft, y);
+    doc.text(`BTW: ${displayBedrijf.btw}`, colLeft, y);
     y += 5;
-    if (data.bedrijf.iban) {
-        doc.text(`IBAN: ${data.bedrijf.iban}`, colLeft, y);
+    if (displayBedrijf.iban) {
+        doc.text(`IBAN: ${displayBedrijf.iban}`, colLeft, y);
     }
 
     y += 12;
@@ -966,7 +1026,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         const clean = (term || '').trim();
         if (!clean) return;
 
-        const termText = clean.replace(/^[•\-]\s*/, '');
+        const termText = normalizeCommonWording(clean.replace(/^[•\-]\s*/, ''));
         if (!termText) return;
 
         const shouldBeRed = redTerms.has(index);
@@ -1049,7 +1109,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         y = margin;
     }
 
-    const ondertekeningNaam = tekstInstellingen.ondertekeningNaam || data.bedrijf.naam;
+    const ondertekeningNaam = toDutchTitleCase(tekstInstellingen.ondertekeningNaam || displayBedrijf.naam);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 30, 30);
     doc.text(ondertekeningNaam, margin, y);

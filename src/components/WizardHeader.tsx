@@ -187,6 +187,12 @@ export function WizardHeader({
                                         {/* Top Section */}
                                         <div className="space-y-2">
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2 h-10" onClick={() => setMenuOpen(false)}>
+                                                <Link href={`/offertes/${quoteId}`}>
+                                                    <BookOpen className="h-4 w-4 text-amber-600" />
+                                                    <span className="font-semibold text-amber-600">Terug naar offerte</span>
+                                                </Link>
+                                            </Button>
+                                            <Button asChild variant="ghost" className="w-full justify-start gap-2 h-10" onClick={() => setMenuOpen(false)}>
                                                 <Link href={`/offertes/${quoteId}/klus/nieuw`}>
                                                     <Plus className="h-4 w-4 text-emerald-600" />
                                                     <span className="font-semibold text-emerald-600">Nieuwe calculatie</span>

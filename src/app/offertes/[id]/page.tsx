@@ -263,6 +263,7 @@ function truncatePromptText(value: string, maxLength: number): string {
 interface QuoteNoteSection {
     id: string;
     title: string;
+    links: string;
     notes: string;
 }
 
@@ -277,6 +278,7 @@ function createQuoteNoteSection(index: number, overrides?: Partial<QuoteNoteSect
     return {
         id: overrides?.id || createQuoteNoteSectionId(),
         title: overrides?.title ?? '',
+        links: overrides?.links ?? '',
         notes: overrides?.notes ?? '',
     };
 }
@@ -288,21 +290,32 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
     }
 
     const lines = normalized.split('\n');
-    const sections: Array<{ title: string; notesLines: string[] }> = [];
-    let activeSection: { title: string; notesLines: string[] } | null = null;
+    const sections: Array<{ title: string; links: string; notesLines: string[] }> = [];
+    let activeSection: { title: string; links: string; notesLines: string[] } | null = null;
 
     for (const line of lines) {
         const titleMatch = line.match(/^###\s*(.*)$/);
         if (titleMatch) {
             const title = titleMatch[1].trim();
-            activeSection = { title, notesLines: [] };
+            activeSection = { title, links: '', notesLines: [] };
             sections.push(activeSection);
             continue;
         }
 
         if (!activeSection) {
-            activeSection = { title: '', notesLines: [] };
+            activeSection = { title: '', links: '', notesLines: [] };
             sections.push(activeSection);
+        }
+
+        const linksMatch = line.match(/^links?\s*:\s*(.*)$/i);
+        if (linksMatch) {
+            const linksValue = linksMatch[1].trim();
+            if (linksValue) {
+                activeSection.links = activeSection.links
+                    ? `${activeSection.links}\n${linksValue}`
+                    : linksValue;
+            }
+            continue;
         }
 
         activeSection.notesLines.push(line);
@@ -311,6 +324,7 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
     const mapped = sections.map((section, index) =>
         createQuoteNoteSection(index, {
             title: section.title,
+            links: section.links,
             notes: section.notesLines.join('\n').trim(),
         }),
     );
@@ -322,21 +336,35 @@ function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
     const cleanedSections = sections
         .map((section) => ({
             title: section.title.trim(),
+            links: section.links.trim(),
             notes: section.notes.trim(),
         }))
-        .filter((section) => section.title.length > 0 || section.notes.length > 0);
+        .filter((section) => section.title.length > 0 || section.links.length > 0 || section.notes.length > 0);
 
     if (cleanedSections.length === 0) return '';
 
     return cleanedSections
-        .map((section) => (
-            section.title.length === 0
-                ? section.notes
-                :
-            section.notes
-                ? `### ${section.title}\n${section.notes}`
-                : `### ${section.title}`
-        ))
+        .map((section) => {
+            const blockLines: string[] = [];
+
+            if (section.title.length > 0) {
+                blockLines.push(`### ${section.title}`);
+            }
+
+            const linksLines = section.links
+                .split('\n')
+                .map((line) => line.trim())
+                .filter((line) => line.length > 0);
+            for (const link of linksLines) {
+                blockLines.push(`Links: ${link}`);
+            }
+
+            if (section.notes.length > 0) {
+                blockLines.push(section.notes);
+            }
+
+            return blockLines.join('\n');
+        })
         .join('\n\n');
 }
 
@@ -947,33 +975,71 @@ export default function QuotePage() {
             }
 
             // 3. Settings
-            if (normalized.instellingen || normalized.extras) {
+            if (normalized.instellingen || normalized.extras || quote?.instellingen || quote?.extras) {
                 const rawInst = normalized.instellingen as any;
                 const rawExtras = normalized.extras as any;
+                const quoteInst = (quote?.instellingen ?? {}) as any;
+                const quoteExtras = (quote?.extras ?? {}) as any;
 
                 const mappedSettings: QuoteCalculationSettings = {
-                    btwTarief: rawInst?.btwTarief || 21,
-                    uurTariefExclBtw: rawInst?.uurTariefExclBtw || rawInst?.uurTarief || 50,
-                    schattingUren: rawInst?.schattingUren ?? false,
+                    btwTarief: rawInst?.btwTarief ?? quoteInst?.btwTarief ?? 21,
+                    uurTariefExclBtw: rawInst?.uurTariefExclBtw ?? rawInst?.uurTarief ?? quoteInst?.uurTariefExclBtw ?? quoteInst?.uurTarief ?? 50,
+                    schattingUren: rawInst?.schattingUren ?? quoteInst?.schattingUren ?? false,
                     extras: {
                         transport: {
-                            prijsPerKm: rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? rawInst?.transportPrijsPerKm,
-                            vasteTransportkosten: rawExtras?.transport?.vasteTransportkosten ?? rawInst?.extras?.transport?.vasteTransportkosten,
-                            tunnelkosten: rawExtras?.transport?.tunnelkosten ?? rawInst?.extras?.transport?.tunnelkosten,
-                            mode: rawExtras?.transport?.mode ?? rawInst?.extras?.transport?.mode
+                            prijsPerKm:
+                                rawExtras?.transport?.prijsPerKm
+                                ?? rawInst?.extras?.transport?.prijsPerKm
+                                ?? rawInst?.transportPrijsPerKm
+                                ?? quoteExtras?.transport?.prijsPerKm
+                                ?? quoteInst?.extras?.transport?.prijsPerKm
+                                ?? quoteInst?.reiskosten_prijs_per_km,
+                            vasteTransportkosten:
+                                rawExtras?.transport?.vasteTransportkosten
+                                ?? rawInst?.extras?.transport?.vasteTransportkosten
+                                ?? quoteExtras?.transport?.vasteTransportkosten
+                                ?? quoteInst?.extras?.transport?.vasteTransportkosten,
+                            tunnelkosten:
+                                rawExtras?.transport?.tunnelkosten
+                                ?? rawInst?.extras?.transport?.tunnelkosten
+                                ?? quoteExtras?.transport?.tunnelkosten
+                                ?? quoteInst?.extras?.transport?.tunnelkosten,
+                            mode:
+                                rawExtras?.transport?.mode
+                                ?? rawInst?.extras?.transport?.mode
+                                ?? quoteExtras?.transport?.mode
+                                ?? (quoteInst?.reiskosten_type === 'vast'
+                                    ? 'vast'
+                                    : quoteInst?.reiskosten_type === 'perKm'
+                                        ? 'perKm'
+                                        : quoteInst?.extras?.transport?.mode),
                         },
                         winstMarge: {
-                            percentage: rawExtras?.winstMarge?.percentage ?? rawInst?.extras?.winstMarge?.percentage ?? 10,
-                            fixedAmount: rawExtras?.winstMarge?.fixedAmount ?? 0,
-                            mode: rawExtras?.winstMarge?.mode ?? 'percentage',
-                            basis: rawExtras?.winstMarge?.basis ?? 'totaal'
+                            percentage:
+                                rawExtras?.winstMarge?.percentage
+                                ?? rawInst?.extras?.winstMarge?.percentage
+                                ?? quoteExtras?.winstMarge?.percentage
+                                ?? quoteInst?.extras?.winstMarge?.percentage
+                                ?? 10,
+                            fixedAmount:
+                                rawExtras?.winstMarge?.fixedAmount
+                                ?? quoteExtras?.winstMarge?.fixedAmount
+                                ?? 0,
+                            mode:
+                                rawExtras?.winstMarge?.mode
+                                ?? quoteExtras?.winstMarge?.mode
+                                ?? 'percentage',
+                            basis:
+                                rawExtras?.winstMarge?.basis
+                                ?? quoteExtras?.winstMarge?.basis
+                                ?? 'totaal',
                         }
                     }
                 };
                 setQuoteSettings(mappedSettings);
             }
         }
-    }, [calculation]);
+    }, [calculation, quote]);
 
     // Keep quote metadata live while this page is open so calculation completion
     // (written by background processing) appears without manual refresh.
@@ -1098,7 +1164,7 @@ export default function QuotePage() {
         handleQuoteNotesChange(serialized);
     }, [handleQuoteNotesChange]);
 
-    const handleQuoteNoteSectionChange = useCallback((sectionId: string, field: 'title' | 'notes', value: string) => {
+    const handleQuoteNoteSectionChange = useCallback((sectionId: string, field: 'title' | 'links' | 'notes', value: string) => {
         const nextSections = quoteNoteSections.map((section) => (
             section.id === sectionId
                 ? { ...section, [field]: value }
@@ -1117,6 +1183,7 @@ export default function QuotePage() {
             const resetSection = {
                 ...quoteNoteSections[0],
                 title: '',
+                links: '',
                 notes: '',
             };
             syncQuoteNoteSectionsToQuoteNotes([resetSection]);
@@ -1956,6 +2023,14 @@ export default function QuotePage() {
     ].length;
 
     const roundMoney = (value: number): number => Number((value || 0).toFixed(2));
+    const isExtraKostenItem = (item: MaterialItem): boolean =>
+        String(item.product || '').trim().toLowerCase() === 'extra kosten';
+    const extraKostenExcl = roundMoney(
+        [...materials.groot, ...materials.verbruik].reduce((sum, item) => {
+            if (!isExtraKostenItem(item)) return sum;
+            return sum + (Number(item.prijs_per_stuk) || 0) * (Number(item.aantal) || 0);
+        }, 0),
+    );
 
     const applyMaterialTargetWithAdjustment = async (
         category: 'groot' | 'verbruik',
@@ -1971,8 +2046,7 @@ export default function QuotePage() {
         if (Math.abs(delta) < 0.01) return;
 
         const adjustmentIndex = currentList.findIndex((item) => {
-            const name = String(item.product || '').trim().toLowerCase();
-            return name === 'extra kosten';
+            return isExtraKostenItem(item);
         });
 
         let nextList: MaterialItem[];
@@ -2041,6 +2115,14 @@ export default function QuotePage() {
         const delta = roundMoney(safeTarget - currentSubtotal);
         if (Math.abs(delta) < 0.01) return;
         await applyMaterialTargetWithAdjustment('groot', roundMoney(grootSubtotal + delta));
+    };
+
+    const handleUpdateExtraKostenTotal = async (value: number) => {
+        if (!calculation) return;
+        const safeTarget = roundMoney(Math.max(0, value));
+        const delta = roundMoney(safeTarget - extraKostenExcl);
+        if (Math.abs(delta) < 0.01) return;
+        await applyMaterialTargetWithAdjustment('verbruik', roundMoney(verbruikSubtotal + delta));
     };
 
     const handleUpdateWinstMargePercentage = async (percentage: number) => {
@@ -5309,6 +5391,7 @@ export default function QuotePage() {
                                         totals={totals}
                                         settings={quoteSettings}
                                         totalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
+                                        extraKostenExcl={extraKostenExcl}
                                         onUpdateHourlyRate={(newRate) => {
                                             if (!quoteSettings) return;
                                             handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
@@ -5325,6 +5408,7 @@ export default function QuotePage() {
                                         }}
                                         onUpdateMaterialenGrootTotal={handleUpdateMaterialenGrootTotal}
                                         onUpdateMaterialenVerbruikTotal={handleUpdateMaterialenVerbruikTotal}
+                                        onUpdateExtraKostenTotal={handleUpdateExtraKostenTotal}
                                         onUpdateMaterialenSubtotal={handleUpdateMaterialenSubtotal}
                                         onUpdateTransportTotal={handleUpdateTransportTotal}
                                         onUpdateWinstMargePercentage={handleUpdateWinstMargePercentage}
@@ -6053,6 +6137,12 @@ export default function QuotePage() {
                                                         Verwijder
                                                     </Button>
                                                 </div>
+                                                <textarea
+                                                    value={section.links}
+                                                    onChange={(e) => handleQuoteNoteSectionChange(section.id, 'links', e.target.value)}
+                                                    placeholder="Links naar producten (1 per regel)..."
+                                                    className="min-h-[72px] w-full rounded-xl border border-border/60 bg-background p-4 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:border-border"
+                                                />
                                                 <textarea
                                                     value={section.notes}
                                                     onChange={(e) => handleQuoteNoteSectionChange(section.id, 'notes', e.target.value)}

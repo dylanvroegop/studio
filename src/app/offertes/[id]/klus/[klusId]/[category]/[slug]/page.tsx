@@ -1009,15 +1009,16 @@ export default function GenericMeasurementPage() {
 
   const normalizeEpdmEdgeValue = (
     value: any,
-    fallback: 'free' | 'wall' = 'free'
-  ): 'free' | 'wall' => {
+    fallback: 'free' | 'wall' | 'goot' = 'free'
+  ): 'free' | 'wall' | 'goot' => {
     const normalized = String(value ?? '').trim().toLowerCase();
     if (['wall', 'gevel', 'muur'].includes(normalized)) return 'wall';
+    if (['goot', 'dakgoot', 'gutter'].includes(normalized)) return 'goot';
     if (['free', 'vrij', 'vrijstaand'].includes(normalized)) return 'free';
     return fallback;
   };
 
-  const epdmDefaultEdgeForKey = (key: 'edge_top' | 'edge_bottom' | 'edge_left' | 'edge_right'): 'free' | 'wall' => {
+  const epdmDefaultEdgeForKey = (key: 'edge_top' | 'edge_bottom' | 'edge_left' | 'edge_right'): 'free' | 'wall' | 'goot' => {
     return key === 'edge_top' ? 'wall' : 'free';
   };
 
@@ -1780,7 +1781,7 @@ export default function GenericMeasurementPage() {
       item.edge_right = normalizeEpdmEdgeValue(item.edge_right, epdmDefaultEdgeForKey('edge_right'));
       item.dakrand_breedte = 50;
 
-      const edgeBySide: Record<'top' | 'right' | 'bottom' | 'left', 'free' | 'wall'> = {
+      const edgeBySide: Record<'top' | 'right' | 'bottom' | 'left', 'free' | 'wall' | 'goot'> = {
         top: item.edge_top,
         right: item.edge_right,
         bottom: item.edge_bottom,
@@ -1812,6 +1813,9 @@ export default function GenericMeasurementPage() {
           item[dakgootKey] = false;
         }
         if (sideType !== 'free') {
+          item[daktrimKey] = false;
+        }
+        if (sideType !== 'goot') {
           item[dakgootKey] = false;
         }
       });
@@ -2740,8 +2744,8 @@ export default function GenericMeasurementPage() {
         if (hasDaktrimMaterialFromPreviousPage) {
           newItem[`daktrim_${side}`] = nextEpdmEdge === 'free';
         }
-        if (hasDakgootMaterialFromPreviousPage && nextEpdmEdge !== 'free') {
-          newItem[`dakgoot_${side}`] = false;
+        if (hasDakgootMaterialFromPreviousPage) {
+          newItem[`dakgoot_${side}`] = nextEpdmEdge === 'goot';
         }
 
         newItem.lood_gevelzijde = ['top', 'right', 'bottom', 'left'].some((s) => Boolean(newItem[`lood_${s}`]));
@@ -2770,7 +2774,7 @@ export default function GenericMeasurementPage() {
         const side = key.replace('dakgoot_', '') as 'top' | 'right' | 'bottom' | 'left';
         const edgeKey = `edge_${side}` as 'edge_top' | 'edge_right' | 'edge_bottom' | 'edge_left';
         const edgeType = normalizeEpdmEdgeValue(newItem[edgeKey], epdmDefaultEdgeForKey(edgeKey));
-        if (edgeType !== 'free') {
+        if (edgeType !== 'goot') {
           newItem[key] = false;
         }
       }
@@ -3949,7 +3953,7 @@ export default function GenericMeasurementPage() {
 
           if (isEpdmDak) {
             const allSides: Array<'top' | 'right' | 'bottom' | 'left'> = ['top', 'right', 'bottom', 'left'];
-            const edgeBySide: Record<'top' | 'right' | 'bottom' | 'left', 'free' | 'wall'> = {
+            const edgeBySide: Record<'top' | 'right' | 'bottom' | 'left', 'free' | 'wall' | 'goot'> = {
               top: normalizeEpdmEdgeValue(processed.edge_top, 'wall'),
               right: normalizeEpdmEdgeValue(processed.edge_right, 'free'),
               bottom: normalizeEpdmEdgeValue(processed.edge_bottom, 'free'),
@@ -3981,7 +3985,7 @@ export default function GenericMeasurementPage() {
             if (hasDakgootMaterialFromPreviousPage) {
               allSides.forEach((side) => {
                 const key = `dakgoot_${side}`;
-                processed[key] = edgeBySide[side] === 'free' ? Boolean(processed[key]) : false;
+                processed[key] = edgeBySide[side] === 'goot' ? Boolean(processed[key]) : false;
               });
             } else {
               allSides.forEach((side) => delete processed[`dakgoot_${side}`]);
@@ -4045,6 +4049,7 @@ export default function GenericMeasurementPage() {
             });
             const vrijeRanden = randen.filter((r) => r.type === 'free');
             const gevelRanden = randen.filter((r) => r.type === 'wall');
+            const gootRanden = randen.filter((r) => r.type === 'goot');
             const daktrimRanden = randen.filter((r) => r.daktrim);
             const loodRanden = randen.filter((r) => r.lood);
             const dakgootRanden = randen.filter((r) => r.dakgoot);
@@ -4059,12 +4064,14 @@ export default function GenericMeasurementPage() {
             processed.epdm_randen_summary = {
               vrije_randen_m1: Number(vrijeRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
               gevel_randen_m1: Number(gevelRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
+              goot_randen_m1: Number(gootRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
               daktrim_randen_m1: Number(daktrimRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
               lood_randen_m1: Number(loodRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
               dakgoot_randen_m1: Number(dakgootRanden.reduce((sum, row) => sum + row.lengte_m1, 0).toFixed(3)),
               daktrim_hoeken_auto: daktrimHoekenAuto,
               vrije_randen_detail: vrijeRanden.map((row) => `${row.richting}:${row.lengte_m1}m`),
               gevel_randen_detail: gevelRanden.map((row) => `${row.richting}:${row.lengte_m1}m`),
+              goot_randen_detail: gootRanden.map((row) => `${row.richting}:${row.lengte_m1}m`),
             };
           }
 
@@ -5187,7 +5194,10 @@ export default function GenericMeasurementPage() {
                           const gevelCount = epdmSideRows.filter((row) =>
                             normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key)) === 'wall'
                           ).length;
-                          const vrijstaandCount = 4 - gevelCount;
+                          const gootCount = epdmSideRows.filter((row) =>
+                            normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key)) === 'goot'
+                          ).length;
+                          const vrijstaandCount = 4 - gevelCount - gootCount;
 
                           return (
                             <>
@@ -5196,10 +5206,10 @@ export default function GenericMeasurementPage() {
                                 onClick={() => toggleCollapsed(`gevel-vrijstaand-${index}`)}
                               >
                                 <div className="flex items-center gap-3">
-                                  <span className="text-sm font-medium text-zinc-200">Gevel / vrijstaand</span>
+                                  <span className="text-sm font-medium text-zinc-200">Gevel / vrijstaand / goot</span>
                                   {collapsedSections[`gevel-vrijstaand-${index}`] !== false && (
                                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                      {`${gevelCount}x gevel • ${vrijstaandCount}x vrijstaand`}
+                                      {`${gevelCount}x gevel • ${vrijstaandCount}x vrijstaand • ${gootCount}x goot`}
                                     </span>
                                   )}
                                 </div>
@@ -5241,6 +5251,18 @@ export default function GenericMeasurementPage() {
                                                 )}
                                               >
                                                 Vrijstaand
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => updateItem(index, row.key, 'goot')}
+                                                className={cn(
+                                                  "flex-1 text-xs py-1.5 rounded transition-colors",
+                                                  currentValue === 'goot'
+                                                    ? "bg-emerald-500/20 text-emerald-400"
+                                                    : "text-zinc-500 hover:text-zinc-300"
+                                                )}
+                                              >
+                                                Goot
                                               </button>
                                             </div>
                                           </div>
@@ -5378,9 +5400,9 @@ export default function GenericMeasurementPage() {
                           const dakgootSummary = epdmSideRows
                             .filter((row) => {
                               const edgeType = normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key));
-                              return edgeType === 'free' && Boolean(item[`dakgoot_${row.side}`]);
+                              return edgeType === 'goot' && Boolean(item[`dakgoot_${row.side}`]);
                             })
-                            .map((row) => `1x vrijstaand ${row.directionLabel.toLowerCase()}`);
+                            .map((row) => `1x goot ${row.directionLabel.toLowerCase()}`);
 
                           return (
                             <>
@@ -5392,7 +5414,7 @@ export default function GenericMeasurementPage() {
                                   <span className="text-sm font-medium text-zinc-200">Dakgoot</span>
                                   {collapsedSections[`dakgoot-${index}`] !== false && (
                                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                      {dakgootSummary.length > 0 ? dakgootSummary.join(' • ') : '0x vrijstaand'}
+                                      {dakgootSummary.length > 0 ? dakgootSummary.join(' • ') : '0x goot'}
                                     </span>
                                   )}
                                 </div>
@@ -5406,18 +5428,18 @@ export default function GenericMeasurementPage() {
                                   <div className="pt-2 border-t border-white/5 space-y-3">
                                     {epdmSideRows.map((row) => {
                                       const edgeType = normalizeEpdmEdgeValue(item[row.key], epdmDefaultEdgeForKey(row.key));
-                                      const isVrijstaandSide = edgeType === 'free';
-                                      const checked = isVrijstaandSide ? Boolean(item[`dakgoot_${row.side}`]) : false;
+                                      const isGootSide = edgeType === 'goot';
+                                      const checked = isGootSide ? Boolean(item[`dakgoot_${row.side}`]) : false;
                                       return (
                                         <div key={`dakgoot-${row.side}`} className="flex items-center justify-between bg-black/20 p-3 rounded border border-white/5">
                                           <div className="space-y-1">
-                                            <Label className="text-xs text-zinc-300">{`Dakgoot ${row.directionLabel} (${row.sideLabel}) • ${isVrijstaandSide ? 'Vrijstaand' : 'Gevel'}`}</Label>
-                                            {!isVrijstaandSide && <p className="text-[11px] text-zinc-500">Alleen op Vrijstaand-zijde.</p>}
+                                            <Label className="text-xs text-zinc-300">{`Dakgoot ${row.directionLabel} (${row.sideLabel}) • ${isGootSide ? 'Goot' : 'Geen goot'}`}</Label>
+                                            {!isGootSide && <p className="text-[11px] text-zinc-500">Alleen op Goot-zijde.</p>}
                                           </div>
                                           <Switch
                                             checked={checked}
                                             onCheckedChange={(checkedState) => updateItem(index, `dakgoot_${row.side}`, checkedState)}
-                                            disabled={disabledAll || !isVrijstaandSide}
+                                            disabled={disabledAll || !isGootSide}
                                           />
                                         </div>
                                       );

@@ -3,18 +3,11 @@
 
 import { useState, useEffect } from 'react';
 import {
-  collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
+  getDoc,
   updateDoc,
-  deleteDoc,
   doc,
   serverTimestamp,
-  orderBy,
 } from 'firebase/firestore';
-import { cleanFirestoreData } from '@/lib/clean-firestore';
 import {
   StickyNote,
   Plus,
@@ -23,7 +16,6 @@ import {
   X,
   Save,
   Loader2,
-  CheckCircle2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -52,13 +44,10 @@ import { useUser, useFirestore } from '@/firebase';
 
 type Note = {
   id: string;
-  userId: string;
-  quoteId: string;
-  jobId?: string; // Optional: Link to specific job
+  title?: string;
   content: string;
   tags?: string[];
   context?: string;
-  isResolved?: boolean;
   createdAt?: any;
   updatedAt?: any;
 };
@@ -77,6 +66,70 @@ const NOTE_TAGS = [
   { label: 'Prijsgevoelig', icon: '💰', value: 'budget', color: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/20' },
   { label: 'Beslis nog', icon: '🧠', value: 'decision', color: 'bg-pink-500/15 text-pink-600 border-pink-500/20' },
 ] as const;
+
+function createLocalNoteId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `quote-note-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function parseQuoteNotitiesToNotes(rawValue: string): Note[] {
+  const normalized = rawValue.replace(/\r\n/g, '\n').trim();
+  if (!normalized) return [];
+
+  const lines = normalized.split('\n');
+  const sections: Array<{ title: string; notesLines: string[] }> = [];
+  let activeSection: { title: string; notesLines: string[] } | null = null;
+
+  for (const line of lines) {
+    const titleMatch = line.match(/^###\s*(.*)$/);
+    if (titleMatch) {
+      activeSection = { title: titleMatch[1].trim(), notesLines: [] };
+      sections.push(activeSection);
+      continue;
+    }
+
+    if (!activeSection) {
+      activeSection = { title: '', notesLines: [] };
+      sections.push(activeSection);
+    }
+
+    activeSection.notesLines.push(line);
+  }
+
+  return sections.map((section) => ({
+    id: createLocalNoteId(),
+    title: section.title,
+    content: section.notesLines.join('\n').trim(),
+    tags: [],
+  }));
+}
+
+function serializeNotesToQuoteNotities(notes: Note[]): string {
+  const cleaned = notes
+    .map((note) => ({
+      title: String(note.title || '').trim(),
+      content: String(note.content || '').trim(),
+    }))
+    .filter((note) => note.title.length > 0 || note.content.length > 0);
+
+  if (cleaned.length === 0) return '';
+
+  return cleaned
+    .map((note) => (
+      note.title.length === 0
+        ? note.content
+        : note.content.length > 0
+          ? `### ${note.title}\n${note.content}`
+          : `### ${note.title}`
+    ))
+    .join('\n\n');
+}
+
+function getTagLabelByValue(tagValue: string): string {
+  return NOTE_TAGS.find((tag) => tag.value === tagValue)?.label || tagValue;
+}
 
 export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
   const { user } = useUser();
@@ -97,77 +150,18 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null);
 
-  // Fetch notes when sheet opens
+  // Read/write exactly the same source as quote tab "Notities": quotes/{quoteId}.notities
   useEffect(() => {
     if (!isOpen || !user || !firestore || !quoteId) return;
 
     const fetchNotes = async () => {
       setLoading(true);
       try {
-        try {
-          // Construct query based on whether jobId is present
-          let q;
-          if (jobId) {
-            q = query(
-              collection(firestore, 'notes'),
-              where('userId', '==', user.uid),
-              where('quoteId', '==', quoteId),
-              where('jobId', '==', jobId), // Filter by job
-              orderBy('createdAt', 'desc')
-            );
-          } else {
-            // Fallback/Legacy: Show notes for quote that DON'T have a specific job? 
-            // OR show all? User likely wants specific context. 
-            // Let's filter by context or show all if no jobId?
-            // Safest: Filter by quoteId. But if we are in a job, we want job notes.
-            // If we are NOT in a job (e.g. quote overview), maybe we want all?
-            // For now, simple logic:
-            q = query(
-              collection(firestore, 'notes'),
-              where('userId', '==', user.uid),
-              where('quoteId', '==', quoteId),
-              orderBy('createdAt', 'desc')
-            );
-          }
-
-          const snapshot = await getDocs(q);
-          const notesList = snapshot.docs.map(d => ({
-            id: d.id,
-            ...d.data(),
-          })) as Note[];
-          setNotes(notesList);
-        } catch (error) {
-          // Fallback if index missing
-          console.warn("Index missing or query failed, falling back to manual sort", error);
-          let q;
-          if (jobId) {
-            q = query(
-              collection(firestore, 'notes'),
-              where('userId', '==', user.uid),
-              where('quoteId', '==', quoteId),
-              where('jobId', '==', jobId)
-            );
-          } else {
-            q = query(
-              collection(firestore, 'notes'),
-              where('userId', '==', user.uid),
-              where('quoteId', '==', quoteId)
-            );
-          }
-
-          const snapshot = await getDocs(q);
-          const notesList = snapshot.docs.map(d => ({
-            id: d.id,
-            ...d.data(),
-          })) as Note[];
-          // Sort manually
-          notesList.sort((a, b) => {
-            const aTime = a.createdAt?.seconds || 0;
-            const bTime = b.createdAt?.seconds || 0;
-            return bTime - aTime;
-          });
-          setNotes(notesList);
-        }
+        const quoteRef = doc(firestore, 'quotes', quoteId);
+        const quoteSnap = await getDoc(quoteRef);
+        const rawNotities = quoteSnap.data()?.notities;
+        const serializedNotities = typeof rawNotities === 'string' ? rawNotities : '';
+        setNotes(parseQuoteNotitiesToNotes(serializedNotities));
       } catch (error) {
         console.error('Error fetching notes:', error);
         toast({
@@ -181,7 +175,7 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
     };
 
     fetchNotes();
-  }, [isOpen, user, firestore, quoteId, jobId, toast]);
+  }, [isOpen, user, firestore, quoteId, toast]);
 
   // Add new note
   const handleAddNote = async () => {
@@ -189,41 +183,29 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
 
     setIsSaving(true);
     try {
-      const rawData = {
-        userId: user.uid,
-        quoteId,
-        jobId: jobId || null, // Create relationship
-        content: newNoteContent.trim(),
-        tags: selectedTags,
-        context: context || 'Algemeen',
-        isResolved: false,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-
-      const cleanedData = cleanFirestoreData(rawData);
-      const docRef = await addDoc(collection(firestore, 'notes'), cleanedData);
-
       const newNote: Note = {
-        id: docRef.id,
-        userId: user.uid,
-        quoteId,
-        jobId: jobId || undefined,
+        id: createLocalNoteId(),
+        title: selectedTags.length > 0 ? selectedTags.map(getTagLabelByValue).join(' / ') : '',
         content: newNoteContent.trim(),
-        tags: selectedTags,
+        tags: [...selectedTags],
         context: context || 'Algemeen',
-        isResolved: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      setNotes([newNote, ...notes]);
+      const nextNotes = [newNote, ...notes];
+      await updateDoc(doc(firestore, 'quotes', quoteId), {
+        notities: serializeNotesToQuoteNotities(nextNotes),
+        updatedAt: serverTimestamp(),
+      } as any);
+
+      setNotes(nextNotes);
       setNewNoteContent('');
       setSelectedTags([]);
 
       toast({
         title: 'Notitie toegevoegd',
-        description: 'Je persoonlijke notitie is opgeslagen.',
+        description: 'Deze notitie is opgeslagen bij de offerte.',
       });
     } catch (error) {
       console.error('Error adding note:', error);
@@ -243,21 +225,17 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
 
     setIsSaving(true);
     try {
-      const noteRef = doc(firestore, 'notes', editingNote.id);
-      const rawUpdate = {
-        content: editContent.trim(),
-        tags: editTags,
-        updatedAt: serverTimestamp(),
-      };
-
-      const cleanedUpdate = cleanFirestoreData(rawUpdate, { isUpdate: true });
-      await updateDoc(noteRef, cleanedUpdate);
-
-      setNotes(notes.map(n =>
+      const nextNotes = notes.map(n =>
         n.id === editingNote.id
-          ? { ...n, content: editContent.trim(), tags: editTags, updatedAt: new Date() }
+          ? { ...n, content: editContent.trim(), tags: [...editTags], updatedAt: new Date() }
           : n
-      ));
+      );
+      await updateDoc(doc(firestore, 'quotes', quoteId), {
+        notities: serializeNotesToQuoteNotities(nextNotes),
+        updatedAt: serverTimestamp(),
+      } as any);
+
+      setNotes(nextNotes);
 
       setEditingNote(null);
       setEditContent('');
@@ -284,13 +262,17 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
     if (!firestore) return;
 
     try {
-      await deleteDoc(doc(firestore, 'notes', noteId));
-      setNotes(notes.filter(n => n.id !== noteId));
+      const nextNotes = notes.filter(n => n.id !== noteId);
+      await updateDoc(doc(firestore, 'quotes', quoteId), {
+        notities: serializeNotesToQuoteNotities(nextNotes),
+        updatedAt: serverTimestamp(),
+      } as any);
+      setNotes(nextNotes);
       setDeleteNoteId(null);
 
       toast({
         title: 'Notitie verwijderd',
-        description: 'Je persoonlijke notitie is verwijderd.',
+        description: 'De offerte-notitie is verwijderd.',
       });
     } catch (error) {
       console.error('Error deleting note:', error);
@@ -359,10 +341,10 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2 text-amber-500">
               <StickyNote className="h-5 w-5" />
-              Persoonlijke notities
+              Offerte notities
             </SheetTitle>
             <SheetDescription>
-              Deze notities zijn alleen voor jou zichtbaar en worden niet toegevoegd aan de offerte.
+              Deze notities worden gebruikt binnen de offerte, bijvoorbeeld voor werkbeschrijving en calculatie-context.
             </SheetDescription>
           </SheetHeader>
 
@@ -411,7 +393,7 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
                 )}
 
                 <Textarea
-                  placeholder="Nieuwe notitie toevoegen..."
+                  placeholder="Nieuwe offerte-notitie toevoegen..."
                   value={newNoteContent}
                   onChange={(e) => setNewNoteContent(e.target.value)}
                   className="min-h-[200px] border-0 focus-visible:ring-0 rounded-none shadow-none resize-none bg-transparent"
@@ -429,7 +411,7 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
                 ) : (
                   <Plus className="h-4 w-4 mr-2" />
                 )}
-                Notitie toevoegen
+                Toevoegen aan offerte
               </Button>
             </div>
 
@@ -547,6 +529,11 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
                         <div className="p-4">
                           <div className="flex items-start gap-3">
                             <div className="flex-1 min-w-0">
+                              {note.title && (
+                                <p className="text-xs font-semibold uppercase tracking-wide text-amber-500/90 mb-2">
+                                  {note.title}
+                                </p>
+                              )}
                               <p className="text-sm whitespace-pre-wrap mb-3 leading-relaxed text-foreground/90 transition-all">
                                 {note.content}
                               </p>

@@ -987,20 +987,25 @@ export function normalizeDataJson(input: any): DataJson {
 // ==============================
 
 export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings): QuoteTotals {
+    const roundCurrency = (value: number): number => {
+        const safe = Number.isFinite(value) ? value : 0;
+        return Math.round((safe + Number.EPSILON) * 100) / 100;
+    };
+
     const normalized = normalizeDataJson(dataJson);
 
     // 1) Materialen
     const groot = normalized.grootmaterialen || [];
     const verbruik = normalized.verbruiksartikelen || [];
 
-    const grootSubtotalExclBtw = groot.reduce((sum, it) => sum + toNumber(it.aantal, 0) * toNumber(it.prijs_per_stuk, 0), 0);
-    const verbruikSubtotalExclBtw = verbruik.reduce((sum, it) => sum + toNumber(it.aantal, 0) * toNumber(it.prijs_per_stuk, 0), 0);
-    const materiaalSubtotalExclBtw = grootSubtotalExclBtw + verbruikSubtotalExclBtw;
+    const grootSubtotalExclBtwRaw = groot.reduce((sum, it) => sum + toNumber(it.aantal, 0) * toNumber(it.prijs_per_stuk, 0), 0);
+    const verbruikSubtotalExclBtwRaw = verbruik.reduce((sum, it) => sum + toNumber(it.aantal, 0) * toNumber(it.prijs_per_stuk, 0), 0);
+    const materiaalSubtotalExclBtwRaw = grootSubtotalExclBtwRaw + verbruikSubtotalExclBtwRaw;
 
     // 2) Uren / arbeid
     const totaalUren = toNumber(normalized.totaal_uren, 0);
     const uurTariefExclBtw = toNumber(quoteSettings?.uurTariefExclBtw, 0);
-    const arbeidSubtotalExclBtw = totaalUren * uurTariefExclBtw;
+    const arbeidSubtotalExclBtwRaw = totaalUren * uurTariefExclBtw;
 
     // 3) Extras: transport & winst
     const instellingen = normalized.instellingen as any;
@@ -1057,8 +1062,8 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
         transportPerDag = toNumber(transportPerDagFromDistance, 0);
     }
 
-    let transportExclBtw = transportPerDag * transportAantalDagen;
-    transportExclBtw += tunnelkosten;
+    let transportExclBtwRaw = transportPerDag * transportAantalDagen;
+    transportExclBtwRaw += tunnelkosten;
 
     // Winstmarge
     const margeMode = quoteSettings.extras.winstMarge.mode;
@@ -1068,26 +1073,33 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
 
     const basisBedrag =
         margeBasis === "arbeid"
-            ? arbeidSubtotalExclBtw
+            ? arbeidSubtotalExclBtwRaw
             : margeBasis === "materiaal"
-                ? materiaalSubtotalExclBtw
+                ? materiaalSubtotalExclBtwRaw
                 : // "totaal"
-                arbeidSubtotalExclBtw + materiaalSubtotalExclBtw + transportExclBtw;
+                arbeidSubtotalExclBtwRaw + materiaalSubtotalExclBtwRaw + transportExclBtwRaw;
 
-    let winstMargeExclBtw = 0;
+    let winstMargeExclBtwRaw = 0;
     if (margeMode === "fixed") {
-        winstMargeExclBtw = margeFixed;
+        winstMargeExclBtwRaw = margeFixed;
     } else {
-        winstMargeExclBtw = (margePercentage / 100) * basisBedrag;
+        winstMargeExclBtwRaw = (margePercentage / 100) * basisBedrag;
     }
 
     // 4) Totalen
-    const subtotaalExclBtw = arbeidSubtotalExclBtw + materiaalSubtotalExclBtw + transportExclBtw;
-    const totaalExclBtw = subtotaalExclBtw + winstMargeExclBtw;
+    const grootSubtotalExclBtw = roundCurrency(grootSubtotalExclBtwRaw);
+    const verbruikSubtotalExclBtw = roundCurrency(verbruikSubtotalExclBtwRaw);
+    const materiaalSubtotalExclBtw = roundCurrency(materiaalSubtotalExclBtwRaw);
+    const arbeidSubtotalExclBtw = roundCurrency(arbeidSubtotalExclBtwRaw);
+    const transportPerDagRounded = roundCurrency(transportPerDag);
+    const transportExclBtw = roundCurrency(transportExclBtwRaw);
+    const winstMargeExclBtw = roundCurrency(winstMargeExclBtwRaw);
+    const subtotaalExclBtw = roundCurrency(arbeidSubtotalExclBtw + materiaalSubtotalExclBtw + transportExclBtw);
+    const totaalExclBtw = roundCurrency(subtotaalExclBtw + winstMargeExclBtw);
 
     const btwTarief = toNumber(quoteSettings?.btwTarief, 21);
-    const btwBedrag = (btwTarief / 100) * totaalExclBtw;
-    const totaalInclBtw = totaalExclBtw + btwBedrag;
+    const btwBedrag = roundCurrency((btwTarief / 100) * totaalExclBtw);
+    const totaalInclBtw = roundCurrency(totaalExclBtw + btwBedrag);
 
     return {
         materialenGroot: grootSubtotalExclBtw,
@@ -1095,12 +1107,12 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
         materialenTotaal: materiaalSubtotalExclBtw,
         arbeidTotaal: arbeidSubtotalExclBtw,
         transportTotaal: transportExclBtw,
-        transportPerDag,
+        transportPerDag: transportPerDagRounded,
         transportAantalDagen,
         transportRatePerKm: toNumber(prijsPerKm, 0),
         transportDistanceKmOneWay,
-        transportOneWayCost,
-        transportRoundTripCost,
+        transportOneWayCost: roundCurrency(transportOneWayCost),
+        transportRoundTripCost: roundCurrency(transportRoundTripCost),
         transportDurationPerDagMinutes: roundTripMinutes,
         transportDurationOneWayText: durationText || "0 min",
         transportDurationRoundTripText: formatMinutesShort(roundTripMinutes),
