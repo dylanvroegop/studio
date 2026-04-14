@@ -1,27 +1,67 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowDownRight, Landmark, Loader2, RefreshCcw } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowDownRight, Landmark, Link as LinkIcon, Loader2, RefreshCcw } from 'lucide-react';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import type { BankTransactionRow } from '@/lib/bank-overzicht';
+
+type BankInstitution = {
+  id: string;
+  name: string;
+  bic?: string | null;
+  logo?: string | null;
+};
+
+type BankConnection = {
+  id: string;
+  status: 'pending' | 'linked' | 'connected' | 'error' | 'revoked' | string;
+  institution_id: string;
+  institution_name: string | null;
+  requisition_id?: string;
+  last_error?: string | null;
+  last_synced_at?: string | null;
+  accounts?: unknown;
+  created_at?: string;
+  updated_at?: string;
+};
 
 type ApiListResponse = {
   ok: boolean;
   mode?: 'bank_transactions' | 'project_costs_fallback';
   data?: BankTransactionRow[];
+  connection?: BankConnection | null;
   message?: string;
 };
 
 type ApiSyncResponse = ApiListResponse & {
   inserted_count?: number;
+};
+
+type ApiInstitutionsResponse = {
+  ok: boolean;
+  data?: BankInstitution[];
+  message?: string;
+};
+
+type ApiLinkStartResponse = {
+  ok: boolean;
+  data?: {
+    link: string;
+    requisition_id: string;
+    ref: string;
+    connection_id: string;
+  };
+  message?: string;
 };
 
 function formatCurrency(amount: number): string {
@@ -45,19 +85,36 @@ function formatDate(value: string): string {
 
 function sourceBadge(mode: ApiListResponse['mode']) {
   if (mode === 'bank_transactions') return 'Live bankfeed';
-  return 'Testmodus (kosten fallback)';
+  return 'Bankfeed';
+}
+
+function connectionBadge(connection: BankConnection | null): string {
+  if (!connection) return 'Niet gekoppeld';
+  if (connection.status === 'connected') return 'Gekoppeld';
+  if (connection.status === 'linked') return 'In behandeling';
+  if (connection.status === 'pending') return 'Wachten op bank bevestiging';
+  if (connection.status === 'error') return 'Fout in koppeling';
+  return 'Status onbekend';
 }
 
 export default function BankOverzichtPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [institutionsLoading, setInstitutionsLoading] = useState(false);
+  const [connectDialogOpen, setConnectDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<ApiListResponse['mode']>('project_costs_fallback');
+  const [mode, setMode] = useState<ApiListResponse['mode']>('bank_transactions');
   const [transactions, setTransactions] = useState<BankTransactionRow[]>([]);
+  const [connection, setConnection] = useState<BankConnection | null>(null);
+  const [institutions, setInstitutions] = useState<BankInstitution[]>([]);
+  const [institutionsInfo, setInstitutionsInfo] = useState<string | null>(null);
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>('');
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
 
   useEffect(() => {
@@ -85,7 +142,9 @@ export default function BankOverzichtPage() {
       }
 
       setTransactions(Array.isArray(data.data) ? data.data : []);
-      setMode(data.mode || 'project_costs_fallback');
+      setConnection(data.connection || null);
+      setMode(data.mode || 'bank_transactions');
+      if (data.message) setError(data.message);
       setLastSyncAt(new Date().toISOString());
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : 'Kon banktransacties niet laden.';
@@ -98,6 +157,116 @@ export default function BankOverzichtPage() {
   useEffect(() => {
     void loadTransactions();
   }, [loadTransactions]);
+
+  useEffect(() => {
+    const bankLinkState = searchParams.get('bank_link');
+    const bankMessage = searchParams.get('bank_message');
+    if (!bankLinkState) return;
+
+    if (bankLinkState === 'success') {
+      toast({
+        title: 'Bank gekoppeld',
+        description: bankMessage || 'Je bankrekening is gekoppeld en klaar voor synchronisatie.',
+      });
+      void loadTransactions();
+    } else if (bankLinkState === 'pending') {
+      toast({
+        title: 'Bankkoppeling in behandeling',
+        description: bankMessage || 'De koppeling staat klaar, maar accountgegevens zijn nog niet compleet.',
+      });
+    } else if (bankLinkState === 'error') {
+      toast({
+        title: 'Bankkoppeling mislukt',
+        description: bankMessage || 'Er ging iets mis tijdens het koppelen.',
+        variant: 'destructive',
+      });
+    }
+
+    const cleaned = new URL(window.location.href);
+    cleaned.searchParams.delete('bank_link');
+    cleaned.searchParams.delete('bank_message');
+    window.history.replaceState({}, '', cleaned.toString());
+  }, [loadTransactions, searchParams, toast]);
+
+  const loadInstitutions = useCallback(async () => {
+    if (!user) return;
+    setInstitutionsLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/bank/institutions?country=NL', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: 'no-store',
+      });
+      const data = (await response.json().catch(() => null)) as ApiInstitutionsResponse | null;
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.message || 'Kon bankenlijst niet laden.');
+      }
+      const rows = Array.isArray(data.data) ? data.data : [];
+      setInstitutionsInfo(data.message || null);
+      setInstitutions(rows);
+      if (!selectedInstitutionId && rows.length > 0) {
+        setSelectedInstitutionId(rows[0].id);
+      }
+      if (rows.length === 0) {
+        setSelectedInstitutionId('');
+      }
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : 'Kon bankenlijst niet laden.';
+      toast({
+        title: 'Banken laden mislukt',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setInstitutionsLoading(false);
+    }
+  }, [selectedInstitutionId, toast, user]);
+
+  const openConnectDialog = useCallback(() => {
+    setConnectDialogOpen(true);
+    if (institutions.length === 0 && !institutionsLoading) {
+      void loadInstitutions();
+    }
+  }, [institutions.length, institutionsLoading, loadInstitutions]);
+
+  const handleStartLink = async () => {
+    if (!user || !selectedInstitutionId) return;
+    setLinking(true);
+    setError(null);
+    try {
+      const token = await user.getIdToken();
+      const selectedBank = institutions.find((item) => item.id === selectedInstitutionId);
+      const response = await fetch('/api/bank/link/start', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          institution_id: selectedInstitutionId,
+          institution_name: selectedBank?.name || null,
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as ApiLinkStartResponse | null;
+      if (!response.ok || !data?.ok || !data.data?.link) {
+        throw new Error(data?.message || 'Kon bankkoppeling niet starten.');
+      }
+
+      window.location.assign(data.data.link);
+    } catch (linkError) {
+      const message = linkError instanceof Error ? linkError.message : 'Kon bankkoppeling niet starten.';
+      setError(message);
+      toast({
+        title: 'Bankkoppeling mislukt',
+        description: message,
+        variant: 'destructive',
+      });
+      setLinking(false);
+    }
+  };
 
   const handleSync = async () => {
     if (!user) return;
@@ -119,16 +288,15 @@ export default function BankOverzichtPage() {
       }
 
       setTransactions(Array.isArray(data.data) ? data.data : []);
-      setMode(data.mode || 'project_costs_fallback');
+      setConnection(data.connection || connection);
+      setMode(data.mode || 'bank_transactions');
       setLastSyncAt(new Date().toISOString());
 
       toast({
         title: 'Banksync voltooid',
         description:
           data.message
-          || (data.mode === 'bank_transactions'
-            ? 'Nieuwe banktransacties zijn toegevoegd.'
-            : 'Testmodus: transacties geladen vanuit kostenfallback.'),
+          || 'Nieuwe banktransacties zijn toegevoegd.',
       });
     } catch (syncError) {
       const message = syncError instanceof Error ? syncError.message : 'Kon banksync niet uitvoeren.';
@@ -174,11 +342,16 @@ export default function BankOverzichtPage() {
                     Banktransacties
                   </CardTitle>
                   <div className="text-sm text-muted-foreground">
-                    Deze testtab toont automatische uitgaande kosten uit je bankstroom.
+                    Koppel je zakelijke bankrekening en synchroniseer uitgaven automatisch.
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">{sourceBadge(mode)}</Badge>
+                  <Badge variant="outline">{connectionBadge(connection)}</Badge>
+                  <Button type="button" variant="outline" onClick={openConnectDialog} className="gap-2">
+                    <LinkIcon className="h-4 w-4" />
+                    {connection ? 'Koppeling wijzigen' : 'Bank koppelen'}
+                  </Button>
                   <Button type="button" onClick={handleSync} disabled={syncing} className="gap-2">
                     {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                     {syncing ? 'Synchroniseren...' : 'Synchroniseer nu'}
@@ -197,6 +370,11 @@ export default function BankOverzichtPage() {
                   {error}
                 </div>
               ) : null}
+              {connection?.last_error ? (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">
+                  Laatste koppelfout: {connection.last_error}
+                </div>
+              ) : null}
 
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-xl border border-border/70 bg-card/55 p-4">
@@ -211,7 +389,7 @@ export default function BankOverzichtPage() {
 
               {transactions.length === 0 ? (
                 <div className="rounded-xl border border-border/70 bg-card/55 p-6 text-sm text-muted-foreground">
-                  Geen transacties gevonden. Klik op <strong>Synchroniseer nu</strong> om nieuwe testdata op te halen.
+                  Geen transacties gevonden. Koppel eerst je bank en klik daarna op <strong>Synchroniseer nu</strong>.
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-xl border border-border/70">
@@ -252,6 +430,59 @@ export default function BankOverzichtPage() {
           </Card>
         </div>
       </main>
+
+      <Dialog open={connectDialogOpen} onOpenChange={setConnectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bankrekening koppelen</DialogTitle>
+            <DialogDescription>
+              Kies je bank. Je wordt daarna doorgestuurd naar de beveiligde bankomgeving om toegang te geven.
+            </DialogDescription>
+          </DialogHeader>
+
+              <div className="space-y-2">
+            <div className="text-sm font-medium">Bank</div>
+            <Select
+              value={selectedInstitutionId}
+              onValueChange={setSelectedInstitutionId}
+              disabled={institutionsLoading || linking}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={institutionsLoading ? 'Banken laden...' : 'Selecteer een bank'} />
+              </SelectTrigger>
+              <SelectContent>
+                {institutions.map((bank) => (
+                  <SelectItem key={bank.id} value={bank.id}>
+                    {bank.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {institutionsInfo ? (
+              <div className="text-xs text-muted-foreground">
+                {institutionsInfo}
+              </div>
+            ) : null}
+            {!institutionsLoading && institutions.length === 0 && !institutionsInfo ? (
+              <div className="text-xs text-muted-foreground">
+                Geen banken beschikbaar. Controleer de bankprovider configuratie.
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              onClick={handleStartLink}
+              disabled={linking || institutionsLoading || !selectedInstitutionId || institutions.length === 0}
+              className="gap-2"
+            >
+              {linking ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
+              {linking ? 'Verbinding starten...' : 'Doorgaan naar bank'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
