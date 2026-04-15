@@ -9,6 +9,7 @@ import {
 } from '@/lib/bank-overzicht';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { normalizeBunqProfile } from '@/lib/bunq/client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,9 @@ function latestBalanceMap(rows: unknown[]): Map<string, { amount: number | null;
 export async function GET(request: Request) {
   try {
     const identity = await resolveBankIdentity(request);
+    const url = new URL(request.url);
+    const profile = normalizeBunqProfile(url.searchParams.get('profile'));
+    const linkRef = `bunq:${profile}:${identity.bankUserId}`;
     const trialBlockedResponse = await ensureDemoTrialActiveByUid(identity.firebaseUid);
     if (trialBlockedResponse) {
       trialBlockedResponse.headers.set('Cache-Control', 'no-store');
@@ -49,28 +53,40 @@ export async function GET(request: Request) {
     const contextResult = await supabaseAdmin
       .from('bunq_context')
       .select('id')
-      .eq('id', 1)
+      .eq('profile', profile)
       .maybeSingle();
 
     if (contextResult.error) {
       return NextResponse.json(
-        { ok: false, message: 'Kon bunq-context niet laden.' },
+        { ok: false, message: `Kon bunq-context niet laden: ${contextResult.error.message}` },
         { status: 500, headers: noStoreHeaders() }
       );
     }
 
-    const connectionResult = await supabaseAdmin
+    let connectionResult = await supabaseAdmin
       .from('bank_connections')
       .select('id,institution_name,status,last_synced_at,linked_account_ids')
-      .eq('user_id', identity.bankUserId)
       .eq('provider', 'bunq')
+      .eq('link_ref', linkRef)
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
+    if (!connectionResult.error && !connectionResult.data && profile === 'personal') {
+      // Backward compatibility for pre-profile bunq links.
+      connectionResult = await supabaseAdmin
+        .from('bank_connections')
+        .select('id,institution_name,status,last_synced_at,linked_account_ids')
+        .eq('provider', 'bunq')
+        .eq('link_ref', `bunq:${identity.bankUserId}`)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    }
+
     if (connectionResult.error) {
       return NextResponse.json(
-        { ok: false, message: 'Kon bankkoppeling niet laden.' },
+        { ok: false, message: `Kon bankkoppeling niet laden: ${connectionResult.error.message}` },
         { status: 500, headers: noStoreHeaders() }
       );
     }
@@ -120,7 +136,7 @@ export async function GET(request: Request) {
 
       if (accountsResult.error) {
         return NextResponse.json(
-          { ok: false, message: 'Kon bankrekeningen niet laden.' },
+          { ok: false, message: `Kon bankrekeningen niet laden: ${accountsResult.error.message}` },
           { status: 500, headers: noStoreHeaders() }
         );
       }
@@ -141,7 +157,7 @@ export async function GET(request: Request) {
         .in('bank_account_id', accountIds);
       if (balancesResult.error) {
         return NextResponse.json(
-          { ok: false, message: 'Kon saldi niet laden.' },
+          { ok: false, message: `Kon saldi niet laden: ${balancesResult.error.message}` },
           { status: 500, headers: noStoreHeaders() }
         );
       }
@@ -166,7 +182,7 @@ export async function GET(request: Request) {
         .limit(50);
       if (txResult.error) {
         return NextResponse.json(
-          { ok: false, message: 'Kon transacties niet laden.' },
+          { ok: false, message: `Kon transacties niet laden: ${txResult.error.message}` },
           { status: 500, headers: noStoreHeaders() }
         );
       }
@@ -184,7 +200,7 @@ export async function GET(request: Request) {
         data: {
           connection: {
             ...connectionView,
-            institutionName: 'bunq',
+            institutionName: profile === 'business' ? 'bunq business' : 'bunq personal',
             status: contextResult.data ? 'connected' : connectionView.status,
             accountCount: accounts.length,
           },
@@ -197,6 +213,7 @@ export async function GET(request: Request) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Kon bankoverzicht niet laden.';
+    console.error('bank_overview_error', { message });
     const status = message === 'Unauthorized' ? 401 : 500;
     return NextResponse.json(
       { ok: false, message },

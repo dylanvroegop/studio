@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 import { noStoreHeaders, resolveBankIdentity } from '@/lib/bank-api-auth';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { syncAllTransactions } from '@/lib/bunq/sync';
+import { normalizeBunqProfile } from '@/lib/bunq/client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const inputSchema = z.object({
+  profile: z.enum(['personal', 'business']).optional(),
+});
 
 export async function POST(request: Request) {
   try {
@@ -16,13 +22,18 @@ export async function POST(request: Request) {
       return trialBlockedResponse;
     }
 
-    const result = await syncAllTransactions(identity.bankUserId);
+    const body = await request.json().catch(() => ({}));
+    const parsed = inputSchema.safeParse(body);
+    const profile = normalizeBunqProfile(parsed.success ? parsed.data.profile : 'personal');
+
+    const result = await syncAllTransactions(identity.bankUserId, profile);
 
     return NextResponse.json(
       {
         ok: true,
         newCount: result.newCount,
         accountsSynced: result.accountsSynced,
+        profile: result.profile,
       },
       { headers: noStoreHeaders() }
     );

@@ -9,6 +9,7 @@ import { DashboardHeader } from '@/components/DashboardHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import type { BankAccountView, BankConnectionView, BankOverviewSummary, BankTransactionView } from '@/lib/bank-overzicht';
@@ -28,10 +29,12 @@ type ApiSyncResponse = {
   ok: boolean;
   newCount?: number;
   accountsSynced?: number;
+  profile?: 'personal' | 'business';
   error?: string;
 };
 
 const PAGE_SIZE = 10;
+type BankProfile = 'personal' | 'business';
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('nl-NL', {
@@ -72,6 +75,7 @@ export default function BankOverzichtPage() {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const [connection, setConnection] = useState<BankConnectionView | null>(null);
+  const [activeProfile, setActiveProfile] = useState<BankProfile>('personal');
   const [summary, setSummary] = useState<BankOverviewSummary>({
     incomeThisMonth: 0,
     expensesThisMonth: 0,
@@ -90,7 +94,7 @@ export default function BankOverzichtPage() {
     setError(null);
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/bank/overview', {
+      const response = await fetch(`/api/bank/overview?profile=${activeProfile}`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -112,7 +116,7 @@ export default function BankOverzichtPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [activeProfile, user]);
 
   useEffect(() => {
     void loadOverview();
@@ -130,15 +134,16 @@ export default function BankOverzichtPage() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ profile: activeProfile }),
       });
       const data = (await response.json().catch(() => null)) as ApiSyncResponse | null;
       if (!response.ok || !data?.ok) {
         throw new Error(data?.error || 'Synchronisatie mislukt.');
       }
-      setInfoMessage(`${data.newCount ?? 0} nieuwe transacties gesynchroniseerd.`);
+      setInfoMessage(`${data.newCount ?? 0} nieuwe transacties gesynchroniseerd (${activeProfile}).`);
       toast({
         title: 'Synchronisatie voltooid',
-        description: `${data.newCount ?? 0} nieuwe transacties, ${data.accountsSynced ?? 0} rekeningen verwerkt.`,
+        description: `${data.newCount ?? 0} nieuwe transacties, ${data.accountsSynced ?? 0} rekeningen verwerkt (${activeProfile}).`,
       });
       await loadOverview();
     } catch (syncError) {
@@ -176,6 +181,12 @@ export default function BankOverzichtPage() {
 
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
         <div className="w-full max-w-6xl space-y-5">
+          <Tabs value={activeProfile} onValueChange={(value) => setActiveProfile(value as BankProfile)}>
+            <TabsList>
+              <TabsTrigger value="personal">Personal</TabsTrigger>
+              <TabsTrigger value="business">Business</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <Card>
             <CardHeader className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -199,7 +210,9 @@ export default function BankOverzichtPage() {
               <div className="grid gap-3 md:grid-cols-4">
                 <div className="rounded-xl border border-border/70 bg-card/55 p-4">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Bank</div>
-                  <div className="mt-1 text-sm font-medium">{connection ? 'bunq' : 'Niet gekoppeld'}</div>
+                  <div className="mt-1 text-sm font-medium">
+                    {connection ? (activeProfile === 'business' ? 'bunq business' : 'bunq personal') : 'Niet gekoppeld'}
+                  </div>
                 </div>
                 <div className="rounded-xl border border-border/70 bg-card/55 p-4">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Laatste synchronisatie</div>

@@ -5,8 +5,11 @@ const DEFAULT_BASE_URL = 'https://api.bunq.com';
 const SESSION_TTL_MS = 55 * 60 * 1000;
 const SESSION_REFRESH_WINDOW_MS = 5 * 60 * 1000;
 
+export type BunqProfile = 'personal' | 'business';
+
 export type BunqContextRow = {
   id: number;
+  profile: BunqProfile;
   client_private_key: string;
   client_public_key: string;
   server_public_key: string | null;
@@ -37,17 +40,36 @@ function safeNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function getConfig() {
-  const apiKey = safeString(process.env.BUNQ_API_KEY);
+export function normalizeBunqProfile(value: unknown): BunqProfile {
+  return value === 'business' ? 'business' : 'personal';
+}
+
+function getProfileApiKey(profile: BunqProfile): string {
+  const personal = safeString(process.env.BUNQ_API_KEY);
+  const business =
+    safeString(process.env.BUNQ_API_KEY_BUSINESS)
+    || safeString(process.env.BUNQ_BUSINESS_API_KEY)
+    || safeString(process.env.BUNQ_API_KEY_BUSINESS_ACCOUNT);
+
+  if (profile === 'business') {
+    return business || personal;
+  }
+
+  return personal;
+}
+
+function getConfig(profile: BunqProfile) {
+  const apiKey = getProfileApiKey(profile);
   const configuredBaseUrl = safeString(process.env.BUNQ_API_BASE_URL) || DEFAULT_BASE_URL;
   const deviceDescription = safeString(process.env.BUNQ_DEVICE_DESCRIPTION) || 'calvora-server';
 
   if (!apiKey) {
-    throw new Error('BUNQ_API_KEY ontbreekt in de serveromgeving.');
+    throw new Error(profile === 'business'
+      ? 'BUNQ_API_KEY_BUSINESS ontbreekt in de serveromgeving.'
+      : 'BUNQ_API_KEY ontbreekt in de serveromgeving.');
   }
 
   let baseUrl = configuredBaseUrl;
-  // bunq production canonical host is api.bunq.com; normalize legacy/public host when provided.
   if (/^https?:\/\/public-api\.bunq\.com\/?$/i.test(baseUrl)) {
     baseUrl = 'https://api.bunq.com';
   }
@@ -90,6 +112,7 @@ function parseBunqError(payload: unknown): string {
 }
 
 export async function bunqRequest(params: {
+  profile: BunqProfile;
   method: 'GET' | 'POST';
   path: string;
   body?: Record<string, unknown>;
@@ -97,13 +120,13 @@ export async function bunqRequest(params: {
   privateKeyPem?: string;
   includeSignature?: boolean;
 }): Promise<BunqEnvelope> {
-  const config = getConfig();
+  const config = getConfig(params.profile);
   const bodyString = params.body ? JSON.stringify(params.body) : '';
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
     'Cache-Control': 'no-cache',
-    'User-Agent': 'calvora-server/1.0',
+    'User-Agent': `calvora-server/1.0 (${params.profile})`,
     'X-Bunq-Client-Request-Id': buildRequestId(),
   };
 
@@ -139,6 +162,7 @@ export async function bunqRequest(params: {
 
 async function createInstallation(current: BunqContextRow): Promise<BunqContextRow> {
   const payload = await bunqRequest({
+    profile: current.profile,
     method: 'POST',
     path: '/v1/installation',
     body: {
@@ -168,8 +192,9 @@ async function registerDevice(current: BunqContextRow): Promise<BunqContextRow> 
     throw new Error('Installation token ontbreekt voor bunq device registratie.');
   }
 
-  const config = getConfig();
+  const config = getConfig(current.profile);
   const payload = await bunqRequest({
+    profile: current.profile,
     method: 'POST',
     path: '/v1/device-server',
     body: {
@@ -199,8 +224,9 @@ async function createSession(current: BunqContextRow): Promise<BunqContextRow> {
     throw new Error('Installation token ontbreekt voor bunq sessie.');
   }
 
-  const config = getConfig();
+  const config = getConfig(current.profile);
   const payload = await bunqRequest({
+    profile: current.profile,
     method: 'POST',
     path: '/v1/session-server',
     body: {
@@ -234,7 +260,7 @@ async function upsertContext(row: BunqContextRow): Promise<BunqContextRow> {
   const result = await supabaseAdmin
     .from('bunq_context')
     .upsert({
-      id: 1,
+      profile: row.profile,
       client_private_key: row.client_private_key,
       client_public_key: row.client_public_key,
       server_public_key: row.server_public_key,
@@ -244,7 +270,7 @@ async function upsertContext(row: BunqContextRow): Promise<BunqContextRow> {
       session_expires_at: row.session_expires_at,
       user_id: row.user_id,
       updated_at: new Date().toISOString(),
-    })
+    }, { onConflict: 'profile' })
     .select('*')
     .single();
 
@@ -255,11 +281,12 @@ async function upsertContext(row: BunqContextRow): Promise<BunqContextRow> {
   return result.data as BunqContextRow;
 }
 
-export async function getBunqContext(): Promise<BunqContextRow> {
+export async function getBunqContext(profileInput: BunqProfile): Promise<BunqContextRow> {
+  const profile = normalizeBunqProfile(profileInput);
   const existingResult = await supabaseAdmin
     .from('bunq_context')
     .select('*')
-    .eq('id', 1)
+    .eq('profile', profile)
     .maybeSingle();
 
   if (existingResult.error) {
@@ -270,6 +297,7 @@ export async function getBunqContext(): Promise<BunqContextRow> {
     const keyPair = generateRsaKeyPair();
     let context: BunqContextRow = {
       id: 1,
+      profile,
       client_private_key: keyPair.privateKeyPem,
       client_public_key: keyPair.publicKeyPem,
       server_public_key: null,
@@ -286,7 +314,10 @@ export async function getBunqContext(): Promise<BunqContextRow> {
     return upsertContext(context);
   }
 
-  let context = existingResult.data as BunqContextRow;
+  let context = {
+    ...(existingResult.data as BunqContextRow),
+    profile,
+  };
 
   if (!context.installation_token || !context.server_public_key) {
     context = await createInstallation(context);

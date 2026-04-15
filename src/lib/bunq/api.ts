@@ -1,4 +1,4 @@
-import { bunqRequest, getBunqContext } from '@/lib/bunq/client';
+import { bunqRequest, getBunqContext, type BunqProfile } from '@/lib/bunq/client';
 
 export interface BunqMonetaryAccount {
   id: number;
@@ -54,13 +54,14 @@ function extractPaginationOlderId(payload: Record<string, unknown>): number | nu
   }
 }
 
-export async function getUser(): Promise<{ id: number; display_name: string }> {
-  const context = await getBunqContext();
+export async function getUser(profile: BunqProfile): Promise<{ id: number; display_name: string }> {
+  const context = await getBunqContext(profile);
   if (!context.user_id || !context.session_token) {
     throw new Error('Geen geldige bunq sessie beschikbaar.');
   }
 
   const payload = (await bunqRequest({
+    profile,
     method: 'GET',
     path: `/v1/user/${context.user_id}`,
     authToken: context.session_token,
@@ -85,11 +86,12 @@ export async function getUser(): Promise<{ id: number; display_name: string }> {
   };
 }
 
-export async function listMonetaryAccounts(userId: number): Promise<BunqMonetaryAccount[]> {
-  const context = await getBunqContext();
+export async function listMonetaryAccounts(userId: number, profile: BunqProfile): Promise<BunqMonetaryAccount[]> {
+  const context = await getBunqContext(profile);
   if (!context.session_token) throw new Error('Geen geldige bunq sessie beschikbaar.');
 
   const payload = (await bunqRequest({
+    profile,
     method: 'GET',
     path: `/v1/user/${userId}/monetary-account`,
     authToken: context.session_token,
@@ -122,9 +124,10 @@ export async function listMonetaryAccounts(userId: number): Promise<BunqMonetary
 export async function listPayments(
   userId: number,
   accountId: number,
+  profile: BunqProfile,
   options?: { count?: number; olderId?: number }
 ): Promise<{ payments: BunqPayment[]; olderId: number | null }> {
-  const context = await getBunqContext();
+  const context = await getBunqContext(profile);
   if (!context.session_token) throw new Error('Geen geldige bunq sessie beschikbaar.');
 
   const query = new URLSearchParams();
@@ -132,6 +135,7 @@ export async function listPayments(
   if (options?.olderId) query.set('older_id', String(options.olderId));
 
   const payload = (await bunqRequest({
+    profile,
     method: 'GET',
     path: `/v1/user/${userId}/monetary-account/${accountId}/payment?${query.toString()}`,
     authToken: context.session_token,
