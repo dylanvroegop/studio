@@ -34,6 +34,9 @@ export async function DELETE(request: Request, context: { params: { id: string }
       .update({
         status: 'revoked',
         linked_account_ids: [],
+        access_token: null,
+        refresh_token: null,
+        access_token_expires_at: null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', parsed.data.id)
@@ -59,4 +62,3 @@ export async function DELETE(request: Request, context: { params: { id: string }
     );
   }
 }
-

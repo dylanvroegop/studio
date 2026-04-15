@@ -4,9 +4,7 @@ import { z } from 'zod';
 import { noStoreHeaders, resolveBankIdentity } from '@/lib/bank-api-auth';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
-  createAgreement,
-  createRequisition,
-  getBankProviderSettings,
+  buildAuthRedirectUrl,
   ProviderNotConfiguredError,
   ProviderRequestError,
 } from '@/lib/bank-provider-gocardless';
@@ -38,42 +36,68 @@ export async function POST(request: Request) {
       );
     }
 
-    const providerSettings = getBankProviderSettings();
     const reference = crypto.randomUUID();
-    const redirectTarget = new URL(providerSettings.redirectUri);
-    redirectTarget.searchParams.set('ref', reference);
-    const agreementId = await createAgreement({
-      institutionId: parsed.data.institutionId,
-      maxHistoricalDays: providerSettings.maxTransactionDays,
-    });
-    const requisition = await createRequisition({
-      institutionId: parsed.data.institutionId,
-      reference,
-      agreementId,
-      redirectUrl: redirectTarget.toString(),
+    const redirectUrl = buildAuthRedirectUrl({
+      state: reference,
+      providerId: parsed.data.institutionId,
     });
 
-    const upsertResult = await supabaseAdmin
+    const existingConnection = await supabaseAdmin
       .from('bank_connections')
-      .upsert(
-        {
-          user_id: identity.bankUserId,
-          provider: 'gocardless',
-          institution_id: parsed.data.institutionId,
+      .select('id')
+      .eq('user_id', identity.bankUserId)
+      .eq('institution_id', parsed.data.institutionId)
+      .limit(1)
+      .maybeSingle();
+
+    let upsertResult;
+    if (existingConnection.error) {
+      return NextResponse.json(
+        { ok: false, message: 'Kon bankkoppeling niet opslaan.' },
+        { status: 500, headers: noStoreHeaders() }
+      );
+    }
+
+    if (existingConnection.data?.id) {
+      upsertResult = await supabaseAdmin
+        .from('bank_connections')
+        .update({
+          provider: 'truelayer',
           institution_name: parsed.data.institutionName || null,
-          requisition_id: requisition.id,
-          agreement_id: agreementId,
+          requisition_id: null,
+          agreement_id: null,
           status: 'pending',
           reference,
           linked_account_ids: [],
+          access_token: null,
+          refresh_token: null,
+          access_token_expires_at: null,
           updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'requisition_id',
-        }
-      )
-      .select('id')
-      .single();
+        })
+        .eq('id', existingConnection.data.id)
+        .select('id')
+        .single();
+    } else {
+      upsertResult = await supabaseAdmin
+        .from('bank_connections')
+        .insert({
+          user_id: identity.bankUserId,
+          provider: 'truelayer',
+          institution_id: parsed.data.institutionId,
+          institution_name: parsed.data.institutionName || null,
+          requisition_id: null,
+          agreement_id: null,
+          status: 'pending',
+          reference,
+          linked_account_ids: [],
+          access_token: null,
+          refresh_token: null,
+          access_token_expires_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+    }
 
     if (upsertResult.error) {
       return NextResponse.json(
@@ -86,7 +110,7 @@ export async function POST(request: Request) {
       {
         ok: true,
         data: {
-          redirectUrl: requisition.link,
+          redirectUrl,
         },
       },
       { headers: noStoreHeaders() }
@@ -109,4 +133,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message }, { status, headers: noStoreHeaders() });
   }
 }
-

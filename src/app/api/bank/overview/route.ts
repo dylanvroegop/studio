@@ -48,7 +48,7 @@ export async function GET(request: Request) {
 
     const connectionResult = await supabaseAdmin
       .from('bank_connections')
-      .select('*')
+      .select('id,institution_name,status,last_synced_at,linked_account_ids')
       .eq('user_id', identity.bankUserId)
       .order('updated_at', { ascending: false })
       .limit(1)
@@ -166,4 +166,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

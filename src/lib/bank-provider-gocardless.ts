@@ -1,79 +1,81 @@
-const DEFAULT_BASE_URL = 'https://bankaccountdata.gocardless.com';
-const ACCESS_TOKEN_TTL_MS = 55 * 60 * 1000;
+const AUTH_BASE_URLS = {
+  sandbox: 'https://auth.truelayer-sandbox.com',
+  live: 'https://auth.truelayer.com',
+} as const;
 
-type GoCardlessTokenResponse = {
-  access?: unknown;
+const API_BASE_URLS = {
+  sandbox: 'https://api.truelayer-sandbox.com',
+  live: 'https://api.truelayer.com',
+} as const;
+
+type TrueLayerEnv = 'sandbox' | 'live';
+
+type TrueLayerProviderResponse = {
+  provider_id?: unknown;
+  display_name?: unknown;
+  logo_uri?: unknown;
+  icon_uri?: unknown;
 };
 
-type GoCardlessInstitutionResponse = {
-  id?: unknown;
-  name?: unknown;
-  bic?: unknown;
-  logo?: unknown;
+type TrueLayerProviderListResponse = {
+  results?: unknown;
 };
 
-type GoCardlessAgreementResponse = {
-  id?: unknown;
+type TrueLayerTokenResponse = {
+  access_token?: unknown;
+  refresh_token?: unknown;
+  expires_in?: unknown;
 };
 
-type GoCardlessRequisitionResponse = {
-  id?: unknown;
-  link?: unknown;
-  status?: unknown;
-  accounts?: unknown;
-  reference?: unknown;
+type TrueLayerAccountResponse = {
+  account_id?: unknown;
+  iban?: unknown;
+  display_name?: unknown;
+  account_type?: unknown;
+  currency?: unknown;
+  account_number?: {
+    iban?: unknown;
+  };
+  provider?: {
+    display_name?: unknown;
+  };
+  [key: string]: unknown;
 };
 
-type GoCardlessAccountDetailsResponse = {
-  account?: unknown;
+type TrueLayerResultsResponse<T> = {
+  results?: T[];
 };
 
-type GoCardlessAccountBalancesResponse = {
-  balances?: unknown;
+type TrueLayerBalanceResponse = {
+  available?: unknown;
+  current?: unknown;
+  currency?: unknown;
+  update_timestamp?: unknown;
+  [key: string]: unknown;
 };
 
-type GoCardlessAccountTransactionsResponse = {
-  transactions?: unknown;
-};
-
-type GoCardlessTransactionAmount = {
+type TrueLayerTransactionAmount = {
   amount?: unknown;
   currency?: unknown;
 };
 
-type GoCardlessRawTransaction = {
-  transactionId?: unknown;
-  internalTransactionId?: unknown;
-  bookingDate?: unknown;
-  valueDate?: unknown;
-  transactionAmount?: GoCardlessTransactionAmount;
-  creditorName?: unknown;
-  debtorName?: unknown;
-  creditorAccount?: unknown;
-  debtorAccount?: unknown;
-  remittanceInformationUnstructured?: unknown;
-  additionalInformation?: unknown;
-  bankTransactionCode?: unknown;
-  status?: unknown;
-  [key: string]: unknown;
-};
-
-type GoCardlessRawBalance = {
-  balanceType?: unknown;
-  balanceAmount?: {
-    amount?: unknown;
-    currency?: unknown;
+type TrueLayerTransactionResponse = {
+  transaction_id?: unknown;
+  timestamp?: unknown;
+  description?: unknown;
+  transaction_type?: unknown;
+  amount?: unknown;
+  currency?: unknown;
+  merchant_name?: unknown;
+  counterparty?: {
+    name?: unknown;
+    iban?: unknown;
   };
-  referenceDate?: unknown;
+  normalised_provider_transaction_id?: unknown;
+  status?: unknown;
+  running_balance?: TrueLayerTransactionAmount;
   [key: string]: unknown;
 };
-
-type TokenCache = {
-  token: string;
-  expiresAt: number;
-};
-
-let tokenCache: TokenCache | null = null;
 
 export class ProviderNotConfiguredError extends Error {}
 export class ProviderRequestError extends Error {}
@@ -85,12 +87,17 @@ export interface BankInstitution {
   logo: string | null;
 }
 
-export interface BankRequisition {
-  id: string;
-  link: string;
-  status: string;
-  accounts: string[];
-  reference: string;
+export interface BankProviderSettings {
+  countryCode: string;
+  redirectUri: string;
+  maxTransactionDays: number;
+  env: TrueLayerEnv;
+}
+
+export interface BankTokenSet {
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAtIso: string;
 }
 
 export interface BankAccountDetails {
@@ -149,271 +156,316 @@ function normalizeIsoDate(value: unknown): string | null {
 }
 
 function normalizeDateOnly(value: unknown): string | null {
-  const str = safeString(value);
-  if (!str) return null;
-  const parsed = new Date(str);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
+  const iso = normalizeIsoDate(value);
+  if (!iso) return null;
+  return iso.slice(0, 10);
+}
+
+function parseEnv(value: string): TrueLayerEnv {
+  return value.toLowerCase() === 'live' ? 'live' : 'sandbox';
 }
 
 function sanitizeProviderMessage(input: unknown): string {
-  const record = asRecord(input);
+  const row = asRecord(input);
   const direct =
-    safeString(record.summary)
-    || safeString(record.detail)
-    || safeString(record.message)
-    || safeString(record.error);
+    safeString(row.error_description)
+    || safeString(row.error)
+    || safeString(row.message)
+    || safeString(row.detail);
   if (!direct) return 'Bankprovider antwoordde met een fout.';
-  if (direct.length > 180) return `${direct.slice(0, 180)}...`;
-  return direct;
+  return direct.length > 180 ? `${direct.slice(0, 180)}...` : direct;
 }
 
 function getConfig() {
-  const secretId = safeString(process.env.GOCARDLESS_SECRET_ID);
-  const secretKey = safeString(process.env.GOCARDLESS_SECRET_KEY);
-  const redirectUri = safeString(process.env.GOCARDLESS_REDIRECT_URI);
-  const countryCode = safeString(process.env.GOCARDLESS_COUNTRY_CODE).toUpperCase() || 'NL';
-  const maxTransactionDaysRaw = Number(process.env.GOCARDLESS_MAX_TRANSACTION_DAYS || '90');
+  const clientId = safeString(process.env.TRUELAYER_CLIENT_ID);
+  const clientSecret = safeString(process.env.TRUELAYER_CLIENT_SECRET);
+  const redirectUri = safeString(process.env.TRUELAYER_REDIRECT_URI);
+  const countryCode = safeString(process.env.TRUELAYER_COUNTRY_CODE).toUpperCase() || 'NL';
+  const env = parseEnv(safeString(process.env.TRUELAYER_ENV) || 'sandbox');
+  const maxTransactionDaysRaw = Number(process.env.TRUELAYER_MAX_TRANSACTION_DAYS || '90');
   const maxTransactionDays = Number.isFinite(maxTransactionDaysRaw) && maxTransactionDaysRaw > 0
     ? Math.min(Math.floor(maxTransactionDaysRaw), 365)
     : 90;
-  const baseUrl = safeString(process.env.GOCARDLESS_BASE_URL) || DEFAULT_BASE_URL;
 
-  if (!secretId || !secretKey || !redirectUri) {
+  if (!clientId || !clientSecret || !redirectUri) {
     throw new ProviderNotConfiguredError('Bankkoppeling is nog niet geconfigureerd in de serveromgeving.');
   }
 
   return {
-    secretId,
-    secretKey,
+    clientId,
+    clientSecret,
     redirectUri,
     countryCode,
     maxTransactionDays,
-    baseUrl,
+    env,
+    authBaseUrl: AUTH_BASE_URLS[env],
+    apiBaseUrl: API_BASE_URLS[env],
   };
 }
 
-async function fetchAccessToken(forceRefresh = false): Promise<{ token: string; baseUrl: string }> {
-  const config = getConfig();
-  const now = Date.now();
-  if (!forceRefresh && tokenCache && tokenCache.expiresAt > now) {
-    return {
-      token: tokenCache.token,
-      baseUrl: config.baseUrl,
-    };
-  }
-
-  const response = await fetch(`${config.baseUrl}/api/v2/token/new/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify({
-      secret_id: config.secretId,
-      secret_key: config.secretKey,
-    }),
-    cache: 'no-store',
-  });
-
-  const payload = (await response.json().catch(() => null)) as GoCardlessTokenResponse | null;
-  const token = safeString(payload?.access);
-  if (!response.ok || !token) {
-    throw new ProviderRequestError('Kon geen toegang krijgen tot bankprovider.');
-  }
-
-  tokenCache = {
-    token,
-    expiresAt: now + ACCESS_TOKEN_TTL_MS,
-  };
-
-  return {
-    token,
-    baseUrl: config.baseUrl,
-  };
-}
-
-async function providerRequest<T>(
-  method: 'GET' | 'POST',
-  path: string,
-  body?: Record<string, unknown>
-): Promise<T> {
-  const execute = async (forceRefresh: boolean) => {
-    const { token, baseUrl } = await fetchAccessToken(forceRefresh);
-    const response = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      cache: 'no-store',
-    });
-    const payload = (await response.json().catch(() => null)) as T | null;
-    return { response, payload };
-  };
-
-  let result = await execute(false);
-  if (result.response.status === 401) {
-    tokenCache = null;
-    result = await execute(true);
-  }
-
-  if (!result.response.ok || result.payload == null) {
-    const errorPayload = asRecord(result.payload);
-    const message = sanitizeProviderMessage(errorPayload);
-    throw new ProviderRequestError(message);
-  }
-
-  return result.payload;
-}
-
-export function getBankProviderSettings(): { countryCode: string; redirectUri: string; maxTransactionDays: number } {
+export function getBankProviderSettings(): BankProviderSettings {
   const config = getConfig();
   return {
     countryCode: config.countryCode,
     redirectUri: config.redirectUri,
     maxTransactionDays: config.maxTransactionDays,
+    env: config.env,
   };
 }
 
 export async function listInstitutions(): Promise<BankInstitution[]> {
-  const { countryCode } = getBankProviderSettings();
-  const payload = await providerRequest<unknown>('GET', `/api/v2/institutions/?country=${encodeURIComponent(countryCode)}`);
-  const rows = Array.isArray(payload) ? payload as GoCardlessInstitutionResponse[] : [];
+  const config = getConfig();
+  const fetchProviders = async (query: URLSearchParams): Promise<TrueLayerProviderResponse[]> => {
+    const response = await fetch(`${config.authBaseUrl}/api/providers?${query.toString()}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    const payload = (await response.json().catch(() => null)) as TrueLayerProviderListResponse | null;
+    if (!response.ok || !payload) {
+      throw new ProviderRequestError('Kon bankenlijst niet ophalen.');
+    }
+    return Array.isArray(payload.results) ? payload.results as TrueLayerProviderResponse[] : [];
+  };
+
+  const scopedQuery = new URLSearchParams({
+    country: config.countryCode,
+    country_code: config.countryCode,
+    client_id: config.clientId,
+  });
+  let rows = await fetchProviders(scopedQuery);
+  if (rows.length === 0) {
+    rows = await fetchProviders(new URLSearchParams({ client_id: config.clientId }));
+  }
+
   return rows
     .map((row) => ({
-      id: safeString(row.id),
-      name: safeString(row.name),
-      bic: safeString(row.bic) || null,
-      logo: safeString(row.logo) || null,
+      id: safeString(row.provider_id),
+      name: safeString(row.display_name),
+      bic: null,
+      logo: safeString(row.logo_uri) || safeString(row.icon_uri) || null,
     }))
     .filter((row) => row.id.length > 0 && row.name.length > 0)
     .sort((a, b) => a.name.localeCompare(b.name, 'nl'));
 }
 
-export async function createAgreement(params: { institutionId: string; maxHistoricalDays: number }): Promise<string | null> {
-  const payload = await providerRequest<GoCardlessAgreementResponse>('POST', '/api/v2/agreements/enduser/', {
-    institution_id: params.institutionId,
-    max_historical_days: params.maxHistoricalDays,
-    access_valid_for_days: 90,
-    access_scope: ['balances', 'details', 'transactions'],
+export function buildAuthRedirectUrl(params: { state: string; providerId: string }): string {
+  const config = getConfig();
+  const query = new URLSearchParams({
+    response_type: 'code',
+    client_id: config.clientId,
+    redirect_uri: config.redirectUri,
+    scope: 'info accounts balance transactions offline_access',
+    state: params.state,
+    nonce: crypto.randomUUID(),
+    provider_id: params.providerId,
   });
-  const agreementId = safeString(payload.id);
-  return agreementId || null;
+  return `${config.authBaseUrl}/?${query.toString()}`;
 }
 
-export async function createRequisition(params: {
-  institutionId: string;
-  reference: string;
-  agreementId: string | null;
-  redirectUrl: string;
-}): Promise<BankRequisition> {
-  const payload = await providerRequest<GoCardlessRequisitionResponse>('POST', '/api/v2/requisitions/', {
-    institution_id: params.institutionId,
-    redirect: params.redirectUrl,
-    reference: params.reference,
-    user_language: 'NL',
-    account_selection: false,
-    redirect_immediate: false,
-    ...(params.agreementId ? { agreement: params.agreementId } : {}),
+export async function exchangeCodeForTokens(code: string): Promise<BankTokenSet> {
+  const config = getConfig();
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    redirect_uri: config.redirectUri,
+    code,
   });
 
-  const id = safeString(payload.id);
-  const link = safeString(payload.link);
-  const status = safeString(payload.status) || 'CR';
-  const reference = safeString(payload.reference) || params.reference;
-  const accounts = Array.isArray(payload.accounts) ? payload.accounts.map((item) => safeString(item)).filter(Boolean) : [];
+  const response = await fetch(`${config.authBaseUrl}/connect/token`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+    cache: 'no-store',
+  });
 
-  if (!id || !link) {
-    throw new ProviderRequestError('Bankkoppeling kon niet worden gestart.');
+  const payload = (await response.json().catch(() => null)) as TrueLayerTokenResponse | null;
+  if (!response.ok || !payload) {
+    throw new ProviderRequestError('Kon token niet ophalen na banktoestemming.');
   }
 
-  return { id, link, status, accounts, reference };
-}
+  const accessToken = safeString(payload.access_token);
+  const refreshToken = safeString(payload.refresh_token) || null;
+  const expiresIn = Number(payload.expires_in);
+  if (!accessToken || !Number.isFinite(expiresIn) || expiresIn <= 0) {
+    throw new ProviderRequestError('Ontvangen banktoken is ongeldig.');
+  }
 
-export async function getRequisition(requisitionId: string): Promise<BankRequisition> {
-  const payload = await providerRequest<GoCardlessRequisitionResponse>('GET', `/api/v2/requisitions/${encodeURIComponent(requisitionId)}/`);
-  const id = safeString(payload.id);
-  if (!id) throw new ProviderRequestError('Bankkoppeling kon niet worden opgehaald.');
-  const link = safeString(payload.link);
-  const status = safeString(payload.status) || 'CR';
-  const reference = safeString(payload.reference);
-  const accounts = Array.isArray(payload.accounts) ? payload.accounts.map((item) => safeString(item)).filter(Boolean) : [];
-  return { id, link, status, accounts, reference };
-}
-
-export async function getAccountDetails(accountId: string): Promise<BankAccountDetails> {
-  const payload = await providerRequest<GoCardlessAccountDetailsResponse>('GET', `/api/v2/accounts/${encodeURIComponent(accountId)}/details/`);
-  const account = asRecord(payload.account);
+  const expiresAt = new Date(Date.now() + expiresIn * 1000 - 30_000);
   return {
-    externalAccountId: accountId,
-    iban: safeString(account.iban) || null,
-    name: safeString(account.name) || null,
-    currency: safeString(account.currency) || null,
-    ownerName: safeString(account.ownerName) || null,
-    product: safeString(account.product) || null,
-    cashAccountType: safeString(account.cashAccountType) || null,
+    accessToken,
+    refreshToken,
+    expiresAtIso: expiresAt.toISOString(),
   };
 }
 
-export async function getAccountBalances(accountId: string): Promise<BankBalance[]> {
-  const payload = await providerRequest<GoCardlessAccountBalancesResponse>('GET', `/api/v2/accounts/${encodeURIComponent(accountId)}/balances/`);
-  const balances = Array.isArray(payload.balances) ? payload.balances as GoCardlessRawBalance[] : [];
-  return balances.map((item) => {
-    const amountRecord = asRecord(item.balanceAmount);
+export async function refreshAccessToken(refreshToken: string): Promise<BankTokenSet> {
+  const config = getConfig();
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    refresh_token: refreshToken,
+  });
+
+  const response = await fetch(`${config.authBaseUrl}/connect/token`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+    cache: 'no-store',
+  });
+
+  const payload = (await response.json().catch(() => null)) as TrueLayerTokenResponse | null;
+  if (!response.ok || !payload) {
+    throw new ProviderRequestError('Kon banktoken niet verversen.');
+  }
+
+  const accessToken = safeString(payload.access_token);
+  const nextRefreshToken = safeString(payload.refresh_token) || refreshToken;
+  const expiresIn = Number(payload.expires_in);
+  if (!accessToken || !Number.isFinite(expiresIn) || expiresIn <= 0) {
+    throw new ProviderRequestError('Vernieuwd banktoken is ongeldig.');
+  }
+
+  const expiresAt = new Date(Date.now() + expiresIn * 1000 - 30_000);
+  return {
+    accessToken,
+    refreshToken: nextRefreshToken,
+    expiresAtIso: expiresAt.toISOString(),
+  };
+}
+
+async function providerDataGet<T>(path: string, accessToken: string): Promise<T> {
+  const config = getConfig();
+  const response = await fetch(`${config.apiBaseUrl}${path}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    cache: 'no-store',
+  });
+
+  const payload = (await response.json().catch(() => null)) as T | null;
+  if (!response.ok || !payload) {
+    const safeMessage = sanitizeProviderMessage(payload);
+    throw new ProviderRequestError(safeMessage);
+  }
+
+  return payload;
+}
+
+export async function listAccountIds(accessToken: string): Promise<string[]> {
+  const payload = await providerDataGet<TrueLayerResultsResponse<TrueLayerAccountResponse>>('/data/v1/accounts', accessToken);
+  const rows = Array.isArray(payload.results) ? payload.results : [];
+  return rows
+    .map((row) => safeString(row.account_id))
+    .filter(Boolean);
+}
+
+export async function getAccountDetails(accountId: string, accessToken: string): Promise<BankAccountDetails> {
+  const payload = await providerDataGet<TrueLayerResultsResponse<TrueLayerAccountResponse>>(
+    `/data/v1/accounts/${encodeURIComponent(accountId)}`,
+    accessToken
+  );
+  const account = Array.isArray(payload.results) && payload.results.length > 0 ? payload.results[0] : null;
+  const row = account ? asRecord(account) : {};
+  const accountNumber = asRecord(row.account_number);
+
+  return {
+    externalAccountId: accountId,
+    iban: safeString(accountNumber.iban) || safeString(row.iban) || null,
+    name: safeString(row.display_name) || null,
+    currency: safeString(row.currency) || null,
+    ownerName: null,
+    product: safeString(row.account_type) || null,
+    cashAccountType: safeString(row.account_type) || null,
+  };
+}
+
+export async function getAccountBalances(accountId: string, accessToken: string): Promise<BankBalance[]> {
+  const payload = await providerDataGet<TrueLayerResultsResponse<TrueLayerBalanceResponse>>(
+    `/data/v1/accounts/${encodeURIComponent(accountId)}/balance`,
+    accessToken
+  );
+
+  const rows = Array.isArray(payload.results) ? payload.results : [];
+  const output: BankBalance[] = [];
+
+  for (const row of rows) {
+    const current = toNumber(row.current);
+    const available = toNumber(row.available);
+    const currency = safeString(row.currency) || 'EUR';
+    const date = normalizeDateOnly(row.update_timestamp);
+    if (current !== null) {
+      output.push({
+        balanceType: 'closingBooked',
+        amount: current,
+        currency,
+        referenceDate: date,
+        raw: asRecord(row),
+      });
+    }
+    if (available !== null) {
+      output.push({
+        balanceType: 'interimAvailable',
+        amount: available,
+        currency,
+        referenceDate: date,
+        raw: asRecord(row),
+      });
+    }
+  }
+
+  return output;
+}
+
+export async function getAccountTransactions(
+  accountId: string,
+  dateFrom: string,
+  dateTo: string,
+  accessToken: string
+): Promise<BankTransaction[]> {
+  const query = new URLSearchParams({
+    from: dateFrom,
+    to: dateTo,
+  });
+
+  const payload = await providerDataGet<TrueLayerResultsResponse<TrueLayerTransactionResponse>>(
+    `/data/v1/accounts/${encodeURIComponent(accountId)}/transactions?${query.toString()}`,
+    accessToken
+  );
+
+  const rows = Array.isArray(payload.results) ? payload.results : [];
+  return rows.map((entry) => {
+    const amountRaw = toNumber(entry.amount) || 0;
+    const direction: 'incoming' | 'outgoing' = amountRaw < 0 ? 'outgoing' : 'incoming';
+    const counterparty = asRecord(entry.counterparty);
+    const bookingDate = normalizeDateOnly(entry.timestamp);
+
     return {
-      balanceType: safeString(item.balanceType) || null,
-      amount: toNumber(amountRecord.amount),
-      currency: safeString(amountRecord.currency) || null,
-      referenceDate: normalizeDateOnly(item.referenceDate),
-      raw: asRecord(item),
+      externalTransactionId: safeString(entry.transaction_id) || null,
+      internalTransactionId: safeString(entry.normalised_provider_transaction_id) || null,
+      bookingDate,
+      valueDate: bookingDate,
+      amount: amountRaw,
+      currency: safeString(entry.currency) || 'EUR',
+      direction,
+      counterpartyName: safeString(counterparty.name) || safeString(entry.merchant_name) || null,
+      counterpartyIban: safeString(counterparty.iban) || null,
+      remittanceInformation: safeString(entry.description) || null,
+      status: safeString(entry.status) || safeString(entry.transaction_type) || null,
+      raw: asRecord(entry),
     };
   });
 }
-
-function parseCounterpartyIban(entry: GoCardlessRawTransaction): string | null {
-  const creditor = asRecord(entry.creditorAccount);
-  const debtor = asRecord(entry.debtorAccount);
-  return safeString(creditor.iban) || safeString(debtor.iban) || null;
-}
-
-function mapProviderTransaction(entry: GoCardlessRawTransaction): BankTransaction {
-  const amountRecord = asRecord(entry.transactionAmount);
-  const amountNumeric = toNumber(amountRecord.amount) || 0;
-  const signedAmount = amountNumeric;
-  const direction: 'incoming' | 'outgoing' = signedAmount < 0 ? 'outgoing' : 'incoming';
-  return {
-    externalTransactionId: safeString(entry.transactionId) || null,
-    internalTransactionId: safeString(entry.internalTransactionId) || null,
-    bookingDate: normalizeDateOnly(entry.bookingDate),
-    valueDate: normalizeDateOnly(entry.valueDate),
-    amount: signedAmount,
-    currency: safeString(amountRecord.currency) || 'EUR',
-    direction,
-    counterpartyName: safeString(entry.creditorName) || safeString(entry.debtorName) || null,
-    counterpartyIban: parseCounterpartyIban(entry),
-    remittanceInformation:
-      safeString(entry.remittanceInformationUnstructured)
-      || safeString(entry.additionalInformation)
-      || null,
-    status: safeString(entry.status) || null,
-    raw: asRecord(entry),
-  };
-}
-
-export async function getAccountTransactions(accountId: string, dateFrom: string, dateTo: string): Promise<BankTransaction[]> {
-  const query = new URLSearchParams({
-    date_from: dateFrom,
-    date_to: dateTo,
-  });
-  const payload = await providerRequest<GoCardlessAccountTransactionsResponse>(
-    'GET',
-    `/api/v2/accounts/${encodeURIComponent(accountId)}/transactions/?${query.toString()}`
-  );
-  const root = asRecord(payload.transactions);
-  const booked = Array.isArray(root.booked) ? root.booked as GoCardlessRawTransaction[] : [];
-  return booked.map((entry) => mapProviderTransaction(entry));
-}
-

@@ -58,6 +58,7 @@ import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type FilterMode = 'alle' | 'concept' | 'verzonden' | 'geaccepteerd' | 'berekend' | 'archief';
+const OFFERTES_FILTER_STORAGE_KEY = 'offertes:last-filter';
 
 type QuoteRow = Quote & {
   id: string;
@@ -96,6 +97,17 @@ type Client = {
   projectPostcode?: string;
   projectPlaats?: string;
 };
+
+function isFilterMode(value: unknown): value is FilterMode {
+  return (
+    value === 'alle' ||
+    value === 'concept' ||
+    value === 'verzonden' ||
+    value === 'geaccepteerd' ||
+    value === 'berekend' ||
+    value === 'archief'
+  );
+}
 
 function naarDate(value: unknown): Date | null {
   if (!value) return null;
@@ -392,6 +404,19 @@ export default function OffertesPage() {
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
   }, [isUserLoading, router, user]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedFilter = window.localStorage.getItem(OFFERTES_FILTER_STORAGE_KEY);
+    if (isFilterMode(storedFilter)) {
+      setFilter(storedFilter);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(OFFERTES_FILTER_STORAGE_KEY, filter);
+  }, [filter]);
 
   useEffect(() => {
     if (!user || !firestore) return;

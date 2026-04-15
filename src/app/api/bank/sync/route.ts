@@ -8,8 +8,9 @@ import {
   getAccountDetails,
   getAccountTransactions,
   getBankProviderSettings,
-  getRequisition,
+  listAccountIds,
   ProviderRequestError,
+  refreshAccessToken,
 } from '@/lib/bank-provider-gocardless';
 import { mapAccountUpsert, mapBalancesInsert, mapTransactionsUpsert } from '@/lib/bank-sync';
 import { supabaseAdmin } from '@/lib/supabase-admin';
@@ -24,9 +25,11 @@ const inputSchema = z.object({
 type ConnectionRow = {
   id: string;
   user_id: string;
-  requisition_id: string | null;
   institution_id: string;
   linked_account_ids: unknown;
+  access_token: string | null;
+  refresh_token: string | null;
+  access_token_expires_at: string | null;
 };
 
 function safeArray(value: unknown): string[] {
@@ -42,6 +45,43 @@ function getDateRange(maxDays: number): { dateFrom: string; dateTo: string } {
     dateFrom: from.toISOString().slice(0, 10),
     dateTo: today.toISOString().slice(0, 10),
   };
+}
+
+function isExpired(expiresAt: string | null): boolean {
+  if (!expiresAt) return true;
+  const timestamp = new Date(expiresAt).getTime();
+  if (Number.isNaN(timestamp)) return true;
+  return timestamp <= Date.now();
+}
+
+async function ensureValidAccessToken(connection: ConnectionRow): Promise<string> {
+  const currentToken = typeof connection.access_token === 'string' ? connection.access_token : '';
+  const refreshToken = typeof connection.refresh_token === 'string' ? connection.refresh_token : '';
+
+  if (currentToken && !isExpired(connection.access_token_expires_at)) {
+    return currentToken;
+  }
+
+  if (!refreshToken) {
+    throw new ProviderRequestError('Bankkoppeling is verlopen. Koppel je bank opnieuw.');
+  }
+
+  const refreshed = await refreshAccessToken(refreshToken);
+  const updateResult = await supabaseAdmin
+    .from('bank_connections')
+    .update({
+      access_token: refreshed.accessToken,
+      refresh_token: refreshed.refreshToken,
+      access_token_expires_at: refreshed.expiresAtIso,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', connection.id);
+
+  if (updateResult.error) {
+    throw new ProviderRequestError('Kon banktoken niet veilig vernieuwen.');
+  }
+
+  return refreshed.accessToken;
 }
 
 export async function POST(request: Request) {
@@ -64,7 +104,7 @@ export async function POST(request: Request) {
 
     const connectionResult = await supabaseAdmin
       .from('bank_connections')
-      .select('id,user_id,requisition_id,institution_id,linked_account_ids')
+      .select('id,user_id,institution_id,linked_account_ids,access_token,refresh_token,access_token_expires_at')
       .eq('id', parsed.data.connectionId)
       .eq('user_id', identity.bankUserId)
       .maybeSingle();
@@ -77,17 +117,35 @@ export async function POST(request: Request) {
     }
 
     const connection = connectionResult.data as ConnectionRow;
-    if (!connection.requisition_id) {
-      return NextResponse.json(
-        { ok: false, message: 'Bankkoppeling heeft geen actieve requisitie.' },
-        { status: 400, headers: noStoreHeaders() }
-      );
+    let accessToken = await ensureValidAccessToken(connection);
+
+    let linkedAccountIds: string[] = [];
+    try {
+      linkedAccountIds = await listAccountIds(accessToken);
+    } catch (error) {
+      if (!(error instanceof ProviderRequestError) || !connection.refresh_token) {
+        throw error;
+      }
+      const refreshed = await refreshAccessToken(connection.refresh_token);
+      const refreshUpdate = await supabaseAdmin
+        .from('bank_connections')
+        .update({
+          access_token: refreshed.accessToken,
+          refresh_token: refreshed.refreshToken,
+          access_token_expires_at: refreshed.expiresAtIso,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', connection.id);
+      if (refreshUpdate.error) {
+        throw new ProviderRequestError('Kon banktoken niet veilig vernieuwen.');
+      }
+      accessToken = refreshed.accessToken;
+      linkedAccountIds = await listAccountIds(accessToken);
     }
 
-    const requisition = await getRequisition(connection.requisition_id);
-    const linkedAccountIds = requisition.accounts.length > 0
-      ? requisition.accounts
-      : safeArray(connection.linked_account_ids);
+    if (linkedAccountIds.length === 0) {
+      linkedAccountIds = safeArray(connection.linked_account_ids);
+    }
 
     if (linkedAccountIds.length === 0) {
       await supabaseAdmin
@@ -122,7 +180,7 @@ export async function POST(request: Request) {
     let transactionsUpdated = 0;
 
     for (const externalAccountId of linkedAccountIds) {
-      const details = await getAccountDetails(externalAccountId);
+      const details = await getAccountDetails(externalAccountId, accessToken);
       const accountUpsert = mapAccountUpsert({
         connectionId: connection.id,
         externalAccountId: details.externalAccountId,
@@ -150,7 +208,7 @@ export async function POST(request: Request) {
 
       accountsSynced += 1;
 
-      const balances = await getAccountBalances(externalAccountId);
+      const balances = await getAccountBalances(externalAccountId, accessToken);
       const balanceRows = mapBalancesInsert(bankAccountId, balances);
       if (balanceRows.length > 0) {
         const deleteResult = await supabaseAdmin
@@ -175,7 +233,7 @@ export async function POST(request: Request) {
         balancesSynced += balanceRows.length;
       }
 
-      const transactions = await getAccountTransactions(externalAccountId, dateFrom, dateTo);
+      const transactions = await getAccountTransactions(externalAccountId, dateFrom, dateTo, accessToken);
       const transactionRows = mapTransactionsUpsert(bankAccountId, transactions);
       if (transactionRows.length > 0) {
         const hashes = transactionRows.map((row) => row.hash);
@@ -237,7 +295,7 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ProviderRequestError) {
       return NextResponse.json(
-        { ok: false, message: 'Synchronisatie met de bankprovider is mislukt. Probeer het later opnieuw.' },
+        { ok: false, message: 'Synchronisatie met de bankprovider is mislukt. Koppel je bank opnieuw of probeer later opnieuw.' },
         { status: 502, headers: noStoreHeaders() }
       );
     }
