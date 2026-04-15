@@ -21,19 +21,11 @@ function latestBalanceMap(rows: unknown[]): Map<string, { amount: number | null;
     if (!record) continue;
     const accountId = typeof record.bank_account_id === 'string' ? record.bank_account_id : '';
     if (!accountId) continue;
-    const existing = byAccount.get(accountId);
+    if (byAccount.has(accountId)) continue; // already have the newest (ordered by created_at desc)
     const referenceDate = typeof record.reference_date === 'string' ? record.reference_date : null;
     const amountRaw = Number(record.amount);
     const amount = Number.isFinite(amountRaw) ? amountRaw : null;
-    if (!existing) {
-      byAccount.set(accountId, { amount, referenceDate });
-      continue;
-    }
-    const currentDate = referenceDate ? new Date(referenceDate).getTime() : 0;
-    const prevDate = existing.referenceDate ? new Date(existing.referenceDate).getTime() : 0;
-    if (currentDate >= prevDate) {
-      byAccount.set(accountId, { amount, referenceDate });
-    }
+    byAccount.set(accountId, { amount, referenceDate });
   }
   return byAccount;
 }
@@ -154,7 +146,8 @@ export async function GET(request: Request) {
       const balancesResult = await supabaseAdmin
         .from('bank_balances')
         .select('*')
-        .in('bank_account_id', accountIds);
+        .in('bank_account_id', accountIds)
+        .order('created_at', { ascending: false });
       if (balancesResult.error) {
         return NextResponse.json(
           { ok: false, message: `Kon saldi niet laden: ${balancesResult.error.message}` },

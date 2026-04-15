@@ -7,6 +7,7 @@ export interface BunqMonetaryAccount {
   iban: string | null;
   currency: string;
   balance: number | null;
+  accountType: string;
   raw: Record<string, unknown>;
 }
 
@@ -102,7 +103,8 @@ export async function listMonetaryAccounts(userId: number, profile: BunqProfile)
 
   return entries
     .map((entry) => {
-      const node = (entry.MonetaryAccountBank || entry.MonetaryAccountJoint || entry.MonetaryAccountSavings) as Record<string, unknown> | undefined;
+      const typeKey = ['MonetaryAccountBank','MonetaryAccountJoint','MonetaryAccountSavings','MonetaryAccountBusiness','MonetaryAccountLight'].find((k) => entry[k]);
+      const node = typeKey ? (entry[typeKey] as Record<string, unknown>) : undefined;
       if (!node) return null;
       const balanceNode = asRecord(node.balance);
       const monetaryAmountNode = asRecord(node.monetary_account_profile);
@@ -115,6 +117,7 @@ export async function listMonetaryAccounts(userId: number, profile: BunqProfile)
         iban: safeString(node.iban) || null,
         currency: safeString(balanceNode.currency) || safeString(monetaryAmountNode.currency) || 'EUR',
         balance: safeNumber(balanceNode.value),
+        accountType: typeKey ?? 'Unknown',
         raw: node,
       };
     })
