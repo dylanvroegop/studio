@@ -1,16 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDownRight, ArrowUpRight, Landmark, Link as LinkIcon, Loader2, RefreshCcw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ArrowDownRight, ArrowUpRight, Landmark, Loader2, RefreshCcw } from 'lucide-react';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import type { BankAccountView, BankConnectionView, BankOverviewSummary, BankTransactionView } from '@/lib/bank-overzicht';
@@ -26,36 +24,11 @@ type ApiOverviewResponse = {
   message?: string;
 };
 
-type ApiInstitution = {
-  id: string;
-  name: string;
-  bic: string | null;
-  logo: string | null;
-};
-
-type ApiInstitutionsResponse = {
-  ok: boolean;
-  data?: ApiInstitution[];
-  message?: string;
-};
-
-type ApiLinkResponse = {
-  ok: boolean;
-  data?: {
-    redirectUrl: string;
-  };
-  message?: string;
-};
-
 type ApiSyncResponse = {
   ok: boolean;
-  data?: {
-    accounts_synced: number;
-    balances_synced: number;
-    transactions_created: number;
-    transactions_updated: number;
-  };
-  message?: string;
+  newCount?: number;
+  accountsSynced?: number;
+  error?: string;
 };
 
 const PAGE_SIZE = 10;
@@ -81,7 +54,7 @@ function formatDate(value: string | null | undefined): string {
 }
 
 function connectionLabel(connection: BankConnectionView | null): string {
-  if (!connection) return 'Niet gekoppeld';
+  if (!connection) return 'Niet gesynchroniseerd';
   if (connection.status === 'connected') return 'Gekoppeld';
   if (connection.status === 'pending') return 'In behandeling';
   if (connection.status === 'revoked') return 'Ontkoppeld';
@@ -90,13 +63,11 @@ function connectionLabel(connection: BankConnectionView | null): string {
 
 export default function BankOverzichtPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [linking, setLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
@@ -108,12 +79,6 @@ export default function BankOverzichtPage() {
   const [accounts, setAccounts] = useState<BankAccountView[]>([]);
   const [transactions, setTransactions] = useState<BankTransactionView[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-
-  const [linkModalOpen, setLinkModalOpen] = useState(false);
-  const [institutionsLoading, setInstitutionsLoading] = useState(false);
-  const [institutions, setInstitutions] = useState<ApiInstitution[]>([]);
-  const [selectedInstitutionId, setSelectedInstitutionId] = useState('');
-  const [bankConfigWarning, setBankConfigWarning] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -153,138 +118,27 @@ export default function BankOverzichtPage() {
     void loadOverview();
   }, [loadOverview]);
 
-  useEffect(() => {
-    const state = searchParams.get('bank_link');
-    if (!state) return;
-
-    if (state === 'success') {
-      toast({
-        title: 'Bankrekening gekoppeld',
-        description: 'De bankkoppeling is gelukt. Je kunt nu synchroniseren.',
-      });
-      void loadOverview();
-    } else if (state === 'pending') {
-      toast({
-        title: 'Bankkoppeling in behandeling',
-        description: 'De bank heeft nog geen rekeningen teruggegeven. Probeer later opnieuw te synchroniseren.',
-      });
-    } else {
-      toast({
-        title: 'Bankkoppeling mislukt',
-        description: 'De bankkoppeling kon niet worden afgerond.',
-        variant: 'destructive',
-      });
-    }
-
-    const cleaned = new URL(window.location.href);
-    cleaned.searchParams.delete('bank_link');
-    window.history.replaceState({}, '', cleaned.toString());
-  }, [loadOverview, searchParams, toast]);
-
-  const loadInstitutions = useCallback(async () => {
-    if (!user) return;
-    setInstitutionsLoading(true);
-    setBankConfigWarning(null);
-    setError(null);
-    try {
-      const token = await user.getIdToken();
-      const response = await fetch('/api/bank/institutions', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: 'no-store',
-      });
-      const data = (await response.json().catch(() => null)) as ApiInstitutionsResponse | null;
-      if (!response.ok || !data?.ok) {
-        throw new Error(data?.message || 'Kon bankenlijst niet laden.');
-      }
-      const rows = Array.isArray(data.data) ? data.data : [];
-      setInstitutions(rows);
-      if (rows.length > 0) {
-        setSelectedInstitutionId(rows[0].id);
-      } else {
-        setSelectedInstitutionId('');
-      }
-      if (data.message) {
-        setBankConfigWarning('Bankkoppeling is nog niet geconfigureerd in de serveromgeving.');
-      }
-    } catch (institutionsError) {
-      const message = institutionsError instanceof Error ? institutionsError.message : 'Kon bankenlijst niet laden.';
-      setError(message);
-    } finally {
-      setInstitutionsLoading(false);
-    }
-  }, [user]);
-
-  const handleOpenLinkModal = useCallback(() => {
-    setLinkModalOpen(true);
-    if (institutions.length === 0 && !institutionsLoading) {
-      void loadInstitutions();
-    }
-  }, [institutions.length, institutionsLoading, loadInstitutions]);
-
-  const handleStartLink = async () => {
-    if (!user || !selectedInstitutionId) return;
-    setLinking(true);
-    setError(null);
-    try {
-      const token = await user.getIdToken();
-      const selected = institutions.find((item) => item.id === selectedInstitutionId);
-      const response = await fetch('/api/bank/link', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          institutionId: selectedInstitutionId,
-          institutionName: selected?.name,
-        }),
-      });
-      const data = (await response.json().catch(() => null)) as ApiLinkResponse | null;
-      if (!response.ok || !data?.ok || !data.data?.redirectUrl) {
-        throw new Error(data?.message || 'Kon bankkoppeling niet starten.');
-      }
-      window.location.assign(data.data.redirectUrl);
-    } catch (linkError) {
-      const message = linkError instanceof Error ? linkError.message : 'Kon bankkoppeling niet starten.';
-      setError(message);
-      toast({
-        title: 'Bankkoppeling mislukt',
-        description: 'De koppeling kon niet worden gestart. Probeer opnieuw.',
-        variant: 'destructive',
-      });
-      setLinking(false);
-    }
-  };
-
   const handleSync = async () => {
-    if (!user || !connection?.id) return;
+    if (!user) return;
     setSyncing(true);
     setError(null);
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/bank/sync', {
+      const response = await fetch('/api/bank/sync-bunq', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          connectionId: connection.id,
-        }),
       });
       const data = (await response.json().catch(() => null)) as ApiSyncResponse | null;
-      if (!response.ok || !data?.ok || !data.data) {
-        throw new Error(data?.message || 'Synchronisatie mislukt.');
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.error || 'Synchronisatie mislukt.');
       }
-      setInfoMessage(
-        `${data.data.transactions_created} nieuw, ${data.data.transactions_updated} bijgewerkt.`
-      );
+      setInfoMessage(`${data.newCount ?? 0} nieuwe transacties gesynchroniseerd.`);
       toast({
         title: 'Synchronisatie voltooid',
-        description: `${data.data.accounts_synced} rekeningen en ${data.data.balances_synced} saldi verwerkt.`,
+        description: `${data.newCount ?? 0} nieuwe transacties, ${data.accountsSynced ?? 0} rekeningen verwerkt.`,
       });
       await loadOverview();
     } catch (syncError) {
@@ -292,7 +146,7 @@ export default function BankOverzichtPage() {
       setError(message);
       toast({
         title: 'Synchronisatie mislukt',
-        description: 'Er ging iets mis tijdens het ophalen van bankgegevens.',
+        description: 'Er ging iets mis tijdens het ophalen van bunq-transacties.',
         variant: 'destructive',
       });
     } finally {
@@ -331,16 +185,12 @@ export default function BankOverzichtPage() {
                     Banktransacties
                   </CardTitle>
                   <div className="text-sm text-muted-foreground">
-                    Koppel je zakelijke bankrekening en synchroniseer uitgaven automatisch.
+                    bunq synchronisatie voor je interne dashboard.
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">{connectionLabel(connection)}</Badge>
-                  <Button type="button" variant="outline" onClick={handleOpenLinkModal} className="gap-2">
-                    <LinkIcon className="h-4 w-4" />
-                    Bank koppelen
-                  </Button>
-                  <Button type="button" onClick={handleSync} disabled={!connection?.id || syncing} className="gap-2">
+                  <Button type="button" onClick={handleSync} disabled={syncing} className="gap-2">
                     {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                     {syncing ? 'Synchroniseren...' : 'Synchroniseer nu'}
                   </Button>
@@ -349,7 +199,7 @@ export default function BankOverzichtPage() {
               <div className="grid gap-3 md:grid-cols-4">
                 <div className="rounded-xl border border-border/70 bg-card/55 p-4">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Bank</div>
-                  <div className="mt-1 text-sm font-medium">{connection?.institutionName || 'Niet gekoppeld'}</div>
+                  <div className="mt-1 text-sm font-medium">{connection ? 'bunq' : 'Niet gekoppeld'}</div>
                 </div>
                 <div className="rounded-xl border border-border/70 bg-card/55 p-4">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Laatste synchronisatie</div>
@@ -390,7 +240,7 @@ export default function BankOverzichtPage() {
             <CardContent>
               {accounts.length === 0 ? (
                 <div className="rounded-xl border border-border/70 bg-card/55 p-6 text-sm text-muted-foreground">
-                  Nog geen rekeningen gevonden.
+                  Nog geen rekeningen gevonden. Klik op ‘Synchroniseer nu’ om bunq-data op te halen.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -497,56 +347,6 @@ export default function BankOverzichtPage() {
           </Card>
         </div>
       </main>
-
-      <Dialog open={linkModalOpen} onOpenChange={setLinkModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Bankrekening koppelen</DialogTitle>
-            <DialogDescription>
-              Kies je bank. Je wordt daarna doorgestuurd naar de beveiligde bankomgeving om toegang te geven.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Bank</div>
-            <Select
-              value={selectedInstitutionId}
-              onValueChange={setSelectedInstitutionId}
-              disabled={institutionsLoading || linking || Boolean(bankConfigWarning)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={institutionsLoading ? 'Banken laden...' : 'Selecteer een bank'} />
-              </SelectTrigger>
-              <SelectContent>
-                {institutions.map((bank) => (
-                  <SelectItem key={bank.id} value={bank.id}>
-                    {bank.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {bankConfigWarning ? (
-              <div className="text-xs text-amber-300">{bankConfigWarning}</div>
-            ) : null}
-            {!institutionsLoading && institutions.length === 0 && !bankConfigWarning ? (
-              <div className="text-xs text-muted-foreground">Geen banken beschikbaar.</div>
-            ) : null}
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              onClick={handleStartLink}
-              disabled={linking || institutionsLoading || !selectedInstitutionId || Boolean(bankConfigWarning)}
-              className="gap-2"
-            >
-              {linking ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
-              {linking ? 'Verbinding starten...' : 'Doorgaan naar bank'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
-

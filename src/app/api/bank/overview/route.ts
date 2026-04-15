@@ -46,10 +46,24 @@ export async function GET(request: Request) {
       return trialBlockedResponse;
     }
 
+    const contextResult = await supabaseAdmin
+      .from('bunq_context')
+      .select('id')
+      .eq('id', 1)
+      .maybeSingle();
+
+    if (contextResult.error) {
+      return NextResponse.json(
+        { ok: false, message: 'Kon bunq-context niet laden.' },
+        { status: 500, headers: noStoreHeaders() }
+      );
+    }
+
     const connectionResult = await supabaseAdmin
       .from('bank_connections')
       .select('id,institution_name,status,last_synced_at,linked_account_ids')
       .eq('user_id', identity.bankUserId)
+      .eq('provider', 'bunq')
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -61,7 +75,22 @@ export async function GET(request: Request) {
       );
     }
 
-    const connectionView = mapConnectionView(connectionResult.data);
+    const realConnectionId =
+      connectionResult.data && typeof connectionResult.data.id === 'string'
+        ? connectionResult.data.id
+        : null;
+
+    const connectionView = mapConnectionView(connectionResult.data)
+      || (contextResult.data
+        ? {
+          id: realConnectionId || '00000000-0000-0000-0000-000000000000',
+          institutionName: 'bunq',
+          status: 'connected',
+          lastSyncedAt: null,
+          accountCount: 0,
+        }
+        : null);
+
     if (!connectionView) {
       return NextResponse.json(
         {
@@ -80,22 +109,29 @@ export async function GET(request: Request) {
       );
     }
 
-    const accountsResult = await supabaseAdmin
-      .from('bank_accounts')
-      .select('*')
-      .eq('connection_id', connectionView.id)
-      .order('created_at', { ascending: false });
+    let accountRows: unknown[] = [];
+    if (realConnectionId) {
+      const accountsResult = await supabaseAdmin
+        .from('bank_accounts')
+        .select('*')
+        .eq('connection_id', realConnectionId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
 
-    if (accountsResult.error) {
-      return NextResponse.json(
-        { ok: false, message: 'Kon bankrekeningen niet laden.' },
-        { status: 500, headers: noStoreHeaders() }
-      );
+      if (accountsResult.error) {
+        return NextResponse.json(
+          { ok: false, message: 'Kon bankrekeningen niet laden.' },
+          { status: 500, headers: noStoreHeaders() }
+        );
+      }
+      accountRows = Array.isArray(accountsResult.data) ? accountsResult.data : [];
     }
 
-    const accountIds = Array.isArray(accountsResult.data)
-      ? accountsResult.data.map((item) => (typeof item.id === 'string' ? item.id : '')).filter(Boolean)
-      : [];
+    const accountIds = accountRows
+      .map((item) => (item && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string'
+        ? (item as Record<string, unknown>).id as string
+        : ''))
+      .filter(Boolean);
 
     let balancesRows: unknown[] = [];
     if (accountIds.length > 0) {
@@ -113,7 +149,7 @@ export async function GET(request: Request) {
     }
 
     const latestBalanceByAccount = latestBalanceMap(balancesRows);
-    const accounts = (accountsResult.data || [])
+    const accounts = accountRows
       .map((row) => mapAccountView(row, latestBalanceByAccount))
       .filter((row): row is NonNullable<typeof row> => row !== null);
 
@@ -148,6 +184,8 @@ export async function GET(request: Request) {
         data: {
           connection: {
             ...connectionView,
+            institutionName: 'bunq',
+            status: contextResult.data ? 'connected' : connectionView.status,
             accountCount: accounts.length,
           },
           summary,

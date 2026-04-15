@@ -1,6 +1,26 @@
 import { createHash } from 'crypto';
+export interface BankBalance {
+  balanceType: string | null;
+  amount: number | null;
+  currency: string | null;
+  referenceDate: string | null;
+  raw: Record<string, unknown>;
+}
 
-import type { BankBalance, BankTransaction } from '@/lib/bank-provider-gocardless';
+export interface BankTransaction {
+  externalTransactionId: string | null;
+  internalTransactionId: string | null;
+  bookingDate: string | null;
+  valueDate: string | null;
+  amount: number;
+  currency: string;
+  direction: 'incoming' | 'outgoing';
+  counterpartyName: string | null;
+  counterpartyIban: string | null;
+  remittanceInformation: string | null;
+  status: string | null;
+  raw: Record<string, unknown>;
+}
 
 export interface BankAccountUpsertRow {
   connection_id: string;
@@ -135,4 +155,3 @@ export function mapTransactionsUpsert(bankAccountId: string, transactions: BankT
     };
   });
 }
-
