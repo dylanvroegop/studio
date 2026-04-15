@@ -25,7 +25,7 @@ export function LaborBreakdown({
     urenSpecificatie,
     totaalUren,
     uurTarief,
-    btwTarief: _btwTarief = 21,
+    btwTarief = 21,
     urenPerDag = 8,
     showSummaryInHeader = true,
     onUpdateHourlyRate,
@@ -67,6 +67,7 @@ export function LaborBreakdown({
     const totaalArbeid = totaalUren * uurTarief;
     const safeUrenPerDag = Number.isFinite(urenPerDag) && urenPerDag > 0 ? urenPerDag : 8;
     const totaalDagen = totaalUren / safeUrenPerDag;
+    const totaalArbeidInclBtw = totaalArbeid * (1 + btwTarief / 100);
 
     useEffect(() => {
         setTempRate(uurTarief.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -144,6 +145,9 @@ export function LaborBreakdown({
                             <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-32">
                                 Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(excl. btw)</span>
                             </th>
+                            <th className="px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider w-32">
+                                Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(incl. btw)</span>
+                            </th>
                             <th className="px-6 py-3 w-12" />
                         </tr>
                     </thead>
@@ -218,13 +222,16 @@ export function LaborBreakdown({
                             <td className="px-6 py-3 text-right text-zinc-300 text-sm">
                                 {formatCurrency(totaalArbeid)}
                             </td>
+                            <td className="px-6 py-3 text-right text-zinc-300 text-sm">
+                                {formatCurrency(totaalArbeidInclBtw)}
+                            </td>
                             <td className="px-6 py-3 text-right w-12">
                                 <span className="inline-flex h-9 w-9 opacity-0 pointer-events-none" aria-hidden />
                             </td>
                         </tr>
                         {showCalculationRows && urenSpecificatie.map((item, index) => (
                             <tr key={`detail-${index}`} className="bg-zinc-900/20">
-                                <td colSpan={6} className="px-6 py-3 text-xs text-zinc-300">
+                                <td colSpan={7} className="px-6 py-3 text-xs text-zinc-300">
                                     {item.taak || `Urenregel ${index + 1}`}: {formatNumber(item.uren / safeUrenPerDag)} dagen • {formatNumber(item.uren)} uur • {formatCurrency(item.uren * uurTarief)}
                                 </td>
                             </tr>

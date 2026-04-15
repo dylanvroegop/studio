@@ -1,23 +1,36 @@
-import { normalizeProjectCostCategory, roundEuro } from '@/lib/project-costs';
-
-export type BankTransactionSource = 'bank_transactions' | 'project_costs_fallback';
-
-export interface BankTransactionRow {
+export interface BankConnectionView {
   id: string;
-  user_id: string;
-  external_id: string | null;
-  source: BankTransactionSource;
+  institutionName: string | null;
+  status: string;
+  lastSyncedAt: string | null;
+  accountCount: number;
+}
+
+export interface BankAccountView {
+  id: string;
+  externalAccountId: string;
+  ibanMasked: string;
+  name: string;
+  currency: string;
+  latestBalanceAmount: number | null;
+  latestBalanceDate: string | null;
+}
+
+export interface BankTransactionView {
+  id: string;
+  bookingDate: string;
   description: string;
-  counterparty_name: string;
+  counterpartyName: string;
   amount: number;
   currency: string;
-  direction: 'debit' | 'credit';
-  booked_at: string;
-  category: string;
-  linked_cost_id: string | null;
-  status: 'new' | 'processed' | 'ignored';
-  created_at: string;
-  updated_at: string;
+  direction: 'incoming' | 'outgoing';
+  accountName: string;
+  status: string;
+}
+
+export interface BankOverviewSummary {
+  incomeThisMonth: number;
+  expensesThisMonth: number;
 }
 
 function safeString(value: unknown): string {
@@ -25,57 +38,103 @@ function safeString(value: unknown): string {
 }
 
 function safeNumber(value: unknown): number {
-  const numeric = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function mapBankTransactionRow(input: unknown): BankTransactionRow {
-  const row = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
-  const direction = safeString(row.direction).toLowerCase() === 'credit' ? 'credit' : 'debit';
-  const statusRaw = safeString(row.status).toLowerCase();
-  const status = statusRaw === 'processed' || statusRaw === 'ignored' ? statusRaw : 'new';
+function normalizeIsoDate(value: unknown): string | null {
+  const str = safeString(value);
+  if (!str) return null;
+  const parsed = new Date(str);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
 
+export function maskIban(value: unknown): string {
+  const raw = safeString(value).replace(/\s+/g, '');
+  if (raw.length < 8) return raw || 'Onbekend';
+  return `${raw.slice(0, 4)}••••••${raw.slice(-4)}`;
+}
+
+export function toDateOnly(value: unknown): string {
+  const iso = normalizeIsoDate(value);
+  if (!iso) return new Date().toISOString().slice(0, 10);
+  return iso.slice(0, 10);
+}
+
+export function mapConnectionView(input: unknown): BankConnectionView | null {
+  const row = input && typeof input === 'object' ? (input as Record<string, unknown>) : null;
+  if (!row) return null;
+  const id = safeString(row.id);
+  if (!id) return null;
+  const linkedAccountIds = Array.isArray(row.linked_account_ids) ? row.linked_account_ids : [];
   return {
-    id: safeString(row.id),
-    user_id: safeString(row.user_id),
-    external_id: safeString(row.external_id) || null,
-    source: 'bank_transactions',
-    description: safeString(row.description) || 'Transactie',
-    counterparty_name: safeString(row.counterparty_name) || 'Onbekend',
-    amount: roundEuro(Math.abs(safeNumber(row.amount))),
+    id,
+    institutionName: safeString(row.institution_name) || null,
+    status: safeString(row.status) || 'pending',
+    lastSyncedAt: normalizeIsoDate(row.last_synced_at),
+    accountCount: linkedAccountIds.length,
+  };
+}
+
+export function mapAccountView(input: unknown, latestBalanceByAccount: Map<string, { amount: number | null; referenceDate: string | null }>): BankAccountView | null {
+  const row = input && typeof input === 'object' ? (input as Record<string, unknown>) : null;
+  if (!row) return null;
+  const id = safeString(row.id);
+  const externalAccountId = safeString(row.external_account_id);
+  if (!id || !externalAccountId) return null;
+  const latest = latestBalanceByAccount.get(id) || { amount: null, referenceDate: null };
+  return {
+    id,
+    externalAccountId,
+    ibanMasked: maskIban(row.iban),
+    name: safeString(row.name) || 'Rekening',
+    currency: safeString(row.currency) || 'EUR',
+    latestBalanceAmount: latest.amount,
+    latestBalanceDate: latest.referenceDate,
+  };
+}
+
+export function mapTransactionView(
+  input: unknown,
+  accountNameById: Map<string, string>
+): BankTransactionView | null {
+  const row = input && typeof input === 'object' ? (input as Record<string, unknown>) : null;
+  if (!row) return null;
+  const id = safeString(row.id);
+  const bankAccountId = safeString(row.bank_account_id);
+  if (!id || !bankAccountId) return null;
+  const amount = safeNumber(row.amount);
+  const direction: 'incoming' | 'outgoing' = amount < 0 ? 'outgoing' : 'incoming';
+  return {
+    id,
+    bookingDate: toDateOnly(row.booking_date || row.value_date),
+    description: safeString(row.remittance_information) || 'Transactie',
+    counterpartyName: safeString(row.counterparty_name) || '-',
+    amount,
     currency: safeString(row.currency) || 'EUR',
     direction,
-    booked_at: safeString(row.booked_at) || new Date().toISOString(),
-    category: safeString(row.category) || 'overig',
-    linked_cost_id: safeString(row.linked_cost_id) || null,
-    status,
-    created_at: safeString(row.created_at) || new Date().toISOString(),
-    updated_at: safeString(row.updated_at) || new Date().toISOString(),
+    accountName: accountNameById.get(bankAccountId) || 'Rekening',
+    status: safeString(row.status) || '-',
   };
 }
 
-export function mapProjectCostToBankFallback(input: unknown): BankTransactionRow {
-  const row = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
-  const amountIncl = roundEuro(Math.abs(safeNumber(row.amount_incl_btw)));
-  const category = normalizeProjectCostCategory(row.category);
-  const id = safeString(row.id);
-  const bookedAt = safeString(row.date) || safeString(row.created_at) || new Date().toISOString();
-
+export function summarizeThisMonth(transactions: BankTransactionView[]): BankOverviewSummary {
+  const now = new Date();
+  const month = now.getMonth();
+  const year = now.getFullYear();
+  let income = 0;
+  let expenses = 0;
+  for (const tx of transactions) {
+    const date = new Date(tx.bookingDate);
+    if (Number.isNaN(date.getTime())) continue;
+    if (date.getMonth() !== month || date.getFullYear() !== year) continue;
+    if (tx.amount >= 0) income += tx.amount;
+    if (tx.amount < 0) expenses += tx.amount;
+  }
   return {
-    id: `fallback-${id || crypto.randomUUID()}`,
-    user_id: safeString(row.user_id),
-    external_id: id || null,
-    source: 'project_costs_fallback',
-    description: safeString(row.description) || safeString(row.supplier_name) || 'Kost',
-    counterparty_name: safeString(row.supplier_name) || 'Onbekend',
-    amount: amountIncl,
-    currency: 'EUR',
-    direction: 'debit',
-    booked_at: bookedAt,
-    category,
-    linked_cost_id: id || null,
-    status: 'processed',
-    created_at: safeString(row.created_at) || new Date().toISOString(),
-    updated_at: safeString(row.updated_at) || new Date().toISOString(),
+    incomeThisMonth: income,
+    expensesThisMonth: expenses,
   };
 }
+

@@ -1,25 +1,16 @@
 import { NextResponse } from 'next/server';
 
-import { noStoreHeaders, resolveUid } from '@/lib/bank-api-auth';
+import { noStoreHeaders, resolveBankIdentity } from '@/lib/bank-api-auth';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
-import { mapBankTransactionRow } from '@/lib/bank-overzicht';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function isMissingBankRelationError(message: string): boolean {
-  const lower = message.toLowerCase();
-  return lower.includes('bank_transactions')
-    || lower.includes('bank_connections')
-    || lower.includes('does not exist')
-    || lower.includes('schema cache');
-}
-
 export async function GET(request: Request) {
   try {
-    const uid = await resolveUid(request);
-    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    const identity = await resolveBankIdentity(request);
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(identity.firebaseUid);
     if (trialBlockedResponse) {
       trialBlockedResponse.headers.set('Cache-Control', 'no-store');
       return trialBlockedResponse;
@@ -27,70 +18,71 @@ export async function GET(request: Request) {
 
     const connection = await supabaseAdmin
       .from('bank_connections')
-      .select('id,status,institution_id,institution_name,last_error,last_synced_at,accounts,created_at,updated_at')
-      .eq('user_id', uid)
-      .order('created_at', { ascending: false })
+      .select('id')
+      .eq('user_id', identity.bankUserId)
+      .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (connection.error) {
-      if (isMissingBankRelationError(connection.error.message)) {
-        return NextResponse.json(
-          {
-            ok: true,
-            mode: 'project_costs_fallback',
-            data: [],
-            connection: null,
-            message: 'Banktabellen ontbreken nog in Supabase. Draai eerst de bank-migratie.',
-          },
-          { headers: noStoreHeaders() }
-        );
-      }
+    if (connection.error || !connection.data) {
       return NextResponse.json(
-        { ok: false, message: connection.error.message },
+        { ok: true, data: [] },
+        { headers: noStoreHeaders() }
+      );
+    }
+
+    const connectionId = typeof connection.data.id === 'string' ? connection.data.id : '';
+    if (!connectionId) {
+      return NextResponse.json(
+        { ok: true, data: [] },
+        { headers: noStoreHeaders() }
+      );
+    }
+
+    const accounts = await supabaseAdmin
+      .from('bank_accounts')
+      .select('id')
+      .eq('connection_id', connectionId);
+
+    if (accounts.error) {
+      return NextResponse.json(
+        { ok: false, message: 'Kon bankrekeningen niet laden.' },
         { status: 500, headers: noStoreHeaders() }
       );
     }
 
-    const transactionsResult = await supabaseAdmin
+    const ids = (accounts.data || []).map((item) => item.id).filter(Boolean);
+    if (ids.length === 0) {
+      return NextResponse.json(
+        { ok: true, data: [] },
+        { headers: noStoreHeaders() }
+      );
+    }
+
+    const transactions = await supabaseAdmin
       .from('bank_transactions')
       .select('*')
-      .eq('user_id', uid)
-      .order('booked_at', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(300);
+      .in('bank_account_id', ids)
+      .order('booking_date', { ascending: false })
+      .limit(50);
 
-    if (transactionsResult.error) {
-      if (isMissingBankRelationError(transactionsResult.error.message)) {
-        return NextResponse.json(
-          {
-            ok: true,
-            mode: 'project_costs_fallback',
-            data: [],
-            connection: connection.data || null,
-            message: 'Banktransacties tabel ontbreekt nog in Supabase. Draai eerst de bank-migratie.',
-          },
-          { headers: noStoreHeaders() }
-        );
-      }
+    if (transactions.error) {
       return NextResponse.json(
-        { ok: false, message: transactionsResult.error.message },
+        { ok: false, message: 'Kon transacties niet laden.' },
         { status: 500, headers: noStoreHeaders() }
       );
     }
 
     return NextResponse.json(
-      {
-        ok: true,
-        mode: 'bank_transactions',
-        data: (transactionsResult.data || []).map((row) => mapBankTransactionRow(row)),
-        connection: connection.data || null,
-      },
+      { ok: true, data: transactions.data || [] },
       { headers: noStoreHeaders() }
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Kon banktransacties niet laden.';
+    const message = error instanceof Error ? error.message : 'Kon transacties niet laden.';
     const status = message === 'Unauthorized' ? 401 : 500;
-    return NextResponse.json({ ok: false, message }, { status, headers: noStoreHeaders() });
+    return NextResponse.json(
+      { ok: false, message },
+      { status, headers: noStoreHeaders() }
+    );
   }
 }

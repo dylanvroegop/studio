@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
+import { noStoreHeaders, resolveBankIdentity } from '@/lib/bank-api-auth';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
-import { noStoreHeaders, resolveUid } from '@/lib/bank-api-auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const runtime = 'nodejs';
@@ -9,37 +9,32 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const uid = await resolveUid(request);
-    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    const identity = await resolveBankIdentity(request);
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(identity.firebaseUid);
     if (trialBlockedResponse) {
       trialBlockedResponse.headers.set('Cache-Control', 'no-store');
       return trialBlockedResponse;
     }
 
-    const connection = await supabaseAdmin
+    const result = await supabaseAdmin
       .from('bank_connections')
-      .select('id,status,institution_id,institution_name,requisition_id,last_error,last_synced_at,accounts,created_at,updated_at')
-      .eq('user_id', uid)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .select('id,institution_name,status,last_synced_at,created_at')
+      .eq('user_id', identity.bankUserId)
+      .order('created_at', { ascending: false });
 
-    if (connection.error) {
+    if (result.error) {
       return NextResponse.json(
-        { ok: false, message: connection.error.message },
+        { ok: false, message: 'Kon bankkoppelingen niet laden.' },
         { status: 500, headers: noStoreHeaders() }
       );
     }
 
     return NextResponse.json(
-      {
-        ok: true,
-        data: connection.data || null,
-      },
+      { ok: true, data: result.data || [] },
       { headers: noStoreHeaders() }
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Kon bankstatus niet laden.';
+    const message = error instanceof Error ? error.message : 'Kon bankkoppelingen niet laden.';
     const status = message === 'Unauthorized' ? 401 : 500;
     return NextResponse.json(
       { ok: false, message },

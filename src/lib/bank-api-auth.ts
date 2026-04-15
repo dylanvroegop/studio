@@ -1,4 +1,5 @@
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { deriveBankUserId } from '@/lib/bank-user-id';
 
 export function noStoreHeaders(): HeadersInit {
   return {
@@ -22,3 +23,10 @@ export async function resolveUid(request: Request): Promise<string> {
   return uid;
 }
 
+export async function resolveBankIdentity(request: Request): Promise<{ firebaseUid: string; bankUserId: string }> {
+  const firebaseUid = await resolveUid(request);
+  return {
+    firebaseUid,
+    bankUserId: deriveBankUserId(firebaseUid),
+  };
+}

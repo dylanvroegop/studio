@@ -1,131 +1,138 @@
 import { createHash } from 'crypto';
 
-import { listAccountTransactions, type BankAccountTransaction } from '@/lib/bank-provider-gocardless';
+import type { BankBalance, BankTransaction } from '@/lib/bank-provider-gocardless';
 
-export interface BankConnectionRow {
-  id: string;
-  user_id: string;
-  requisition_id: string;
-  institution_id: string;
-  institution_name: string | null;
-  status: string;
-  accounts: unknown;
+export interface BankAccountUpsertRow {
+  connection_id: string;
+  external_account_id: string;
+  iban: string | null;
+  name: string | null;
+  currency: string | null;
+  owner_name: string | null;
+  product: string | null;
+  cash_account_type: string | null;
+  status: 'active';
+  updated_at: string;
 }
 
-export interface BankTransactionUpsertRow {
-  user_id: string;
-  external_id: string;
-  source: 'bank_transactions';
-  connection_id: string;
-  account_id: string;
-  description: string;
-  counterparty_name: string;
-  amount: number;
-  currency: string;
-  direction: 'debit' | 'credit';
-  booked_at: string;
-  category: string;
-  linked_cost_id: null;
-  status: 'new' | 'processed' | 'ignored';
+export interface BankBalanceInsertRow {
+  bank_account_id: string;
+  balance_type: string | null;
+  amount: number | null;
+  currency: string | null;
+  reference_date: string | null;
   raw: Record<string, unknown>;
 }
 
-function safeString(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
+export interface BankTransactionUpsertRow {
+  bank_account_id: string;
+  external_transaction_id: string | null;
+  booking_date: string | null;
+  value_date: string | null;
+  amount: number;
+  currency: string;
+  direction: 'incoming' | 'outgoing';
+  counterparty_name: string | null;
+  counterparty_iban: string | null;
+  remittance_information: string | null;
+  internal_transaction_id: string | null;
+  status: string | null;
+  raw: Record<string, unknown>;
+  hash: string;
+  updated_at: string;
 }
 
-function safeArrayStrings(value: unknown): string[] {
-  return Array.isArray(value) ? value.map((entry) => safeString(entry)).filter(Boolean) : [];
+function safeString(value: string | null): string {
+  return (value || '').trim();
 }
 
-function normalizeDate(value: string | null): string {
-  if (!value) return new Date().toISOString();
+function normalizeDateOnly(value: string | null): string | null {
+  if (!value) return null;
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return new Date().toISOString();
-  return parsed.toISOString();
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
 }
 
-function detectCategory(description: string, counterparty: string): string {
-  const source = `${description} ${counterparty}`.toLowerCase();
-  if (source.includes('shell') || source.includes('tank') || source.includes('brandstof')) return 'brandstof';
-  if (source.includes('bouwmaat') || source.includes('hornbach') || source.includes('gamma') || source.includes('materiaal')) return 'materiaal';
-  if (source.includes('tool') || source.includes('gereedschap')) return 'gereedschap';
-  if (source.includes('belasting') || source.includes('btw') || source.includes('belastingdienst')) return 'belasting';
-  return 'overig';
-}
-
-function buildExternalId(
-  accountId: string,
-  tx: BankAccountTransaction
-): string {
-  const fallbackKey = [
-    accountId,
-    tx.booking_date || '',
-    tx.amount.toString(),
-    tx.currency,
-    tx.creditor_name,
-    tx.debtor_name,
-    tx.description,
+function buildTransactionHash(input: {
+  bankAccountId: string;
+  bookingDate: string | null;
+  amount: number;
+  remittanceInformation: string | null;
+  counterpartyName: string | null;
+}): string {
+  const raw = [
+    input.bankAccountId,
+    input.bookingDate || '',
+    input.amount.toFixed(2),
+    safeString(input.remittanceInformation),
+    safeString(input.counterpartyName),
   ].join('|');
-
-  const explicitId = safeString(tx.transaction_id);
-  if (explicitId) return `${accountId}:${explicitId}`;
-
-  const digest = createHash('sha256').update(fallbackKey).digest('hex');
-  return `${accountId}:hash:${digest}`;
+  return createHash('sha256').update(raw).digest('hex');
 }
 
-function mapBankTransactionToUpsert(params: {
-  uid: string;
+export function mapAccountUpsert(params: {
   connectionId: string;
-  accountId: string;
-  tx: BankAccountTransaction;
-}): BankTransactionUpsertRow {
-  const amountRaw = Number(params.tx.amount);
-  const direction: 'debit' | 'credit' = amountRaw < 0 ? 'debit' : 'credit';
-  const amount = Math.abs(Number.isFinite(amountRaw) ? amountRaw : 0);
-  const counterparty = safeString(params.tx.creditor_name) || safeString(params.tx.debtor_name) || 'Onbekend';
-  const description = safeString(params.tx.description) || 'Banktransactie';
-
+  externalAccountId: string;
+  iban: string | null;
+  name: string | null;
+  currency: string | null;
+  ownerName: string | null;
+  product: string | null;
+  cashAccountType: string | null;
+}): BankAccountUpsertRow {
   return {
-    user_id: params.uid,
-    external_id: buildExternalId(params.accountId, params.tx),
-    source: 'bank_transactions',
     connection_id: params.connectionId,
-    account_id: params.accountId,
-    description,
-    counterparty_name: counterparty,
-    amount,
-    currency: safeString(params.tx.currency) || 'EUR',
-    direction,
-    booked_at: normalizeDate(params.tx.booking_date),
-    category: detectCategory(description, counterparty),
-    linked_cost_id: null,
-    status: 'new',
-    raw: params.tx.raw,
+    external_account_id: params.externalAccountId,
+    iban: params.iban,
+    name: params.name,
+    currency: params.currency,
+    owner_name: params.ownerName,
+    product: params.product,
+    cash_account_type: params.cashAccountType,
+    status: 'active',
+    updated_at: new Date().toISOString(),
   };
 }
 
-export async function pullConnectionTransactions(
-  connection: BankConnectionRow
-): Promise<BankTransactionUpsertRow[]> {
-  const accountIds = safeArrayStrings(connection.accounts);
-  const rows: BankTransactionUpsertRow[] = [];
+export function mapBalancesInsert(bankAccountId: string, balances: BankBalance[]): BankBalanceInsertRow[] {
+  return balances.map((item) => ({
+    bank_account_id: bankAccountId,
+    balance_type: item.balanceType,
+    amount: item.amount,
+    currency: item.currency,
+    reference_date: normalizeDateOnly(item.referenceDate),
+    raw: item.raw,
+  }));
+}
 
-  for (const accountId of accountIds) {
-    const transactions = await listAccountTransactions(accountId);
-    for (const tx of transactions) {
-      rows.push(
-        mapBankTransactionToUpsert({
-          uid: connection.user_id,
-          connectionId: connection.id,
-          accountId,
-          tx,
-        })
-      );
-    }
-  }
-
-  return rows;
+export function mapTransactionsUpsert(bankAccountId: string, transactions: BankTransaction[]): BankTransactionUpsertRow[] {
+  return transactions.map((tx) => {
+    const bookingDate = normalizeDateOnly(tx.bookingDate);
+    const valueDate = normalizeDateOnly(tx.valueDate);
+    const hash = buildTransactionHash({
+      bankAccountId,
+      bookingDate,
+      amount: tx.amount,
+      remittanceInformation: tx.remittanceInformation,
+      counterpartyName: tx.counterpartyName,
+    });
+    return {
+      bank_account_id: bankAccountId,
+      external_transaction_id: tx.externalTransactionId,
+      booking_date: bookingDate,
+      value_date: valueDate,
+      amount: tx.amount,
+      currency: tx.currency,
+      direction: tx.direction,
+      counterparty_name: tx.counterpartyName,
+      counterparty_iban: tx.counterpartyIban,
+      remittance_information: tx.remittanceInformation,
+      internal_transaction_id: tx.internalTransactionId,
+      status: tx.status,
+      raw: tx.raw,
+      hash,
+      updated_at: new Date().toISOString(),
+    };
+  });
 }
 

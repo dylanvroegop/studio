@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDownRight, Landmark, Link as LinkIcon, Loader2, RefreshCcw } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Landmark, Link as LinkIcon, Loader2, RefreshCcw } from 'lucide-react';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
@@ -13,56 +13,52 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import type { BankTransactionRow } from '@/lib/bank-overzicht';
+import type { BankAccountView, BankConnectionView, BankOverviewSummary, BankTransactionView } from '@/lib/bank-overzicht';
 
-type BankInstitution = {
-  id: string;
-  name: string;
-  bic?: string | null;
-  logo?: string | null;
-};
-
-type BankConnection = {
-  id: string;
-  status: 'pending' | 'linked' | 'connected' | 'error' | 'revoked' | string;
-  institution_id: string;
-  institution_name: string | null;
-  requisition_id?: string;
-  last_error?: string | null;
-  last_synced_at?: string | null;
-  accounts?: unknown;
-  created_at?: string;
-  updated_at?: string;
-};
-
-type ApiListResponse = {
+type ApiOverviewResponse = {
   ok: boolean;
-  mode?: 'bank_transactions' | 'project_costs_fallback';
-  data?: BankTransactionRow[];
-  connection?: BankConnection | null;
+  data?: {
+    connection: BankConnectionView | null;
+    summary: BankOverviewSummary;
+    accounts: BankAccountView[];
+    transactions: BankTransactionView[];
+  };
   message?: string;
 };
 
-type ApiSyncResponse = ApiListResponse & {
-  inserted_count?: number;
+type ApiInstitution = {
+  id: string;
+  name: string;
+  bic: string | null;
+  logo: string | null;
 };
 
 type ApiInstitutionsResponse = {
   ok: boolean;
-  data?: BankInstitution[];
+  data?: ApiInstitution[];
   message?: string;
 };
 
-type ApiLinkStartResponse = {
+type ApiLinkResponse = {
   ok: boolean;
   data?: {
-    link: string;
-    requisition_id: string;
-    ref: string;
-    connection_id: string;
+    redirectUrl: string;
   };
   message?: string;
 };
+
+type ApiSyncResponse = {
+  ok: boolean;
+  data?: {
+    accounts_synced: number;
+    balances_synced: number;
+    transactions_created: number;
+    transactions_updated: number;
+  };
+  message?: string;
+};
+
+const PAGE_SIZE = 10;
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('nl-NL', {
@@ -73,28 +69,23 @@ function formatCurrency(amount: number): string {
   }).format(Number.isFinite(amount) ? amount : 0);
 }
 
-function formatDate(value: string): string {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return 'Onbekende datum';
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '-';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '-';
   return new Intl.DateTimeFormat('nl-NL', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-  }).format(date);
+  }).format(parsed);
 }
 
-function sourceBadge(mode: ApiListResponse['mode']) {
-  if (mode === 'bank_transactions') return 'Live bankfeed';
-  return 'Bankfeed';
-}
-
-function connectionBadge(connection: BankConnection | null): string {
+function connectionLabel(connection: BankConnectionView | null): string {
   if (!connection) return 'Niet gekoppeld';
   if (connection.status === 'connected') return 'Gekoppeld';
-  if (connection.status === 'linked') return 'In behandeling';
-  if (connection.status === 'pending') return 'Wachten op bank bevestiging';
-  if (connection.status === 'error') return 'Fout in koppeling';
-  return 'Status onbekend';
+  if (connection.status === 'pending') return 'In behandeling';
+  if (connection.status === 'revoked') return 'Ontkoppeld';
+  return 'Onbekend';
 }
 
 export default function BankOverzichtPage() {
@@ -106,48 +97,52 @@ export default function BankOverzichtPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [linking, setLinking] = useState(false);
-  const [institutionsLoading, setInstitutionsLoading] = useState(false);
-  const [connectDialogOpen, setConnectDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<ApiListResponse['mode']>('bank_transactions');
-  const [transactions, setTransactions] = useState<BankTransactionRow[]>([]);
-  const [connection, setConnection] = useState<BankConnection | null>(null);
-  const [institutions, setInstitutions] = useState<BankInstitution[]>([]);
-  const [institutionsInfo, setInstitutionsInfo] = useState<string | null>(null);
-  const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>('');
-  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+
+  const [connection, setConnection] = useState<BankConnectionView | null>(null);
+  const [summary, setSummary] = useState<BankOverviewSummary>({
+    incomeThisMonth: 0,
+    expensesThisMonth: 0,
+  });
+  const [accounts, setAccounts] = useState<BankAccountView[]>([]);
+  const [transactions, setTransactions] = useState<BankTransactionView[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [institutionsLoading, setInstitutionsLoading] = useState(false);
+  const [institutions, setInstitutions] = useState<ApiInstitution[]>([]);
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState('');
+  const [bankConfigWarning, setBankConfigWarning] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
   }, [isUserLoading, router, user]);
 
-  const loadTransactions = useCallback(async () => {
+  const loadOverview = useCallback(async () => {
     if (!user) return;
-    setError(null);
     setLoading(true);
-
+    setError(null);
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/bank/transactions/list', {
+      const response = await fetch('/api/bank/overview', {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
         },
         cache: 'no-store',
       });
-
-      const data = (await response.json().catch(() => null)) as ApiListResponse | null;
-      if (!response.ok || !data?.ok) {
-        throw new Error(data?.message || 'Kon banktransacties niet laden.');
+      const data = (await response.json().catch(() => null)) as ApiOverviewResponse | null;
+      if (!response.ok || !data?.ok || !data.data) {
+        throw new Error(data?.message || 'Kon bankoverzicht niet laden.');
       }
-
-      setTransactions(Array.isArray(data.data) ? data.data : []);
-      setConnection(data.connection || null);
-      setMode(data.mode || 'bank_transactions');
-      if (data.message) setError(data.message);
-      setLastSyncAt(new Date().toISOString());
-    } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Kon banktransacties niet laden.';
+      setConnection(data.data.connection);
+      setSummary(data.data.summary);
+      setAccounts(data.data.accounts);
+      setTransactions(data.data.transactions);
+      setCurrentPage(1);
+    } catch (overviewError) {
+      const message = overviewError instanceof Error ? overviewError.message : 'Kon bankoverzicht niet laden.';
       setError(message);
     } finally {
       setLoading(false);
@@ -155,45 +150,45 @@ export default function BankOverzichtPage() {
   }, [user]);
 
   useEffect(() => {
-    void loadTransactions();
-  }, [loadTransactions]);
+    void loadOverview();
+  }, [loadOverview]);
 
   useEffect(() => {
-    const bankLinkState = searchParams.get('bank_link');
-    const bankMessage = searchParams.get('bank_message');
-    if (!bankLinkState) return;
+    const state = searchParams.get('bank_link');
+    if (!state) return;
 
-    if (bankLinkState === 'success') {
+    if (state === 'success') {
       toast({
-        title: 'Bank gekoppeld',
-        description: bankMessage || 'Je bankrekening is gekoppeld en klaar voor synchronisatie.',
+        title: 'Bankrekening gekoppeld',
+        description: 'De bankkoppeling is gelukt. Je kunt nu synchroniseren.',
       });
-      void loadTransactions();
-    } else if (bankLinkState === 'pending') {
+      void loadOverview();
+    } else if (state === 'pending') {
       toast({
         title: 'Bankkoppeling in behandeling',
-        description: bankMessage || 'De koppeling staat klaar, maar accountgegevens zijn nog niet compleet.',
+        description: 'De bank heeft nog geen rekeningen teruggegeven. Probeer later opnieuw te synchroniseren.',
       });
-    } else if (bankLinkState === 'error') {
+    } else {
       toast({
         title: 'Bankkoppeling mislukt',
-        description: bankMessage || 'Er ging iets mis tijdens het koppelen.',
+        description: 'De bankkoppeling kon niet worden afgerond.',
         variant: 'destructive',
       });
     }
 
     const cleaned = new URL(window.location.href);
     cleaned.searchParams.delete('bank_link');
-    cleaned.searchParams.delete('bank_message');
     window.history.replaceState({}, '', cleaned.toString());
-  }, [loadTransactions, searchParams, toast]);
+  }, [loadOverview, searchParams, toast]);
 
   const loadInstitutions = useCallback(async () => {
     if (!user) return;
     setInstitutionsLoading(true);
+    setBankConfigWarning(null);
+    setError(null);
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/bank/institutions?country=NL', {
+      const response = await fetch('/api/bank/institutions', {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -205,28 +200,25 @@ export default function BankOverzichtPage() {
         throw new Error(data?.message || 'Kon bankenlijst niet laden.');
       }
       const rows = Array.isArray(data.data) ? data.data : [];
-      setInstitutionsInfo(data.message || null);
       setInstitutions(rows);
-      if (!selectedInstitutionId && rows.length > 0) {
+      if (rows.length > 0) {
         setSelectedInstitutionId(rows[0].id);
-      }
-      if (rows.length === 0) {
+      } else {
         setSelectedInstitutionId('');
       }
-    } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Kon bankenlijst niet laden.';
-      toast({
-        title: 'Banken laden mislukt',
-        description: message,
-        variant: 'destructive',
-      });
+      if (data.message) {
+        setBankConfigWarning('Bankkoppeling is nog niet geconfigureerd in de serveromgeving.');
+      }
+    } catch (institutionsError) {
+      const message = institutionsError instanceof Error ? institutionsError.message : 'Kon bankenlijst niet laden.';
+      setError(message);
     } finally {
       setInstitutionsLoading(false);
     }
-  }, [selectedInstitutionId, toast, user]);
+  }, [user]);
 
-  const openConnectDialog = useCallback(() => {
-    setConnectDialogOpen(true);
+  const handleOpenLinkModal = useCallback(() => {
+    setLinkModalOpen(true);
     if (institutions.length === 0 && !institutionsLoading) {
       void loadInstitutions();
     }
@@ -238,30 +230,29 @@ export default function BankOverzichtPage() {
     setError(null);
     try {
       const token = await user.getIdToken();
-      const selectedBank = institutions.find((item) => item.id === selectedInstitutionId);
-      const response = await fetch('/api/bank/link/start', {
+      const selected = institutions.find((item) => item.id === selectedInstitutionId);
+      const response = await fetch('/api/bank/link', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          institution_id: selectedInstitutionId,
-          institution_name: selectedBank?.name || null,
+          institutionId: selectedInstitutionId,
+          institutionName: selected?.name,
         }),
       });
-      const data = (await response.json().catch(() => null)) as ApiLinkStartResponse | null;
-      if (!response.ok || !data?.ok || !data.data?.link) {
+      const data = (await response.json().catch(() => null)) as ApiLinkResponse | null;
+      if (!response.ok || !data?.ok || !data.data?.redirectUrl) {
         throw new Error(data?.message || 'Kon bankkoppeling niet starten.');
       }
-
-      window.location.assign(data.data.link);
+      window.location.assign(data.data.redirectUrl);
     } catch (linkError) {
       const message = linkError instanceof Error ? linkError.message : 'Kon bankkoppeling niet starten.';
       setError(message);
       toast({
         title: 'Bankkoppeling mislukt',
-        description: message,
+        description: 'De koppeling kon niet worden gestart. Probeer opnieuw.',
         variant: 'destructive',
       });
       setLinking(false);
@@ -269,7 +260,7 @@ export default function BankOverzichtPage() {
   };
 
   const handleSync = async () => {
-    if (!user) return;
+    if (!user || !connection?.id) return;
     setSyncing(true);
     setError(null);
     try {
@@ -278,32 +269,30 @@ export default function BankOverzichtPage() {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
-        cache: 'no-store',
+        body: JSON.stringify({
+          connectionId: connection.id,
+        }),
       });
-
       const data = (await response.json().catch(() => null)) as ApiSyncResponse | null;
-      if (!response.ok || !data?.ok) {
-        throw new Error(data?.message || 'Kon banksync niet uitvoeren.');
+      if (!response.ok || !data?.ok || !data.data) {
+        throw new Error(data?.message || 'Synchronisatie mislukt.');
       }
-
-      setTransactions(Array.isArray(data.data) ? data.data : []);
-      setConnection(data.connection || connection);
-      setMode(data.mode || 'bank_transactions');
-      setLastSyncAt(new Date().toISOString());
-
+      setInfoMessage(
+        `${data.data.transactions_created} nieuw, ${data.data.transactions_updated} bijgewerkt.`
+      );
       toast({
-        title: 'Banksync voltooid',
-        description:
-          data.message
-          || 'Nieuwe banktransacties zijn toegevoegd.',
+        title: 'Synchronisatie voltooid',
+        description: `${data.data.accounts_synced} rekeningen en ${data.data.balances_synced} saldi verwerkt.`,
       });
+      await loadOverview();
     } catch (syncError) {
-      const message = syncError instanceof Error ? syncError.message : 'Kon banksync niet uitvoeren.';
+      const message = syncError instanceof Error ? syncError.message : 'Synchronisatie mislukt.';
       setError(message);
       toast({
-        title: 'Banksync mislukt',
-        description: message,
+        title: 'Synchronisatie mislukt',
+        description: 'Er ging iets mis tijdens het ophalen van bankgegevens.',
         variant: 'destructive',
       });
     } finally {
@@ -311,12 +300,12 @@ export default function BankOverzichtPage() {
     }
   };
 
-  const totalDebit = useMemo(
-    () => transactions
-      .filter((tx) => tx.direction === 'debit')
-      .reduce((sum, tx) => sum + tx.amount, 0),
-    [transactions]
-  );
+  const paginatedTransactions = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return transactions.slice(start, start + PAGE_SIZE);
+  }, [currentPage, transactions]);
+
+  const totalPages = Math.max(1, Math.ceil(transactions.length / PAGE_SIZE));
 
   if (isUserLoading || loading) {
     return (
@@ -332,7 +321,7 @@ export default function BankOverzichtPage() {
       <DashboardHeader user={user} title="Bank Overzicht" />
 
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
-        <div className="w-full max-w-5xl space-y-5">
+        <div className="w-full max-w-6xl space-y-5">
           <Card>
             <CardHeader className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -346,23 +335,39 @@ export default function BankOverzichtPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{sourceBadge(mode)}</Badge>
-                  <Badge variant="outline">{connectionBadge(connection)}</Badge>
-                  <Button type="button" variant="outline" onClick={openConnectDialog} className="gap-2">
+                  <Badge variant="secondary">{connectionLabel(connection)}</Badge>
+                  <Button type="button" variant="outline" onClick={handleOpenLinkModal} className="gap-2">
                     <LinkIcon className="h-4 w-4" />
-                    {connection ? 'Koppeling wijzigen' : 'Bank koppelen'}
+                    Bank koppelen
                   </Button>
-                  <Button type="button" onClick={handleSync} disabled={syncing} className="gap-2">
+                  <Button type="button" onClick={handleSync} disabled={!connection?.id || syncing} className="gap-2">
                     {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                     {syncing ? 'Synchroniseren...' : 'Synchroniseer nu'}
                   </Button>
                 </div>
               </div>
-              {lastSyncAt ? (
-                <div className="text-xs text-muted-foreground">
-                  Laatste sync: {new Intl.DateTimeFormat('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(lastSyncAt))}
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Bank</div>
+                  <div className="mt-1 text-sm font-medium">{connection?.institutionName || 'Niet gekoppeld'}</div>
                 </div>
-              ) : null}
+                <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Laatste synchronisatie</div>
+                  <div className="mt-1 text-sm font-medium">{formatDate(connection?.lastSyncedAt)}</div>
+                </div>
+                <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Gekoppelde rekeningen</div>
+                  <div className="mt-1 text-2xl font-semibold">{accounts.length}</div>
+                </div>
+                <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Saldo uitgaven deze maand</div>
+                  <div className="mt-1 text-lg font-semibold text-rose-300">{formatCurrency(summary.expensesThisMonth)}</div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Inkomsten deze maand</div>
+                <div className="mt-1 text-lg font-semibold text-emerald-300">{formatCurrency(summary.incomeThisMonth)}</div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {error ? (
@@ -370,68 +375,130 @@ export default function BankOverzichtPage() {
                   {error}
                 </div>
               ) : null}
-              {connection?.last_error ? (
-                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">
-                  Laatste koppelfout: {connection.last_error}
+              {infoMessage ? (
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+                  {infoMessage}
                 </div>
               ) : null}
+            </CardContent>
+          </Card>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-xl border border-border/70 bg-card/55 p-4">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Aantal transacties</div>
-                  <div className="mt-1 text-2xl font-semibold">{transactions.length}</div>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-card/55 p-4">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Totale uitgaven</div>
-                  <div className="mt-1 text-2xl font-semibold text-emerald-300">{formatCurrency(totalDebit)}</div>
-                </div>
-              </div>
-
-              {transactions.length === 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Gekoppelde rekeningen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {accounts.length === 0 ? (
                 <div className="rounded-xl border border-border/70 bg-card/55 p-6 text-sm text-muted-foreground">
-                  Geen transacties gevonden. Koppel eerst je bank en klik daarna op <strong>Synchroniseer nu</strong>.
+                  Nog geen rekeningen gevonden.
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-border/70">
-                  <div className="grid grid-cols-[1.1fr_1fr_auto_auto] gap-3 border-b border-border/70 bg-card/70 px-4 py-2 text-xs font-medium text-muted-foreground">
-                    <div>Omschrijving</div>
-                    <div>Tegenpartij</div>
-                    <div>Datum</div>
-                    <div className="text-right">Bedrag</div>
-                  </div>
-                  <div className="divide-y divide-border/70 bg-background/40">
-                    {transactions.map((tx) => (
-                      <div key={tx.id} className="grid grid-cols-[1.1fr_1fr_auto_auto] items-center gap-3 px-4 py-3 text-sm">
-                        <div className="min-w-0">
-                          <div className="truncate font-medium">{tx.description || 'Transactie'}</div>
-                          <div className="mt-1 flex items-center gap-2">
-                            <Badge variant="outline" className="text-[10px]">
-                              {tx.category}
-                            </Badge>
-                            {tx.linked_cost_id ? (
-                              <Badge variant="secondary" className="text-[10px]">Gekoppeld aan kost</Badge>
-                            ) : null}
-                          </div>
-                        </div>
-                        <div className="truncate text-muted-foreground">{tx.counterparty_name || '-'}</div>
-                        <div className="text-muted-foreground">{formatDate(tx.booked_at)}</div>
-                        <div className="text-right font-medium text-emerald-300">
-                          <span className="inline-flex items-center gap-1">
-                            <ArrowDownRight className="h-3.5 w-3.5" />
-                            {formatCurrency(tx.amount)}
-                          </span>
+                <div className="space-y-3">
+                  {accounts.map((account) => (
+                    <div key={account.id} className="grid gap-2 rounded-xl border border-border/70 bg-card/55 p-4 md:grid-cols-4">
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Naam</div>
+                        <div className="text-sm font-medium">{account.name}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">IBAN</div>
+                        <div className="text-sm font-medium">{account.ibanMasked}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Valuta</div>
+                        <div className="text-sm font-medium">{account.currency || 'EUR'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Laatste saldo</div>
+                        <div className="text-sm font-medium">
+                          {account.latestBalanceAmount == null
+                            ? '-'
+                            : formatCurrency(account.latestBalanceAmount)}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Transacties</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {transactions.length === 0 ? (
+                <div className="rounded-xl border border-border/70 bg-card/55 p-6 text-sm text-muted-foreground">
+                  Geen transacties gevonden.
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-hidden rounded-xl border border-border/70">
+                    <div className="grid grid-cols-[110px_1.2fr_1fr_140px_120px_1fr_120px] gap-3 border-b border-border/70 bg-card/70 px-4 py-2 text-xs font-medium text-muted-foreground">
+                      <div>Datum</div>
+                      <div>Omschrijving</div>
+                      <div>Tegenpartij</div>
+                      <div className="text-right">Bedrag</div>
+                      <div>Type</div>
+                      <div>Rekening</div>
+                      <div>Status</div>
+                    </div>
+                    <div className="divide-y divide-border/70 bg-background/40">
+                      {paginatedTransactions.map((tx) => (
+                        <div key={tx.id} className="grid grid-cols-[110px_1.2fr_1fr_140px_120px_1fr_120px] items-center gap-3 px-4 py-3 text-sm">
+                          <div>{formatDate(tx.bookingDate)}</div>
+                          <div className="truncate font-medium">{tx.description}</div>
+                          <div className="truncate text-muted-foreground">{tx.counterpartyName || '-'}</div>
+                          <div className={`text-right font-medium ${tx.amount < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
+                            {formatCurrency(tx.amount)}
+                          </div>
+                          <div>
+                            <Badge variant="outline" className="text-[10px]">
+                              {tx.direction === 'outgoing' ? (
+                                <span className="inline-flex items-center gap-1"><ArrowDownRight className="h-3 w-3" />Uitgaand</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1"><ArrowUpRight className="h-3 w-3" />Inkomend</span>
+                              )}
+                            </Badge>
+                          </div>
+                          <div className="truncate text-muted-foreground">{tx.accountName}</div>
+                          <div className="truncate text-muted-foreground">{tx.status || '-'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground">Pagina {currentPage} van {totalPages}</div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage <= 1}
+                        onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                      >
+                        Vorige
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                      >
+                        Volgende
+                      </Button>
+                    </div>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
         </div>
       </main>
 
-      <Dialog open={connectDialogOpen} onOpenChange={setConnectDialogOpen}>
+      <Dialog open={linkModalOpen} onOpenChange={setLinkModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Bankrekening koppelen</DialogTitle>
@@ -440,12 +507,12 @@ export default function BankOverzichtPage() {
             </DialogDescription>
           </DialogHeader>
 
-              <div className="space-y-2">
+          <div className="space-y-2">
             <div className="text-sm font-medium">Bank</div>
             <Select
               value={selectedInstitutionId}
               onValueChange={setSelectedInstitutionId}
-              disabled={institutionsLoading || linking}
+              disabled={institutionsLoading || linking || Boolean(bankConfigWarning)}
             >
               <SelectTrigger>
                 <SelectValue placeholder={institutionsLoading ? 'Banken laden...' : 'Selecteer een bank'} />
@@ -458,15 +525,11 @@ export default function BankOverzichtPage() {
                 ))}
               </SelectContent>
             </Select>
-            {institutionsInfo ? (
-              <div className="text-xs text-muted-foreground">
-                {institutionsInfo}
-              </div>
+            {bankConfigWarning ? (
+              <div className="text-xs text-amber-300">{bankConfigWarning}</div>
             ) : null}
-            {!institutionsLoading && institutions.length === 0 && !institutionsInfo ? (
-              <div className="text-xs text-muted-foreground">
-                Geen banken beschikbaar. Controleer de bankprovider configuratie.
-              </div>
+            {!institutionsLoading && institutions.length === 0 && !bankConfigWarning ? (
+              <div className="text-xs text-muted-foreground">Geen banken beschikbaar.</div>
             ) : null}
           </div>
 
@@ -474,7 +537,7 @@ export default function BankOverzichtPage() {
             <Button
               type="button"
               onClick={handleStartLink}
-              disabled={linking || institutionsLoading || !selectedInstitutionId || institutions.length === 0}
+              disabled={linking || institutionsLoading || !selectedInstitutionId || Boolean(bankConfigWarning)}
               className="gap-2"
             >
               {linking ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
@@ -486,3 +549,4 @@ export default function BankOverzichtPage() {
     </div>
   );
 }
+

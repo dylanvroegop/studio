@@ -237,6 +237,10 @@ function getStoredQuoteTotal(quote: QuoteRow): number {
   return parsed;
 }
 
+function getQuoteReferenceDate(quote: QuoteRow): Date | null {
+  return quote.updatedAtDate ?? quote.createdAtDate ?? null;
+}
+
 function mapSettingsForTotals(input: unknown): QuoteCalculationSettings {
   const normalized = normalizeDataJson(input as any);
   const rawInst = (normalized?.instellingen || {}) as any;
@@ -367,6 +371,7 @@ export default function OffertesPage() {
   const [invoices, setInvoices] = useState<InvoiceSyncRow[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('alle');
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   const [createOpen, setCreateOpen] = useState(false);
   const [creatingQuote, setCreatingQuote] = useState(false);
@@ -763,9 +768,68 @@ export default function OffertesPage() {
     }
   }, [loading, quotes.length, user]);
 
+  const yearOptions = useMemo(() => {
+    const years = new Set<number>();
+    quotes.forEach((quote) => {
+      const date = getQuoteReferenceDate(quote);
+      if (!date) return;
+      years.add(date.getFullYear());
+    });
+    const sorted = Array.from(years).sort((a, b) => b - a);
+    return sorted.length > 0 ? sorted : [new Date().getFullYear()];
+  }, [quotes]);
+
+  useEffect(() => {
+    if (yearOptions.length === 0) return;
+    if (!yearOptions.includes(selectedYear)) {
+      setSelectedYear(yearOptions[0]);
+    }
+  }, [selectedYear, yearOptions]);
+
+  const quotesForSelectedYear = useMemo(() => {
+    return quotes.filter((quote) => {
+      const date = getQuoteReferenceDate(quote);
+      if (!date) return false;
+      return date.getFullYear() === selectedYear;
+    });
+  }, [quotes, selectedYear]);
+
+  const filterCountsByMode = useMemo(() => {
+    const countFor = (mode: FilterMode): number => {
+      if (mode === 'archief') {
+        return quotesForSelectedYear.filter((q) => !!q.archived).length;
+      }
+
+      const nonArchived = quotesForSelectedYear.filter((q) => !q.archived);
+      if (mode === 'alle') return nonArchived.length;
+      if (mode === 'concept') {
+        return nonArchived.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'concept').length;
+      }
+      if (mode === 'verzonden') {
+        return nonArchived.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden').length;
+      }
+      if (mode === 'geaccepteerd') {
+        return nonArchived.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'geaccepteerd').length;
+      }
+      if (mode === 'berekend') {
+        return nonArchived.filter((q) => q.status === 'in_behandeling' && hasCalculatedAmount(quoteTotalsById[q.id] ?? 0)).length;
+      }
+      return 0;
+    };
+
+    return {
+      alle: countFor('alle'),
+      concept: countFor('concept'),
+      verzonden: countFor('verzonden'),
+      geaccepteerd: countFor('geaccepteerd'),
+      berekend: countFor('berekend'),
+      archief: countFor('archief'),
+    } as Record<FilterMode, number>;
+  }, [quotesForSelectedYear, acceptedQuoteIdsFromInvoices, quoteTotalsById]);
+
   const filteredQuotes = useMemo(() => {
     const s = search.trim().toLowerCase();
-    let result = [...quotes];
+    let result = [...quotesForSelectedYear];
 
     if (filter === 'archief') {
       result = result.filter((q) => !!q.archived);
@@ -774,7 +838,7 @@ export default function OffertesPage() {
       if (filter === 'concept') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'concept');
       if (filter === 'verzonden') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden');
       if (filter === 'geaccepteerd') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'geaccepteerd');
-      if (filter === 'berekend') result = result.filter((q) => q.status === 'in_behandeling' && hasCalculatedAmount(q.totaalbedrag || q.amount || 0));
+      if (filter === 'berekend') result = result.filter((q) => q.status === 'in_behandeling' && hasCalculatedAmount(quoteTotalsById[q.id] ?? 0));
     }
 
     if (!s) return result;
@@ -784,7 +848,7 @@ export default function OffertesPage() {
       const titel = (getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || getTitel(q)).toLowerCase();
       return klant.includes(s) || nr.includes(s) || titel.includes(s);
     });
-  }, [filter, quotes, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId]);
+  }, [filter, quotesForSelectedYear, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId, quoteTotalsById]);
 
   const filteredClients = useMemo(() => {
     const s = clientSearch.trim().toLowerCase();
@@ -987,13 +1051,13 @@ export default function OffertesPage() {
     </div>
   );
 
-  const filterOptions: Array<{ value: FilterMode; label: string }> = [
-    { value: 'alle', label: 'Alle' },
-    { value: 'concept', label: 'Concept' },
-    { value: 'verzonden', label: 'Verzonden' },
-    { value: 'geaccepteerd', label: 'Geaccepteerd' },
-    { value: 'berekend', label: 'Berekend' },
-    { value: 'archief', label: 'Archief' },
+  const filterOptions: Array<{ value: FilterMode; label: string; count: number }> = [
+    { value: 'alle', label: 'Alle', count: filterCountsByMode.alle },
+    { value: 'concept', label: 'Concept', count: filterCountsByMode.concept },
+    { value: 'verzonden', label: 'Verzonden', count: filterCountsByMode.verzonden },
+    { value: 'geaccepteerd', label: 'Geaccepteerd', count: filterCountsByMode.geaccepteerd },
+    { value: 'berekend', label: 'Berekend', count: filterCountsByMode.berekend },
+    { value: 'archief', label: 'Archief', count: filterCountsByMode.archief },
   ];
 
   return (
@@ -1029,6 +1093,20 @@ export default function OffertesPage() {
               />
             </div>
 
+            <div className="flex justify-end">
+              <select
+                value={String(selectedYear)}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm text-foreground"
+              >
+                {yearOptions.map((year) => (
+                  <option key={`mobile-year-${year}`} value={year}>
+                    Jaar {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="-mx-1 overflow-x-auto pb-1">
               <div className="flex w-max items-center gap-2 px-1">
                 {filterOptions.map((option) => (
@@ -1044,7 +1122,13 @@ export default function OffertesPage() {
                         : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
                     )}
                   >
-                    {option.label}
+                    <span>{option.label}</span>
+                    <span className={cn(
+                      'ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold',
+                      filter === option.value ? 'bg-black/20 text-black' : 'bg-muted/50 text-foreground/80'
+                    )}>
+                      {option.count}
+                    </span>
                   </Button>
                 ))}
               </div>
@@ -1069,6 +1153,18 @@ export default function OffertesPage() {
                     className="pl-9"
                   />
                 </div>
+
+                <select
+                  value={String(selectedYear)}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="h-10 rounded-md border border-border/70 bg-background/70 px-3 text-sm text-foreground"
+                >
+                  {yearOptions.map((year) => (
+                    <option key={`desktop-year-${year}`} value={year}>
+                      Jaar {year}
+                    </option>
+                  ))}
+                </select>
 
                 <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                   <DialogTrigger asChild>
@@ -1154,7 +1250,13 @@ export default function OffertesPage() {
                         : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
                     )}
                   >
-                    {option.label}
+                    <span>{option.label}</span>
+                    <span className={cn(
+                      'ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold',
+                      filter === option.value ? 'bg-black/20 text-black' : 'bg-muted/50 text-foreground/80'
+                    )}>
+                      {option.count}
+                    </span>
                   </Button>
                 ))}
               </div>

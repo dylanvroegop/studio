@@ -761,6 +761,9 @@ export function MaterialEditor({
                                 <p className="text-primary font-bold tracking-tight">
                                     {formatCurrency(subtotalInclVAT)}
                                 </p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                    (incl. btw)
+                                </p>
                             </div>
                         )}
                         {onRemoveItem && <div className="w-12" />}

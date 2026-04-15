@@ -263,7 +263,12 @@ function truncatePromptText(value: string, maxLength: number): string {
 interface QuoteNoteSection {
     id: string;
     title: string;
-    links: string;
+    linksTitle: string;
+    links: Array<{
+        id: string;
+        title: string;
+        url: string;
+    }>;
     notes: string;
 }
 
@@ -278,7 +283,8 @@ function createQuoteNoteSection(index: number, overrides?: Partial<QuoteNoteSect
     return {
         id: overrides?.id || createQuoteNoteSectionId(),
         title: overrides?.title ?? '',
-        links: overrides?.links ?? '',
+        linksTitle: overrides?.linksTitle ?? '',
+        links: Array.isArray(overrides?.links) ? overrides.links : [],
         notes: overrides?.notes ?? '',
     };
 }
@@ -290,32 +296,93 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
     }
 
     const lines = normalized.split('\n');
-    const sections: Array<{ title: string; links: string; notesLines: string[] }> = [];
-    let activeSection: { title: string; links: string; notesLines: string[] } | null = null;
+    const sections: Array<{
+        title: string;
+        linksTitle: string;
+        links: Array<{ title: string; url: string }>;
+        notesLines: string[];
+    }> = [];
+    let activeSection: {
+        title: string;
+        linksTitle: string;
+        links: Array<{ title: string; url: string }>;
+        notesLines: string[];
+    } | null = null;
+    let inLinksSection = false;
 
     for (const line of lines) {
         const titleMatch = line.match(/^###\s*(.*)$/);
         if (titleMatch) {
             const title = titleMatch[1].trim();
-            activeSection = { title, links: '', notesLines: [] };
+            activeSection = { title, linksTitle: '', links: [], notesLines: [] };
             sections.push(activeSection);
+            inLinksSection = false;
             continue;
         }
 
         if (!activeSection) {
-            activeSection = { title: '', links: '', notesLines: [] };
+            activeSection = { title: '', linksTitle: '', links: [], notesLines: [] };
             sections.push(activeSection);
         }
 
-        const linksMatch = line.match(/^links?\s*:\s*(.*)$/i);
-        if (linksMatch) {
-            const linksValue = linksMatch[1].trim();
-            if (linksValue) {
-                activeSection.links = activeSection.links
-                    ? `${activeSection.links}\n${linksValue}`
-                    : linksValue;
+        const linksHeaderMatch = line.match(/^####\s*links\b\s*:?\s*(.*)$/i);
+        if (linksHeaderMatch) {
+            inLinksSection = true;
+            const headerTitle = linksHeaderMatch[1]?.trim();
+            if (headerTitle) {
+                activeSection.linksTitle = headerTitle;
             }
             continue;
+        }
+
+        const legacyLinksMatch = line.match(/^links?\s*:\s*(.*)$/i);
+        if (legacyLinksMatch) {
+            const legacyUrl = legacyLinksMatch[1].trim();
+            if (legacyUrl) {
+                activeSection.links.push({ title: '', url: legacyUrl });
+            }
+            continue;
+        }
+
+        if (inLinksSection) {
+            const linksTitleMatch = line.match(/^titel\s*:\s*(.*)$/i);
+            if (linksTitleMatch) {
+                activeSection.linksTitle = linksTitleMatch[1].trim();
+                continue;
+            }
+
+            const markdownLinkMatch = line.match(/^-+\s*\[(.+?)\]\((https?:\/\/[^\s)]+)\)\s*$/i);
+            if (markdownLinkMatch) {
+                activeSection.links.push({
+                    title: markdownLinkMatch[1].trim(),
+                    url: markdownLinkMatch[2].trim(),
+                });
+                continue;
+            }
+
+            const titledLinkMatch = line.match(/^-+\s*(.*?)\s*\|\s*(https?:\/\/\S+)\s*$/i);
+            if (titledLinkMatch) {
+                activeSection.links.push({
+                    title: titledLinkMatch[1].trim(),
+                    url: titledLinkMatch[2].trim(),
+                });
+                continue;
+            }
+
+            const rawLinkMatch = line.match(/^-+\s*(https?:\/\/\S+)\s*$/i);
+            if (rawLinkMatch) {
+                activeSection.links.push({
+                    title: '',
+                    url: rawLinkMatch[1].trim(),
+                });
+                continue;
+            }
+
+            if (!line.trim()) {
+                continue;
+            }
+
+            inLinksSection = false;
         }
 
         activeSection.notesLines.push(line);
@@ -324,7 +391,12 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
     const mapped = sections.map((section, index) =>
         createQuoteNoteSection(index, {
             title: section.title,
-            links: section.links,
+            linksTitle: section.linksTitle,
+            links: section.links.map((link) => ({
+                id: createQuoteNoteSectionId(),
+                title: link.title,
+                url: link.url,
+            })),
             notes: section.notesLines.join('\n').trim(),
         }),
     );
@@ -336,10 +408,16 @@ function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
     const cleanedSections = sections
         .map((section) => ({
             title: section.title.trim(),
-            links: section.links.trim(),
+            linksTitle: section.linksTitle.trim(),
+            links: section.links
+                .map((link) => ({
+                    title: link.title.trim(),
+                    url: link.url.trim(),
+                }))
+                .filter((link) => link.title.length > 0 || link.url.length > 0),
             notes: section.notes.trim(),
         }))
-        .filter((section) => section.title.length > 0 || section.links.length > 0 || section.notes.length > 0);
+        .filter((section) => section.title.length > 0 || section.linksTitle.length > 0 || section.links.length > 0 || section.notes.length > 0);
 
     if (cleanedSections.length === 0) return '';
 
@@ -351,19 +429,47 @@ function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
                 blockLines.push(`### ${section.title}`);
             }
 
-            const linksLines = section.links
-                .split('\n')
-                .map((line) => line.trim())
-                .filter((line) => line.length > 0);
-            for (const link of linksLines) {
-                blockLines.push(`Links: ${link}`);
-            }
-
             if (section.notes.length > 0) {
                 blockLines.push(section.notes);
             }
 
+            if (section.linksTitle.length > 0 || section.links.length > 0) {
+                blockLines.push('#### Links');
+                if (section.linksTitle.length > 0) {
+                    blockLines.push(`Titel: ${section.linksTitle}`);
+                }
+                for (const link of section.links) {
+                    if (link.title && link.url) {
+                        blockLines.push(`- ${link.title} | ${link.url}`);
+                    } else if (link.url) {
+                        blockLines.push(`- ${link.url}`);
+                    } else if (link.title) {
+                        blockLines.push(`- ${link.title}`);
+                    }
+                }
+            }
+
             return blockLines.join('\n');
+        })
+        .join('\n\n');
+}
+
+function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): string {
+    const cleanedSections = sections
+        .map((section) => ({
+            title: section.title.trim(),
+            notes: section.notes.trim(),
+        }))
+        .filter((section) => section.title.length > 0 || section.notes.length > 0);
+
+    if (cleanedSections.length === 0) return '';
+
+    return cleanedSections
+        .map((section) => {
+            const lines: string[] = [];
+            if (section.title.length > 0) lines.push(`### ${section.title}`);
+            if (section.notes.length > 0) lines.push(section.notes);
+            return lines.join('\n');
         })
         .join('\n\n');
 }
@@ -879,6 +985,12 @@ export default function QuotePage() {
     const [materialRefreshTrigger, setMaterialRefreshTrigger] = useState(0);
 
     useEffect(() => {
+        if (!onderVoorbehoud && activeTab === 'nacalculatie') {
+            setActiveTab('materialen');
+        }
+    }, [onderVoorbehoud, activeTab]);
+
+    useEffect(() => {
         const fetchMaterials = async () => {
             if (!user) return;
             try {
@@ -1164,12 +1276,62 @@ export default function QuotePage() {
         handleQuoteNotesChange(serialized);
     }, [handleQuoteNotesChange]);
 
-    const handleQuoteNoteSectionChange = useCallback((sectionId: string, field: 'title' | 'links' | 'notes', value: string) => {
-        const nextSections = quoteNoteSections.map((section) => (
-            section.id === sectionId
-                ? { ...section, [field]: value }
-                : section
-        ));
+    const handleQuoteNoteSectionChange = useCallback((sectionId: string, field: 'title' | 'linksTitle' | 'notes', value: string) => {
+        const nextSections: QuoteNoteSection[] = quoteNoteSections.map((section) => {
+            if (section.id !== sectionId) return section;
+            if (field === 'title') return { ...section, title: value };
+            if (field === 'linksTitle') return { ...section, linksTitle: value };
+            return { ...section, notes: value };
+        });
+        syncQuoteNoteSectionsToQuoteNotes(nextSections);
+    }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
+
+    const handleQuoteNoteLinkChange = useCallback((
+        sectionId: string,
+        linkId: string,
+        field: 'title' | 'url',
+        value: string,
+    ) => {
+        const nextSections = quoteNoteSections.map((section) => {
+            if (section.id !== sectionId) return section;
+            return {
+                ...section,
+                links: section.links.map((link) => (
+                    link.id === linkId
+                        ? { ...link, [field]: value }
+                        : link
+                )),
+            };
+        });
+        syncQuoteNoteSectionsToQuoteNotes(nextSections);
+    }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
+
+    const handleAddQuoteNoteLink = useCallback((sectionId: string) => {
+        const nextSections = quoteNoteSections.map((section) => {
+            if (section.id !== sectionId) return section;
+            return {
+                ...section,
+                links: [
+                    ...section.links,
+                    {
+                        id: createQuoteNoteSectionId(),
+                        title: '',
+                        url: '',
+                    },
+                ],
+            };
+        });
+        syncQuoteNoteSectionsToQuoteNotes(nextSections);
+    }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
+
+    const handleRemoveQuoteNoteLink = useCallback((sectionId: string, linkId: string) => {
+        const nextSections = quoteNoteSections.map((section) => {
+            if (section.id !== sectionId) return section;
+            return {
+                ...section,
+                links: section.links.filter((link) => link.id !== linkId),
+            };
+        });
         syncQuoteNoteSectionsToQuoteNotes(nextSections);
     }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
 
@@ -1183,7 +1345,8 @@ export default function QuotePage() {
             const resetSection = {
                 ...quoteNoteSections[0],
                 title: '',
-                links: '',
+                linksTitle: '',
+                links: [],
                 notes: '',
             };
             syncQuoteNoteSectionsToQuoteNotes([resetSection]);
@@ -4153,7 +4316,7 @@ export default function QuotePage() {
         setIsGeneratingWorkDescription(true);
         try {
             const token = await user.getIdToken();
-            const notesContext = truncatePromptText(quoteNotes, 1800);
+            const notesContext = truncatePromptText(buildQuoteNotesContextWithoutLinks(quoteNoteSections), 1800);
             const materialPromptLines = werkbeschrijvingMaterialContext.length > 0
                 ? [
                     'Verplichte materialen (deze moeten expliciet terugkomen in de werkbeschrijving):',
@@ -4579,7 +4742,14 @@ export default function QuotePage() {
         return `${(size / (1024 * 1024)).toFixed(1)} MB`;
     };
 
-    const secondaryTabs = ['nacalculatie', 'tekeningen', 'fotos', 'notities', 'algemene-voorwaarden'];
+    const canShowNacalculatieTab = onderVoorbehoud;
+    const secondaryTabs = [
+        ...(canShowNacalculatieTab ? ['nacalculatie'] : []),
+        'tekeningen',
+        'fotos',
+        'notities',
+        'algemene-voorwaarden',
+    ];
     const isSecondarySectionActive = secondaryTabs.includes(activeTab);
     const handleTabChange = useCallback((tab: string) => {
         setActiveTab(tab);
@@ -4846,10 +5016,6 @@ export default function QuotePage() {
                                     <Euro size={16} />
                                     Overzicht
                                 </TabsTrigger>
-                                <TabsTrigger value="nacalculatie" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
-                                    <ClipboardList size={16} />
-                                    Nacalculatie
-                                </TabsTrigger>
                                 <TabsTrigger value="tekeningen" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <PenTool size={16} />
                                     Tekeningen
@@ -4877,6 +5043,12 @@ export default function QuotePage() {
                                     <MessageSquare size={16} />
                                     Notities
                                 </TabsTrigger>
+                                {canShowNacalculatieTab && (
+                                    <TabsTrigger value="nacalculatie" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                        <ClipboardList size={16} />
+                                        Nacalculatie
+                                    </TabsTrigger>
+                                )}
                             </TabsList>
                         </div>
 
@@ -5418,17 +5590,19 @@ export default function QuotePage() {
                             )}
                         </TabsContent>
 
-                        <TabsContent value="nacalculatie" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            {showCalculationLoadingPanel || isUserLoading || !user ? (
-                                <LoadingPanel />
-                            ) : (
-                                <NacalculatieTab
-                                    quoteId={id}
-                                    userId={user.uid}
-                                    defaultHourlyRateExcl={quoteSettings?.uurTariefExclBtw || 50}
-                                />
-                            )}
-                        </TabsContent>
+                        {canShowNacalculatieTab && (
+                            <TabsContent value="nacalculatie" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                {showCalculationLoadingPanel || isUserLoading || !user ? (
+                                    <LoadingPanel />
+                                ) : (
+                                    <NacalculatieTab
+                                        quoteId={id}
+                                        userId={user.uid}
+                                        defaultHourlyRateExcl={quoteSettings?.uurTariefExclBtw || 50}
+                                    />
+                                )}
+                            </TabsContent>
+                        )}
 
                         <TabsContent value="tekeningen" className="mt-6 space-y-6">
                             {showCalculationLoadingPanel || loading ? <LoadingPanel /> : quote && <DrawingsTab quote={quote} />}
@@ -5599,7 +5773,7 @@ export default function QuotePage() {
                                         onAddItem={(item) => handleAddItem('groot', item)}
                                         subtotal={grootSubtotal}
                                         vatRate={quoteSettings?.btwTarief}
-                                        showLineTotalInclBtw={false}
+                                        showLineTotalInclBtw
                                         onAddClick={() => setActiveCategory('groot')}
                                         enableCalculationViewToggle
                                         calculationTextFields="hoe_berekend"
@@ -5618,7 +5792,7 @@ export default function QuotePage() {
                                         onAddItem={(item) => handleAddItem('verbruik', item)}
                                         subtotal={verbruikSubtotal}
                                         vatRate={quoteSettings?.btwTarief}
-                                        showLineTotalInclBtw={false}
+                                        showLineTotalInclBtw
                                         onAddClick={() => setActiveCategory('verbruik')}
                                         enableCalculationViewToggle
                                         calculationTextFields={['waarom_dit', 'toelichting', 'hoe_berekend']}
@@ -6138,17 +6312,59 @@ export default function QuotePage() {
                                                     </Button>
                                                 </div>
                                                 <textarea
-                                                    value={section.links}
-                                                    onChange={(e) => handleQuoteNoteSectionChange(section.id, 'links', e.target.value)}
-                                                    placeholder="Links naar producten (1 per regel)..."
-                                                    className="min-h-[72px] w-full rounded-xl border border-border/60 bg-background p-4 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:border-border"
-                                                />
-                                                <textarea
                                                     value={section.notes}
                                                     onChange={(e) => handleQuoteNoteSectionChange(section.id, 'notes', e.target.value)}
                                                     placeholder="Voeg notities toe voor dit onderdeel..."
                                                     className="min-h-[180px] w-full rounded-xl border border-border/60 bg-background p-4 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:border-border"
                                                 />
+                                                <div className="space-y-3 rounded-xl border border-border/60 bg-background/60 p-3">
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                        Links
+                                                    </p>
+                                                    <Input
+                                                        value={section.linksTitle}
+                                                        onChange={(e) => handleQuoteNoteSectionChange(section.id, 'linksTitle', e.target.value)}
+                                                        placeholder="Titel links-sectie (bijv. Product links)"
+                                                        className="h-9"
+                                                    />
+                                                    <div className="space-y-2">
+                                                        {section.links.map((link) => (
+                                                            <div key={link.id} className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
+                                                                <Input
+                                                                    value={link.title}
+                                                                    onChange={(e) => handleQuoteNoteLinkChange(section.id, link.id, 'title', e.target.value)}
+                                                                    placeholder="Link titel"
+                                                                    className="h-9"
+                                                                />
+                                                                <Input
+                                                                    value={link.url}
+                                                                    onChange={(e) => handleQuoteNoteLinkChange(section.id, link.id, 'url', e.target.value)}
+                                                                    placeholder="https://..."
+                                                                    className="h-9"
+                                                                />
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() => handleRemoveQuoteNoteLink(section.id, link.id)}
+                                                                    aria-label="Verwijder link"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="gap-2"
+                                                        onClick={() => handleAddQuoteNoteLink(section.id)}
+                                                    >
+                                                        <Plus className="h-4 w-4" />
+                                                        Meer links toevoegen
+                                                    </Button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -6341,16 +6557,6 @@ export default function QuotePage() {
                                     {showWerkbeschrijvingWarning && <AlertCircle size={12} className="ml-2 text-red-500" />}
                                 </Button>
                                 <Button
-                                    variant={activeTab === 'nacalculatie' ? 'secondary' : 'outline'}
-                                    className="h-11 justify-start"
-                                    onClick={() => {
-                                        setActiveTab('nacalculatie');
-                                        setIsMobileMoreSectionsOpen(false);
-                                    }}
-                                >
-                                    Nacalculatie
-                                </Button>
-                                <Button
                                     variant={activeTab === 'tekeningen' ? 'secondary' : 'outline'}
                                     className="h-11 justify-start"
                                     onClick={() => {
@@ -6390,6 +6596,18 @@ export default function QuotePage() {
                                 >
                                     Algemene voorwaarden
                                 </Button>
+                                {canShowNacalculatieTab && (
+                                    <Button
+                                        variant={activeTab === 'nacalculatie' ? 'secondary' : 'outline'}
+                                        className="h-11 justify-start"
+                                        onClick={() => {
+                                            setActiveTab('nacalculatie');
+                                            setIsMobileMoreSectionsOpen(false);
+                                        }}
+                                    >
+                                        Nacalculatie
+                                    </Button>
+                                )}
                             </div>
                         </SheetContent>
                     </Sheet>
