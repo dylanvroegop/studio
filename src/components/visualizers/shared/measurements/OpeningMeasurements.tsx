@@ -48,13 +48,65 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
 
     // Sort openings left to right for stacking dimension lines
     const sorted = [...openings].sort((a, b) => a.fromLeft - b.fromLeft);
-
-    // Helper to convert mm to SVG Y coordinate
-    const getY = (mm: number) => svgBaseY - (mm * pxPerMm);
+    const roundedWallLength = Math.round(wallLength);
+    const roundedWallHeight = Math.round(wallHeight);
 
     // Default wall top calculation (flat wall)
     const defaultGetWallTopMm = () => wallHeight;
     const calcWallTopMm = getWallTopMm || defaultGetWallTopMm;
+
+    // De-duplicate equal opening/koof width/height labels.
+    // Priority: wall total dimensions (OverallDimensions) win, so we hide equal duplicates there.
+    const firstWidthIndexByValue = new Map<number, number>();
+    const firstHeightIndexByValue = new Map<number, number>();
+    const firstTopGapIndexByValue = new Map<number, number>();
+    sorted.forEach((op, idx) => {
+        const roundedWidth = Math.round(op.width);
+        const roundedHeight = Math.round(op.height);
+        const roundedFromBottom = Math.round(op.fromBottom);
+        const openingCenterX = op.fromLeft + op.width / 2;
+        const roundedWallTopAtOpening = Math.round(calcWallTopMm(openingCenterX));
+        let roundedTopGap = Math.max(0, roundedWallTopAtOpening - roundedFromBottom - roundedHeight);
+
+        // Stabilize flat/floor-attached cases to prevent 1mm drift (e.g. 634 vs 635)
+        if (roundedFromBottom === 0 && Math.abs(roundedWallTopAtOpening - roundedWallHeight) <= 1) {
+            roundedTopGap = Math.max(0, roundedWallHeight - roundedHeight);
+        }
+
+        if (!firstWidthIndexByValue.has(roundedWidth)) {
+            firstWidthIndexByValue.set(roundedWidth, idx);
+        }
+        if (!firstHeightIndexByValue.has(roundedHeight)) {
+            firstHeightIndexByValue.set(roundedHeight, idx);
+        }
+        if (!firstTopGapIndexByValue.has(roundedTopGap)) {
+            firstTopGapIndexByValue.set(roundedTopGap, idx);
+        }
+    });
+
+    // Helper to convert mm to SVG Y coordinate
+    const getY = (mm: number) => svgBaseY - (mm * pxPerMm);
+
+    const mergedHorizontalDimY = svgBaseY + 40;
+
+    const horizontalBoundariesMm = React.useMemo(() => {
+        const values: number[] = [0, wallLength];
+        sorted.forEach((op) => {
+            const left = Math.max(0, Math.min(wallLength, op.fromLeft));
+            const right = Math.max(0, Math.min(wallLength, op.fromLeft + op.width));
+            values.push(left, right);
+        });
+
+        values.sort((a, b) => a - b);
+        const unique: number[] = [];
+        const EPSILON = 0.5;
+        values.forEach((value) => {
+            if (unique.length === 0 || Math.abs(value - unique[unique.length - 1]) > EPSILON) {
+                unique.push(value);
+            }
+        });
+        return unique;
+    }, [sorted, wallLength]);
 
     return (
         <g className="text-emerald-500 pointer-events-none">
@@ -79,7 +131,26 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                 const wallTopY = getY(wallTopMmAtOpening);
                 const openingTopY = drawY;
                 const openingBottomY = drawY + hPx;
-                const topSegmentHeight = Math.round(wallTopMmAtOpening - op.fromBottom - op.height);
+                const roundedFromBottom = Math.round(op.fromBottom);
+                const roundedOpHeight = Math.round(op.height);
+                const roundedWallTopAtOpening = Math.round(wallTopMmAtOpening);
+                let topSegmentHeight = Math.max(0, roundedWallTopAtOpening - roundedFromBottom - roundedOpHeight);
+                if (roundedFromBottom === 0 && Math.abs(roundedWallTopAtOpening - roundedWallHeight) <= 1) {
+                    topSegmentHeight = Math.max(0, roundedWallHeight - roundedOpHeight);
+                }
+                const roundedWidth = Math.round(op.width);
+                const roundedHeight = Math.round(op.height);
+                const showOpeningWidthSegment =
+                    roundedWidth > 0
+                    && roundedWidth !== roundedWallLength
+                    && firstWidthIndexByValue.get(roundedWidth) === i;
+                const showOpeningHeightSegment =
+                    roundedHeight > 0
+                    && roundedHeight !== roundedWallHeight
+                    && firstHeightIndexByValue.get(roundedHeight) === i;
+                const showTopSegment =
+                    topSegmentHeight > 0
+                    && firstTopGapIndexByValue.get(topSegmentHeight) === i;
 
                 return (
                     <g key={`dim-${op.id}`}>
@@ -87,7 +158,7 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                             <>
                                 {/* 3. VERTICAL DIMENSIONS - 3 segments */}
                                 {/* Segment 1: Floor to Opening Bottom */}
-                                {op.fromBottom > 0 && (
+                                {roundedFromBottom > 0 && (
                                     <>
                                         <line
                                             x1={dimX} y1={svgBaseY}
@@ -104,7 +175,7 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                                     fill="#10b981"
                                                     className="text-[10px] font-mono select-none"
                                                 >
-                                                    {op.fromBottom}
+                                                    {roundedFromBottom}
                                                 </text>
                                             </g>
                                         ) : (
@@ -116,7 +187,7 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                                     fill="#10b981"
                                                     className="text-[12px] font-mono select-none font-medium"
                                                 >
-                                                    {op.fromBottom}
+                                                    {roundedFromBottom}
                                                 </text>
                                             </g>
                                         )}
@@ -124,40 +195,44 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                                 )}
 
                                 {/* Segment 2: Opening Height */}
-                                <line
-                                    x1={dimX} y1={openingBottomY}
-                                    x2={dimX} y2={openingTopY}
-                                    stroke="#10b981" strokeWidth="0.5"
-                                />
-                                <circle cx={dimX} cy={openingTopY} r="1.5" fill="#10b981" />
-                                {op.fromBottom === 0 && <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />}
-                                {compactLabels ? (
-                                    <g transform={`translate(${dimX + 5}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
-                                        <text
-                                            textAnchor="middle"
-                                            dominantBaseline="middle"
-                                            fill="#10b981"
-                                            className="text-[10px] font-mono select-none"
-                                        >
-                                            {op.height}
-                                        </text>
-                                    </g>
-                                ) : (
-                                    <g transform={`translate(${dimX}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
-                                        <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
-                                        <text
-                                            textAnchor="middle"
-                                            dominantBaseline="middle"
-                                            fill="#10b981"
-                                            className="text-[12px] font-mono select-none font-medium"
-                                        >
-                                            {op.height}
-                                        </text>
-                                    </g>
+                                {showOpeningHeightSegment && (
+                                    <>
+                                        <line
+                                            x1={dimX} y1={openingBottomY}
+                                            x2={dimX} y2={openingTopY}
+                                            stroke="#10b981" strokeWidth="0.5"
+                                        />
+                                        <circle cx={dimX} cy={openingTopY} r="1.5" fill="#10b981" />
+                                        {roundedFromBottom === 0 && <circle cx={dimX} cy={openingBottomY} r="1.5" fill="#10b981" />}
+                                        {compactLabels ? (
+                                            <g transform={`translate(${dimX + 5}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
+                                                <text
+                                                    textAnchor="middle"
+                                                    dominantBaseline="middle"
+                                                    fill="#10b981"
+                                                    className="text-[10px] font-mono select-none"
+                                                >
+                                                    {roundedOpHeight}
+                                                </text>
+                                            </g>
+                                        ) : (
+                                            <g transform={`translate(${dimX}, ${(openingBottomY + openingTopY) / 2}) rotate(-90)`}>
+                                                <rect x="-18" y="-7" width="36" height="14" fill="#09090b" opacity="1" />
+                                                <text
+                                                    textAnchor="middle"
+                                                    dominantBaseline="middle"
+                                                    fill="#10b981"
+                                                    className="text-[12px] font-mono select-none font-medium"
+                                                >
+                                                    {roundedOpHeight}
+                                                </text>
+                                            </g>
+                                        )}
+                                    </>
                                 )}
 
                                 {/* Segment 3: Opening Top to Wall Top */}
-                                {topSegmentHeight > 0 && (
+                                {showTopSegment && (
                                     <>
                                         <line
                                             x1={dimX} y1={openingTopY}
@@ -200,100 +275,61 @@ export const OpeningMeasurements: React.FC<OpeningMeasurementsProps> = ({
                             </>
                         )}
 
-                        {showHorizontal && (
-                            <>
-                                {/* 4. HORIZONTAL DIMENSIONS - 3 segments */}
-                                {/* Segment 1: Wall Left to Opening Left */}
-                                {op.fromLeft > 0 && (
-                                    <>
-                                        <line
-                                            x1={svgBaseX} y1={dimY}
-                                            x2={drawX} y2={dimY}
-                                            stroke="#10b981" strokeWidth="0.5"
-                                        />
-                                        <circle cx={svgBaseX} cy={dimY} r="1.5" fill="#10b981" />
-                                        <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />
-                                        {!compactLabels && (
-                                            <rect x={(svgBaseX + drawX) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
-                                        )}
-                                        <text
-                                            x={(svgBaseX + drawX) / 2}
-                                            y={compactLabels ? dimY + 10 : dimY + 0.5}
-                                            textAnchor="middle"
-                                            dominantBaseline="middle"
-                                            fill="#10b981"
-                                            className={compactLabels ? "text-[10px] font-mono select-none" : "text-[12px] font-mono select-none font-medium"}
-                                        >
-                                            {op.fromLeft}
-                                        </text>
-                                    </>
-                                )}
+                        {showHorizontal && null}
+                    </g>
+                );
+            })}
 
-                                {/* Segment 2: Opening Width */}
-                                <line
-                                    x1={drawX} y1={dimY}
-                                    x2={drawX + wPx} y2={dimY}
-                                    stroke="#10b981" strokeWidth="0.5"
-                                />
-                                <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />
-                                {op.fromLeft === 0 && <circle cx={drawX} cy={dimY} r="1.5" fill="#10b981" />}
-                                <circle cx={drawX + wPx} cy={dimY} r="1.5" fill="#10b981" />
+            {showHorizontal && (
+                <g>
+                    {horizontalBoundariesMm.slice(0, -1).map((startMm, idx) => {
+                        const endMm = horizontalBoundariesMm[idx + 1];
+                        const segmentMm = endMm - startMm;
+                        const roundedSegment = Math.round(segmentMm);
+                        if (roundedSegment <= 0 || roundedSegment === roundedWallLength) return null;
+
+                        const x1 = svgBaseX + (startMm * pxPerMm);
+                        const x2 = svgBaseX + (endMm * pxPerMm);
+                        const midX = (x1 + x2) / 2;
+
+                        return (
+                            <g key={`h-seg-${idx}`}>
+                                <line x1={x1} y1={mergedHorizontalDimY} x2={x2} y2={mergedHorizontalDimY} stroke="#10b981" strokeWidth="0.5" />
+                                <circle cx={x1} cy={mergedHorizontalDimY} r="1.5" fill="#10b981" />
+                                <circle cx={x2} cy={mergedHorizontalDimY} r="1.5" fill="#10b981" />
                                 {!compactLabels && (
-                                    <rect x={(drawX + drawX + wPx) / 2 - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
+                                    <rect x={midX - 18} y={mergedHorizontalDimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
                                 )}
                                 <text
-                                    x={(drawX + drawX + wPx) / 2}
-                                    y={compactLabels ? dimY + 10 : dimY + 0.5}
+                                    x={midX}
+                                    y={compactLabels ? mergedHorizontalDimY + 10 : mergedHorizontalDimY + 0.5}
                                     textAnchor="middle"
                                     dominantBaseline="middle"
                                     fill="#10b981"
                                     className={compactLabels ? "text-[10px] font-mono select-none" : "text-[12px] font-mono select-none font-medium"}
                                 >
-                                    {op.width}
+                                    {roundedSegment}
                                 </text>
+                            </g>
+                        );
+                    })}
 
-                                {/* Segment 3: Opening Right to Wall Right */}
-                                {(() => {
-                                    const rightSegmentWidth = wallLength - op.fromLeft - op.width;
-                                    const midX = (drawX + wPx + svgBaseX + wallLength * pxPerMm) / 2;
-
-                                    if (rightSegmentWidth <= 1) return null; // Hide if 0 (or close to 0 due to rounding)
-
-                                    return (
-                                        <>
-                                            <line
-                                                x1={drawX + wPx} y1={dimY}
-                                                x2={svgBaseX + wallLength * pxPerMm} y2={dimY}
-                                                stroke="#10b981" strokeWidth="0.5"
-                                            />
-                                            <circle cx={svgBaseX + wallLength * pxPerMm} cy={dimY} r="1.5" fill="#10b981" />
-                                            {!compactLabels && (
-                                                <rect x={midX - 18} y={dimY - 7} width="36" height="14" fill="#09090b" opacity="1" />
-                                            )}
-                                            <text
-                                                x={midX}
-                                                y={compactLabels ? dimY + 10 : dimY + 0.5}
-                                                textAnchor="middle"
-                                                dominantBaseline="middle"
-                                                fill="#10b981"
-                                                className={compactLabels ? "text-[10px] font-mono select-none" : "text-[12px] font-mono select-none font-medium"}
-                                            >
-                                                {Math.round(rightSegmentWidth)}
-                                            </text>
-                                        </>
-                                    );
-                                })()}
-
-                                {/* Extension lines down to wall (horizontal measurements) */}
-                                <line x1={svgBaseX} y1={dimY} x2={svgBaseX} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
-                                <line x1={drawX} y1={dimY} x2={drawX} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
-                                <line x1={drawX + wPx} y1={dimY} x2={drawX + wPx} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
-                                <line x1={svgBaseX + wallLength * pxPerMm} y1={dimY} x2={svgBaseX + wallLength * pxPerMm} y2={svgBaseY} stroke="#10b981" strokeWidth="0.5" />
-                            </>
-                        )}
-                    </g>
-                );
-            })}
+                    {horizontalBoundariesMm.map((boundaryMm, idx) => {
+                        const x = svgBaseX + (boundaryMm * pxPerMm);
+                        return (
+                            <line
+                                key={`h-ext-${idx}`}
+                                x1={x}
+                                y1={mergedHorizontalDimY}
+                                x2={x}
+                                y2={svgBaseY}
+                                stroke="#10b981"
+                                strokeWidth="0.5"
+                            />
+                        );
+                    })}
+                </g>
+            )}
         </g>
     );
 };

@@ -95,6 +95,7 @@ export function WallDrawing({
     gevelProfielRechts,
     stucwerkApplyKoof = false
 }: WallDrawingProps) {
+    const FLOOR_SNAP_THRESHOLD_MM = 20;
     const profielAccentByType: Record<'hoek' | 'eind', string> = {
         hoek: 'rgb(251, 146, 60)',
         eind: 'rgb(56, 189, 248)',
@@ -155,6 +156,18 @@ export function WallDrawing({
     // Determine MAX Height for canvas scaling
     const heights = [hStd, hLeft, hRight, hPeak, h1, h2, h3];
     const maxH = Math.max(...heights);
+
+    const normalizedOpenings = useMemo(
+        () =>
+            openings.map((op) => {
+                const fromBottomNum = Number(op.fromBottom) || 0;
+                return {
+                    ...op,
+                    fromBottom: fromBottomNum <= FLOOR_SNAP_THRESHOLD_MM ? 0 : fromBottomNum,
+                };
+            }),
+        [openings]
+    );
 
     // Calculate effective dimensions for BaseDrawingFrame
     let effectiveLength = lengteNum;
@@ -247,7 +260,7 @@ export function WallDrawing({
 
                 const fullBeam: LogicalBeam = { xMm, yMm: studBottomMm, wMm: STUD_W, hMm, type: 'stud' };
 
-                const op = openings.find(o => (xMm + STUD_W > o.fromLeft && xMm < o.fromLeft + o.width));
+                const op = normalizedOpenings.find(o => (xMm + STUD_W > o.fromLeft && xMm < o.fromLeft + o.width));
                 if (op) {
                     // Header Height Calculation including Double
                     const headerThick = op.headerDikte || STUD_W;
@@ -257,7 +270,7 @@ export function WallDrawing({
                     const topCripH = studTopMm - headerTopY; // Start from top of (double) header
                     if (topCripH > 10) b.push({ ...fullBeam, yMm: headerTopY, hMm: topCripH, type: 'cripple-top' });
 
-                    const hasSill = !['door', 'door-frame', 'frame-inner', 'frame-outer'].includes(op.type);
+                    const hasSill = !['door', 'door-frame', 'frame-inner', 'frame-inner-door', 'frame-outer', 'sliding-door'].includes(op.type);
                     if (hasSill) {
                         // Sill Height Calculation including Double
                         const sillThick = op.onderdorpelDikte || STUD_W;
@@ -282,16 +295,20 @@ export function WallDrawing({
         });
 
         // Fixed Openings Frames & HSB Detail
-        openings.forEach(op => {
+        normalizedOpenings.forEach(op => {
             const studW = 50;
+            const touchesLeftEdge = op.fromLeft <= 1;
+            const touchesRightEdge = Math.abs((op.fromLeft + op.width) - lengteNum) <= 1;
             // King Left
-            const klCenter = (op.fromLeft - studW) + HALF_STUD;
-            const wtL = getWallTopMm(klCenter); const wbL = getWallBottomMm(klCenter);
-            const khL = (wtL - PLATE_HEIGHT_MM) - (wbL + PLATE_HEIGHT_MM);
-            b.push({ xMm: op.fromLeft - studW, yMm: wbL + PLATE_HEIGHT_MM, wMm: STUD_W, hMm: khL, type: 'king' });
+            if (!touchesLeftEdge) {
+                const klCenter = (op.fromLeft - studW) + HALF_STUD;
+                const wtL = getWallTopMm(klCenter); const wbL = getWallBottomMm(klCenter);
+                const khL = (wtL - PLATE_HEIGHT_MM) - (wbL + PLATE_HEIGHT_MM);
+                b.push({ xMm: op.fromLeft - studW, yMm: wbL + PLATE_HEIGHT_MM, wMm: STUD_W, hMm: khL, type: 'king' });
+            }
 
             // Double King Left
-            if (op.dubbeleStijlLinks) {
+            if (op.dubbeleStijlLinks && !touchesLeftEdge) {
                 const dkX = op.fromLeft - (studW * 2);
                 const dkCenter = dkX + HALF_STUD;
                 const wt = getWallTopMm(dkCenter); const wb = getWallBottomMm(dkCenter);
@@ -321,13 +338,15 @@ export function WallDrawing({
             }
 
             // King Right
-            const krCenter = (op.fromLeft + op.width) + HALF_STUD;
-            const wtR = getWallTopMm(krCenter); const wbR = getWallBottomMm(krCenter);
-            const khR = (wtR - PLATE_HEIGHT_MM) - (wbR + PLATE_HEIGHT_MM);
-            b.push({ xMm: op.fromLeft + op.width, yMm: wbR + PLATE_HEIGHT_MM, wMm: STUD_W, hMm: khR, type: 'king' });
+            if (!touchesRightEdge) {
+                const krCenter = (op.fromLeft + op.width) + HALF_STUD;
+                const wtR = getWallTopMm(krCenter); const wbR = getWallBottomMm(krCenter);
+                const khR = (wtR - PLATE_HEIGHT_MM) - (wbR + PLATE_HEIGHT_MM);
+                b.push({ xMm: op.fromLeft + op.width, yMm: wbR + PLATE_HEIGHT_MM, wMm: STUD_W, hMm: khR, type: 'king' });
+            }
 
             // Double King Right
-            if (op.dubbeleStijlRechts) {
+            if (op.dubbeleStijlRechts && !touchesRightEdge) {
                 const dkX = op.fromLeft + op.width + studW;
                 const dkCenter = dkX + HALF_STUD;
                 const wt = getWallTopMm(dkCenter); const wb = getWallBottomMm(dkCenter);
@@ -358,7 +377,7 @@ export function WallDrawing({
             }
 
             // Standard Sill (Windows/Openings)
-            if (!['door', 'door-frame', 'frame-inner', 'frame-outer'].includes(op.type)) {
+            if (!['door', 'door-frame', 'frame-inner', 'frame-inner-door', 'frame-outer', 'sliding-door'].includes(op.type)) {
                 const sillH = op.onderdorpelDikte ? op.onderdorpelDikte : STUD_W;
                 b.push({ xMm: op.fromLeft, yMm: op.fromBottom - sillH, wMm: op.width, hMm: sillH, type: 'sill' });
 
@@ -370,7 +389,7 @@ export function WallDrawing({
         });
 
         return { beams: b, gaps: g };
-    }, [lengteNum, balkafstandNum, shape, doubleEndBeams, doubleTopPlate, doubleBottomPlate, openings, getWallTopMm, getWallBottomMm, l1, l2, startFromRight]);
+    }, [lengteNum, balkafstandNum, shape, doubleEndBeams, doubleTopPlate, doubleBottomPlate, normalizedOpenings, getWallTopMm, getWallBottomMm, l1, l2, startFromRight]);
 
     // Area Calculation
     const areaStats = useMemo(() => {
@@ -381,13 +400,13 @@ export function WallDrawing({
         if (shape === 'l-shape') areaMm2 = (l1 * h1) + ((L - l1) * h2);
         if (shape === 'u-shape') areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
 
-        const openingsAreaMm2 = openings.reduce((acc, op) => acc + (op.width * op.height), 0);
+        const openingsAreaMm2 = normalizedOpenings.reduce((acc, op) => acc + (op.width * op.height), 0);
         return {
             gross: areaMm2,
             net: Math.max(0, areaMm2 - openingsAreaMm2),
             hasOpenings: openingsAreaMm2 > 0
         };
-    }, [lengteNum, hStd, shape, hLeft, hRight, hPeak, l1, h1, h2, l2, h3, openings]);
+    }, [lengteNum, hStd, shape, hLeft, hRight, hPeak, l1, h1, h2, l2, h3, normalizedOpenings]);
 
     // Emit Data
     const lastEmittedRef = useRef<string>('');
@@ -414,7 +433,7 @@ export function WallDrawing({
             lastEmittedRef.current = json;
             onDataGeneratedRef.current?.(data);
         }
-    }, [structure, lengteNum, maxH, shape, openings, doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand]);
+    }, [structure, lengteNum, maxH, shape, normalizedOpenings, doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand]);
 
 
     // Internal Drag State
@@ -457,6 +476,42 @@ export function WallDrawing({
         };
     };
 
+    const handleKoofDoubleClick = useCallback((e: React.MouseEvent<SVGGElement>, koof: KoofItem) => {
+        if (isMagnifier) return;
+        if (!onKoofChange) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const currentOrientation = koof.orientation || 'side';
+        const nextOrientation: 'side' | 'top' = currentOrientation === 'side' ? 'top' : 'side';
+        const koofLengte = Number(koof.lengte) || 0;
+        const koofHoogte = Number(koof.hoogte) || 0;
+        const currentLeft = Number(koof.vanLinks) || 0;
+        const currentBottom = Number(koof.vanOnder) || 0;
+
+        const rectWMm = nextOrientation === 'side' ? koofHoogte : koofLengte;
+        const rectHMm = nextOrientation === 'side' ? koofLengte : koofHoogte;
+        const maxLeft = Math.max(0, lengteNum - rectWMm);
+        const maxBottom = Math.max(0, maxH - rectHMm);
+        const finalLeft = Math.min(Math.max(0, currentLeft), maxLeft);
+        const finalBottom = Math.min(Math.max(0, currentBottom), maxBottom);
+
+        let sides = 3;
+        if (lengteNum > 0 && (finalLeft === 0 || Math.abs(finalLeft + rectWMm - lengteNum) < 2)) {
+            sides = 2;
+        }
+        if (maxH > 0 && (finalBottom === 0 || Math.abs(finalBottom + rectHMm - maxH) < 2)) {
+            sides = 2;
+        }
+
+        const updatedKofen = koven.map((k) => (
+            k.id === koof.id
+                ? { ...k, orientation: nextOrientation, vanLinks: finalLeft, vanOnder: finalBottom, aantalZijden: sides }
+                : k
+        ));
+        onKoofChange(updatedKofen);
+    }, [isMagnifier, onKoofChange, lengteNum, maxH, koven]);
+
     const handlePointerMove = (e: React.PointerEvent) => {
         if (!draggingId || !dragStartRef.current || !metricsRef.current) return;
 
@@ -473,12 +528,10 @@ export function WallDrawing({
         const newBottom = Math.max(0, Math.round(start.origBottom + dyMm));
 
         if (draggingType === 'opening' && onOpeningsChange) {
-            const updatedOpenings = openings.map(o => {
+            const updatedOpenings = normalizedOpenings.map(o => {
                 if (o.id === draggingId) {
                     let finalBottom = newBottom;
-                    if (o.type === 'door' || o.type === 'door-frame' || o.type === 'opening') {
-                        if (Math.abs(finalBottom) < 100) finalBottom = 0;
-                    }
+                    if (finalBottom <= FLOOR_SNAP_THRESHOLD_MM) finalBottom = 0;
                     return { ...o, fromLeft: newLeft, fromBottom: finalBottom };
                 }
                 return o;
@@ -539,6 +592,39 @@ export function WallDrawing({
         }
     };
 
+    const koofMeasurementRects = useMemo(() => (
+        (koven || [])
+            .map((koof) => {
+                const koofLengte = Number(koof.lengte) || 0;
+                const koofHoogte = Number(koof.hoogte) || 0;
+                const koofVanLinks = Number(koof.vanLinks) || 0;
+                const koofVanOnder = Number(koof.vanOnder) || 0;
+                const orientation = koof.orientation || 'side';
+
+                if (koofLengte <= 0 || koofHoogte <= 0) return null;
+
+                const width = orientation === 'side' ? koofHoogte : koofLengte;
+                const height = orientation === 'side' ? koofLengte : koofHoogte;
+
+                return {
+                    id: `koof-${koof.id}`,
+                    width,
+                    height,
+                    fromLeft: koofVanLinks,
+                    fromBottom: koofVanOnder,
+                    type: 'koof',
+                };
+            })
+            .filter((value): value is {
+                id: string;
+                width: number;
+                height: number;
+                fromLeft: number;
+                fromBottom: number;
+                type: string;
+            } => value !== null)
+    ), [koven]);
+
     return (
         <BaseDrawingFrame
             width={effectiveLength}
@@ -573,7 +659,11 @@ export function WallDrawing({
                     y: getY(b.yMm + b.hMm),
                     w: b.wMm * pxPerMm < timberW ? timberW : b.wMm * pxPerMm,
                     h: b.hMm * pxPerMm,
-                    type: b.type
+                    type: b.type,
+                    xMm: b.xMm,
+                    yMm: b.yMm,
+                    wMm: b.wMm,
+                    hMm: b.hMm
                 }));
                 const showStructure = balkafstandNum > 0;
 
@@ -617,18 +707,65 @@ export function WallDrawing({
 
                                 <polygon points={bottomPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
                                 {bottomPlate2Path && <polygon points={bottomPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
-                                {beams.map((b, i: number) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />)}
+                                {beams.map((b, i: number) => {
+                                    const shouldUseSlopedTop =
+                                        shape === 'slope'
+                                        && lengteNum > 0
+                                        && (b.type === 'stud' || b.type === 'king' || b.type === 'cripple-top');
+
+                                    if (!shouldUseSlopedTop) {
+                                        return (
+                                            <rect
+                                                key={i}
+                                                x={b.x}
+                                                y={b.y}
+                                                width={b.w}
+                                                height={b.h}
+                                                fill="rgb(70, 75, 85)"
+                                                stroke="rgb(55, 60, 70)"
+                                                strokeWidth="0.5"
+                                            />
+                                        );
+                                    }
+
+                                    const topCenterMm = b.yMm + b.hMm;
+                                    const slopePerMmX = (hRight - hLeft) / lengteNum;
+                                    const halfBeamMm = b.wMm / 2;
+                                    const topLeftMm = topCenterMm - (slopePerMmX * halfBeamMm);
+                                    const topRightMm = topCenterMm + (slopePerMmX * halfBeamMm);
+                                    const bottomMm = b.yMm;
+                                    const leftX = WALL_X + b.xMm * pxPerMm;
+                                    const rightX = WALL_X + (b.xMm + b.wMm) * pxPerMm;
+
+                                    const points = [
+                                        `${leftX},${getY(bottomMm)}`,
+                                        `${rightX},${getY(bottomMm)}`,
+                                        `${rightX},${getY(topRightMm)}`,
+                                        `${leftX},${getY(topLeftMm)}`
+                                    ].join(' ');
+
+                                    return (
+                                        <polygon
+                                            key={i}
+                                            points={points}
+                                            fill="rgb(70, 75, 85)"
+                                            stroke="rgb(55, 60, 70)"
+                                            strokeWidth="0.5"
+                                        />
+                                    );
+                                })}
                             </>
                         )}
 
-                        {openings.map((op) => {
+                        {normalizedOpenings.map((op) => {
+                            const opType = String(op.type || '');
                             const wPx = op.width * pxPerMm;
                             const hPx = op.height * pxPerMm;
                             const drawX = WALL_X + op.fromLeft * pxPerMm;
                             const drawY = getY(op.fromBottom + op.height);
 
                             let onderdorpelRect = null;
-                            if ((op.type === 'door' || op.type === 'door-frame') && op.onderdorpel && op.onderdorpelDikte) {
+                            if ((opType === 'door' || opType === 'door-frame' || opType === 'sliding-door') && op.onderdorpel && op.onderdorpelDikte) {
                                 const thPx = op.onderdorpelDikte * pxPerMm;
                                 const odY = getY(op.fromBottom + op.onderdorpelDikte);
                                 onderdorpelRect = <rect x={drawX} y={odY} width={wPx} height={thPx} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />;
@@ -709,10 +846,14 @@ export function WallDrawing({
                                         centerX={drawX + wPx / 2}
                                         centerY={drawY + hPx / 2}
                                         typeName={
-                                            op.type === 'door-frame' ? 'Deurkozijn' :
-                                                op.type === 'door' ? 'Deur' :
-                                                    op.type === 'window' ? 'Raamkozijn' :
-                                                        op.type === 'nis' ? 'Nis' : 'Sparing'
+                                            opType === 'door-frame' ? 'Deurkozijn' :
+                                                opType === 'frame-inner' ? 'Binnen kozijn' :
+                                                    opType === 'frame-inner-door' ? 'Binnen kozijn + deur' :
+                                                    opType === 'frame-outer' ? 'Buiten kozijn' :
+                                                        opType === 'sliding-door' ? 'Schuifdeur' :
+                                                            opType === 'door' ? 'Deur' :
+                                                                opType === 'window' ? 'Raamkozijn' :
+                                                                    opType === 'nis' ? 'Nis' : 'Sparing'
                                         }
                                         width={op.width}
                                         height={op.height}
@@ -751,6 +892,7 @@ export function WallDrawing({
                                 <g
                                     key={koof.id}
                                     onPointerDown={(e) => handleKoofPointerDown(e, koof)}
+                                    onDoubleClick={(e) => handleKoofDoubleClick(e, koof)}
                                     onPointerMove={handlePointerMove}
                                     onPointerUp={handlePointerUp}
                                     style={{ cursor: onKoofChange ? 'move' : 'default' }}
@@ -970,7 +1112,10 @@ export function WallDrawing({
                         )}
 
                         <OpeningMeasurements
-                            openings={openings.map(op => ({ ...op, width: op.width, height: op.height, fromLeft: op.fromLeft, fromBottom: op.fromBottom, type: op.type, id: op.id }))}
+                            openings={[
+                                ...normalizedOpenings.map(op => ({ ...op, width: op.width, height: op.height, fromLeft: op.fromLeft, fromBottom: op.fromBottom, type: op.type, id: op.id })),
+                                ...koofMeasurementRects
+                            ]}
                             wallLength={lengteNum}
                             wallHeight={maxH}
                             svgBaseX={WALL_X}

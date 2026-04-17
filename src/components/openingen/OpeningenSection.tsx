@@ -85,6 +85,7 @@ export function OpeningenSection({
             case 'frame-inner': return { width: 930, height: 2115 };
             case 'frame-outer': return { width: 1000, height: 2200 };
             case 'door': return { width: 830, height: 2015 };
+            case 'sliding-door': return { width: 1800, height: 2115 };
             case 'window': return { width: 1000, height: 1000 };
             default: return { width: isWallCategory ? 1000 : 600, height: isWallCategory ? 1000 : 600 };
         }
@@ -104,7 +105,7 @@ export function OpeningenSection({
             width,
             height,
             fromLeft: 1000,
-            fromBottom: (type === 'door' || type === 'frame-inner') ? 0 : 1000,
+            fromBottom: (type === 'door' || type === 'frame-inner' || type === 'sliding-door') ? 0 : 1000,
             requires_raveelwerk: enableRaveelwerk || undefined,
         };
         onChange([...openings, newOpening]);

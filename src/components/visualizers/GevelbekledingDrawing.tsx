@@ -278,7 +278,7 @@ export function GevelbekledingDrawing({
                     const topCripH = studTopMm - headerTopY; // Start from top of (double) header
                     if (topCripH > 10) b.push({ ...fullBeam, yMm: headerTopY, hMm: topCripH, type: 'cripple-top' });
 
-                    const hasSill = !['door', 'door-frame', 'frame-inner', 'frame-outer'].includes(op.type);
+                    const hasSill = !['door', 'door-frame', 'frame-inner', 'frame-inner-door', 'frame-outer', 'sliding-door'].includes(op.type);
                     if (hasSill) {
                         // Sill Height Calculation including Double
                         const sillThick = op.onderdorpelDikte || STUD_W;
@@ -379,7 +379,7 @@ export function GevelbekledingDrawing({
             }
 
             // Standard Sill (Windows/Openings)
-            if (!['door', 'door-frame', 'frame-inner', 'frame-outer'].includes(op.type)) {
+            if (!['door', 'door-frame', 'frame-inner', 'frame-inner-door', 'frame-outer', 'sliding-door'].includes(op.type)) {
                 const sillH = op.onderdorpelDikte ? op.onderdorpelDikte : STUD_W;
                 b.push({ xMm: op.fromLeft, yMm: op.fromBottom - sillH, wMm: op.width, hMm: sillH, type: 'sill' });
 
@@ -498,7 +498,8 @@ export function GevelbekledingDrawing({
             const updatedOpenings = openings.map(o => {
                 if (o.id === draggingId) {
                     let finalBottom = newBottom;
-                    if (o.type === 'door' || o.type === 'door-frame' || o.type === 'opening') {
+                    const oType = String(o.type || '');
+                    if (oType === 'door' || oType === 'door-frame' || oType === 'sliding-door' || oType === 'opening') {
                         if (Math.abs(finalBottom) < 100) finalBottom = 0;
                     }
                     return { ...o, fromLeft: newLeft, fromBottom: finalBottom };
@@ -952,13 +953,14 @@ export function GevelbekledingDrawing({
                         )}
 
                         {openings.map((op) => {
+                            const opType = String(op.type || '');
                             const wPx = op.width * pxPerMm;
                             const hPx = op.height * pxPerMm;
                             const drawX = WALL_X + op.fromLeft * pxPerMm;
                             const drawY = getY(op.fromBottom + op.height);
 
                             let onderdorpelRect = null;
-                            if ((op.type === 'door' || op.type === 'door-frame') && op.onderdorpel && op.onderdorpelDikte) {
+                            if ((opType === 'door' || opType === 'door-frame' || opType === 'sliding-door') && op.onderdorpel && op.onderdorpelDikte) {
                                 const thPx = op.onderdorpelDikte * pxPerMm;
                                 const odY = getY(op.fromBottom + op.onderdorpelDikte);
                                 onderdorpelRect = <rect x={drawX} y={odY} width={wPx} height={thPx} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />;
@@ -1039,10 +1041,14 @@ export function GevelbekledingDrawing({
                                         centerX={drawX + wPx / 2}
                                         centerY={drawY + hPx / 2}
                                         typeName={
-                                            (op.type as string) === 'door-frame' ? 'Deurkozijn' :
-                                                op.type === 'door' ? 'Deur' :
-                                                    op.type === 'window' ? 'Raamkozijn' :
-                                                        (op.type as string) === 'nis' ? 'Nis' : 'Sparing'
+                                            opType === 'door-frame' ? 'Deurkozijn' :
+                                                opType === 'frame-inner' ? 'Binnen kozijn' :
+                                                    opType === 'frame-inner-door' ? 'Binnen kozijn + deur' :
+                                                    opType === 'frame-outer' ? 'Buiten kozijn' :
+                                                        opType === 'sliding-door' ? 'Schuifdeur' :
+                                                            opType === 'door' ? 'Deur' :
+                                                                opType === 'window' ? 'Raamkozijn' :
+                                                                    opType === 'nis' ? 'Nis' : 'Sparing'
                                         }
                                         width={op.width}
                                         height={op.height}

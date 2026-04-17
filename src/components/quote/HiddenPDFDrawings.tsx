@@ -63,19 +63,9 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
                 return;
             }
 
-            if (firestore && quote.id) {
-                try {
-                    const jobsRef = collection(firestore, `quotes/${quote.id}/jobs`);
-                    const snap = await getDocs(jobsRef);
-                    const fetchedJobs = snap.docs.map((d) => ({
-                        id: d.id,
-                        ...d.data(),
-                    } as Job));
-                    setJobs(fetchedJobs);
-                } catch (err) {
-                    console.error('Error fetching jobs subcollection for PDF:', err);
-                }
-            }
+            // Jobs are always stored in the klussen map or jobs array on the
+            // quote document. The legacy subcollection path is no longer used
+            // and its Firestore rules don't permit reads, so skip it.
 
             setIsLoading(false);
         };

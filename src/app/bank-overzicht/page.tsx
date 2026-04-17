@@ -22,7 +22,6 @@ type ApiSyncResponse = {
 };
 
 const PAGE_SIZE = 10;
-const POLL_INTERVAL_MS = 20_000;
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('nl-NL', {
@@ -65,7 +64,7 @@ export default function BankOverzichtPage() {
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasSyncedOnMount = useRef(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -101,21 +100,7 @@ export default function BankOverzichtPage() {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    void fetchFromSupabase(false);
-    pollTimerRef.current = setInterval(() => void fetchFromSupabase(true), POLL_INTERVAL_MS);
-    return () => { if (pollTimerRef.current) clearInterval(pollTimerRef.current); };
-  }, [fetchFromSupabase, user]);
-
-  // Set default active account once accounts load
-  useEffect(() => {
-    if (accounts.length > 0 && !activeAccountId) {
-      setActiveAccountId(accounts[0].id);
-    }
-  }, [accounts, activeAccountId]);
-
-  const handleSync = async () => {
+  const handleSync = useCallback(async () => {
     if (!user) return;
     setSyncing(true);
     setError(null);
@@ -141,7 +126,21 @@ export default function BankOverzichtPage() {
     } finally {
       setSyncing(false);
     }
-  };
+  }, [fetchFromSupabase, toast, user]);
+
+  // Auto-sync once on page visit, then read fresh data from Supabase
+  useEffect(() => {
+    if (!user || hasSyncedOnMount.current) return;
+    hasSyncedOnMount.current = true;
+    void handleSync();
+  }, [user, handleSync]);
+
+  // Set default active account once accounts load
+  useEffect(() => {
+    if (accounts.length > 0 && !activeAccountId) {
+      setActiveAccountId(accounts[0].id);
+    }
+  }, [accounts, activeAccountId]);
 
   const activeAccount = accounts.find((a) => a.id === activeAccountId) ?? accounts[0] ?? null;
 

@@ -112,8 +112,10 @@ export function OpeningCard({
 
         if (value === 'window') { w = 1000; h = 1000; }
         else if (value === 'frame-inner') { w = 930; h = 2115; }
+        else if (value === 'frame-inner-door') { w = 930; h = 2115; }
         else if (value === 'frame-outer') { w = 1000; h = 2200; }
         else if (value === 'door') { w = 830; h = 2015; }
+        else if (value === 'sliding-door') { w = 1800; h = 2115; }
         else if (value === 'opening') { w = 1000; h = 1000; }
 
         onUpdate({
@@ -127,8 +129,10 @@ export function OpeningCard({
     const wallTypeOptions: OpeningTypeOption[] = [
         { value: 'window', label: 'Raamkozijn' },
         { value: 'frame-inner', label: 'Binnen kozijn' },
+        { value: 'frame-inner-door', label: 'Binnen kozijn + deur' },
         { value: 'frame-outer', label: 'Buiten kozijn' },
         { value: 'door', label: 'Deur' },
+        { value: 'sliding-door', label: 'Schuifdeur' },
         { value: 'opening', label: 'Sparing' },
         { value: 'nis', label: 'Nis' },
         { value: 'other', label: 'Overig' },

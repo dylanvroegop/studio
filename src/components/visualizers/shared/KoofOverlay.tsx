@@ -11,6 +11,7 @@ export interface KoofOverlayProps {
     wallLength: number;
     wallHeight: number;
     onPointerDown?: (event: React.PointerEvent, koof: KoofItem) => void;
+    onDoubleClick?: (event: React.MouseEvent<SVGGElement>, koof: KoofItem) => void;
     onPointerMove?: (event: React.PointerEvent) => void;
     onPointerUp?: (event: React.PointerEvent) => void;
     draggingId?: string | null;
@@ -31,6 +32,7 @@ export function KoofOverlay({
     wallLength,
     wallHeight,
     onPointerDown,
+    onDoubleClick,
     onPointerMove,
     onPointerUp,
     draggingId,
@@ -68,6 +70,7 @@ export function KoofOverlay({
                     <g
                         key={koof.id}
                         onPointerDown={onPointerDown ? (e) => onPointerDown(e, koof) : undefined}
+                        onDoubleClick={onDoubleClick ? (e) => onDoubleClick(e, koof) : undefined}
                         onPointerMove={onPointerMove}
                         onPointerUp={onPointerUp}
                         style={{ cursor: isDraggable ? 'move' : 'default' }}

@@ -3,6 +3,7 @@ import admin from 'firebase-admin';
 import { parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { JOB_REGISTRY } from '@/lib/job-registry';
+import { getMaterialRule } from '@/lib/klus-regels-static';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
   commitCalculationQuotaReservation,
@@ -915,7 +916,10 @@ export async function POST(req: Request) {
 
       const missingKlusRegels = jobSlugs.filter((slug) => !klusRegelsByType.has(slug));
       if (missingKlusRegels.length > 0) {
-        throw new Error(`Supabase klus_regels ontbreekt voor klus_type: ${missingKlusRegels.join(', ')}`);
+        console.warn(
+          '[offerte/generate] Supabase klus_regels ontbreekt; static fallback actief voor:',
+          missingKlusRegels.join(', ')
+        );
       }
 
       const resolveRuleAttachmentFromSupabase = (
@@ -926,16 +930,48 @@ export async function POST(req: Request) {
         status: 'resolved' | 'missing';
         resolvedBy: string;
         klusRegelsRow: KlusRegelsRow | null;
+        source: 'supabase' | 'static' | 'none';
+        ruleMeta: Record<string, any> | null;
       } => {
         const normalizedJobSlug = normalizeLookupValue(jobSlug);
         const klusRegelsRow = normalizedJobSlug ? (klusRegelsByType.get(normalizedJobSlug) || null) : null;
         const resolution = resolveSectionRuleFromKlusRegels(klusRegelsRow?.klus_regels, sectionKey);
 
+        if (resolution.rule && resolution.status === 'resolved') {
+          return {
+            rule: resolution.rule,
+            status: resolution.status,
+            resolvedBy: resolution.resolvedBy,
+            klusRegelsRow,
+            source: 'supabase',
+            ruleMeta: {
+              source: 'supabase',
+              klusRegelsId: klusRegelsRow?.id ?? null,
+              klusType: (klusRegelsRow?.klus_type ?? normalizedJobSlug) || null,
+              sectionKey: sectionKey ?? null,
+            },
+          };
+        }
+
+        const staticAttachment = getMaterialRule(normalizedJobSlug, sectionKey);
+        if (staticAttachment?.rule) {
+          return {
+            rule: staticAttachment.rule,
+            status: 'resolved',
+            resolvedBy: 'static_fallback',
+            klusRegelsRow,
+            source: 'static',
+            ruleMeta: staticAttachment.rule_meta || null,
+          };
+        }
+
         return {
-          rule: resolution.rule,
-          status: resolution.status,
+          rule: null,
+          status: 'missing',
           resolvedBy: resolution.resolvedBy,
           klusRegelsRow,
+          source: 'none',
+          ruleMeta: staticAttachment?.rule_meta || null,
         };
       };
 
@@ -960,7 +996,7 @@ export async function POST(req: Request) {
         return sectionKey;
       };
 
-      const attachSupabaseRuleForSection = (
+      const attachRuleForSection = (
         entry: Record<string, any>,
         jobSlug: string,
         sectionKey: string | null
@@ -977,6 +1013,7 @@ export async function POST(req: Request) {
         return {
           ...entry,
           rule: normalizedRule,
+          rule_meta: attachment.ruleMeta ?? undefined,
         };
       };
 
@@ -1111,13 +1148,16 @@ export async function POST(req: Request) {
 
               const finalSectionKey = normalizedSectionKey || slotKey;
               const sectionRuleAttachment = resolveRuleAttachmentFromSupabase(jobSlug, finalSectionKey);
-              enriched = attachSupabaseRuleForSection(enriched, jobSlug, finalSectionKey);
+              enriched = attachRuleForSection(enriched, jobSlug, finalSectionKey);
               if (
                 !isComponentEntry
                 && normalizedSectionKey
                 && (!sectionRuleAttachment.rule || sectionRuleAttachment.status !== 'resolved')
               ) {
-                throw new Error(`Supabase section rule ontbreekt voor klus '${jobSlug}' en sectionKey '${normalizedSectionKey}'`);
+                console.warn(
+                  `[offerte/generate] Geen regel gevonden voor klus '${jobSlug}' en sectionKey '${normalizedSectionKey}'.`,
+                  { slotKey, source: sectionRuleAttachment.source, resolvedBy: sectionRuleAttachment.resolvedBy }
+                );
               }
               const normalizedSlotKey =
                 jobSlug === 'epdm-dakbedekking'

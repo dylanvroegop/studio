@@ -345,6 +345,9 @@ export default function GenericMeasurementPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const AUTOSAVE_DEBOUNCE_MS = 9000;
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveInFlightRef = useRef(false);
 
   // Refs for capturing visualizations
   const visualizerRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -411,6 +414,7 @@ export default function GenericMeasurementPage() {
   const [pendingOpeningIntent, setPendingOpeningIntent] = useState<MeasurementOpeningIntent | null>(null);
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [pendingDeleteOpening, setPendingDeleteOpening] = useState<{ itemIndex: number; openingIndex: number } | null>(null);
+  const [missingFieldTarget, setMissingFieldTarget] = useState<{ itemIndex: number; fieldKey: string } | null>(null);
   const [expandedDrawingIndex, setExpandedDrawingIndex] = useState<number | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [kozijnhoutFrameThicknessMm, setKozijnhoutFrameThicknessMm] = useState<number | null>(null);
@@ -2709,6 +2713,28 @@ export default function GenericMeasurementPage() {
     });
   }, [items.length]);
 
+  useEffect(() => {
+    if (!missingFieldTarget) return;
+    const targetContainer = itemContainerRefs.current[missingFieldTarget.itemIndex];
+    if (!targetContainer) return;
+
+    const offsetTop = 110;
+    const targetTop = Math.max(0, targetContainer.getBoundingClientRect().top + window.scrollY - offsetTop);
+    window.scrollTo({ top: targetTop, behavior: 'smooth' });
+
+    const inputEl = targetContainer.querySelector(`[id="${missingFieldTarget.fieldKey}"]`) as HTMLElement | null;
+    if (!inputEl) return;
+
+    window.setTimeout(() => {
+      inputEl.focus?.();
+      const highlightEl = (inputEl.closest('.space-y-2') as HTMLElement | null) || inputEl;
+      highlightEl.classList.add('ring-2', 'ring-red-500', 'ring-offset-1', 'ring-offset-background', 'rounded-lg');
+      window.setTimeout(() => {
+        highlightEl.classList.remove('ring-2', 'ring-red-500', 'ring-offset-1', 'ring-offset-background', 'rounded-lg');
+      }, 2600);
+    }, 250);
+  }, [missingFieldTarget]);
+
   const removeItem = (index: number) => {
     if (items.length <= 1) {
       toast({
@@ -2722,6 +2748,18 @@ export default function GenericMeasurementPage() {
   };
 
   const updateItem = (index: number, key: string, value: any) => {
+    setMissingFieldTarget((prev) => {
+      if (!prev || prev.itemIndex !== index) return prev;
+      if (
+        prev.fieldKey === key
+        || (prev.fieldKey === 'aantal_pannen_breedte' && key === 'aantal_pannen_hoogte')
+        || (prev.fieldKey === 'aantal_pannen_hoogte' && key === 'aantal_pannen_breedte')
+      ) {
+        return null;
+      }
+      return prev;
+    });
+
     setItems(prev => prev.map((item, i) => {
       if (i !== index) return item;
       let newItem = { ...item, [key]: value };
@@ -3761,29 +3799,166 @@ export default function GenericMeasurementPage() {
     };
   };
 
+  const runAutosaveDraft = useCallback(async () => {
+    if (!firestore || !jobConfig || loading || saving) return;
+    if (autosaveInFlightRef.current) return;
+
+    autosaveInFlightRef.current = true;
+    try {
+      const quoteRef = doc(firestore, 'quotes', quoteId);
+      const rawMeta = {
+        title: jobConfig.title,
+        type: categorySlug,
+        slug: jobSlug,
+        description: jobConfig.description || ''
+      };
+
+      const draftPayload = cleanFirestoreData({
+        basis: items || [],
+        toevoegingen: (components || []).map((c) => ({
+          id: c.id,
+          type: c.type,
+          label: c.label,
+          slug: c.slug,
+          afmetingen: c.measurements || {}
+        })),
+        notities: notities || '',
+        meta: rawMeta,
+        autosave: true,
+      }, { allowEmptyArrays: true });
+
+      await updateDoc(quoteRef, {
+        [`klussen.${klusId}.maatwerk`]: draftPayload,
+        [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error('Autosave failed:', error);
+    } finally {
+      autosaveInFlightRef.current = false;
+    }
+  }, [
+    firestore,
+    jobConfig,
+    loading,
+    saving,
+    quoteId,
+    klusId,
+    categorySlug,
+    jobSlug,
+    items,
+    components,
+    notities
+  ]);
+
+  useEffect(() => {
+    if (loading || saving || !firestore || !jobConfig) return;
+
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+
+    autosaveTimerRef.current = setTimeout(() => {
+      void runAutosaveDraft();
+    }, AUTOSAVE_DEBOUNCE_MS);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, [
+    items,
+    components,
+    notities,
+    loading,
+    saving,
+    firestore,
+    jobConfig,
+    runAutosaveDraft
+  ]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        void runAutosaveDraft();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [runAutosaveDraft]);
+
   const handleSave = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (!firestore || !jobConfig) return;
 
     const hasValue = (val: unknown) => val !== undefined && val !== null && String(val).trim() !== '';
+    const isFieldRelevantForShape = (item: any, fieldKey: string) => {
+      const shape = String(item?.shape || 'rectangle');
+      const baseDimensionKeys = new Set([
+        'lengte',
+        'hoogte',
+        'breedte',
+        'hoogteLinks',
+        'hoogteRechts',
+        'hoogteNok',
+        'lengte1',
+        'lengte2',
+        'lengte3',
+        'hoogte1',
+        'hoogte2',
+        'hoogte3',
+      ]);
+
+      if (!baseDimensionKeys.has(fieldKey)) return true;
+
+      if (shape === 'rectangle') {
+        return ['lengte', 'hoogte', 'breedte'].includes(fieldKey);
+      }
+      if (shape === 'slope') {
+        return ['lengte', 'hoogteLinks', 'hoogteRechts'].includes(fieldKey);
+      }
+      if (shape === 'gable') {
+        return ['lengte', 'hoogte', 'hoogteNok'].includes(fieldKey);
+      }
+      if (shape === 'l-shape') {
+        return ['lengte1', 'hoogte1', 'lengte2', 'hoogte2'].includes(fieldKey);
+      }
+      if (shape === 'u-shape') {
+        return ['lengte1', 'hoogte1', 'lengte2', 'hoogte2', 'lengte3', 'hoogte3'].includes(fieldKey);
+      }
+
+      return true;
+    };
     const isEitherOrHellendDakField = (fieldKey: string) =>
       isHellendDak && ['aantal_pannen_breedte', 'aantal_pannen_hoogte', 'lengte', 'hoogte'].includes(fieldKey);
 
-    const hasEmptyFields = items.some(item =>
+    let firstMissingField: { itemIndex: number; fieldKey: string } | null = null;
+    const hasEmptyFields = items.some((item, itemIndex) =>
       fields.some(f => {
         if (f.type !== 'number' || f.optional) return false;
         if (isEitherOrHellendDakField(f.key)) return false;
-        return !hasValue(item[f.key]);
+        if (!isFieldRelevantForShape(item, f.key)) return false;
+        const missing = !hasValue(item[f.key]);
+        if (missing && !firstMissingField) {
+          firstMissingField = { itemIndex, fieldKey: f.key };
+        }
+        return missing;
       })
     );
 
-    const hasInvalidHellendDakEitherOr = isHellendDak && items.some(item => {
+    let firstEitherOrMissing: { itemIndex: number; fieldKey: string } | null = null;
+    const hasInvalidHellendDakEitherOr = isHellendDak && items.some((item, itemIndex) => {
       const hasPannenMaten = hasValue(item.aantal_pannen_breedte) && hasValue(item.aantal_pannen_hoogte);
       const hasMmMaten = hasValue(item.lengte) && hasValue(item.hoogte);
-      return !hasPannenMaten && !hasMmMaten;
+      const invalid = !hasPannenMaten && !hasMmMaten;
+      if (invalid && !firstEitherOrMissing) {
+        firstEitherOrMissing = { itemIndex, fieldKey: 'aantal_pannen_breedte' };
+      }
+      return invalid;
     });
 
     if (hasEmptyFields || hasInvalidHellendDakEitherOr) {
+      setMissingFieldTarget(firstMissingField || firstEitherOrMissing);
       toast({
         variant: "destructive",
         title: "Ontbrekende gegevens",
@@ -4288,13 +4463,13 @@ export default function GenericMeasurementPage() {
                             <div className="space-y-4">
                               <div className="space-y-3">
                                 <Label className="text-xs uppercase text-white">Deel 1</Label>
-                                <MeasurementInput placeholder="Bijv. 3000" value={item.lengte1 || ''} onChange={(val) => updateL('lengte1', String(val))} />
-                                <MeasurementInput placeholder="Bijv. 2500" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
+                                <MeasurementInput id="lengte1" placeholder="Bijv. 3000" value={item.lengte1 || ''} onChange={(val) => updateL('lengte1', String(val))} />
+                                <MeasurementInput id="hoogte1" placeholder="Bijv. 2500" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
                               </div>
                               <div className="space-y-3 pt-2">
                                 <Label className="text-xs uppercase text-white">Deel 2</Label>
-                                <MeasurementInput placeholder="Bijv. 2000" value={item.lengte2 || ''} onChange={(val) => updateL('lengte2', String(val))} />
-                                <MeasurementInput placeholder="Bijv. 1500" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
+                                <MeasurementInput id="lengte2" placeholder="Bijv. 2000" value={item.lengte2 || ''} onChange={(val) => updateL('lengte2', String(val))} />
+                                <MeasurementInput id="hoogte2" placeholder="Bijv. 1500" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
                               </div>
                             </div>
                           );
@@ -4312,18 +4487,18 @@ export default function GenericMeasurementPage() {
                             <div className="space-y-4">
                               <div className="space-y-3">
                                 <Label className="text-xs">Deel 1</Label>
-                                <MeasurementInput placeholder="Bijv. 1500" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} />
-                                <MeasurementInput placeholder="Bijv. 2000" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
+                                <MeasurementInput id="lengte1" placeholder="Bijv. 1500" value={item.lengte1 || ''} onChange={(val) => updateU('lengte1', String(val))} />
+                                <MeasurementInput id="hoogte1" placeholder="Bijv. 2000" value={item.hoogte1 || ''} onChange={(val) => updateItem(index, 'hoogte1', val)} />
                               </div>
                               <div className="space-y-3 pt-2">
                                 <Label className="text-xs">Deel 2</Label>
-                                <MeasurementInput placeholder="Bijv. 2000" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} />
-                                <MeasurementInput placeholder="Bijv. 1200" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
+                                <MeasurementInput id="lengte2" placeholder="Bijv. 2000" value={item.lengte2 || ''} onChange={(val) => updateU('lengte2', String(val))} />
+                                <MeasurementInput id="hoogte2" placeholder="Bijv. 1200" value={item.hoogte2 || ''} onChange={(val) => updateItem(index, 'hoogte2', val)} />
                               </div>
                               <div className="space-y-3 pt-2">
                                 <Label className="text-xs">Deel 3</Label>
-                                <MeasurementInput placeholder="Bijv. 1500" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} />
-                                <MeasurementInput placeholder="Bijv. 2000" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} />
+                                <MeasurementInput id="lengte3" placeholder="Bijv. 1500" value={item.lengte3 || ''} onChange={(val) => updateU('lengte3', String(val))} />
+                                <MeasurementInput id="hoogte3" placeholder="Bijv. 2000" value={item.hoogte3 || ''} onChange={(val) => updateItem(index, 'hoogte3', val)} />
                               </div>
                             </div>
                           );
@@ -4798,14 +4973,14 @@ export default function GenericMeasurementPage() {
 
                             {shape === 'slope' && (
                               <>
-                                <div className="space-y-2"><Label>H. Links</Label><MeasurementInput placeholder="Bijv. 2500" value={item.hoogteLinks} onChange={v => updateItem(index, 'hoogteLinks', v)} /></div>
-                                <div className="space-y-2"><Label>H. Rechts</Label><MeasurementInput placeholder="Bijv. 2500" value={item.hoogteRechts} onChange={v => updateItem(index, 'hoogteRechts', v)} /></div>
+                                <div className="space-y-2"><Label>H. Links</Label><MeasurementInput id="hoogteLinks" placeholder="Bijv. 2500" value={item.hoogteLinks} onChange={v => updateItem(index, 'hoogteLinks', v)} /></div>
+                                <div className="space-y-2"><Label>H. Rechts</Label><MeasurementInput id="hoogteRechts" placeholder="Bijv. 2500" value={item.hoogteRechts} onChange={v => updateItem(index, 'hoogteRechts', v)} /></div>
                               </>
                             )}
                             {shape === 'gable' && (
                               <>
-                                <div className="space-y-2"><Label>H. Zijkant</Label><MeasurementInput placeholder="Bijv. 2500" value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} /></div>
-                                <div className="space-y-2"><Label>H. Top</Label><MeasurementInput placeholder="Bijv. 3000" value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div>
+                                <div className="space-y-2"><Label>H. Zijkant</Label><MeasurementInput id="hoogte" placeholder="Bijv. 2500" value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} /></div>
+                                <div className="space-y-2"><Label>H. Top</Label><MeasurementInput id="hoogteNok" placeholder="Bijv. 3000" value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div>
                               </>
                             )}
 

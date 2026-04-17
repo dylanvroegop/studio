@@ -207,6 +207,26 @@ function createMaterialPackageId(): string {
     return `pakket_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function getBetalingsvoorwaardenByMode(
+    settings: QuotePdfTextSettings,
+    mode: VoorwaardenEditorMode,
+): string[] {
+    return mode === 'vastePrijs'
+        ? settings.betalingsvoorwaardenVastePrijs
+        : settings.betalingsvoorwaardenOnderVoorbehoud;
+}
+
+function withBetalingsvoorwaardenByMode(
+    settings: QuotePdfTextSettings,
+    mode: VoorwaardenEditorMode,
+    regels: string[],
+): QuotePdfTextSettings {
+    if (mode === 'vastePrijs') {
+        return { ...settings, betalingsvoorwaardenVastePrijs: regels };
+    }
+    return { ...settings, betalingsvoorwaardenOnderVoorbehoud: regels };
+}
+
 function getVoorwaardenByMode(
     settings: QuotePdfTextSettings,
     mode: VoorwaardenEditorMode,
@@ -567,7 +587,7 @@ export default function QuotePage() {
     const facturatieHydratingRef = useRef(false);
     const lastSavedFacturatiePayloadRef = useRef('');
     const lastHydratedFacturatieSourceRef = useRef('');
-    const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('onderVoorbehoud');
+    const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('vastePrijs');
     const [activeTab, setActiveTab] = useState('materialen');
     const [workDescriptionMode, setWorkDescriptionMode] = useState<'edit' | 'preview'>('edit');
     const [workDescriptionStructured, setWorkDescriptionStructured] = useState<WorkDescriptionStructured>(() => toStructuredWorkDescription(null));
@@ -839,16 +859,26 @@ export default function QuotePage() {
         setVoorschotIngeschakeld((prev) => (prev === nextVoorschotIngeschakeld ? prev : nextVoorschotIngeschakeld));
         setVoorschotPercentage((prev) => (prev === nextVoorschotPercentage ? prev : nextVoorschotPercentage));
         setOnderVoorbehoud((prev) => (prev === nextOnderVoorbehoud ? prev : nextOnderVoorbehoud));
+        setVoorwaardenEditorMode(nextOnderVoorbehoud ? 'onderVoorbehoud' : 'vastePrijs');
 
         const quotePdfTeksten = (quote as any)?.pdfTeksten;
         const userDefaultPdfTeksten = (userProfile as any)?.defaultPdfTeksten;
         const nextPdfTextSettings = sanitizeQuotePdfTextSettings(quotePdfTeksten ?? userDefaultPdfTeksten);
         setPdfTextSettings((prev) => {
+            if (hasEditedPdfTextSettingsRef.current) {
+                const nextSig = JSON.stringify(nextPdfTextSettings);
+                const prevSig = JSON.stringify(prev);
+                if (prevSig === nextSig) {
+                    // Firestore now matches local state — edits are persisted
+                    hasEditedPdfTextSettingsRef.current = false;
+                }
+                // Keep local edits until Firestore catches up
+                return prev;
+            }
             const prevSig = JSON.stringify(prev);
             const nextSig = JSON.stringify(nextPdfTextSettings);
             return prevSig === nextSig ? prev : nextPdfTextSettings;
         });
-        hasEditedPdfTextSettingsRef.current = false;
 
         const quoteAlgemeneVoorwaarden = (quote as any)?.algemeneVoorwaarden;
         const userDefaultAlgemeneVoorwaarden = (userProfile as any)?.defaultAlgemeneVoorwaarden;
@@ -960,7 +990,10 @@ export default function QuotePage() {
                         },
                         { merge: true }
                     );
-                    hasEditedPdfTextSettingsRef.current = false;
+                    // Don't reset hasEditedPdfTextSettingsRef here — the hydration
+                    // effect will reset it once Firestore data matches local state.
+                    // Resetting here caused a race: userProfile snapshot arrived before
+                    // quote snapshot, triggering hydration with stale quote data.
                 }
             } catch (e) {
                 console.error('Fout bij opslaan facturatie:', e);
@@ -2628,6 +2661,47 @@ export default function QuotePage() {
     };
 
     const actieveVoorwaarden = getVoorwaardenByMode(pdfTextSettings, voorwaardenEditorMode);
+    const actieveBetalingsvoorwaarden = getBetalingsvoorwaardenByMode(pdfTextSettings, voorwaardenEditorMode);
+
+    const updateBetalingsvoorwaardenAt = (index: number, value: string) => {
+        hasEditedPdfTextSettingsRef.current = true;
+        setPdfTextSettings((prev) => {
+            const current = getBetalingsvoorwaardenByMode(prev, voorwaardenEditorMode);
+            const next = [...current];
+            next[index] = value;
+            return withBetalingsvoorwaardenByMode(prev, voorwaardenEditorMode, next);
+        });
+    };
+
+    const addBetalingsvoorwaarde = () => {
+        hasEditedPdfTextSettingsRef.current = true;
+        setPdfTextSettings((prev) => {
+            const current = getBetalingsvoorwaardenByMode(prev, voorwaardenEditorMode);
+            return withBetalingsvoorwaardenByMode(prev, voorwaardenEditorMode, [...current, '']);
+        });
+    };
+
+    const removeBetalingsvoorwaarde = (index: number) => {
+        hasEditedPdfTextSettingsRef.current = true;
+        setPdfTextSettings((prev) => {
+            const current = getBetalingsvoorwaardenByMode(prev, voorwaardenEditorMode);
+            const next = current.filter((_, i) => i !== index);
+            return withBetalingsvoorwaardenByMode(prev, voorwaardenEditorMode, next.length > 0 ? next : ['']);
+        });
+    };
+
+    const moveBetalingsvoorwaarde = (index: number, direction: -1 | 1) => {
+        hasEditedPdfTextSettingsRef.current = true;
+        setPdfTextSettings((prev) => {
+            const current = getBetalingsvoorwaardenByMode(prev, voorwaardenEditorMode);
+            const target = index + direction;
+            if (target < 0 || target >= current.length) return prev;
+            const next = [...current];
+            const [item] = next.splice(index, 1);
+            next.splice(target, 0, item);
+            return withBetalingsvoorwaardenByMode(prev, voorwaardenEditorMode, next);
+        });
+    };
 
     const updateVoorwaardenAt = (index: number, value: string) => {
         hasEditedPdfTextSettingsRef.current = true;
@@ -5269,10 +5343,63 @@ export default function QuotePage() {
                                                                 <div>
                                                                     <Label>
                                                                         {voorwaardenEditorMode === 'vastePrijs'
-                                                                            ? 'Regels voor vaste prijs'
-                                                                            : 'Regels voor onder voorbehoud'}
+                                                                            ? 'Betalingsvoorwaarden vaste prijs'
+                                                                            : 'Betalingsvoorwaarden onder voorbehoud'}
                                                                     </Label>
-                                                                    <p className="text-xs text-muted-foreground mt-0.5">Per regel kun je een rode tekststijl aanzetten met de knop ‘Rood’.</p>
+                                                                    <p className="text-xs text-muted-foreground mt-0.5">Deze regels verschijnen bovenaan de voorwaardenpagina onder &quot;Betalingsvoorwaarden&quot;.</p>
+                                                                </div>
+                                                                {actieveBetalingsvoorwaarden.map((regel, index) => (
+                                                                    <div key={`betaling-${voorwaardenEditorMode}-${index}`} className="flex items-center gap-2">
+                                                                        <Input
+                                                                            value={regel}
+                                                                            onChange={(e) => updateBetalingsvoorwaardenAt(index, e.target.value)}
+                                                                            placeholder="Betalingsvoorwaarde..."
+                                                                        />
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="icon"
+                                                                            className="h-9 w-9"
+                                                                            onClick={() => moveBetalingsvoorwaarde(index, -1)}
+                                                                            disabled={index === 0}
+                                                                        >
+                                                                            <ArrowUp size={14} />
+                                                                        </Button>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="icon"
+                                                                            className="h-9 w-9"
+                                                                            onClick={() => moveBetalingsvoorwaarde(index, 1)}
+                                                                            disabled={index === actieveBetalingsvoorwaarden.length - 1}
+                                                                        >
+                                                                            <ArrowDown size={14} />
+                                                                        </Button>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="icon"
+                                                                            className="h-9 w-9 text-red-500 hover:text-red-400"
+                                                                            onClick={() => removeBetalingsvoorwaarde(index)}
+                                                                        >
+                                                                            <Trash2 size={14} />
+                                                                        </Button>
+                                                                    </div>
+                                                                ))}
+                                                                <Button type="button" variant="outline" className="gap-2" onClick={addBetalingsvoorwaarde}>
+                                                                    <Plus size={14} />
+                                                                    Regel toevoegen
+                                                                </Button>
+                                                            </div>
+
+                                                            <div className="space-y-3 rounded-xl border border-white/10 bg-muted/60 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                                                <div>
+                                                                    <Label>
+                                                                        {voorwaardenEditorMode === 'vastePrijs'
+                                                                            ? 'Voorwaarden vaste prijs'
+                                                                            : 'Voorwaarden onder voorbehoud'}
+                                                                    </Label>
+                                                                    <p className="text-xs text-muted-foreground mt-0.5">Per regel kun je een rode tekststijl aanzetten met de knop &apos;Rood&apos;.</p>
                                                                 </div>
                                                                 {actieveVoorwaarden.map((regel, index) => (
                                                                     <div key={`${voorwaardenEditorMode}-${index}`} className="flex items-center gap-2">
@@ -5472,6 +5599,34 @@ export default function QuotePage() {
                                                                         aria-label="Algemene voorwaarden op offerte tonen"
                                                                     />
                                                                 </div>
+                                                                {pdfSettings.showAlgemeneVoorwaarden && (
+                                                                    <div className="space-y-2">
+                                                                        <Label htmlFor="avTitel">Titel</Label>
+                                                                        <Input
+                                                                            id="avTitel"
+                                                                            value={algemeneVoorwaardenTitel}
+                                                                            onChange={(e) => {
+                                                                                hasEditedPdfTextSettingsRef.current = true;
+                                                                                setAlgemeneVoorwaardenTitel(e.target.value);
+                                                                            }}
+                                                                            placeholder="ALGEMENE VOORWAARDEN"
+                                                                        />
+                                                                        <Label htmlFor="avTekst">Tekst</Label>
+                                                                        <p className="text-xs text-muted-foreground">Typ hier je volledige algemene voorwaarden. Gebruik lege regels om alinea&apos;s te scheiden.</p>
+                                                                        <textarea
+                                                                            id="avTekst"
+                                                                            value={algemeneVoorwaardenTekst}
+                                                                            onChange={(e) => {
+                                                                                hasEditedPdfTextSettingsRef.current = true;
+                                                                                setAlgemeneVoorwaardenTekst(e.target.value);
+                                                                            }}
+                                                                            rows={12}
+                                                                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                                            placeholder="Vul hier je algemene voorwaarden in..."
+                                                                        />
+                                                                    </div>
+                                                                )}
+
                                                                 <input
                                                                     ref={algemeneVoorwaardenModalInputRef}
                                                                     type="file"

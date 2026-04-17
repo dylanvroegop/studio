@@ -14,6 +14,8 @@ type OptionSets = {
   categories: string[];
   subsections: string[];
   suppliers: string[];
+  categorySubsections: Record<string, string[]>;
+  activeCategory: string;
 };
 
 type ExtractedMaterial = {
@@ -86,11 +88,36 @@ function parseOptionList(raw: string | null): string[] {
   }
 }
 
+function parseCategorySubsections(raw: string | null): Record<string, string[]> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const result: Record<string, string[]> = {};
+    Object.entries(parsed as Record<string, unknown>).forEach(([category, values]) => {
+      const normalizedCategory = safeString(category);
+      if (!normalizedCategory || !Array.isArray(values)) return;
+      const normalizedValues = values
+        .map((value) => safeString(value))
+        .filter(Boolean)
+        .slice(0, 200);
+      if (normalizedValues.length > 0) {
+        result[normalizedCategory] = normalizedValues;
+      }
+    });
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 function parseOptionSets(formData: FormData): OptionSets {
   return {
     categories: parseOptionList(safeString(formData.get('categories')) || null),
     subsections: parseOptionList(safeString(formData.get('subsections')) || null),
     suppliers: parseOptionList(safeString(formData.get('suppliers')) || null),
+    categorySubsections: parseCategorySubsections(safeString(formData.get('categorySubsections')) || null),
+    activeCategory: safeString(formData.get('activeCategory')),
   };
 }
 
@@ -98,6 +125,10 @@ function buildExtractionPrompt(options: OptionSets): string {
   const categoriesText = options.categories.length > 0 ? options.categories.join(', ') : '(geen lijst meegegeven)';
   const subsectionsText = options.subsections.length > 0 ? options.subsections.join(', ') : '(geen lijst meegegeven)';
   const suppliersText = options.suppliers.length > 0 ? options.suppliers.join(', ') : '(geen lijst meegegeven)';
+  const activeCategoryText = options.activeCategory || '(geen actieve categorie)';
+  const categorySubsectionsText = Object.entries(options.categorySubsections)
+    .map(([category, subsections]) => `${category}: ${subsections.join(', ')}`)
+    .join('\n') || '(geen categorie->subsectie mapping meegegeven)';
 
   return `
 Je extraheert ALLE productregels uit een screenshot van een Nederlandse bouwmaterialen-webshop winkelwagen/checkout.
@@ -141,11 +172,19 @@ Regels:
   - Vul "lengte", "breedte", "hoogte", "dikte" als string met zichtbare maat + eenheid (bijv. "6.00 m", "3.66 m", "1.14 mm").
   - Als niet zichtbaar of niet betrouwbaar leesbaar: lege string "".
   - Zet geen afmetingen om naar andere eenheden; neem exact over zoals zichtbaar.
-- Leverancier: detecteer merk/winkel als duidelijk (bijv. Bouwmaat), anders leeg.
+- Leverancier: kies ALLEEN uit onderstaande leverancierslijst. Gebruik zichtbare URL/tabtitel/logo/merknaam als primaire hint (bijv. bouwmaat.nl => Bouwmaat).
 - Categorie/subsectie: kies ALLEEN uit onderstaande lijsten als een duidelijke match bestaat, anders leeg.
+- Als "Actieve categorie" is meegegeven, gebruik die categorie als standaardkeuze.
+- Subsectie MOET passen binnen de categorie->subsectie mapping als die beschikbaar is.
 
 Beschikbare categorieen:
 ${categoriesText}
+
+Actieve categorie:
+${activeCategoryText}
+
+Categorie -> subsecties (gebruik deze mapping):
+${categorySubsectionsText}
 
 Beschikbare subsecties:
 ${subsectionsText}
@@ -255,6 +294,72 @@ function normalizeConfidence(raw: unknown): number {
   return Number(raw.toFixed(2));
 }
 
+function normalizeLooseMatchText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function pickBestMatchingOption(raw: string, options: string[]): string {
+  const normalizedRaw = normalizeLooseMatchText(raw);
+  if (!normalizedRaw || options.length === 0) return '';
+
+  const normalizedOptions = options.map((option) => ({
+    original: option,
+    normalized: normalizeLooseMatchText(option),
+  }));
+
+  const exact = normalizedOptions.find((option) => option.normalized === normalizedRaw);
+  if (exact) return exact.original;
+
+  const starts = normalizedOptions.find((option) => option.normalized.startsWith(normalizedRaw));
+  if (starts) return starts.original;
+
+  const contains = normalizedOptions.find((option) =>
+    option.normalized.includes(normalizedRaw) || normalizedRaw.includes(option.normalized)
+  );
+  if (contains) return contains.original;
+
+  return '';
+}
+
+function resolveSupplier(rawSupplier: string, materialName: string, options: string[]): string {
+  if (options.length === 0) return '';
+  const hintText = `${rawSupplier} ${materialName}`.toLowerCase();
+  const aliases = [
+    { variants: ['bouwmaat', 'bouwmaat.nl'], canonical: 'bouwmaat' },
+    { variants: ['hornbach', 'hornbach.nl'], canonical: 'hornbach' },
+    { variants: ['gamma', 'gamma.nl'], canonical: 'gamma' },
+    { variants: ['karwei', 'karwei.nl'], canonical: 'karwei' },
+    { variants: ['praxis', 'praxis.nl'], canonical: 'praxis' },
+    { variants: ['stiho', 'stiho.nl'], canonical: 'stiho' },
+    { variants: ['jongeneel', 'jongeneel.nl'], canonical: 'jongeneel' },
+  ];
+  const aliasMatch = aliases.find((entry) => entry.variants.some((variant) => hintText.includes(variant)));
+  if (aliasMatch) {
+    const canonical = pickBestMatchingOption(aliasMatch.canonical, options);
+    if (canonical) return canonical;
+  }
+  return pickBestMatchingOption(rawSupplier, options) || pickBestMatchingOption(materialName, options);
+}
+
+function resolveSubsection(params: {
+  rawSubsection: string;
+  materialName: string;
+  resolvedCategory: string;
+  options: OptionSets;
+}): string {
+  const { rawSubsection, materialName, resolvedCategory, options } = params;
+  const scopedOptions = resolvedCategory && Array.isArray(options.categorySubsections[resolvedCategory]) && options.categorySubsections[resolvedCategory].length > 0
+    ? options.categorySubsections[resolvedCategory]
+    : options.subsections;
+  if (scopedOptions.length === 0) return '';
+  return pickBestMatchingOption(rawSubsection, scopedOptions) || pickBestMatchingOption(materialName, scopedOptions);
+}
+
 function normalizeMaterial(input: Record<string, unknown>): ExtractedMaterial {
   const prijsExcl = normalizeNumber(input.prijs_excl_btw);
   const prijsIncl = normalizeNumber(input.prijs_incl_btw);
@@ -271,6 +376,33 @@ function normalizeMaterial(input: Record<string, unknown>): ExtractedMaterial {
     subsectie: safeString(input.subsectie),
     leverancier: safeString(input.leverancier),
     confidence: normalizeConfidence(input.confidence),
+  };
+}
+
+function enforceOptions(material: ExtractedMaterial, options: OptionSets): ExtractedMaterial {
+  const resolvedCategory = pickBestMatchingOption(
+    material.categorie || options.activeCategory,
+    options.categories
+  ) || pickBestMatchingOption(options.activeCategory, options.categories);
+
+  const resolvedSubsection = resolveSubsection({
+    rawSubsection: material.subsectie,
+    materialName: material.materiaalnaam,
+    resolvedCategory,
+    options,
+  });
+
+  const resolvedSupplier = resolveSupplier(
+    material.leverancier,
+    material.materiaalnaam,
+    options.suppliers
+  );
+
+  return {
+    ...material,
+    categorie: resolvedCategory,
+    subsectie: resolvedSubsection,
+    leverancier: resolvedSupplier,
   };
 }
 
@@ -375,7 +507,7 @@ export async function POST(request: Request) {
       options,
     });
 
-    const materials = normalizeMaterials(extracted);
+    const materials = normalizeMaterials(extracted).map((material) => enforceOptions(material, options));
     if (materials.length === 0) {
       return NextResponse.json({ ok: false, message: 'Geen materialen gevonden in screenshot.' }, { status: 422 });
     }

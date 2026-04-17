@@ -131,6 +131,7 @@ function NieuweFactuurPageContent() {
   const [voorschotPercentage, setVoorschotPercentage] = useState<number>(50);
   const [existingVoorschotId, setExistingVoorschotId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [voorschotBedragStr, setVoorschotBedragStr] = useState<string>('');
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -231,6 +232,13 @@ function NieuweFactuurPageContent() {
 
   const pct = useMemo(() => clampPct(Number(voorschotPercentage) || 0), [voorschotPercentage]);
   const voorschotBedrag = useMemo(() => Math.round(totalIncl * (pct / 100) * 100) / 100, [totalIncl, pct]);
+
+  useEffect(() => {
+    if (totalIncl > 0) {
+      const bedrag = Math.round(totalIncl * (pct / 100) * 100) / 100;
+      setVoorschotBedragStr(bedrag.toFixed(2));
+    }
+  }, [totalIncl]); // only sync on initial load
   const hasVoorschotFactuur = !!existingVoorschotId;
   const aftrek = useMemo(
     () => (hasVoorschotFactuur && voorschotIngeschakeld ? voorschotBedrag : 0),
@@ -398,7 +406,12 @@ function NieuweFactuurPageContent() {
                               min={0}
                               max={100}
                               value={voorschotPercentage}
-                              onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
+                              onChange={(e) => {
+                                const newPct = Number(e.target.value);
+                                setVoorschotPercentage(newPct);
+                                const newBedrag = Math.round(totalIncl * (clampPct(newPct) / 100) * 100) / 100;
+                                setVoorschotBedragStr(newBedrag.toFixed(2));
+                              }}
                               className="pr-10"
                             />
                             <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
@@ -406,9 +419,29 @@ function NieuweFactuurPageContent() {
                         </div>
                         <div className="space-y-2">
                           <Label>Bedrag (incl. BTW)</Label>
-                          <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
-                            <span className="text-sm text-muted-foreground">Voorschot</span>
-                            <span className="text-sm font-semibold">{formatCurrency(voorschotBedrag)}</span>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={voorschotBedragStr}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setVoorschotBedragStr(val);
+                                const numVal = parseFloat(val);
+                                if (!isNaN(numVal) && totalIncl > 0) {
+                                  const newPct = clampPct(Math.round((numVal / totalIncl) * 100 * 100) / 100);
+                                  setVoorschotPercentage(newPct);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const numVal = parseFloat(e.target.value);
+                                if (!isNaN(numVal)) {
+                                  setVoorschotBedragStr(numVal.toFixed(2));
+                                }
+                              }}
+                              className="pr-8"
+                            />
+                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">€</span>
                           </div>
                         </div>
                       </div>
@@ -468,7 +501,12 @@ function NieuweFactuurPageContent() {
                               min={0}
                               max={100}
                               value={voorschotPercentage}
-                              onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
+                              onChange={(e) => {
+                                const newPct = Number(e.target.value);
+                                setVoorschotPercentage(newPct);
+                                const newBedrag = Math.round(totalIncl * (clampPct(newPct) / 100) * 100) / 100;
+                                setVoorschotBedragStr(newBedrag.toFixed(2));
+                              }}
                               disabled={!voorschotIngeschakeld}
                               className="pr-10"
                             />

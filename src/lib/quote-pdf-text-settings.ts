@@ -1,4 +1,6 @@
 export interface QuotePdfTextSettings {
+  betalingsvoorwaardenVastePrijs: string[];
+  betalingsvoorwaardenOnderVoorbehoud: string[];
   voorwaardenVastePrijs: string[];
   voorwaardenOnderVoorbehoud: string[];
   voorwaardenVastePrijsRodeRegels: number[];
@@ -9,20 +11,28 @@ export interface QuotePdfTextSettings {
 }
 
 export const defaultQuotePdfTextSettings: QuotePdfTextSettings = {
+  betalingsvoorwaardenVastePrijs: [
+    '50% voorschot bij akkoord, voor materiaalinkoop en het reserveren van uitvoeringscapaciteit.',
+    '50% bij oplevering van de werkzaamheden.',
+    'Maximaal 10% van het totaalbedrag mag worden ingehouden voor kleine opleverpunten.',
+    'Eventuele opleverpunten worden binnen 7 dagen na oplevering opgelost en daarna afgerekend.',
+  ],
+  betalingsvoorwaardenOnderVoorbehoud: [
+    'Betaling achteraf op factuur na uitvoering, tenzij schriftelijk anders afgesproken.',
+    'Maximaal 10% van het totaalbedrag mag worden ingehouden voor kleine opleverpunten.',
+    'Eventuele opleverpunten worden binnen 7 dagen na oplevering opgelost en daarna afgerekend.',
+  ],
   voorwaardenVastePrijs: [
-    'Deze offerte is 30 dagen geldig vanaf offertedatum',
-    'Prijzen zijn exclusief BTW tenzij anders vermeld',
-    'Meerwerk wordt in overleg uitgevoerd en separaat gefactureerd',
-    'Betaling: 50% bij opdracht, 50% bij oplevering',
-    'Op al onze werkzaamheden zijn onze algemene voorwaarden van toepassing',
+    'Prijzen zijn exclusief BTW tenzij anders vermeld.',
+    'Meerwerk en onvoorziene werkzaamheden worden vooraf besproken en pas na schriftelijk akkoord uitgevoerd.',
+    'Op al onze werkzaamheden zijn onze algemene voorwaarden van toepassing.',
   ],
   voorwaardenOnderVoorbehoud: [
-    'Deze offerte is 30 dagen geldig vanaf offertedatum',
-    'Deze offerte betreft een richtprijs op basis van huidige inzichten',
-    'Definitieve verrekening gebeurt op basis van werkelijk uitgevoerde werkzaamheden',
-    'Betaling: achteraf op factuur na uitvoering, tenzij schriftelijk anders afgesproken',
-    'Onder voorbehoud van prijs- en typewijzigingen',
-    'Op al onze werkzaamheden zijn onze algemene voorwaarden van toepassing',
+    'Deze offerte betreft een richtprijs op basis van huidige inzichten.',
+    'Definitieve verrekening gebeurt op basis van werkelijk uitgevoerde werkzaamheden.',
+    'Meerwerk en onvoorziene werkzaamheden worden vooraf besproken en pas na schriftelijk akkoord uitgevoerd.',
+    'Onder voorbehoud van prijs- en typewijzigingen.',
+    'Op al onze werkzaamheden zijn onze algemene voorwaarden van toepassing.',
   ],
   voorwaardenVastePrijsRodeRegels: [],
   voorwaardenOnderVoorbehoudRodeRegels: [],
@@ -34,10 +44,9 @@ export const defaultQuotePdfTextSettings: QuotePdfTextSettings = {
 
 function sanitizeRegels(value: unknown, fallback: string[]): string[] {
   if (!Array.isArray(value)) return [...fallback];
-  const regels = value
+  return value
     .map((item) => (typeof item === 'string' ? item.trim() : ''))
     .filter((item) => item.length > 0);
-  return regels.length > 0 ? regels : [...fallback];
 }
 
 function sanitizeRegelIndexes(value: unknown, maxLength: number): number[] {
@@ -69,6 +78,16 @@ export function sanitizeQuotePdfTextSettings(value: unknown): QuotePdfTextSettin
   const ondertekeningNaam =
     typeof raw.ondertekeningNaam === 'string' ? raw.ondertekeningNaam.trim() : '';
 
+  const betalingsvoorwaardenVastePrijs = sanitizeRegels(
+    raw.betalingsvoorwaardenVastePrijs,
+    defaultQuotePdfTextSettings.betalingsvoorwaardenVastePrijs,
+  );
+
+  const betalingsvoorwaardenOnderVoorbehoud = sanitizeRegels(
+    raw.betalingsvoorwaardenOnderVoorbehoud,
+    defaultQuotePdfTextSettings.betalingsvoorwaardenOnderVoorbehoud,
+  );
+
   const voorwaardenVastePrijs = sanitizeRegels(
     raw.voorwaardenVastePrijs,
     defaultQuotePdfTextSettings.voorwaardenVastePrijs,
@@ -92,6 +111,8 @@ export function sanitizeQuotePdfTextSettings(value: unknown): QuotePdfTextSettin
   );
 
   return {
+    betalingsvoorwaardenVastePrijs,
+    betalingsvoorwaardenOnderVoorbehoud,
     voorwaardenVastePrijs,
     voorwaardenOnderVoorbehoud,
     voorwaardenVastePrijsRodeRegels,

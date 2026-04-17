@@ -1140,7 +1140,7 @@ const KOZIJN_BINNEN_HOUT_MATS: MaterialSection[] = [
 
 // 2. BINNEN KOZIJNEN (STAAL)
 const KOZIJN_BINNEN_STAAL_MATS: MaterialSection[] = [
-  { label: 'Stalen Kozijn', categoryFilter: 'Overig', category: 'Stalen kozijn', key: 'stalen_kozijn', category_ultra_filter: '', multiEntry: true, syncToJobAantal: true },
+  { label: 'Stalen Kozijn', categoryFilter: 'Montage kozijnen', category: 'Stalen kozijn', key: 'stalen_kozijn', category_ultra_filter: '', multiEntry: true, syncToJobAantal: true },
 
   { label: 'Paumelles', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'paumelles_staal', category_ultra_filter: '', multiEntry: true },
   { label: 'Aanslagrubber', categoryFilter: 'Deurbeslag', category: 'beslag', key: 'aanslagrubber', category_ultra_filter: '', multiEntry: true },

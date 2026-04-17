@@ -604,7 +604,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         summaryItems.push([arbeidLabel, formatCurrency(summaryLineTotals.arbeid)]);
     }
 
-    if (data.settings.showSummaryTransport) {
+    if (data.settings.showSummaryTransport && summaryLineTotals.transport !== 0) {
         summaryItems.push(['Transport', formatCurrency(summaryLineTotals.transport)]);
     }
 
@@ -1007,7 +1007,44 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.addPage();
     y = margin;
 
-    drawSectionPageHeader('VOORWAARDEN');
+    // --- BETALINGSVOORWAARDEN ---
+
+    const betalingsTerms = isOnderVoorbehoud
+        ? tekstInstellingen.betalingsvoorwaardenOnderVoorbehoud
+        : tekstInstellingen.betalingsvoorwaardenVastePrijs;
+
+    drawSectionPageHeader('BETALINGSVOORWAARDEN');
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(60, 60, 60);
+
+    const bulletIndent = 4;
+
+    betalingsTerms.forEach((term) => {
+        const clean = (term || '').trim();
+        if (!clean) return;
+        const termText = normalizeCommonWording(clean.replace(/^[•\-]\s*/, ''));
+        if (!termText) return;
+
+        const wrapped = doc.splitTextToSize(termText, pageWidth - (margin * 2) - bulletIndent);
+        doc.text('•', margin, y);
+        doc.text(wrapped, margin + bulletIndent, y);
+        y += wrapped.length * 4.4;
+    });
+
+    y += 10;
+
+    // --- VOORWAARDEN ---
+
+    const algemeenHeader = 'VOORWAARDEN';
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 30, 30);
+    doc.text(algemeenHeader, margin, y);
+    y += 8;
+    drawLine(y);
+    y += 10;
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -1031,12 +1068,11 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
 
         const shouldBeRed = redTerms.has(index);
         doc.setTextColor(shouldBeRed ? 185 : 60, shouldBeRed ? 28 : 60, shouldBeRed ? 28 : 60);
-        const bulletIndent = 4;
         const wrapped = doc.splitTextToSize(termText, pageWidth - (margin * 2) - bulletIndent);
         if (y + (wrapped.length * 4.4) > pageHeight - 55) {
             doc.addPage();
             y = margin;
-            drawSectionPageHeader('VOORWAARDEN');
+            drawSectionPageHeader(algemeenHeader);
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
         }
@@ -1056,7 +1092,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     if (y + (akkoordUitleg.length * 4.1) + 36 > pageHeight - margin) {
         doc.addPage();
         y = margin;
-        drawSectionPageHeader('VOORWAARDEN');
+        drawSectionPageHeader(algemeenHeader);
     } else {
         y += 8;
         drawLine(y);

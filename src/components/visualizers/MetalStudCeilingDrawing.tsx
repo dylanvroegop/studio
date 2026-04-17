@@ -165,6 +165,39 @@ export function MetalStudCeilingDrawing({
         });
     }, [rawOpenings, effectiveHeight]);
 
+    const koofMeasurementRects = React.useMemo(() => (
+        (item.koven || [])
+            .map((koof) => {
+                const koofLengte = Number(koof.lengte) || 0;
+                const koofHoogte = Number(koof.hoogte) || 0;
+                const koofVanLinks = Number(koof.vanLinks) || 0;
+                const koofVanOnder = Number(koof.vanOnder) || 0;
+                const orientation = koof.orientation || 'side';
+
+                if (koofLengte <= 0 || koofHoogte <= 0) return null;
+
+                const width = orientation === 'side' ? koofHoogte : koofLengte;
+                const height = orientation === 'side' ? koofLengte : koofHoogte;
+
+                return {
+                    id: `koof-${koof.id}`,
+                    width,
+                    height,
+                    fromLeft: koofVanLinks,
+                    fromBottom: koofVanOnder,
+                    type: 'koof',
+                };
+            })
+            .filter((value): value is {
+                id: string;
+                width: number;
+                height: number;
+                fromLeft: number;
+                fromBottom: number;
+                type: string;
+            } => value !== null)
+    ), [item.koven]);
+
     const { draggingId, handlePointerDown, handlePointerMove, handlePointerUp } = useDraggableOpenings({
         openings: draggableOpenings,
         onOpeningsChange: (updated) => {
@@ -214,6 +247,41 @@ export function MetalStudCeilingDrawing({
             origBottom: Number(koof.vanOnder) || 0
         };
     }, [onKoofChange]);
+
+    const handleKoofDoubleClick = React.useCallback((e: React.MouseEvent<SVGGElement>, koof: KoofItem) => {
+        if (!onKoofChange) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const currentOrientation = koof.orientation || 'side';
+        const nextOrientation: 'side' | 'top' = currentOrientation === 'side' ? 'top' : 'side';
+        const koofLengte = Number(koof.lengte) || 0;
+        const koofHoogte = Number(koof.hoogte) || 0;
+        const currentLeft = Number(koof.vanLinks) || 0;
+        const currentBottom = Number(koof.vanOnder) || 0;
+
+        const rectWMm = nextOrientation === 'side' ? koofHoogte : koofLengte;
+        const rectHMm = nextOrientation === 'side' ? koofLengte : koofHoogte;
+        const maxLeft = Math.max(0, lengte - rectWMm);
+        const maxBottom = Math.max(0, effectiveHeight - rectHMm);
+        const finalLeft = Math.min(Math.max(0, currentLeft), maxLeft);
+        const finalBottom = Math.min(Math.max(0, currentBottom), maxBottom);
+
+        let sides = 3;
+        if (lengte > 0 && (finalLeft === 0 || Math.abs(finalLeft + rectWMm - lengte) < 2)) {
+            sides = 2;
+        }
+        if (effectiveHeight > 0 && (finalBottom === 0 || Math.abs(finalBottom + rectHMm - effectiveHeight) < 2)) {
+            sides = 2;
+        }
+
+        const updatedKofen = (item.koven || []).map((k) => (
+            k.id === koof.id
+                ? { ...k, orientation: nextOrientation, vanLinks: finalLeft, vanOnder: finalBottom, aantalZijden: sides }
+                : k
+        ));
+        onKoofChange(updatedKofen);
+    }, [onKoofChange, lengte, effectiveHeight, item.koven]);
 
     const handleKoofPointerMove = React.useCallback((e: React.PointerEvent) => {
         if (!draggingKoofId || !koofDragStartRef.current || !onKoofChange) return;
@@ -550,6 +618,7 @@ export function MetalStudCeilingDrawing({
                             wallLength={lengte}
                             wallHeight={effectiveHeight}
                             onPointerDown={handleKoofPointerDown}
+                            onDoubleClick={handleKoofDoubleClick}
                             onPointerMove={handleKoofPointerMove}
                             onPointerUp={handleKoofPointerUp}
                             draggingId={draggingKoofId}
@@ -572,7 +641,7 @@ export function MetalStudCeilingDrawing({
                         )}
 
                         <OpeningMeasurements
-                            openings={draggableOpenings}
+                            openings={[...draggableOpenings, ...koofMeasurementRects]}
                             wallLength={lengte}
                             wallHeight={effectiveHeight}
                             svgBaseX={startX}

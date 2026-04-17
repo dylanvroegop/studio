@@ -1661,6 +1661,9 @@ export default function GenericMaterialsPageRedesigned() {
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [presetToDelete, setPresetToDelete] = useState<any | null>(null);
+  const [presetToRename, setPresetToRename] = useState<any | null>(null);
+  const [renamePresetName, setRenamePresetName] = useState('');
+  const [isRenamingPreset, setIsRenamingPreset] = useState(false);
   const [managePresetsModalOpen, setManagePresetsModalOpen] = useState(false);
   const [isExtraModalOpen, setIsExtraModalOpen] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
@@ -1732,6 +1735,10 @@ export default function GenericMaterialsPageRedesigned() {
   const [saveComponentPresetOpen, setSaveComponentPresetOpen] = useState(false);
   const [saveComponentPresetType, setSaveComponentPresetType] = useState<string | null>(null);
   const [saveComponentPresetCompId, setSaveComponentPresetCompId] = useState<string | null>(null);
+  const [componentPresetPickerOpen, setComponentPresetPickerOpen] = useState(false);
+  const [componentPresetPickerType, setComponentPresetPickerType] = useState<string | null>(null);
+  const [componentPresetPickerCompId, setComponentPresetPickerCompId] = useState<string | null>(null);
+  const [componentPresetPickerSearch, setComponentPresetPickerSearch] = useState('');
   const userHeeftPresetGewijzigdRef = useRef(false);
   const isHydratingRef = useRef(true);
   const hasSavedConfigRef = useRef(false);
@@ -2204,6 +2211,16 @@ export default function GenericMaterialsPageRedesigned() {
     [filteredPresetCards, isBuiltInPresetCard]
   );
 
+  const favoritePresetCards = useMemo(
+    () => customPresetCards.filter((preset: any) => !!preset.isDefault),
+    [customPresetCards]
+  );
+
+  const normalPresetCards = useMemo(
+    () => customPresetCards.filter((preset: any) => !preset.isDefault),
+    [customPresetCards]
+  );
+
   const renderPresetPickerCard = (preset: any, hasCustomPresets: boolean) => {
     const isSelected = gekozenPresetId === preset.id;
     const isBuiltIn = isBuiltInPresetCard(preset);
@@ -2264,6 +2281,22 @@ export default function GenericMaterialsPageRedesigned() {
             </button>
 
             <div className="flex items-center gap-1 shrink-0">
+              {!isBuiltIn ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-12 w-12 text-muted-foreground hover:text-emerald-400"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPresetToRename(preset);
+                    setRenamePresetName(String(preset.name || ''));
+                  }}
+                  title="Naam wijzigen"
+                >
+                  <Edit2 className="h-5 w-5" />
+                </Button>
+              ) : null}
               {!isBuiltIn ? (
                 <Button
                   type="button"
@@ -2693,10 +2726,84 @@ export default function GenericMaterialsPageRedesigned() {
     }));
   }, [componentPresets]);
 
+  const handleResetComponentPreset = useCallback((compId: string) => {
+    setComponents((prev) => prev.map((comp) => (
+      comp.id === compId ? { ...comp, materials: [] } : comp
+    )));
+  }, []);
+
+  const handleSelectComponentPreset = useCallback((presetId: string, componentType: string, compId: string) => {
+    setComponentPresetSelection((prev) => ({ ...prev, [compId]: presetId }));
+
+    if (presetId === 'default') {
+      handleResetComponentPreset(compId);
+      return;
+    }
+
+    handleApplyComponentPreset(presetId, componentType, compId);
+  }, [handleApplyComponentPreset, handleResetComponentPreset]);
+
+  const openComponentPresetPicker = useCallback((componentType: string, compId: string) => {
+    setComponentPresetPickerType(componentType);
+    setComponentPresetPickerCompId(compId);
+    setComponentPresetPickerOpen(true);
+  }, []);
+
   const getDefaultComponentPreset = useCallback((type: string) => {
     const list = componentPresets[type] || [];
     return list.find((p: any) => p.isDefault) || list.find((p: any) => (p.name || '').toLowerCase().includes('standaard'));
   }, [componentPresets]);
+
+  const componentPresetPickerTitle = useMemo(() => {
+    if (!componentPresetPickerType) return 'Werkpakket';
+    return COMPONENT_REGISTRY[componentPresetPickerType as JobComponentType]?.title || componentPresetPickerType;
+  }, [componentPresetPickerType]);
+
+  const componentPresetPickerSelectedId = useMemo(() => {
+    if (!componentPresetPickerCompId) return 'default';
+    return componentPresetSelection[componentPresetPickerCompId] || 'default';
+  }, [componentPresetPickerCompId, componentPresetSelection]);
+
+  const componentPresetPickerCards = useMemo(() => {
+    if (!componentPresetPickerType) return [] as any[];
+    const list = [...(componentPresets[componentPresetPickerType] || [])];
+    return list.sort((a: any, b: any) => {
+      const aFavorite = !!a.isDefault || String(a.name || '').toLowerCase().includes('standaard');
+      const bFavorite = !!b.isDefault || String(b.name || '').toLowerCase().includes('standaard');
+      if (aFavorite !== bFavorite) return aFavorite ? -1 : 1;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'nl');
+    });
+  }, [componentPresets, componentPresetPickerType]);
+
+  const componentPresetPickerFilteredCards = useMemo(() => {
+    const q = componentPresetPickerSearch.trim().toLowerCase();
+    if (!q) return componentPresetPickerCards;
+    return componentPresetPickerCards.filter((preset: any) =>
+      String(preset.name || '').toLowerCase().includes(q)
+    );
+  }, [componentPresetPickerCards, componentPresetPickerSearch]);
+
+  const componentFavoritePresetCards = useMemo(
+    () => componentPresetPickerFilteredCards.filter((preset: any) =>
+      !!preset.isDefault || String(preset.name || '').toLowerCase().includes('standaard')
+    ),
+    [componentPresetPickerFilteredCards]
+  );
+
+  const componentNormalPresetCards = useMemo(
+    () => componentPresetPickerFilteredCards.filter((preset: any) =>
+      !preset.isDefault && !String(preset.name || '').toLowerCase().includes('standaard')
+    ),
+    [componentPresetPickerFilteredCards]
+  );
+
+  useEffect(() => {
+    if (!componentPresetPickerOpen) {
+      setComponentPresetPickerSearch('');
+      setComponentPresetPickerType(null);
+      setComponentPresetPickerCompId(null);
+    }
+  }, [componentPresetPickerOpen]);
 
   // Auto-apply standaard werkpakket per component (only when empty)
   useEffect(() => {
@@ -4051,7 +4158,16 @@ export default function GenericMaterialsPageRedesigned() {
           if (cat) componentForceShow[cat] = false; // Force show
         });
 
-        setHiddenCategories(prev => ({ ...prev, ...componentForceShow }));
+        const presetHiddenCategories =
+          preset.hiddenCategories && typeof preset.hiddenCategories === 'object'
+            ? preset.hiddenCategories
+            : {};
+
+        setHiddenCategories(prev => ({
+          ...prev,
+          ...presetHiddenCategories,
+          ...componentForceShow,
+        }));
       } catch (error) {
         console.error('Preset apply error:', error);
       } finally {
@@ -4986,7 +5102,7 @@ export default function GenericMaterialsPageRedesigned() {
       slotMeta,
       schemaVersion: 2,
       collapsedSections,
-      // hiddenCategories removed - now stored in user profile globally, not per-preset
+      hiddenCategories: JSON.parse(JSON.stringify(hiddenCategories ?? {})),
       kleinMateriaalConfig,
       custommateriaal: customMap,
       components: JSON.parse(JSON.stringify(components)), // FIX: Save components (kozijnen, deuren, etc.)
@@ -5779,6 +5895,57 @@ export default function GenericMaterialsPageRedesigned() {
   const handlePresetDeleteWrapper = (preset: any) => { setPresetToDelete(preset); setDeleteConfirmationOpen(true); };
   const handlePresetSetDefaultWrapper = (preset: any) => handleSetDefaultPreset(preset);
 
+  const handleRenamePreset = async () => {
+    if (!presetToRename || !firestore) return;
+
+    const nextName = String(renamePresetName || '').trim();
+    if (!nextName) {
+      toast({
+        variant: 'destructive',
+        title: 'Naam ontbreekt',
+        description: 'Vul eerst een naam in voor dit werkpakket.',
+      });
+      return;
+    }
+
+    const hasDuplicate = presets.some((p) =>
+      p.id !== presetToRename.id
+      && String(p.name || '').trim().toLowerCase() === nextName.toLowerCase()
+    );
+    if (hasDuplicate) {
+      toast({
+        variant: 'destructive',
+        title: 'Naam bestaat al',
+        description: 'Gebruik een andere naam voor dit werkpakket.',
+      });
+      return;
+    }
+
+    setIsRenamingPreset(true);
+    try {
+      await updateDoc(doc(firestore, 'presets', String(presetToRename.id)), {
+        name: nextName,
+        updatedAt: serverTimestamp(),
+      });
+
+      setPresets((prev) => prev.map((p) => (
+        p.id === presetToRename.id ? { ...p, name: nextName } : p
+      )));
+      showFooterSaveMessage(`Werkpakket hernoemd naar "${nextName}".`);
+      setPresetToRename(null);
+      setRenamePresetName('');
+    } catch (error) {
+      console.error('Fout bij hernoemen werkpakket:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Fout',
+        description: 'Kon de naam van dit werkpakket niet wijzigen.',
+      });
+    } finally {
+      setIsRenamingPreset(false);
+    }
+  };
+
   // Page progress (not item completion)
   // This is the materials page, which is step 3 of 4 (after client info at 0%)
   // Client info (0%) -> Job selection (25%) -> Job details (50%) -> Materials (75%) -> Overview (100%)
@@ -5819,7 +5986,7 @@ export default function GenericMaterialsPageRedesigned() {
           {/* Preset Selector - Compact */}
           <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
             <Label className="text-base font-semibold text-foreground/90">Kies Een Werkpakket</Label>
-            <div className="grid w-full items-stretch grid-cols-1 gap-2 sm:gap-0 sm:[grid-template-columns:84%_15%] sm:[column-gap:1%]">
+            <div className="grid w-full items-stretch grid-cols-1 gap-2 sm:gap-0 sm:[grid-template-columns:78%_21%] sm:[column-gap:1%]">
               <Button
                 type="button"
                 variant="outline"
@@ -5849,15 +6016,28 @@ export default function GenericMaterialsPageRedesigned() {
                 </div>
               </Button>
 
-              <Button
-                type="button"
-                variant="outline"
-                className="mobile-calm-subtle h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border font-semibold"
-                onClick={resetToNieuwWithoutWarning}
-              >
-                <Sparkles className="h-4 w-4 mr-2 text-muted-foreground" />
-                Nieuw
-              </Button>
+              <div className="flex items-stretch gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mobile-calm-subtle h-10 flex-1 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border font-semibold"
+                  onClick={resetToNieuwWithoutWarning}
+                >
+                  <Sparkles className="h-4 w-4 mr-2 text-muted-foreground" />
+                  Nieuw
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  title="Opslaan als werkpakket"
+                  disabled={isPresetNotReadyForSave}
+                  onClick={() => setSavePresetModalOpen(true)}
+                  className="mobile-calm-subtle h-10 w-10 shrink-0 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border"
+                >
+                  <Save className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -6228,28 +6408,22 @@ export default function GenericMaterialsPageRedesigned() {
                                             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                               Werkpakket
                                             </Label>
-                                            <Select
-                                              value={componentPresetSelection[comp.id] || 'default'}
-                                              onValueChange={(val) => {
-                                                setComponentPresetSelection(prev => ({ ...prev, [comp.id]: val }));
-                                                if (val !== 'default') {
-                                                  handleApplyComponentPreset(val, targetComponentType, comp.id);
-                                                }
-                                              }}
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              className="w-full bg-background/60 border-emerald-500/20 focus:ring-emerald-500/20 h-9 justify-between px-3"
+                                              onClick={() => openComponentPresetPicker(targetComponentType, comp.id)}
                                             >
-                                              <SelectTrigger className="w-full bg-background/60 border-emerald-500/20 focus:ring-emerald-500/20 h-9">
-                                                <div className="flex items-center gap-2">
-                                                  <Box className="w-4 h-4 text-emerald-500" />
-                                                  <SelectValue placeholder="Kies werkpakket" />
-                                                </div>
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                <SelectItem className={SELECT_ITEM_GREEN} value="default">Nieuw</SelectItem>
-                                                {(componentPresets[targetComponentType] || []).map((p: any) => (
-                                                  <SelectItem className={SELECT_ITEM_GREEN} key={p.id} value={p.id}>{p.name}</SelectItem>
-                                                ))}
-                                              </SelectContent>
-                                            </Select>
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                <Box className="w-4 h-4 text-emerald-500 shrink-0" />
+                                                <span className="text-sm text-foreground truncate">
+                                                  {componentPresetSelection[comp.id] === 'default' || !componentPresetSelection[comp.id]
+                                                    ? 'Nieuw'
+                                                    : ((componentPresets[targetComponentType] || []).find((p: any) => p.id === componentPresetSelection[comp.id])?.name || 'Werkpakket')}
+                                                </span>
+                                              </div>
+                                              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                            </Button>
                                           </div>
                                           <Button
                                             variant="ghost"
@@ -6682,6 +6856,133 @@ export default function GenericMaterialsPageRedesigned() {
         }}
       />
 
+      <Dialog open={componentPresetPickerOpen} onOpenChange={setComponentPresetPickerOpen}>
+        <DialogContent className={cn('w-[95vw] max-w-[900px] h-[82vh] overflow-hidden flex flex-col', DIALOG_CLOSE_TAP)}>
+          <DialogHeader className="space-y-2">
+            <DialogTitle>Kies werkpakket voor {componentPresetPickerTitle}</DialogTitle>
+            <DialogDescription>
+              Selecteer een werkpakket voor dit onderdeel.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Zoek werkpakket..."
+              value={componentPresetPickerSearch}
+              onChange={(e) => setComponentPresetPickerSearch(e.target.value)}
+              className="pl-9 h-10 border-muted-foreground/20 focus-visible:ring-emerald-500/40"
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-3 py-1">
+            <button
+              type="button"
+              onClick={() => {
+                if (!componentPresetPickerCompId || !componentPresetPickerType) return;
+                handleSelectComponentPreset('default', componentPresetPickerType, componentPresetPickerCompId);
+                setComponentPresetPickerOpen(false);
+              }}
+              className={cn(
+                'w-full rounded-xl border p-4 text-left transition-colors',
+                componentPresetPickerSelectedId === 'default'
+                  ? 'border-emerald-500/40 bg-emerald-500/10'
+                  : 'border-border/70 bg-card/30 hover:bg-muted/30'
+              )}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-foreground">Nieuw</div>
+                  <div className="text-xs text-muted-foreground">Start zonder werkpakket</div>
+                </div>
+                {componentPresetPickerSelectedId === 'default' ? <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" /> : null}
+              </div>
+            </button>
+
+            {componentFavoritePresetCards.length > 0 ? (
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] uppercase tracking-wider text-yellow-400/90 font-semibold">Standaard / Favoriet</div>
+                {componentFavoritePresetCards.map((preset: any) => {
+                  const isActive = componentPresetPickerSelectedId === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        if (!componentPresetPickerCompId || !componentPresetPickerType) return;
+                        handleSelectComponentPreset(preset.id, componentPresetPickerType, componentPresetPickerCompId);
+                        setComponentPresetPickerOpen(false);
+                      }}
+                      className={cn(
+                        'w-full rounded-xl border p-4 text-left transition-colors',
+                        isActive
+                          ? 'border-emerald-500/40 bg-emerald-500/10'
+                          : 'border-border/70 bg-card/30 hover:bg-muted/30'
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-foreground truncate">{preset.name}</div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Star className={cn('h-4 w-4', preset.isDefault ? 'fill-yellow-400 text-yellow-400' : 'text-yellow-300/90')} />
+                          {isActive ? <CheckCircle2 className="h-5 w-5 text-emerald-400" /> : null}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {componentFavoritePresetCards.length > 0 && componentNormalPresetCards.length > 0 ? (
+              <div className="border-t border-border/70 my-2" />
+            ) : null}
+
+            {componentNormalPresetCards.length > 0 ? (
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Overige werkpakketten</div>
+                {componentNormalPresetCards.map((preset: any) => {
+                  const isActive = componentPresetPickerSelectedId === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        if (!componentPresetPickerCompId || !componentPresetPickerType) return;
+                        handleSelectComponentPreset(preset.id, componentPresetPickerType, componentPresetPickerCompId);
+                        setComponentPresetPickerOpen(false);
+                      }}
+                      className={cn(
+                        'w-full rounded-xl border p-4 text-left transition-colors',
+                        isActive
+                          ? 'border-emerald-500/40 bg-emerald-500/10'
+                          : 'border-border/70 bg-card/30 hover:bg-muted/30'
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-foreground truncate">{preset.name}</div>
+                        </div>
+                        {isActive ? <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" /> : null}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {componentPresetPickerFilteredCards.length === 0 ? (
+              <div className="text-sm text-muted-foreground text-center py-10">Geen werkpakketten gevonden.</div>
+            ) : null}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2 justify-start sm:justify-start">
+            <Button variant="ghost" onClick={() => setComponentPresetPickerOpen(false)}>Sluiten</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AddExtraMaterialDialog
         open={addExtraMaterialOpen}
         onOpenChange={setAddExtraMaterialOpen}
@@ -6729,7 +7030,24 @@ export default function GenericMaterialsPageRedesigned() {
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-2 py-1">
-            {customPresetCards.map((preset: any) => renderPresetPickerCard(preset, customPresetCards.length > 0))}
+            {favoritePresetCards.length > 0 ? (
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] uppercase tracking-wider text-yellow-400/90 font-semibold">Favorieten</div>
+                {favoritePresetCards.map((preset: any) => renderPresetPickerCard(preset, customPresetCards.length > 0))}
+              </div>
+            ) : null}
+
+            {favoritePresetCards.length > 0 && normalPresetCards.length > 0 ? (
+              <div className="border-t border-border/70 my-2" />
+            ) : null}
+
+            {normalPresetCards.length > 0 ? (
+              <div className="space-y-2">
+                <div className="px-1 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Overige werkpakketten</div>
+                {normalPresetCards.map((preset: any) => renderPresetPickerCard(preset, customPresetCards.length > 0))}
+              </div>
+            ) : null}
+
             {builtInPresetCards.length === 0 && customPresetCards.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-10">Geen werkpakketten gevonden.</div>
             ) : null}
@@ -6737,6 +7055,57 @@ export default function GenericMaterialsPageRedesigned() {
 
           <DialogFooter className="gap-2 sm:gap-2 justify-start sm:justify-start">
             <Button variant="ghost" onClick={() => setPresetPickerOpen(false)}>Sluiten</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!presetToRename}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPresetToRename(null);
+            setRenamePresetName('');
+          }
+        }}
+      >
+        <DialogContent className={cn('max-w-md w-full', DIALOG_CLOSE_TAP)}>
+          <DialogHeader>
+            <DialogTitle>Naam werkpakket wijzigen</DialogTitle>
+            <DialogDescription>
+              Geef dit werkpakket een nieuwe naam.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            <Label htmlFor="rename-preset-name">Naam</Label>
+            <Input
+              id="rename-preset-name"
+              value={renamePresetName}
+              onChange={(e) => setRenamePresetName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (!isRenamingPreset) void handleRenamePreset();
+                }
+              }}
+              autoFocus
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPresetToRename(null);
+                setRenamePresetName('');
+              }}
+              disabled={isRenamingPreset}
+            >
+              Annuleren
+            </Button>
+            <Button onClick={() => void handleRenamePreset()} disabled={isRenamingPreset}>
+              {isRenamingPreset ? 'Opslaan...' : 'Opslaan'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

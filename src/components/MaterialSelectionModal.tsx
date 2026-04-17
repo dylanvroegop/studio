@@ -359,6 +359,107 @@ function pickBestMatchingOption(raw: string, options: string[]): string {
   return '';
 }
 
+function normalizeLooseMatchText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function pickBestMatchingOptionFromHints(options: string[], ...hints: Array<string | undefined | null>): string {
+  if (!Array.isArray(options) || options.length === 0) return '';
+
+  const normalizedOptions = options.map((option) => ({
+    original: option,
+    normalized: normalizeLooseMatchText(option),
+  }));
+
+  for (const rawHint of hints) {
+    const hint = (rawHint || '').trim();
+    if (!hint) continue;
+
+    const exact = pickBestMatchingOption(hint, options);
+    if (exact) return exact;
+
+    const normalizedHint = normalizeLooseMatchText(hint);
+    if (!normalizedHint) continue;
+
+    const exactNormalized = normalizedOptions.find((option) => option.normalized === normalizedHint);
+    if (exactNormalized) return exactNormalized.original;
+
+    const containsNormalized = normalizedOptions.find((option) =>
+      option.normalized.includes(normalizedHint) || normalizedHint.includes(option.normalized)
+    );
+    if (containsNormalized) return containsNormalized.original;
+  }
+
+  return '';
+}
+
+function resolveSubsectionForExtractedMaterial(params: {
+  rawSubsection: string;
+  materialName: string;
+  category: string;
+  subsectionOptions: string[];
+  categorySubsections: Record<string, string[]>;
+}): string {
+  const {
+    rawSubsection,
+    materialName,
+    category,
+    subsectionOptions,
+    categorySubsections,
+  } = params;
+
+  const categoryScopedOptions = category && Array.isArray(categorySubsections[category]) && categorySubsections[category].length > 0
+    ? categorySubsections[category]
+    : subsectionOptions;
+
+  if (categoryScopedOptions.length > 0) {
+    return (
+      pickBestMatchingOptionFromHints(categoryScopedOptions, rawSubsection, materialName)
+      || ''
+    );
+  }
+
+  return '';
+}
+
+function resolveSupplierForExtractedMaterial(params: {
+  rawSupplier: string;
+  materialName: string;
+  supplierOptions: string[];
+}): string {
+  const {
+    rawSupplier,
+    materialName,
+    supplierOptions,
+  } = params;
+
+  if (!Array.isArray(supplierOptions) || supplierOptions.length === 0) return '';
+
+  const aliasHints = [rawSupplier, materialName].join(' ').toLowerCase();
+  const aliasCandidates = [
+    { aliases: ['bouwmaat', 'bouwmaat.nl'], canonical: 'bouwmaat' },
+    { aliases: ['hornbach', 'hornbach.nl'], canonical: 'hornbach' },
+    { aliases: ['gamma', 'gamma.nl'], canonical: 'gamma' },
+    { aliases: ['karwei', 'karwei.nl'], canonical: 'karwei' },
+    { aliases: ['praxis', 'praxis.nl'], canonical: 'praxis' },
+    { aliases: ['stiho', 'stiho.nl'], canonical: 'stiho' },
+    { aliases: ['jongeneel', 'jongeneel.nl'], canonical: 'jongeneel' },
+  ];
+
+  const aliasMatch = aliasCandidates.find((candidate) => candidate.aliases.some((alias) => aliasHints.includes(alias)));
+  if (aliasMatch) {
+    const canonicalSupplier = pickBestMatchingOptionFromHints(supplierOptions, aliasMatch.canonical);
+    if (canonicalSupplier) return canonicalSupplier;
+  }
+
+  return pickBestMatchingOptionFromHints(supplierOptions, rawSupplier, materialName);
+}
+
 function normalizeExtractedUnit(raw: string): string {
   const value = raw.trim().toLowerCase();
   if (!value) return 'stuk';
@@ -722,6 +823,23 @@ export function MaterialSelectionModal({
   const uniqueLeveranciers = useMemo(() => {
     const levs = new Set(existingMaterials.map(m => m.leverancier).filter(Boolean));
     return Array.from(levs).sort() as string[];
+  }, [existingMaterials]);
+
+  const formCategorySubsectionMap = useMemo(() => {
+    const map: Record<string, Set<string>> = {};
+    existingMaterials.forEach((material) => {
+      const category = getMaterialMainCategory(material);
+      const subsection = getMaterialSubCategory(material);
+      if (!category || !subsection) return;
+      if (!map[category]) map[category] = new Set<string>();
+      map[category].add(subsection);
+    });
+
+    const result: Record<string, string[]> = {};
+    Object.entries(map).forEach(([category, values]) => {
+      result[category] = Array.from(values).sort((a, b) => a.localeCompare(b, 'nl'));
+    });
+    return result;
   }, [existingMaterials]);
 
   const filteredSidebarCategories = useMemo(() => {
@@ -1275,6 +1393,8 @@ export function MaterialSelectionModal({
       formData.append('categories', JSON.stringify(formCategoryOptions));
       formData.append('subsections', JSON.stringify(formSubsectionOptions));
       formData.append('suppliers', JSON.stringify(uniqueLeveranciers));
+      formData.append('categorySubsections', JSON.stringify(formCategorySubsectionMap));
+      formData.append('activeCategory', customCategorie.trim() || selectedCategoryForNewMaterial || '');
 
       const response = await fetch('/api/materialen/extract-from-image', {
         method: 'POST',
@@ -1318,9 +1438,24 @@ export function MaterialSelectionModal({
       const nextHoogteRaw = (material.hoogte || '').trim();
       const nextDikteRaw = (material.dikte || '').trim();
 
-      const matchedCategory = pickBestMatchingOption(nextCategoryRaw, formCategoryOptions);
-      const matchedSubsection = pickBestMatchingOption(nextSubsectionRaw, formSubsectionOptions);
-      const matchedSupplier = pickBestMatchingOption(nextSupplierRaw, uniqueLeveranciers);
+      const matchedCategory = pickBestMatchingOptionFromHints(
+        formCategoryOptions,
+        nextCategoryRaw,
+        customCategorie.trim(),
+        selectedCategoryForNewMaterial,
+      );
+      const matchedSubsection = resolveSubsectionForExtractedMaterial({
+        rawSubsection: nextSubsectionRaw,
+        materialName: nextNaam,
+        category: matchedCategory || customCategorie.trim() || selectedCategoryForNewMaterial || '',
+        subsectionOptions: formSubsectionOptions,
+        categorySubsections: formCategorySubsectionMap,
+      });
+      const matchedSupplier = resolveSupplierForExtractedMaterial({
+        rawSupplier: nextSupplierRaw,
+        materialName: nextNaam,
+        supplierOptions: uniqueLeveranciers,
+      });
 
       const excl = typeof material.prijs_excl_btw === 'number' ? material.prijs_excl_btw : null;
       const incl = typeof material.prijs_incl_btw === 'number' ? material.prijs_incl_btw : null;
@@ -1331,9 +1466,9 @@ export function MaterialSelectionModal({
       if (EENHEDEN.includes(nextUnit)) setCustomEenheid(nextUnit);
       if (resolvedExcl != null) setCustomPrijsExclBtw(formatPriceInput(resolvedExcl));
       if (resolvedIncl != null) setCustomPrijs(formatPriceInput(resolvedIncl));
-      if (matchedCategory || nextCategoryRaw) setCustomCategorie(matchedCategory || nextCategoryRaw);
-      if (matchedSubsection || nextSubsectionRaw) setCustomSubsectie(matchedSubsection || nextSubsectionRaw);
-      if (matchedSupplier || nextSupplierRaw) setCustomLeverancier(matchedSupplier || nextSupplierRaw);
+      if (matchedCategory) setCustomCategorie(matchedCategory);
+      if (matchedSubsection) setCustomSubsectie(matchedSubsection);
+      if (matchedSupplier) setCustomLeverancier(matchedSupplier);
       setCustomLengte(nextLengteRaw);
       setCustomBreedte(nextBreedteRaw);
       setCustomHoogte(nextHoogteRaw);
@@ -1376,6 +1511,8 @@ export function MaterialSelectionModal({
       formData.append('categories', JSON.stringify(formCategoryOptions));
       formData.append('subsections', JSON.stringify(formSubsectionOptions));
       formData.append('suppliers', JSON.stringify(uniqueLeveranciers));
+      formData.append('categorySubsections', JSON.stringify(formCategorySubsectionMap));
+      formData.append('activeCategory', customCategorie.trim() || selectedCategoryForNewMaterial || '');
 
       const response = await fetch('/api/materialen/extract-cart-from-image', {
         method: 'POST',
@@ -1432,9 +1569,24 @@ export function MaterialSelectionModal({
         const nextHoogteRaw = (material.hoogte || '').trim();
         const nextDikteRaw = (material.dikte || '').trim();
 
-        const matchedCategory = pickBestMatchingOption(nextCategoryRaw, formCategoryOptions);
-        const matchedSubsection = pickBestMatchingOption(nextSubsectionRaw, formSubsectionOptions);
-        const matchedSupplier = pickBestMatchingOption(nextSupplierRaw, uniqueLeveranciers);
+        const matchedCategory = pickBestMatchingOptionFromHints(
+          formCategoryOptions,
+          nextCategoryRaw,
+          customCategorie.trim(),
+          selectedCategoryForNewMaterial,
+        );
+        const matchedSubsection = resolveSubsectionForExtractedMaterial({
+          rawSubsection: nextSubsectionRaw,
+          materialName: naam,
+          category: matchedCategory || customCategorie.trim() || selectedCategoryForNewMaterial || '',
+          subsectionOptions: formSubsectionOptions,
+          categorySubsections: formCategorySubsectionMap,
+        });
+        const matchedSupplier = resolveSupplierForExtractedMaterial({
+          rawSupplier: nextSupplierRaw,
+          materialName: naam,
+          supplierOptions: uniqueLeveranciers,
+        });
 
         const upsertPayload: Record<string, unknown> = {
           materiaalnaam: constructFinalName(naam.charAt(0).toUpperCase() + naam.slice(1)),
@@ -1444,9 +1596,9 @@ export function MaterialSelectionModal({
           prijs_incl_btw: resolvedIncl,
         };
 
-        const categoryToSend = matchedCategory || nextCategoryRaw;
-        const subcategoryToSend = matchedSubsection || nextSubsectionRaw;
-        const supplierToSend = matchedSupplier || nextSupplierRaw;
+        const categoryToSend = matchedCategory;
+        const subcategoryToSend = matchedSubsection;
+        const supplierToSend = matchedSupplier;
         if (categoryToSend) upsertPayload.categorie = categoryToSend;
         if (subcategoryToSend) upsertPayload.subsectie = subcategoryToSend;
         if (supplierToSend) upsertPayload.leverancier = supplierToSend;
@@ -2394,7 +2546,7 @@ export function MaterialSelectionModal({
                     <Sparkles className="h-4 w-4 text-primary" />
                     Vul velden via screenshot (AI)
                   </div>
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto] md:items-end">
+                  <div className="space-y-2">
                     <div className="space-y-1">
                       <div
                         onDragOver={(event) => {
@@ -2423,61 +2575,40 @@ export function MaterialSelectionModal({
                           handleAiFilePicked(file, { autoAnalyze: true });
                         }}
                         className={cn(
-                          'rounded-md border border-dashed p-3 transition-colors',
+                          'rounded-md border border-dashed p-3 transition-colors min-h-[120px] sm:min-h-[140px] flex items-center justify-center',
                           isDraggingAiImage
                             ? 'border-emerald-400 bg-emerald-500/10'
                             : 'border-border/70 bg-background/60'
                         )}
                       >
-                        <label className="block cursor-pointer">
+                        <label className="block w-full cursor-pointer">
                           <Input
                             type="file"
                             accept=".jpg,.jpeg,.png,.webp,.heic,.heif,image/*"
                             className="hidden"
                             onChange={(event) => {
-                              handleAiFilePicked(event.target.files?.[0] || null);
+                              handleAiFilePicked(event.target.files?.[0] || null, { autoAnalyze: true });
                             }}
                           />
-                          <div className="text-xs text-muted-foreground">
-                            {aiSourceImage
-                              ? 'Bestand geselecteerd. Je kunt ook een ander bestand slepen of klikken om te vervangen.'
-                              : 'Sleep hier je screenshot naartoe of klik om een bestand te kiezen.'}
+                          <div className="text-center text-sm text-muted-foreground space-y-1">
+                            {isAiExtracting
+                              ? 'Screenshot wordt geanalyseerd...'
+                              : isAiBulkExtracting
+                                ? 'Winkelwagen wordt geanalyseerd...'
+                                : aiSourceImage ? (
+                                  <>
+                                    <div>Bestand geselecteerd. Sleep hier een nieuw bestand naartoe of klik om te vervangen.</div>
+                                    <div className="text-[11px] text-muted-foreground/90 truncate">{aiSourceImage.name}</div>
+                                    {aiExtractionSummary && (
+                                      <div className="text-[11px] text-emerald-500 truncate">{aiExtractionSummary}</div>
+                                    )}
+                                  </>
+                                ) : 'Sleep je screenshot hierheen of klik om te uploaden.'}
                           </div>
                         </label>
                       </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Upload een product-screenshot van bijvoorbeeld Bouwmaat. We vullen naam, prijs, eenheid en leverancier in.
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="gap-2"
-                        onClick={() => void handleGenerateMaterialFromImage()}
-                        disabled={!aiSourceImage || isAiExtracting || isAiBulkExtracting}
-                      >
-                        {isAiExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                        {isAiExtracting ? 'Analyseren...' : 'Analyseer screenshot'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="gap-2"
-                        onClick={() => void handleGenerateCartMaterialsFromImage()}
-                        disabled={!aiSourceImage || isAiExtracting || isAiBulkExtracting}
-                      >
-                        {isAiBulkExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                        {isAiBulkExtracting ? 'Winkelwagen analyseren...' : 'Analyseer winkelwagen'}
-                      </Button>
                     </div>
                   </div>
-                  {aiSourceImage && (
-                    <p className="text-[11px] text-muted-foreground">{aiSourceImage.name}</p>
-                  )}
-                  {aiExtractionSummary && (
-                    <p className="text-[11px] text-emerald-500">{aiExtractionSummary}</p>
-                  )}
                 </div>
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Materiaalnaam *</div>
