@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import {
   type BouwmaatCategoryInput,
+  type BouwmaatScrapedMaterial,
   extractBouwmaatProductsFromPage,
   getBouwmaatBrowserProfilePath,
   isLocalRequest,
@@ -24,7 +25,10 @@ type Body = {
   urls?: unknown;
   maxPagesPerUrl?: unknown;
   pageDelaySeconds?: unknown;
+  aiAudit?: unknown;
 };
+
+const OPENAI_AUDIT_MODEL = 'gpt-5-mini';
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -42,6 +46,171 @@ async function verifyUser(request: Request): Promise<string | null> {
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeAiAudit(raw: unknown): boolean {
+  if (typeof raw === 'boolean') return raw;
+  if (typeof raw === 'string') return raw.toLowerCase() !== 'false';
+  return true;
+}
+
+function parseDutchMoney(value: string): number | null {
+  const match = value.match(/€\s*\d+(?:[.,]\d{1,2})?/i);
+  if (!match) return null;
+  const clean = match[0].replace(/\u20ac/g, '').replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number.parseFloat(clean);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Number(parsed.toFixed(2));
+}
+
+function isSuspiciousUiLabel(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return true;
+  if (/^\s*prijs\s+(laag|hoog)\s*-\s*(laag|hoog)\s*$/i.test(normalized)) return true;
+  if (/^(populariteit|sorteren op|prijs|assortiment|meer-minder|duurzaam|kies een vestiging)$/.test(normalized)) return true;
+  if (/\b(sorteren|populariteit)\b/.test(normalized) && normalized.length <= 32) return true;
+  return false;
+}
+
+function deterministicAudit(material: BouwmaatScrapedMaterial): BouwmaatScrapedMaterial {
+  const next = { ...material };
+  if (!next.materiaalnaam || isSuspiciousUiLabel(next.materiaalnaam)) {
+    next.audit_status = 'rejected';
+    next.audit_reason = 'UI label i.p.v. product';
+    next.audit_confidence = 0.98;
+    return next;
+  }
+  if (next.prijs_excl_btw == null) {
+    next.audit_status = 'rejected';
+    next.audit_reason = 'Geen geldige prijs';
+    next.audit_confidence = 0.99;
+    return next;
+  }
+
+  const unitPrice = parseDutchMoney(next.unit_price_text || '');
+  if (unitPrice != null && Math.abs(unitPrice - next.prijs_excl_btw) >= 0.01) {
+    const original = next.prijs_excl_btw;
+    next.prijs_excl_btw = unitPrice;
+    next.prijs_incl_btw = Number((unitPrice * 1.21).toFixed(2));
+    next.audit_status = 'review';
+    next.audit_reason = `Prijs gecorrigeerd van € ${original.toFixed(2)} naar unit-prijs € ${unitPrice.toFixed(2)}`;
+    next.audit_confidence = 0.9;
+    return next;
+  }
+
+  next.audit_status = 'valid';
+  if (!next.audit_reason) next.audit_reason = '';
+  if (next.audit_confidence == null) next.audit_confidence = 0.9;
+  return next;
+}
+
+function isUncertainForAi(material: BouwmaatScrapedMaterial): boolean {
+  if (material.audit_status !== 'valid') return true;
+  if (!material.source_product_id) return true;
+  if (!material.unit_price_text) return true;
+  if (material.confidence < 0.82) return true;
+  return false;
+}
+
+function extractResponseText(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const root = payload as Record<string, unknown>;
+  const outputText = root.output_text;
+  if (typeof outputText === 'string' && outputText.trim()) return outputText.trim();
+  const output = Array.isArray(root.output) ? root.output : [];
+  const chunks: string[] = [];
+  output.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    const content = Array.isArray((entry as Record<string, unknown>).content)
+      ? (entry as Record<string, unknown>).content as Array<Record<string, unknown>>
+      : [];
+    content.forEach((part) => {
+      const text = part?.text;
+      if (typeof text === 'string' && text.trim()) chunks.push(text.trim());
+    });
+  });
+  return chunks.join('\n').trim();
+}
+
+function parseJsonLoose<T>(text: string): T | null {
+  const raw = text.trim();
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced?.[1]?.trim() || raw;
+  try {
+    return JSON.parse(candidate) as T;
+  } catch {
+    return null;
+  }
+}
+
+type AiAuditDecision = {
+  status?: 'valid' | 'review' | 'rejected';
+  reason?: string;
+  corrected_price_excl_btw?: number | null;
+  corrected_eenheid?: string;
+  confidence?: number;
+};
+
+function buildAuditKey(row: BouwmaatScrapedMaterial): string {
+  return row.source_product_id
+    || `${row.materiaalnaam}|${row.eenheid}|${row.prijs_excl_btw ?? 'null'}|${row.source_url || ''}`;
+}
+
+async function runAiAudit(
+  materials: BouwmaatScrapedMaterial[]
+): Promise<Map<string, AiAuditDecision>> {
+  const apiKey = safeString(process.env.OPENAI_API_KEY);
+  if (!apiKey || materials.length === 0) return new Map();
+
+  const compactRows = materials.map((row, index) => ({
+    key: buildAuditKey(row),
+    materiaalnaam: row.materiaalnaam,
+    prijs_excl_btw: row.prijs_excl_btw,
+    eenheid: row.eenheid,
+    unit_price_text: row.unit_price_text,
+    bulk_price_text: row.bulk_price_text,
+    source_product_id: row.source_product_id || `no-id-${index}`,
+  }));
+
+  const prompt = [
+    'Controleer deze Bouwmaat producten.',
+    'Doel: verwijder UI/ruis-rows en markeer prijs/eenheid inconsistenties.',
+    'Regels:',
+    '1. status=rejected voor UI labels (zoals sortering/filterteksten) of geen bruikbare materiaalregel.',
+    '2. status=review als prijs of eenheid niet logisch is.',
+    '3. status=valid als regel goed is.',
+    '4. Als unit_price_text een duidelijke prijs per m2/m1/stuk bevat en prijs_excl_btw afwijkt: zet corrected_price_excl_btw op de unit-prijs.',
+    '5. Geef alleen JSON terug in dit formaat: {"decisions":[{"key":"...","status":"valid|review|rejected","reason":"...","corrected_price_excl_btw":number|null,"corrected_eenheid":"...|null","confidence":0-1}]}',
+    `Rows: ${JSON.stringify(compactRows)}`,
+  ].join('\n');
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_AUDIT_MODEL,
+      temperature: 0,
+      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) return new Map();
+  const text = extractResponseText(payload);
+  if (!text) return new Map();
+  const parsed = parseJsonLoose<{ decisions?: Array<AiAuditDecision & { key?: string }> }>(text);
+  if (!parsed) return new Map();
+  const decisions = Array.isArray(parsed.decisions) ? parsed.decisions : [];
+  const map = new Map<string, AiAuditDecision>();
+  decisions.forEach((entry) => {
+    const key = safeString(entry.key);
+    if (!key) return;
+    map.set(key, entry);
+  });
+  return map;
 }
 
 function normalizeUrls(raw: unknown): BouwmaatCategoryInput[] {
@@ -107,11 +276,30 @@ async function findNextPageUrl(page: any): Promise<string | null> {
   return page.evaluate(() => {
     const anchors = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'));
     const current = new URL(window.location.href);
+    const readPageParam = (url: URL): number | null => {
+      const candidates = ['page', 'Page', 'PAGE', 'p', 'P'];
+      for (const key of candidates) {
+        const raw = url.searchParams.get(key);
+        if (!raw) continue;
+        const parsed = Number.parseInt(raw, 10);
+        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+      }
+      return null;
+    };
+    const normalizeUrl = (input: URL): string => {
+      const normalized = new URL(input.toString());
+      normalized.hash = '';
+      const pageValue = readPageParam(normalized);
+      normalized.search = '';
+      if (pageValue != null) normalized.searchParams.set('Page', String(pageValue));
+      return normalized.toString();
+    };
 
     const byRel = anchors.find((anchor) => anchor.rel?.toLowerCase().split(/\s+/).includes('next'));
     if (byRel?.href) return byRel.href;
 
-    const currentPageNumber = Number.parseInt(current.searchParams.get('page') || '1', 10) || 1;
+    const currentPageNumber = readPageParam(current) || 1;
+    const currentNormalized = normalizeUrl(current);
     const candidates = anchors
       .map((anchor) => {
         const label = (anchor.textContent || anchor.getAttribute('aria-label') || anchor.title || '').trim().toLowerCase();
@@ -124,8 +312,10 @@ async function findNextPageUrl(page: any): Promise<string | null> {
           return null;
         }
         if (url.origin !== current.origin) return null;
+        const normalizedHref = normalizeUrl(url);
+        if (normalizedHref === currentNormalized) return null;
 
-        const pageParam = Number.parseInt(url.searchParams.get('page') || '', 10);
+        const pageParam = readPageParam(url);
         const numericLabel = Number.parseInt(label, 10);
         const isExplicitNext =
           /\b(volgende|next)\b/.test(label)
@@ -136,11 +326,12 @@ async function findNextPageUrl(page: any): Promise<string | null> {
 
         return {
           href,
+          normalizedHref,
           isExplicitNext,
           pageNumber: Number.isFinite(pageParam) ? pageParam : (Number.isFinite(numericLabel) ? numericLabel : null),
         };
       })
-      .filter((item): item is { href: string; isExplicitNext: boolean; pageNumber: number | null } => Boolean(item));
+      .filter((item): item is { href: string; normalizedHref: string; isExplicitNext: boolean; pageNumber: number | null } => Boolean(item));
 
     const explicit = candidates.find((item) => item.isExplicitNext);
     if (explicit) return explicit.href;
@@ -161,7 +352,7 @@ function normalizeMaxPages(raw: unknown): number {
     const parsed = Number.parseInt(raw, 10);
     if (Number.isFinite(parsed)) return Math.max(1, Math.min(150, parsed));
   }
-  return 5;
+  return 1;
 }
 
 function normalizePageDelaySeconds(raw: unknown): number {
@@ -200,15 +391,18 @@ export async function POST(request: Request) {
     const urls = normalizeUrls(body.urls);
     const maxPagesPerUrl = normalizeMaxPages(body.maxPagesPerUrl);
     const pageDelaySeconds = normalizePageDelaySeconds(body.pageDelaySeconds);
+    const aiAudit = normalizeAiAudit(body.aiAudit);
     if (urls.length === 0) {
       return NextResponse.json({ ok: false, message: 'Voeg minimaal één Bouwmaat URL toe.' }, { status: 400 });
     }
 
     const context = await getContext();
     const page = context.pages()[0] || await context.newPage();
-    const materials = [];
+    const materials: BouwmaatScrapedMaterial[] = [];
     const failures = [];
     const seen = new Set<string>();
+    let rawCardsSeen = 0;
+    let normalizedAccepted = 0;
     let pagesVisited = 0;
     let cancelled = false;
 
@@ -239,6 +433,7 @@ export async function POST(request: Request) {
           await loadAllVisibleProducts(page);
 
           const rawProducts = await extractBouwmaatProductsFromPage(page);
+          rawCardsSeen += rawProducts.length;
           for (const raw of rawProducts) {
             const normalized = normalizeBouwmaatProduct(raw, category);
             if (!normalized) continue;
@@ -246,6 +441,7 @@ export async function POST(request: Request) {
             if (seen.has(key)) continue;
             seen.add(key);
             materials.push(normalized);
+            normalizedAccepted += 1;
           }
 
           const foundNextUrl = await findNextPageUrl(page);
@@ -266,20 +462,67 @@ export async function POST(request: Request) {
     if (materials.length === 0) {
       return NextResponse.json({
         ok: false,
-        message: 'Geen producten gevonden. Controleer of je in de geopende Bouwmaat browser bent ingelogd.',
+        message: `Geen producten gevonden (cards: ${rawCardsSeen}, valid: ${normalizedAccepted}). Controleer login of pagina-opmaak.`,
         failures,
+      }, { status: 422 });
+    }
+
+    let audited = materials.map((row) => deterministicAudit(row));
+    const uncertain = audited.filter(isUncertainForAi).slice(0, 120);
+    if (aiAudit && uncertain.length > 0 && !isCancelRequested()) {
+      const aiDecisions = await runAiAudit(uncertain).catch(() => new Map<string, AiAuditDecision>());
+      if (aiDecisions.size > 0) {
+        audited = audited.map((row) => {
+          const key = buildAuditKey(row);
+          const decision = aiDecisions.get(key);
+          if (!decision) return row;
+          const next = { ...row };
+          if (decision.status === 'valid' || decision.status === 'review' || decision.status === 'rejected') {
+            next.audit_status = decision.status;
+          }
+          if (safeString(decision.reason)) {
+            next.audit_reason = safeString(decision.reason);
+          }
+          if (typeof decision.corrected_price_excl_btw === 'number' && Number.isFinite(decision.corrected_price_excl_btw)) {
+            const corrected = Number(decision.corrected_price_excl_btw.toFixed(2));
+            next.prijs_excl_btw = corrected;
+            next.prijs_incl_btw = Number((corrected * 1.21).toFixed(2));
+          }
+          const correctedUnit = safeString(decision.corrected_eenheid);
+          if (correctedUnit) next.eenheid = correctedUnit;
+          if (typeof decision.confidence === 'number' && Number.isFinite(decision.confidence)) {
+            next.audit_confidence = Math.max(0, Math.min(1, decision.confidence));
+          }
+          return next;
+        });
+      }
+    }
+
+    const rejectedCount = audited.filter((row) => row.audit_status === 'rejected').length;
+    const reviewCount = audited.filter((row) => row.audit_status === 'review').length;
+    const pricedMaterials = audited.filter((row) => row.audit_status !== 'rejected');
+
+    if (pricedMaterials.length === 0) {
+      return NextResponse.json({
+        ok: false,
+        message: 'Alle regels zijn afgekeurd door de validatie. Controleer URL of filters.',
+        failures,
+        rejectedCount,
       }, { status: 422 });
     }
 
     return NextResponse.json({
       ok: true,
-      materials,
+      materials: pricedMaterials,
       classification: 'manual',
       pagesVisited,
       maxPagesPerUrl,
       pageDelaySeconds,
       cancelled,
       failures,
+      aiAudit,
+      reviewCount,
+      rejectedCount,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Bouwmaat scrape mislukt.';

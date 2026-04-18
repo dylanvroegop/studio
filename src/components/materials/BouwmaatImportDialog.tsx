@@ -1,21 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Check, Eraser, ExternalLink, Loader2, Octagon, PackageSearch, RefreshCw } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, Eraser, ExternalLink, Loader2, Octagon, PackageSearch, Plus, RefreshCw, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 type BouwmaatImportMaterial = {
@@ -35,6 +33,9 @@ type BouwmaatImportMaterial = {
   unit_price_text: string;
   bulk_price_text: string;
   confidence: number;
+  audit_status?: 'valid' | 'review' | 'rejected';
+  audit_reason?: string;
+  audit_confidence?: number | null;
 };
 
 type BouwmaatImportDialogProps = {
@@ -42,6 +43,17 @@ type BouwmaatImportDialogProps = {
   onOpenChange: (open: boolean) => void;
   getToken: () => Promise<string>;
   onImported: () => Promise<void> | void;
+};
+
+const DEFAULT_BOUWMAAT_URL = '';
+const PRESETS_STORAGE_KEY = 'bouwmaat-import-link-presets-v1';
+
+type BouwmaatLinkPreset = {
+  id: string;
+  name: string;
+  links: string[];
+  maxPagesPerUrl: string;
+  aiAuditEnabled: boolean;
 };
 
 function formatEuro(value: number | null): string {
@@ -54,20 +66,71 @@ function formatEuro(value: number | null): string {
   }).format(value);
 }
 
-function parseUrlRows(raw: string, defaultCategory: string, defaultSubCategory: string) {
-  return raw
-    .split('\n')
+function parseUrlRows(lines: string[]) {
+  return lines
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
       const [urlRaw, categoryRaw, subCategoryRaw] = line.split('|').map((part) => part.trim());
       return {
         url: urlRaw,
-        categorie: categoryRaw || defaultCategory.trim(),
-        sub_categorie: subCategoryRaw || defaultSubCategory.trim(),
+        categorie: categoryRaw || '',
+        sub_categorie: subCategoryRaw || '',
       };
     })
     .filter((row) => row.url.startsWith('https://www.bouwmaat.nl/') || row.url.startsWith('https://bouwmaat.nl/'));
+}
+
+function normalizeStoredLinks(entry: Record<string, unknown>): string[] {
+  const fromArray = Array.isArray(entry.links)
+    ? entry.links.filter((link) => typeof link === 'string').map((link) => link.trim()).filter(Boolean)
+    : [];
+  if (fromArray.length > 0) return fromArray;
+
+  // Backward compatibility for earlier storage shapes.
+  const fromUrlLines = Array.isArray(entry.urlLines)
+    ? (entry.urlLines as unknown[]).filter((link) => typeof link === 'string').map((link) => (link as string).trim()).filter(Boolean)
+    : [];
+  if (fromUrlLines.length > 0) return fromUrlLines;
+
+  const urlsText = typeof entry.urlsText === 'string' ? entry.urlsText : '';
+  const fromMultiline = urlsText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (fromMultiline.length > 0) return fromMultiline;
+
+  return [];
+}
+
+function readPresets(): BouwmaatLinkPreset[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(PRESETS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => item && typeof item === 'object')
+      .map((item) => {
+        const entry = item as Record<string, unknown>;
+        const links = normalizeStoredLinks(entry);
+        return {
+          id: typeof entry.id === 'string' ? entry.id : `preset-${Date.now()}`,
+          name: typeof entry.name === 'string' ? entry.name : 'Preset',
+          links: links.length > 0 ? links : [''],
+          maxPagesPerUrl: typeof entry.maxPagesPerUrl === 'string' ? entry.maxPagesPerUrl : '',
+          aiAuditEnabled: typeof entry.aiAuditEnabled === 'boolean' ? entry.aiAuditEnabled : true,
+        };
+      });
+  } catch {
+    return [];
+  }
+}
+
+function writePresets(next: BouwmaatLinkPreset[]) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(next));
 }
 
 export function BouwmaatImportDialog({
@@ -76,11 +139,13 @@ export function BouwmaatImportDialog({
   getToken,
   onImported,
 }: BouwmaatImportDialogProps) {
-  const [urlsText, setUrlsText] = useState('');
-  const [defaultCategory, setDefaultCategory] = useState('');
-  const [defaultSubCategory, setDefaultSubCategory] = useState('');
-  const [maxPagesPerUrl, setMaxPagesPerUrl] = useState('5');
+  const [urlLines, setUrlLines] = useState<string[]>([DEFAULT_BOUWMAAT_URL]);
+  const [presets, setPresets] = useState<BouwmaatLinkPreset[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState('');
+  const [presetName, setPresetName] = useState('');
+  const [maxPagesPerUrl, setMaxPagesPerUrl] = useState('');
   const [pageDelaySeconds, setPageDelaySeconds] = useState('6');
+  const [aiAuditEnabled, setAiAuditEnabled] = useState(true);
   const [materials, setMaterials] = useState<BouwmaatImportMaterial[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<string>('');
@@ -90,14 +155,16 @@ export function BouwmaatImportDialog({
   const [isStoppingScrape, setIsStoppingScrape] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
-  const urlRows = useMemo(
-    () => parseUrlRows(urlsText, defaultCategory, defaultSubCategory),
-    [urlsText, defaultCategory, defaultSubCategory]
-  );
+  const urlRows = useMemo(() => parseUrlRows(urlLines), [urlLines]);
 
   const selectedMaterials = useMemo(() => {
     return materials.filter((material) => selectedKeys.has(material.source_product_id || material.source_url || material.materiaalnaam));
   }, [materials, selectedKeys]);
+
+  useEffect(() => {
+    if (!open) return;
+    setPresets(readPresets());
+  }, [open]);
 
   const resetPreview = () => {
     setMaterials([]);
@@ -117,11 +184,10 @@ export function BouwmaatImportDialog({
   };
 
   const resetInterface = () => {
-    setUrlsText('');
-    setDefaultCategory('');
-    setDefaultSubCategory('');
-    setMaxPagesPerUrl('5');
+    setUrlLines([DEFAULT_BOUWMAAT_URL]);
+    setMaxPagesPerUrl('');
     setPageDelaySeconds('6');
+    setAiAuditEnabled(true);
     setMaterials([]);
     setSelectedKeys(new Set());
     setStatus('');
@@ -135,6 +201,90 @@ export function BouwmaatImportDialog({
   const closeAndReset = () => {
     resetInterface();
     onOpenChange(false);
+  };
+
+  const updateUrlLine = (index: number, value: string) => {
+    setUrlLines((current) => current.map((item, itemIndex) => (itemIndex === index ? value : item)));
+    resetPreview();
+  };
+
+  const addUrlLine = () => {
+    setUrlLines((current) => [...current, '']);
+    resetPreview();
+  };
+
+  const removeUrlLine = (index: number) => {
+    setUrlLines((current) => {
+      if (current.length <= 1) return [''];
+      return current.filter((_, itemIndex) => itemIndex !== index);
+    });
+    resetPreview();
+  };
+
+  const saveCurrentAsPreset = () => {
+    const name = presetName.trim();
+    const links = urlLines.map((line) => line.trim()).filter(Boolean);
+    if (!name) {
+      setError('Geef een presetnaam op.');
+      return;
+    }
+    if (links.length === 0) {
+      setError('Voeg minimaal één link toe om een preset op te slaan.');
+      return;
+    }
+
+    const existing = presets.find((preset) => preset.name.toLowerCase() === name.toLowerCase());
+    const id = existing?.id || `preset-${Date.now()}`;
+    const entry: BouwmaatLinkPreset = {
+      id,
+      name,
+      links,
+      maxPagesPerUrl: maxPagesPerUrl.trim(),
+      aiAuditEnabled,
+    };
+    const next = existing
+      ? presets.map((preset) => (preset.id === existing.id ? entry : preset))
+      : [...presets, entry];
+    setPresets(next);
+    setSelectedPresetId(id);
+    writePresets(next);
+    setError(null);
+    setStatus(`Preset "${name}" opgeslagen.`);
+  };
+
+  const loadSelectedPreset = () => {
+    const preset = presets.find((item) => item.id === selectedPresetId);
+    if (!preset) return;
+    setUrlLines(preset.links.length ? preset.links : ['']);
+    setMaxPagesPerUrl(preset.maxPagesPerUrl || '');
+    setAiAuditEnabled(preset.aiAuditEnabled);
+    setMaterials([]);
+    setSelectedKeys(new Set());
+    setError(null);
+    setStatus(`Preset "${preset.name}" geladen.`);
+  };
+
+  const loadPresetById = (presetId: string) => {
+    const preset = presets.find((item) => item.id === presetId);
+    if (!preset) return;
+    setUrlLines(preset.links.length ? preset.links : ['']);
+    setMaxPagesPerUrl(preset.maxPagesPerUrl || '');
+    setAiAuditEnabled(preset.aiAuditEnabled);
+    setMaterials([]);
+    setSelectedKeys(new Set());
+    setError(null);
+    setStatus(`Preset "${preset.name}" geladen.`);
+  };
+
+  const deleteSelectedPreset = () => {
+    const preset = presets.find((item) => item.id === selectedPresetId);
+    if (!preset) return;
+    const next = presets.filter((item) => item.id !== selectedPresetId);
+    setPresets(next);
+    setSelectedPresetId('');
+    writePresets(next);
+    setError(null);
+    setStatus(`Preset "${preset.name}" verwijderd.`);
   };
 
   const openBouwmaatBrowser = async () => {
@@ -169,6 +319,7 @@ export function BouwmaatImportDialog({
     setStatus('Bouwmaat pagina’s worden uitgelezen...');
     try {
       const token = await getToken();
+      const parsedMaxPages = Number.parseInt(maxPagesPerUrl, 10);
       const res = await fetch('/api/local/bouwmaat/scrape', {
         method: 'POST',
         headers: {
@@ -177,8 +328,9 @@ export function BouwmaatImportDialog({
         },
         body: JSON.stringify({
           urls: urlRows,
-          maxPagesPerUrl: Number.parseInt(maxPagesPerUrl, 10) || 5,
+          maxPagesPerUrl: Number.isFinite(parsedMaxPages) && parsedMaxPages > 0 ? parsedMaxPages : 1,
           pageDelaySeconds: Number.parseInt(pageDelaySeconds, 10) || 6,
+          aiAudit: aiAuditEnabled,
         }),
       });
       const json = await res.json().catch(() => null);
@@ -191,10 +343,15 @@ export function BouwmaatImportDialog({
       setSelectedKeys(new Set(nextMaterials.map((material: BouwmaatImportMaterial) =>
         material.source_product_id || material.source_url || material.materiaalnaam
       )));
+      const reviewCount = typeof json.reviewCount === 'number' ? json.reviewCount : 0;
+      const rejectedCount = typeof json.rejectedCount === 'number' ? json.rejectedCount : 0;
+      const auditPart = aiAuditEnabled
+        ? ` Validatie: ${reviewCount} ter controle, ${rejectedCount} afgekeurd.`
+        : '';
       setStatus(
         json.cancelled
-          ? `Gestopt. ${nextMaterials.length} producten gevonden over ${json.pagesVisited ?? '?'} pagina’s.`
-          : `${nextMaterials.length} producten gevonden over ${json.pagesVisited ?? '?'} pagina’s.`
+          ? `Gestopt. ${nextMaterials.length} producten gevonden over ${json.pagesVisited ?? '?'} pagina’s.${auditPart}`
+          : `${nextMaterials.length} producten gevonden over ${json.pagesVisited ?? '?'} pagina’s.${auditPart}`
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Bouwmaat scrape mislukt.');
@@ -293,63 +450,88 @@ export function BouwmaatImportDialog({
         closeAndReset();
       }}
     >
-      <DialogContent className="w-[96vw] max-w-5xl overflow-hidden p-0">
+      <DialogContent className="flex h-[92vh] w-[98vw] max-w-7xl flex-col overflow-hidden p-0">
         <DialogHeader className="border-b border-border/70 px-6 py-5 text-left">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <PackageSearch className="h-5 w-5 text-emerald-400" />
             Bouwmaat import
           </DialogTitle>
-          <DialogDescription>
-            Open de lokale Bouwmaat browser, log in, kies handmatig de categorie en importeer daarna de gevonden producten.
-          </DialogDescription>
         </DialogHeader>
 
-        <div className="grid max-h-[72vh] gap-5 overflow-y-auto px-6 py-5 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto px-6 py-5 lg:grid-cols-[420px_minmax(0,1fr)]">
           <div className="space-y-4">
-            <div className="rounded-lg border border-border/70 bg-muted/20 p-4">
-              <div className="mb-3 text-sm font-semibold">1. Login sessie</div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={openBouwmaatBrowser}
-                disabled={isBusy}
-                className="w-full justify-center gap-2"
-              >
-                {isOpeningBrowser ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                Open Bouwmaat browser
-              </Button>
-            </div>
-
             <div className="space-y-3">
-              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-100">
-                De categorie wordt handmatig toegepast op alle URL’s, tenzij je per regel override gebruikt met URL | categorie | subcategorie.
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Standaard hoofdcategorie</div>
-                  <Input
-                    value={defaultCategory}
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Link presets</div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedPresetId}
                     onChange={(event) => {
-                      setDefaultCategory(event.target.value);
-                      resetPreview();
+                      const value = event.target.value;
+                      setSelectedPresetId(value);
+                      if (value) loadPresetById(value);
                     }}
-                    placeholder="Bijv. Vuren hout"
-                  />
+                    className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Kies preset</option>
+                    {presets.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button type="button" variant="outline" onClick={loadSelectedPreset} disabled={!selectedPresetId}>
+                    Laad
+                  </Button>
+                  <Button type="button" variant="outline" size="icon" onClick={deleteSelectedPreset} disabled={!selectedPresetId}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Standaard subcategorie</div>
+                <div className="flex items-center gap-2">
                   <Input
-                    value={defaultSubCategory}
-                    onChange={(event) => {
-                      setDefaultSubCategory(event.target.value);
-                      resetPreview();
-                    }}
-                    placeholder="Bijv. Balken"
+                    value={presetName}
+                    onChange={(event) => setPresetName(event.target.value)}
+                    placeholder="Preset naam (bijv. Hout)"
                   />
+                  <Button type="button" variant="outline" onClick={saveCurrentAsPreset}>
+                    Opslaan
+                  </Button>
                 </div>
               </div>
               <div className="space-y-2">
-                <div className="text-sm font-medium">Pagina’s per URL</div>
+                <div className="text-sm font-medium">Bouwmaat URL’s</div>
+                <div className="space-y-2">
+                  {urlLines.map((line, index) => (
+                    <div key={`url-line-${index}`} className="flex items-center gap-2">
+                      <Input
+                        value={line}
+                        onChange={(event) => updateUrlLine(index, event.target.value)}
+                        className="font-mono text-xs"
+                        placeholder="https://www.bouwmaat.nl/.../hout | Constructieplaten | Osb"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => removeUrlLine(index)}
+                        disabled={urlLines.length <= 1}
+                        aria-label="Linkregel verwijderen"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" className="gap-2" onClick={addUrlLine}>
+                    <Plus className="h-4 w-4" />
+                    Link toevoegen
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Eén URL per regel. Optioneel: URL | hoofdcategorie | subcategorie.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Hoeveel pagina’s?</div>
                 <Input
                   value={maxPagesPerUrl}
                   onChange={(event) => {
@@ -361,82 +543,9 @@ export function BouwmaatImportDialog({
                   max="150"
                   inputMode="numeric"
                 />
-                <p className="text-xs text-muted-foreground">
-                  De scraper volgt automatisch volgende pagina’s tot dit maximum.
-                </p>
               </div>
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Pauze tussen pagina’s</div>
-                <Input
-                  value={pageDelaySeconds}
-                  onChange={(event) => {
-                    setPageDelaySeconds(event.target.value);
-                    resetPreview();
-                  }}
-                  type="number"
-                  min="6"
-                  max="60"
-                  inputMode="numeric"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Minimaal 6 seconden. Er komt automatisch 1-5 seconden variatie bovenop.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Bouwmaat URL’s</div>
-                <Textarea
-                  value={urlsText}
-                  onChange={(event) => {
-                    setUrlsText(event.target.value);
-                    resetPreview();
-                  }}
-                  className="min-h-[180px] font-mono text-xs"
-                  placeholder={'https://www.bouwmaat.nl/.../hout\nhttps://www.bouwmaat.nl/.../osb-platen | Constructieplaten | Osb'}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Eén URL per regel. Optioneel: URL | hoofdcategorie | subcategorie.
-                </p>
-              </div>
-
-              <Button
-                type="button"
-                variant="success"
-                onClick={scrapeProducts}
-                disabled={isBusy || urlRows.length === 0}
-                className="w-full justify-center gap-2"
-              >
-                {isScraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Producten ophalen
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={refreshClean}
-                disabled={isScraping || isImporting}
-                className="w-full justify-center gap-2"
-              >
-                <Eraser className="h-4 w-4" />
-                Preview leegmaken
-              </Button>
-              {isScraping ? (
-                <Button
-                  type="button"
-                  variant="destructiveSoft"
-                  onClick={stopScrape}
-                  disabled={isStoppingScrape}
-                  className="w-full justify-center gap-2"
-                >
-                  {isStoppingScrape ? <Loader2 className="h-4 w-4 animate-spin" /> : <Octagon className="h-4 w-4" />}
-                  Stop ophalen
-                </Button>
-              ) : null}
             </div>
 
-            {status ? (
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                {status}
-              </div>
-            ) : null}
             {error ? (
               <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}
@@ -476,7 +585,7 @@ export function BouwmaatImportDialog({
                       />
                     </TableHead>
                     <TableHead>Materiaal</TableHead>
-                    <TableHead className="w-28 text-right">Prijs</TableHead>
+                    <TableHead className="w-40 text-right">Prijs (excl btw)</TableHead>
                     <TableHead className="hidden w-24 md:table-cell">Eenheid</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -485,7 +594,13 @@ export function BouwmaatImportDialog({
                     const key = material.source_product_id || material.source_url || material.materiaalnaam;
                     const selected = selectedKeys.has(key);
                     return (
-                      <TableRow key={key} className={cn(!selected && 'opacity-50')}>
+                      <TableRow
+                        key={key}
+                        className={cn(
+                          !selected && 'opacity-50',
+                          material.audit_status === 'review' && 'bg-amber-500/5'
+                        )}
+                      >
                         <TableCell>
                           <Checkbox
                             checked={selected}
@@ -501,9 +616,17 @@ export function BouwmaatImportDialog({
                                 .filter(Boolean)
                                 .join(' • ') || '—'}
                             </div>
+                            {material.audit_status === 'review' && material.audit_reason ? (
+                              <div className="mt-1 text-xs text-amber-300">{material.audit_reason}</div>
+                            ) : null}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">{formatEuro(material.prijs_excl_btw)}</TableCell>
+                        <TableCell className="text-right">
+                          <div>{formatEuro(material.prijs_excl_btw)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            incl: {formatEuro(material.prijs_incl_btw ?? (material.prijs_excl_btw == null ? null : Number((material.prijs_excl_btw * 1.21).toFixed(2))))}
+                          </div>
+                        </TableCell>
                         <TableCell className="hidden md:table-cell">{material.eenheid}</TableCell>
                       </TableRow>
                     );
@@ -521,11 +644,54 @@ export function BouwmaatImportDialog({
         </div>
 
         <DialogFooter className="border-t border-border/70 px-6 py-4">
+          <Button
+            type="button"
+            variant="success"
+            onClick={scrapeProducts}
+            disabled={isBusy || urlRows.length === 0}
+            className="gap-2"
+          >
+            {isScraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Producten ophalen
+          </Button>
+          <Button type="button" variant="outline" onClick={refreshClean} disabled={isScraping || isImporting} className="gap-2">
+            <Eraser className="h-4 w-4" />
+            Preview leegmaken
+          </Button>
+          <Button
+            type="button"
+            variant={aiAuditEnabled ? 'success' : 'outline'}
+            onClick={() => {
+              setAiAuditEnabled((current) => !current);
+              resetPreview();
+            }}
+          >
+            {aiAuditEnabled ? 'AI controle: aan' : 'AI controle: uit'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={openBouwmaatBrowser}
+            disabled={isBusy}
+            className="gap-2"
+          >
+            {isOpeningBrowser ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+            Open Bouwmaat browser
+          </Button>
+          {isScraping ? (
+            <Button
+              type="button"
+              variant="destructiveSoft"
+              onClick={stopScrape}
+              disabled={isStoppingScrape}
+              className="gap-2"
+            >
+              {isStoppingScrape ? <Loader2 className="h-4 w-4 animate-spin" /> : <Octagon className="h-4 w-4" />}
+              Stop ophalen
+            </Button>
+          ) : null}
           <Button type="button" variant="ghost" onClick={closeAndReset} disabled={isBusy}>
             Sluiten
-          </Button>
-          <Button type="button" variant="outline" onClick={refreshClean} disabled={isScraping || isImporting}>
-            Preview leegmaken
           </Button>
           <Button
             type="button"
