@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus, Trash2, Calculator, Package, Rows3, List, ArrowUpDown } from 'lucide-react';
+import { Loader2, Plus, Trash2, Calculator, Package, Rows3, List, ArrowUpDown, PackageSearch } from 'lucide-react';
 
 import { useUser } from '@/firebase';
 
@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
+import { BouwmaatImportDialog } from '@/components/materials/BouwmaatImportDialog';
 
 import {
   Dialog,
@@ -41,6 +42,8 @@ import {
 
 type Material = {
   row_id: string;
+  categorie?: string | null;
+  sub_categorie?: string | null;
   subsectie: string | null;
   materiaalnaam: string | null;
   prijs: number | string | null;
@@ -285,6 +288,7 @@ export default function MaterialenPage() {
   const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(50);
 
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
+  const [bouwmaatImportOpen, setBouwmaatImportOpen] = useState<boolean>(false);
   const [savingCustom, setSavingCustom] = useState<boolean>(false);
 
   // ✅ Delete confirm dialog
@@ -908,6 +912,15 @@ export default function MaterialenPage() {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-full px-4 sm:w-auto"
+              onClick={() => setBouwmaatImportOpen(true)}
+            >
+              <PackageSearch className="mr-2 h-4 w-4" />
+              Bouwmaat import
+            </Button>
             <Button asChild variant="outline" className="h-10 w-full px-4 sm:w-auto">
               <Link href="/prijs-import-aanvragen">Prijs import aanvragen</Link>
             </Button>
@@ -1104,6 +1117,13 @@ export default function MaterialenPage() {
             </CardFooter>
           ) : null}
         </Card>
+
+        <BouwmaatImportDialog
+          open={bouwmaatImportOpen}
+          onOpenChange={setBouwmaatImportOpen}
+          getToken={haalFirebaseIdToken}
+          onImported={fetchMaterials}
+        />
 
         {/* ✅ Add custom dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

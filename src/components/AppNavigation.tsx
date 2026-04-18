@@ -233,9 +233,11 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                 </div>
             </nav>
 
-            <div className="border-t border-border px-4 py-3">
-                <SupportSidePanel />
-            </div>
+            {!isDeveloperAccess && (
+                <div className="border-t border-border px-4 py-3">
+                    <SupportSidePanel />
+                </div>
+            )}
         </div>
     );
 }
