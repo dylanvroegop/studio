@@ -144,7 +144,7 @@ export function OpeningenSection({
                     type="button"
                     variant="ghost"
                     onClick={handleAdd}
-                    className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-zinc-500 hover:text-emerald-400 transition-all font-medium text-xs"
+                    className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-white hover:text-white transition-all font-medium text-xs"
                 >
                     <PlusCircle className="h-4 w-4" />
                     <span>{addButtonLabel || 'Opening Toevoegen'}</span>

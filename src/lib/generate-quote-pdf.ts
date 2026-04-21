@@ -1218,10 +1218,6 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(30, 30, 30);
             doc.text(`TEKENINGEN (${index + 1}/${drawingImages.length})`, margin, y);
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(100, 100, 100);
-            doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, y, { align: 'right' });
 
             y += 8;
             drawLine(y);

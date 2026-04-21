@@ -124,6 +124,22 @@ function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function isMissingImportedColumnError(error: { message?: string; code?: string } | null | undefined): boolean {
+  if (!error) return false;
+  const msg = (error.message || '').toLowerCase();
+  return error.code === '42703' || msg.includes('imported_to_main');
+}
+
+function isImportJobsStatusConstraintError(error: { message?: string; code?: string } | null | undefined): boolean {
+  if (!error) return false;
+  const msg = (error.message || '').toLowerCase();
+  return (
+    msg.includes('import_jobs_status_check') ||
+    (msg.includes('check constraint') && msg.includes('import_jobs')) ||
+    error.code === '23514'
+  );
+}
+
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader) return null;
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -500,6 +516,38 @@ function cleanMaterialName(name: string): string {
   return value;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractCriticalPackHints(sourceName: string): string[] {
+  const source = cleanMaterialName(sourceName);
+  if (!source) return [];
+  const patterns = [
+    /\b\d+\s*(?:pl|plaat|platen|st|stuks|pak|packs?)\b/gi,
+    /\b\d+(?:[.,]\d+)?\s*m(?:2|²)\b/gi,
+  ];
+  const found: string[] = [];
+  for (const pattern of patterns) {
+    const matches = source.match(pattern) || [];
+    for (const match of matches) {
+      const normalized = cleanMaterialName(match);
+      if (normalized) found.push(normalized);
+    }
+  }
+  return [...new Set(found)];
+}
+
+function preserveCriticalNameHints(mappedName: string, sourceName: string): string {
+  let next = cleanMaterialName(mappedName);
+  const hints = extractCriticalPackHints(sourceName);
+  for (const hint of hints) {
+    const hasHint = new RegExp(`\\b${escapeRegExp(hint).replace(/\s+/g, '\\s*')}\\b`, 'i').test(next);
+    if (!hasHint) next = cleanMaterialName(`${next} ${hint}`);
+  }
+  return next;
+}
+
 function isAllowedColumn(key: string, columns: Set<string>): boolean {
   return columns.has(key) && !BLOCKED_DB_COLUMNS.has(key);
 }
@@ -530,17 +578,26 @@ function buildPayloadFromRow(params: {
     (item): item is string => typeof item === 'string'
   );
 
+  const sourceName = cleanMaterialName(row.name);
   const mappedName = cleanMaterialName(normalizeString((mapped as Record<string, unknown>).materiaalnaam));
-  const materialName = mappedName || cleanMaterialName(row.name);
+  const materialName = preserveCriticalNameHints(mappedName || sourceName, sourceName);
   if (!materialName) issues.push('materiaalnaam ontbreekt');
 
-  const prijsExcl = toNumberOrNull((mapped as Record<string, unknown>).prijs_excl_btw) ?? row.price_excl_btw;
+  const mappedEenheid = mapUnit(normalizeString((mapped as Record<string, unknown>).eenheid));
+  // Trust scraped supplier unit first to avoid AI turning pack/m2 products into "stuk".
+  const resolvedEenheid = row.unit || mappedEenheid || 'stuk';
+  let prijsExcl = toNumberOrNull((mapped as Record<string, unknown>).prijs_excl_btw) ?? row.price_excl_btw;
+  if (
+    (resolvedEenheid === 'p/m2' || resolvedEenheid === 'p/m1' || resolvedEenheid === 'p/m3') &&
+    row.price_per_unit != null
+  ) {
+    prijsExcl = row.price_per_unit;
+  }
   if (prijsExcl == null) issues.push('prijs_excl_btw ontbreekt');
   const prijsIncl = prijsExcl == null ? null : roundToCents(prijsExcl * 1.21);
 
   const mappedCategorieRaw = normalizeString((mapped as Record<string, unknown>).categorie);
   const mappedSubCategorieRaw = normalizeString((mapped as Record<string, unknown>).sub_categorie);
-  const mappedEenheid = mapUnit(normalizeString((mapped as Record<string, unknown>).eenheid));
   const selectedCategory =
     pickAllowedCategory(mappedCategorieRaw) ||
     pickAllowedCategory(row.hoofdcategorie) ||
@@ -560,7 +617,7 @@ function buildPayloadFromRow(params: {
   const payload: Record<string, unknown> = {};
   setIfAllowed(payload, tableColumns, 'gebruikerid', uid);
   setIfAllowed(payload, tableColumns, 'materiaalnaam', materialName);
-  setIfAllowed(payload, tableColumns, 'eenheid', mappedEenheid || row.unit || 'stuk');
+  setIfAllowed(payload, tableColumns, 'eenheid', resolvedEenheid);
   setIfAllowed(payload, tableColumns, 'prijs_excl_btw', prijsExcl);
   setIfAllowed(payload, tableColumns, 'prijs_incl_btw', prijsIncl);
   setIfAllowed(payload, tableColumns, 'categorie', selectedCategory);
@@ -604,17 +661,22 @@ function buildPayloadFromRow(params: {
 }
 
 export async function POST(request: Request) {
+  let uidForFailure: string | null = null;
+  let importJobIdForFailure: string | null = null;
+
   try {
     const uid = await verifyFirebaseUid(request);
     if (!uid) {
       return NextResponse.json({ ok: false, message: 'Niet ingelogd.' }, { status: 401 });
     }
+    uidForFailure = uid;
 
     const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
     if (trialBlockedResponse) return trialBlockedResponse;
 
     const body = (await request.json().catch(() => ({}))) as Body;
     const importJobId = normalizeString(body.import_job_id);
+    importJobIdForFailure = importJobId || null;
     const selectedIds = parseSelectedIds(body.selected_ids);
 
     if (!importJobId) {
@@ -636,6 +698,35 @@ export async function POST(request: Request) {
     }
     if (!jobResult.data) {
       return NextResponse.json({ ok: false, message: 'Import job niet gevonden.' }, { status: 404 });
+    }
+
+    let markImporting = await supabaseAdmin
+      .from('import_jobs')
+      .update({
+        status: 'importing',
+        error_message: null,
+        completed_at: null,
+        total_products: selectedIds.length,
+      })
+      .eq('id', importJobId)
+      .eq('user_id', uid);
+
+    // Backward compatibility: older DB constraint may not allow status='importing' yet.
+    if (markImporting.error && isImportJobsStatusConstraintError(markImporting.error)) {
+      markImporting = await supabaseAdmin
+        .from('import_jobs')
+        .update({
+          status: 'scraping',
+          error_message: null,
+          completed_at: null,
+          total_products: selectedIds.length,
+        })
+        .eq('id', importJobId)
+        .eq('user_id', uid);
+    }
+
+    if (markImporting.error) {
+      throw new Error(markImporting.error.message || 'Kon importstatus niet op importing zetten.');
     }
 
     const scrapedResult = await supabaseAdmin
@@ -667,6 +758,7 @@ export async function POST(request: Request) {
     let inserted = 0;
     let updated = 0;
     const skipped: Array<{ name: string; reason: string }> = [];
+    const importedScrapedIds: string[] = [];
 
     for (let index = 0; index < scrapedRows.length; index += 1) {
       const row = scrapedRows[index];
@@ -726,6 +818,7 @@ export async function POST(request: Request) {
           skipped.push({ name: row.name, reason: update.error.message || 'Update mislukt.' });
           continue;
         }
+        if (row.id) importedScrapedIds.push(row.id);
         updated += 1;
       } else {
         const insert = await supabaseAdmin.from('main_material_list').insert(payload).select('row_id').single();
@@ -733,26 +826,51 @@ export async function POST(request: Request) {
           skipped.push({ name: row.name, reason: insert.error.message || 'Insert mislukt.' });
           continue;
         }
+        if (row.id) importedScrapedIds.push(row.id);
         inserted += 1;
       }
     }
 
-    const deleteSelected = await supabaseAdmin
-      .from('scraped_materials')
-      .delete()
-      .eq('user_id', uid)
-      .eq('import_job_id', importJobId)
-      .in('id', selectedIds);
+    if (importedScrapedIds.length > 0) {
+      let markImported = await supabaseAdmin
+        .from('scraped_materials')
+        .update({
+          imported_to_main: true,
+          imported_at: new Date().toISOString(),
+        })
+        .eq('user_id', uid)
+        .eq('import_job_id', importJobId)
+        .in('id', importedScrapedIds);
 
-    if (deleteSelected.error) {
-      throw new Error(deleteSelected.error.message || 'Kon preview-rijen niet opschonen.');
+      // Backward compatibility before migration: fallback to delete-on-success.
+      if (markImported.error && isMissingImportedColumnError(markImported.error)) {
+        markImported = await supabaseAdmin
+          .from('scraped_materials')
+          .delete()
+          .eq('user_id', uid)
+          .eq('import_job_id', importJobId)
+          .in('id', importedScrapedIds);
+      }
+
+      if (markImported.error) {
+        throw new Error(markImported.error.message || 'Kon geïmporteerde preview-rijen niet bijwerken.');
+      }
     }
 
-    const remainingResult = await supabaseAdmin
+    let remainingResult = await supabaseAdmin
       .from('scraped_materials')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', uid)
-      .eq('import_job_id', importJobId);
+      .eq('import_job_id', importJobId)
+      .eq('imported_to_main', false);
+
+    if (remainingResult.error && isMissingImportedColumnError(remainingResult.error)) {
+      remainingResult = await supabaseAdmin
+        .from('scraped_materials')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', uid)
+        .eq('import_job_id', importJobId);
+    }
 
     if (remainingResult.error) {
       throw new Error(remainingResult.error.message || 'Kon resterende preview niet bepalen.');
@@ -789,6 +907,19 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Importeer selectie mislukt.';
+
+    if (uidForFailure && importJobIdForFailure) {
+      await supabaseAdmin
+        .from('import_jobs')
+        .update({
+          status: 'failed',
+          error_message: message.slice(0, 1200),
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', importJobIdForFailure)
+        .eq('user_id', uidForFailure);
+    }
+
     return NextResponse.json({ ok: false, message }, { status: 500 });
   }
 }

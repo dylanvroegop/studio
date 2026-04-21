@@ -103,6 +103,48 @@ function getScrapeWebhookTargets() {
   };
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function hasJobActivity(params: { importJobId: string; uid: string }): Promise<boolean> {
+  const { importJobId, uid } = params;
+
+  const jobResult = await supabaseAdmin
+    .from('import_jobs')
+    .select('status')
+    .eq('id', importJobId)
+    .eq('user_id', uid)
+    .maybeSingle();
+
+  const status = normalizeString(jobResult.data?.status);
+  if (status === 'scraping' || status === 'completed' || status === 'imported') {
+    return true;
+  }
+
+  const scrapedResult = await supabaseAdmin
+    .from('scraped_materials')
+    .select('id', { head: true, count: 'exact' })
+    .eq('import_job_id', importJobId)
+    .eq('user_id', uid);
+
+  return (scrapedResult.count || 0) > 0;
+}
+
+async function verifyWebhookFallback(params: {
+  importJobId: string;
+  uid: string;
+  retries?: number;
+  intervalMs?: number;
+}): Promise<boolean> {
+  const { importJobId, uid, retries = 4, intervalMs = 1500 } = params;
+  for (let attempt = 0; attempt < retries; attempt += 1) {
+    if (await hasJobActivity({ importJobId, uid })) return true;
+    await sleep(intervalMs);
+  }
+  return false;
+}
+
 export async function POST(request: Request) {
   let importJobId: string | null = null;
   let userIdForFailure: string | null = null;
@@ -193,7 +235,13 @@ export async function POST(request: Request) {
     }
 
     if (!webhookStarted) {
-      throw new Error(lastErrorMessage);
+      const fallbackStarted = await verifyWebhookFallback({
+        importJobId,
+        uid,
+      });
+      if (!fallbackStarted) {
+        throw new Error(lastErrorMessage);
+      }
     }
 
     const updateScraping = await supabaseAdmin

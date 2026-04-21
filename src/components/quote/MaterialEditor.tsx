@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { formatCurrency, MaterialItem } from '@/lib/quote-calculations';
-import { Package, AlertCircle, Plus, Check, X, Trash2, MoreHorizontal } from 'lucide-react';
+import { Package, AlertCircle, Plus, Minus, Check, X, Trash2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -109,6 +109,16 @@ function MaterialRow({
         }
     };
 
+    const handleAantalStep = (delta: number) => {
+        const baseValue = Number.isFinite(parseFloat(localAantal))
+            ? parseFloat(localAantal)
+            : (item.aantal || 0);
+        const nextValue = Math.max(0, baseValue + delta);
+        const nextAsText = String(nextValue);
+        setLocalAantal(nextAsText);
+        onUpdateItem(index, { aantal: nextValue });
+    };
+
     const handleProductBlur = () => {
         console.log('🟢 Product BLUR fired!', { index, localProduct, itemProduct: item.product });
         if (localProduct !== item.product) {
@@ -180,25 +190,48 @@ function MaterialRow({
                     </div>
                 </td>
                 <td className="px-2 py-2 sm:px-6 sm:py-3">
-                    <input
-                        type="number"
-                        value={localAantal}
-                        onChange={(e) => setLocalAantal(e.target.value.slice(0, MAX_INPUT_LENGTH))}
-                        onBlur={handleAantalBlur}
-                        onKeyDown={(e) => {
-                            if (DISALLOWED_NUMBER_KEYS.has(e.key)) {
-                                e.preventDefault();
-                            }
-                            handleKeyDown(e);
-                        }}
-                        onPaste={(e) => {
-                            if (DISALLOWED_NUMBER_PASTE.test(e.clipboardData.getData('text'))) {
-                                e.preventDefault();
-                            }
-                        }}
-                        placeholder="0"
-                        className="w-10 bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold hover:bg-zinc-800/50 hover:border-zinc-600 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none sm:w-12"
-                    />
+                    <div className="flex items-center gap-1">
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleAantalStep(-1)}
+                            className="h-7 w-7 shrink-0 rounded border border-zinc-700/60 bg-zinc-900/40 text-zinc-300 hover:bg-zinc-800/60 hover:text-zinc-100"
+                            aria-label="Verlaag aantal"
+                        >
+                            <Minus className="h-3.5 w-3.5" />
+                        </Button>
+                        <input
+                            type="number"
+                            min="0"
+                            value={localAantal}
+                            onChange={(e) => setLocalAantal(e.target.value.slice(0, MAX_INPUT_LENGTH))}
+                            onBlur={handleAantalBlur}
+                            onKeyDown={(e) => {
+                                if (DISALLOWED_NUMBER_KEYS.has(e.key)) {
+                                    e.preventDefault();
+                                }
+                                handleKeyDown(e);
+                            }}
+                            onPaste={(e) => {
+                                if (DISALLOWED_NUMBER_PASTE.test(e.clipboardData.getData('text'))) {
+                                    e.preventDefault();
+                                }
+                            }}
+                            placeholder="0"
+                            className="w-10 bg-zinc-900/40 border border-zinc-700/60 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50 rounded px-1.5 py-1 text-zinc-100 text-sm font-semibold hover:bg-zinc-800/50 hover:border-zinc-600 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none sm:w-12"
+                        />
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleAantalStep(1)}
+                            className="h-7 w-7 shrink-0 rounded border border-zinc-700/60 bg-zinc-900/40 text-zinc-300 hover:bg-zinc-800/60 hover:text-zinc-100"
+                            aria-label="Verhoog aantal"
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
                 </td>
                 <td className="px-2 py-2 text-right sm:px-6 sm:py-3">
                     <label className={`flex items-center justify-end w-24 bg-zinc-900/40 border rounded px-2 py-1 hover:bg-zinc-800/50 transition-all focus-within:ring-1 focus-within:ring-emerald-500/50 focus-within:border-emerald-500/50 hover:border-zinc-600 cursor-text sm:w-28 ${needsPrice ? 'border-amber-500/50' : 'border-zinc-700/60'}`}>

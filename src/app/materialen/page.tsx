@@ -52,6 +52,41 @@ type Material = {
   order_id?: number | null;
 };
 
+type BackgroundImportState = {
+  running: boolean;
+  supplier: string;
+  message: string;
+  startedAt: number;
+  finishedAt?: number;
+  success?: boolean;
+};
+
+type ActiveSupplierImportJob = {
+  id: string;
+  supplier?: string | null;
+  status: 'pending' | 'scraping' | 'importing' | 'completed' | 'failed' | 'imported';
+  total_products?: number | null;
+  sample_url?: string | null;
+};
+
+type AutoImportFlowState = {
+  importJobId: string;
+  supplier: string;
+  startedAt: number;
+  phase: 'scraping' | 'importing';
+};
+
+type RecoverableImportState = {
+  totalPending: number;
+  jobs: Array<{
+    importJobId: string;
+    supplier: string;
+    status: string;
+    pendingCount: number;
+    createdAt: string;
+  }>;
+};
+
 function calculatePiecePrice(price: number, unit: string, L: string, B: string, maatUnit: string): number | null {
   const lengte = parseFloat(L.replace(',', '.'));
   const breedte = parseFloat(B.replace(',', '.'));
@@ -79,6 +114,19 @@ function formatEuro(amount: number | null): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
+}
+
+function toSupplierLabel(value: string): string {
+  const clean = value.trim();
+  if (!clean) return 'supplier';
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
+
+function shortenUrl(value: string, maxLength = 84): string {
+  const clean = value.trim();
+  if (!clean) return '';
+  if (clean.length <= maxLength) return clean;
+  return `${clean.slice(0, maxLength - 1)}…`;
 }
 
 function PageSkeleton() {
@@ -297,6 +345,10 @@ export default function MaterialenPage() {
   const [deleting, setDeleting] = useState<boolean>(false);
   const [deleteAllOpen, setDeleteAllOpen] = useState<boolean>(false);
   const [deletingAll, setDeletingAll] = useState<boolean>(false);
+  const [backgroundImport, setBackgroundImport] = useState<BackgroundImportState | null>(null);
+  const [autoImportFlow, setAutoImportFlow] = useState<AutoImportFlowState | null>(null);
+  const [recoverableImport, setRecoverableImport] = useState<RecoverableImportState | null>(null);
+  const [isRecoveringImport, setIsRecoveringImport] = useState<boolean>(false);
 
   // Voeg deze twee toe aan je bestaande states
   const [step, setStep] = useState<'choice' | 'form'>('choice');
@@ -382,6 +434,160 @@ export default function MaterialenPage() {
       setIsLoading(false);
     }
   }, [user?.uid, isUserLoading, fetchMaterials]);
+
+  useEffect(() => {
+    if (!user?.uid || autoImportFlow || isRecoveringImport) return;
+
+    let cancelled = false;
+
+    const syncBackgroundImportBanner = async () => {
+      try {
+        const token = await haalFirebaseIdToken();
+        const res = await fetch('/api/supplier-import/job?active=1', {
+          method: 'GET',
+          headers: {
+            authorization: `Bearer ${token}`,
+          },
+          cache: 'no-store',
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok || cancelled) return;
+
+        const job = (json.job || null) as ActiveSupplierImportJob | null;
+        const activeJobs = Array.isArray(json.active_jobs)
+          ? (json.active_jobs as ActiveSupplierImportJob[])
+          : [];
+        const previewRows = Array.isArray(json.materials) ? json.materials.length : 0;
+
+        if (!job?.id) {
+          setBackgroundImport((current) => {
+            if (!current?.running) return current;
+            return {
+              ...current,
+              running: false,
+              success: true,
+              finishedAt: Date.now(),
+              message: 'Import afgerond.',
+            };
+          });
+          return;
+        }
+
+        const supplierLabel = toSupplierLabel(job.supplier || '');
+        const totalProducts = Number(job.total_products || 0);
+        const displayCount = totalProducts > 0 ? totalProducts : previewRows;
+        let message = 'Import loopt op de achtergrond...';
+        if (job.status === 'pending' || job.status === 'scraping') {
+          message =
+            displayCount > 0
+              ? `Producten ophalen... ${displayCount} in verwerking.`
+              : 'Producten ophalen...';
+        } else if (job.status === 'importing') {
+          message =
+            displayCount > 0
+              ? `Importeren bezig... AI verwerkt ${displayCount} producten.`
+              : 'Importeren bezig... AI zet producten in de juiste kolommen.';
+        }
+
+        const runLines = (activeJobs.length > 0 ? activeJobs : [job])
+          .map((entry) => {
+            const status = String(entry.status || '').trim();
+            const statusLabel =
+              status === 'importing'
+                ? 'importeren'
+                : status === 'scraping'
+                  ? 'scrapen'
+                  : status === 'pending'
+                    ? 'wachten'
+                    : status;
+            const runSupplier = toSupplierLabel(entry.supplier || '');
+            const shortId = String(entry.id || '').slice(0, 8);
+            const link = shortenUrl(String(entry.sample_url || ''));
+            return `Run ${shortId} · ${runSupplier} · ${statusLabel}${link ? `\nLink: ${link}` : ''}`;
+          })
+          .join('\n\n');
+
+        const combinedMessage = activeJobs.length > 1 ? `${message}\n\n${runLines}` : `${message}${runLines ? `\n\n${runLines}` : ''}`;
+
+        setBackgroundImport((current) => ({
+          running: true,
+          supplier: supplierLabel,
+          message: combinedMessage,
+          startedAt: current?.running ? current.startedAt : Date.now(),
+        }));
+      } catch {
+        // Non-blocking polling
+      }
+    };
+
+    void syncBackgroundImportBanner();
+    const timer = window.setInterval(() => {
+      void syncBackgroundImportBanner();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user?.uid, autoImportFlow, isRecoveringImport]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    let cancelled = false;
+
+    const fetchRecoverableImport = async () => {
+      try {
+        const token = await haalFirebaseIdToken();
+        const res = await fetch('/api/supplier-import/recoverable', {
+          method: 'GET',
+          headers: { authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok || cancelled) return;
+        const jobs = Array.isArray(json.jobs)
+          ? (json.jobs as Array<{
+              import_job_id?: string;
+              supplier?: string;
+              status?: string;
+              pending_count?: number;
+              created_at?: string;
+            }>)
+          : [];
+        const mappedJobs = jobs
+          .map((row) => ({
+            importJobId: String(row.import_job_id || '').trim(),
+            supplier: toSupplierLabel(String(row.supplier || '')),
+            status: String(row.status || ''),
+            pendingCount: Number(row.pending_count || 0),
+            createdAt: String(row.created_at || ''),
+          }))
+          .filter((row) => row.importJobId && row.pendingCount > 0);
+
+        const totalPending =
+          Number(json.total_pending || 0) || mappedJobs.reduce((sum, row) => sum + row.pendingCount, 0);
+        if (mappedJobs.length === 0 || totalPending <= 0) {
+          setRecoverableImport(null);
+          return;
+        }
+        setRecoverableImport({
+          totalPending,
+          jobs: mappedJobs,
+        });
+      } catch {
+        // non-blocking
+      }
+    };
+
+    void fetchRecoverableImport();
+    const timer = window.setInterval(() => {
+      void fetchRecoverableImport();
+    }, 10000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user?.uid]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -903,6 +1109,294 @@ export default function MaterialenPage() {
     }
   }, [fetchMaterials]);
 
+  const runImportSelection = useCallback(
+    async (params: { importJobId: string; selectedIds: string[] }) => {
+      const { importJobId, selectedIds } = params;
+      if (!importJobId) throw new Error('Import job ontbreekt.');
+      if (selectedIds.length === 0) throw new Error('Geen producten gevonden om te importeren.');
+
+      const token = await haalFirebaseIdToken();
+      const res = await fetch('/api/supplier-import/import-selection', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          import_job_id: importJobId,
+          selected_ids: selectedIds,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || 'Import mislukt.');
+      }
+
+      return {
+        inserted: Number(json?.inserted || 0),
+        updated: Number(json?.updated || 0),
+        skipped: Array.isArray(json?.skipped) ? json.skipped.length : 0,
+      };
+    },
+    []
+  );
+
+  const startAutoImportFlow = useCallback(async (params: { importJobId: string; supplier: string }) => {
+    const { importJobId, supplier } = params;
+    if (!importJobId) throw new Error('Import job ontbreekt.');
+
+    const startedAt = Date.now();
+    setAutoImportFlow({
+      importJobId,
+      supplier: toSupplierLabel(supplier),
+      startedAt,
+      phase: 'scraping',
+    });
+    setBackgroundImport({
+      running: true,
+      supplier: toSupplierLabel(supplier),
+      startedAt,
+      message: 'Producten ophalen gestart. Import volgt automatisch zodra scraping klaar is.',
+    });
+  }, []);
+
+  const recoverScrapedImport = useCallback(async () => {
+    const jobs = Array.isArray(recoverableImport?.jobs) ? recoverableImport.jobs : [];
+    if (!recoverableImport || jobs.length === 0) return;
+    setIsRecoveringImport(true);
+    setPageError(null);
+
+    const startedAt = Date.now();
+    setBackgroundImport({
+      running: true,
+      supplier: 'Multi-run',
+      startedAt,
+      message: `Herstel gestart voor ${recoverableImport.totalPending || 0} nog-niet-geïmporteerde producten...`,
+    });
+
+    try {
+      const token = await haalFirebaseIdToken();
+      const CHUNK_SIZE = 150;
+      let totalInserted = 0;
+      let totalUpdated = 0;
+      let totalSkipped = 0;
+      let processedJobs = 0;
+      const totalJobs = jobs.length;
+
+      for (const recoverJob of jobs) {
+        const query = new URLSearchParams({ import_job_id: recoverJob.importJobId });
+        const jobRes = await fetch(`/api/supplier-import/job?${query.toString()}`, {
+          method: 'GET',
+          headers: { authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        const jobJson = await jobRes.json().catch(() => null);
+        if (!jobRes.ok || !jobJson?.ok) {
+          throw new Error(jobJson?.message || 'Kon herstel-job niet ophalen.');
+        }
+
+        const materialsRows = Array.isArray(jobJson.materials)
+          ? (jobJson.materials as Array<{ id?: string }>)
+          : [];
+        const allIds = materialsRows.map((row) => String(row.id || '').trim()).filter(Boolean);
+        if (allIds.length === 0) {
+          processedJobs += 1;
+          continue;
+        }
+
+        for (let i = 0; i < allIds.length; i += CHUNK_SIZE) {
+          const chunk = allIds.slice(i, i + CHUNK_SIZE);
+          const batchIndex = Math.floor(i / CHUNK_SIZE) + 1;
+          const totalBatches = Math.ceil(allIds.length / CHUNK_SIZE);
+          setBackgroundImport((current) => ({
+            running: true,
+            supplier: current?.supplier || 'Multi-run',
+            startedAt: current?.startedAt || startedAt,
+            message: `Herstel-import bezig... job ${processedJobs + 1}/${totalJobs} (${recoverJob.supplier}), batch ${batchIndex}/${totalBatches} (${chunk.length} producten).`,
+          }));
+          const summary = await runImportSelection({
+            importJobId: recoverJob.importJobId,
+            selectedIds: chunk,
+          });
+          totalInserted += summary.inserted;
+          totalUpdated += summary.updated;
+          totalSkipped += summary.skipped;
+        }
+        processedJobs += 1;
+      }
+
+      setBackgroundImport({
+        running: false,
+        supplier: 'Multi-run',
+        success: true,
+        startedAt,
+        finishedAt: Date.now(),
+        message: `Herstel klaar: ${totalInserted} nieuw, ${totalUpdated} bijgewerkt, ${totalSkipped} overgeslagen.`,
+      });
+      setRecoverableImport(null);
+      await fetchMaterials();
+    } catch (e: any) {
+      const message = e?.message || 'Herstel-import mislukt.';
+      setBackgroundImport({
+        running: false,
+        supplier: 'Multi-run',
+        success: false,
+        startedAt,
+        finishedAt: Date.now(),
+        message,
+      });
+      setPageError(message);
+    } finally {
+      setIsRecoveringImport(false);
+    }
+  }, [recoverableImport, runImportSelection, fetchMaterials]);
+
+  useEffect(() => {
+    if (!autoImportFlow) return;
+    let cancelled = false;
+
+    const syncAutoFlow = async () => {
+      try {
+        const token = await haalFirebaseIdToken();
+        const query = new URLSearchParams({ import_job_id: autoImportFlow.importJobId });
+        const res = await fetch(`/api/supplier-import/job?${query.toString()}`, {
+          method: 'GET',
+          headers: { authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok || cancelled) return;
+
+        const job = (json.job || null) as ActiveSupplierImportJob | null;
+        const materialsRows = Array.isArray(json.materials)
+          ? (json.materials as Array<{ id?: string; product_url?: string }>)
+          : [];
+        const count = materialsRows.length;
+        const firstLink = shortenUrl(String(materialsRows[0]?.product_url || ''));
+
+        if (!job?.id) {
+          setAutoImportFlow(null);
+          return;
+        }
+
+        if (job.status === 'pending' || job.status === 'scraping') {
+          setBackgroundImport((current) => ({
+            running: true,
+            supplier: current?.supplier || autoImportFlow.supplier,
+            startedAt: current?.startedAt || autoImportFlow.startedAt,
+            message:
+              count > 0
+                ? `Producten ophalen... ${count} in verwerking.${firstLink ? `\nLink: ${firstLink}` : ''}`
+                : 'Producten ophalen...',
+          }));
+          return;
+        }
+
+        if (job.status === 'failed') {
+          const message = 'Supplier import mislukt tijdens ophalen.';
+          setBackgroundImport({
+            running: false,
+            supplier: autoImportFlow.supplier,
+            startedAt: autoImportFlow.startedAt,
+            finishedAt: Date.now(),
+            success: false,
+            message,
+          });
+          setPageError(message);
+          setAutoImportFlow(null);
+          return;
+        }
+
+        if (job.status === 'completed' && autoImportFlow.phase === 'scraping') {
+          setAutoImportFlow((current) =>
+            current && current.importJobId === autoImportFlow.importJobId
+              ? { ...current, phase: 'importing' }
+              : current
+          );
+          setBackgroundImport((current) => ({
+            running: true,
+            supplier: current?.supplier || autoImportFlow.supplier,
+            startedAt: current?.startedAt || autoImportFlow.startedAt,
+            message:
+              count > 0
+                ? `Importeren gestart... AI verwerkt ${count} producten.${firstLink ? `\nLink: ${firstLink}` : ''}`
+                : 'Importeren gestart... AI zet producten in de juiste kolommen.',
+          }));
+
+          const selectedIds = materialsRows
+            .map((row) => String(row.id || '').trim())
+            .filter(Boolean);
+          const summary = await runImportSelection({
+            importJobId: autoImportFlow.importJobId,
+            selectedIds,
+          });
+
+          if (cancelled) return;
+          setBackgroundImport({
+            running: false,
+            supplier: autoImportFlow.supplier,
+            success: true,
+            startedAt: autoImportFlow.startedAt,
+            finishedAt: Date.now(),
+            message: `Import klaar: ${summary.inserted} nieuw, ${summary.updated} bijgewerkt, ${summary.skipped} overgeslagen.`,
+          });
+          setAutoImportFlow(null);
+          await fetchMaterials();
+          return;
+        }
+
+        if (job.status === 'importing') {
+          setBackgroundImport((current) => ({
+            running: true,
+            supplier: current?.supplier || autoImportFlow.supplier,
+            startedAt: current?.startedAt || autoImportFlow.startedAt,
+            message:
+              count > 0
+                ? `Importeren bezig... AI verwerkt ${count} producten.${firstLink ? `\nLink: ${firstLink}` : ''}`
+                : 'Importeren bezig... AI zet producten in de juiste kolommen.',
+          }));
+          return;
+        }
+
+        if (job.status === 'imported') {
+          setBackgroundImport({
+            running: false,
+            supplier: autoImportFlow.supplier,
+            success: true,
+            startedAt: autoImportFlow.startedAt,
+            finishedAt: Date.now(),
+            message: 'Import afgerond.',
+          });
+          setAutoImportFlow(null);
+          await fetchMaterials();
+        }
+      } catch (e: any) {
+        if (cancelled) return;
+        const message = e?.message || 'Achtergrond-import mislukt.';
+        setBackgroundImport({
+          running: false,
+          supplier: autoImportFlow.supplier,
+          success: false,
+          startedAt: autoImportFlow.startedAt,
+          finishedAt: Date.now(),
+          message,
+        });
+        setPageError(message);
+        setAutoImportFlow(null);
+      }
+    };
+
+    void syncAutoFlow();
+    const timer = window.setInterval(() => {
+      void syncAutoFlow();
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [autoImportFlow, fetchMaterials, runImportSelection]);
+
   if (isUserLoading || (!user && !pageError)) {
     return <PageSkeleton />;
   }
@@ -964,6 +1458,22 @@ export default function MaterialenPage() {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {recoverableImport && Array.isArray(recoverableImport.jobs) && recoverableImport.jobs.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full px-4 sm:w-auto"
+                onClick={() => void recoverScrapedImport()}
+                disabled={isRecoveringImport || autoImportFlow !== null}
+              >
+                {isRecoveringImport ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <PackageSearch className="mr-2 h-4 w-4" />
+                )}
+                Herstel {recoverableImport.totalPending || 0} nog te importeren
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="destructiveSoft"
@@ -1000,6 +1510,46 @@ export default function MaterialenPage() {
             </div>
           ) : null
         }
+
+        {backgroundImport ? (
+          <div
+            className={cn(
+              'flex flex-col gap-3 rounded-xl border px-4 py-3 md:flex-row md:items-center md:justify-between',
+              backgroundImport.running
+                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
+                : backgroundImport.success
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
+                  : 'border-destructive/40 bg-destructive/10 text-destructive'
+            )}
+          >
+            <div className="flex items-start gap-3">
+              {backgroundImport.running ? (
+                <Loader2 className="mt-0.5 h-4 w-4 animate-spin" />
+              ) : (
+                <PackageSearch className="mt-0.5 h-4 w-4" />
+              )}
+              <div className="space-y-0.5">
+                <div className="text-sm font-medium">
+                  {backgroundImport.running ? 'Achtergrond import actief' : 'Achtergrond import afgerond'}
+                  <span className="ml-2 text-xs uppercase tracking-wide opacity-80">
+                    {backgroundImport.supplier}
+                  </span>
+                </div>
+                <div className="whitespace-pre-line text-sm opacity-90">{backgroundImport.message}</div>
+              </div>
+            </div>
+            {!backgroundImport.running ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setBackgroundImport(null)}
+              >
+                Sluiten
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
 
         <Card>
 
@@ -1181,6 +1731,7 @@ export default function MaterialenPage() {
           onOpenChange={setBouwmaatImportOpen}
           getToken={haalFirebaseIdToken}
           onImported={fetchMaterials}
+          onStartAutoImportFlow={startAutoImportFlow}
         />
 
         {/* ✅ Add custom dialog */}

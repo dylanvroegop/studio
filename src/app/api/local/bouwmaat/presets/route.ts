@@ -156,6 +156,12 @@ export async function POST(request: Request) {
     if (body.links.length === 0) {
       return NextResponse.json({ ok: false, message: 'Minimaal één link is verplicht.' }, { status: 400 });
     }
+    if (body.maxPagesPerUrl == null) {
+      return NextResponse.json(
+        { ok: false, message: 'Aantal pagina\'s is verplicht voor een preset (bijv. 1 of 100).' },
+        { status: 400 }
+      );
+    }
 
     let presetId = body.id || `preset-${crypto.randomUUID()}`;
 

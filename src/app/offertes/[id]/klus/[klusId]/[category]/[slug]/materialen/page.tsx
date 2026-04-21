@@ -846,12 +846,12 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
       <div
         onClick={onClick}
         className={cn(
-          "group relative flex flex-col sm:flex-row sm:items-center justify-between py-1.5 px-4 rounded-lg border transition-all gap-1 sm:gap-4 cursor-pointer",
+          "group relative flex items-center justify-between py-1.5 px-4 rounded-lg border transition-all gap-3 cursor-pointer",
           (selected && selected.materiaalnaam) ? "border-emerald-500/20 bg-emerald-500/5" : "border-border hover:bg-accent/40"
         )}
       >
         <div
-          className="flex items-center gap-3 w-full sm:w-auto sm:flex-1 min-w-0"
+          className="flex items-center gap-3 min-w-0 flex-1"
         >
           <span className={cn(
             "font-medium text-sm truncate",
@@ -861,18 +861,21 @@ function MaterialRow({ label, selected, onClick, onRemove, isCustom, onEditTitle
           </span>
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0">
-          <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial sm:justify-end">
+        <div className="ml-auto flex items-center gap-2 min-w-0 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
             {(selected && selected.materiaalnaam) ? (
               <>
-                <span className="text-xs font-medium text-emerald-500 break-words text-left sm:text-right leading-tight">
+                <span
+                  title={selected.materiaalnaam}
+                  className="text-xs font-medium text-emerald-500 whitespace-nowrap truncate max-w-[42vw] sm:max-w-[360px] md:max-w-[460px]"
+                >
                   {selected.materiaalnaam}
                 </span>
                 <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors shrink-0" />
               </>
             ) : (
               <div className={cn(
-                "flex items-center gap-1.5 text-xs shrink-0 ml-auto sm:ml-0 transition-colors",
+                "flex items-center gap-1.5 text-xs shrink-0 transition-colors",
                 isSubSection
                   ? "text-muted-foreground/50 hover:text-muted-foreground/80"
                   : "text-emerald-600 hover:text-emerald-500 font-medium"

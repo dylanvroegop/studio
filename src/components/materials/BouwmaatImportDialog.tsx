@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Eraser, Loader2, PackageSearch, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { Eraser, Loader2, PackageSearch, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -40,7 +40,7 @@ type SupplierImportMaterial = {
 type SupplierImportJob = {
   id: string;
   supplier: string;
-  status: 'pending' | 'scraping' | 'completed' | 'failed' | 'imported';
+  status: 'pending' | 'scraping' | 'importing' | 'completed' | 'failed' | 'imported';
   total_products: number;
   error_message: string | null;
   created_at: string;
@@ -52,9 +52,8 @@ type BouwmaatImportDialogProps = {
   onOpenChange: (open: boolean) => void;
   getToken: () => Promise<string>;
   onImported: () => Promise<void> | void;
-  onStartBackgroundImport: (params: {
+  onStartAutoImportFlow: (params: {
     importJobId: string;
-    selectedIds: string[];
     supplier: string;
   }) => Promise<void> | void;
 };
@@ -244,7 +243,7 @@ export function BouwmaatImportDialog({
   onOpenChange,
   getToken,
   onImported,
-  onStartBackgroundImport,
+  onStartAutoImportFlow,
 }: BouwmaatImportDialogProps) {
   const [supplierTabs, setSupplierTabs] = useState<SupplierTab[]>(() =>
     BUILT_IN_SUPPLIER_TABS.map((tab) => ({ ...tab }))
@@ -267,8 +266,6 @@ export function BouwmaatImportDialog({
   const [error, setError] = useState<string | null>(null);
 
   const [isStartingImport, setIsStartingImport] = useState(false);
-  const [isQueueingImport, setIsQueueingImport] = useState(false);
-
   const [activeImportJobId, setActiveImportJobId] = useState<string>('');
   const [activeImportJobStatus, setActiveImportJobStatus] = useState<string>('');
 
@@ -332,7 +329,6 @@ export function BouwmaatImportDialog({
     setStatus('');
     setError(null);
     setIsStartingImport(false);
-    setIsQueueingImport(false);
     setActiveImportJobId('');
     setActiveImportJobStatus('');
   };
@@ -441,6 +437,9 @@ export function BouwmaatImportDialog({
         } else if (job?.status === 'pending' || job?.status === 'scraping') {
           setError(null);
           setStatus('Bezig met ophalen... dit kan 5-10 minuten duren.');
+        } else if (job?.status === 'importing') {
+          setError(null);
+          setStatus('Importeren bezig... AI zet producten in de juiste kolommen.');
         }
       }
     } catch (err) {
@@ -475,6 +474,8 @@ export function BouwmaatImportDialog({
       setSelectedKeys(new Set(mapped.filter((row: SupplierImportMaterial) => row.selected).map((row: SupplierImportMaterial) => row.id)));
       if (job.status === 'pending' || job.status === 'scraping') {
         setStatus('Bezig met ophalen... dit kan 5-10 minuten duren.');
+      } else if (job.status === 'importing') {
+        setStatus('Importeren bezig... AI zet producten in de juiste kolommen.');
       } else if (job.status === 'completed') {
         setStatus(`Klaar! ${mapped.length} producten in preview.`);
       } else {
@@ -524,7 +525,7 @@ export function BouwmaatImportDialog({
 
   useEffect(() => {
     if (!open || !activeImportJobId) return;
-    if (!['pending', 'scraping'].includes(activeImportJobStatus)) return;
+    if (!['pending', 'scraping', 'importing'].includes(activeImportJobStatus)) return;
 
     const handle = window.setInterval(() => {
       void loadJob(activeImportJobId, { silent: true });
@@ -533,7 +534,7 @@ export function BouwmaatImportDialog({
     return () => window.clearInterval(handle);
   }, [open, activeImportJobId, activeImportJobStatus]);
 
-  const persistActivePreference = async (next: Partial<Pick<SupplierDraft, 'priceMode' | 'aiAuditEnabled'>>) => {
+  const persistActivePreference = async (next: Partial<Pick<SupplierDraft, 'priceMode'>>) => {
     try {
       const token = await getToken();
       await fetch('/api/local/bouwmaat/preferences', {
@@ -545,7 +546,7 @@ export function BouwmaatImportDialog({
         body: JSON.stringify({
           supplierKey: activeSupplierKey,
           priceMode: next.priceMode ?? priceMode,
-          aiAuditEnabled: typeof next.aiAuditEnabled === 'boolean' ? next.aiAuditEnabled : aiAuditEnabled,
+          aiAuditEnabled: false,
         }),
       });
     } catch {
@@ -556,12 +557,18 @@ export function BouwmaatImportDialog({
   const saveCurrentAsPreset = async () => {
     const name = presetName.trim();
     const links = urlLines.map((line) => line.trim()).filter(Boolean);
+    const maxPagesRaw = maxPagesPerUrl.trim();
+    const maxPages = Number.parseInt(maxPagesRaw, 10);
     if (!name) {
       setError('Geef een presetnaam op.');
       return;
     }
     if (links.length === 0) {
       setError('Voeg minimaal één link toe om een preset op te slaan.');
+      return;
+    }
+    if (!maxPagesRaw || !Number.isFinite(maxPages) || maxPages <= 0) {
+      setError('Vul "Hoeveel pagina\'s?" in met een getal groter dan 0 (bijv. 1 of 100).');
       return;
     }
 
@@ -580,7 +587,7 @@ export function BouwmaatImportDialog({
           links,
           supplierKey: activeSupplierKey,
           priceMode,
-          maxPagesPerUrl: maxPagesPerUrl.trim(),
+          maxPagesPerUrl: maxPagesRaw,
           aiAuditEnabled,
         }),
       });
@@ -672,7 +679,11 @@ export function BouwmaatImportDialog({
       const jobId = normalizeString(json.import_job_id);
       setActiveImportJobId(jobId);
       setActiveImportJobStatus('scraping');
-      await loadJob(jobId, { silent: true });
+      await onStartAutoImportFlow({
+        importJobId: jobId,
+        supplier: activeSupplierApiKey || activeSupplierKey,
+      });
+      closeAndReset();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Starten van supplier import mislukt.');
       setStatus('');
@@ -698,35 +709,7 @@ export function BouwmaatImportDialog({
     setSelectedKeys(new Set(materials.map((material) => material.id)));
   };
 
-  const importSelected = async () => {
-    if (!activeImportJobId) {
-      setError('Geen actieve import job gevonden.');
-      return;
-    }
-    if (selectedMaterials.length === 0) {
-      setError('Selecteer minimaal één materiaal.');
-      return;
-    }
-
-    setIsQueueingImport(true);
-    setError(null);
-    setStatus('Import gestart op de achtergrond...');
-    try {
-      await onStartBackgroundImport({
-        importJobId: activeImportJobId,
-        selectedIds: selectedMaterials.map((item) => item.id),
-        supplier: activeSupplierApiKey || activeSupplierKey,
-      });
-      setStatus('Import draait op de achtergrond. Je kunt doorgaan met andere taken.');
-      onOpenChange(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import mislukt.');
-    } finally {
-      setIsQueueingImport(false);
-    }
-  };
-
-  const isBusy = isStartingImport || isQueueingImport;
+  const isBusy = isStartingImport;
 
   return (
     <Dialog
@@ -1022,29 +1005,8 @@ export function BouwmaatImportDialog({
             <Eraser className="h-4 w-4" />
             Preview leegmaken
           </Button>
-          <Button
-            type="button"
-            variant={aiAuditEnabled ? 'success' : 'outline'}
-            onClick={() => {
-              const nextValue = !aiAuditEnabled;
-              updateActiveDraft((current) => ({ ...current, aiAuditEnabled: nextValue }));
-              persistActivePreference({ aiAuditEnabled: nextValue });
-            }}
-          >
-            {aiAuditEnabled ? 'AI controle: aan' : 'AI controle: uit'}
-          </Button>
           <Button type="button" variant="ghost" onClick={closeAndReset} disabled={isBusy}>
             Sluiten
-          </Button>
-          <Button
-            type="button"
-            variant="success"
-            onClick={importSelected}
-            disabled={isBusy || selectedMaterials.length === 0 || !activeImportJobId}
-            className="gap-2"
-          >
-            {isQueueingImport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            Importeer selectie
           </Button>
         </DialogFooter>
       </DialogContent>
