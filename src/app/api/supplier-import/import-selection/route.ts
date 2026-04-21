@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
@@ -46,6 +48,13 @@ const ALLOWED_CATEGORIES = [
   'Ubbink',
   'Overig',
 ] as const;
+const DEFAULT_SUB_CATEGORIES = ['Overig'] as const;
+const SUB_CATEGORY_SOURCE_FILE = path.join(
+  process.cwd(),
+  'src/lib/material_list/material_category_name_test.json'
+);
+
+let cachedAllowedSubCategories: string[] | null = null;
 const DEFAULT_COLUMNS = [
   'gebruikerid',
   'materiaalnaam',
@@ -234,6 +243,76 @@ function inferCategoryFromName(name: string): string {
   return 'Overig';
 }
 
+async function getAllowedSubCategories(): Promise<string[]> {
+  if (cachedAllowedSubCategories) return cachedAllowedSubCategories;
+
+  try {
+    const raw = await readFile(SUB_CATEGORY_SOURCE_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    const rows = Array.isArray(parsed) ? parsed : [];
+    const set = new Set<string>();
+    for (const row of rows) {
+      if (!row || typeof row !== 'object') continue;
+      const sub = normalizeString((row as Record<string, unknown>).sub_categorie);
+      if (sub) set.add(sub);
+    }
+    if (set.size === 0) {
+      cachedAllowedSubCategories = [...DEFAULT_SUB_CATEGORIES];
+      return cachedAllowedSubCategories;
+    }
+    if (!set.has('Overig')) set.add('Overig');
+    cachedAllowedSubCategories = [...set];
+    return cachedAllowedSubCategories;
+  } catch {
+    cachedAllowedSubCategories = [...DEFAULT_SUB_CATEGORIES];
+    return cachedAllowedSubCategories;
+  }
+}
+
+function pickAllowedSubCategory(value: string, allowed: string[]): string | null {
+  const candidate = normalizeString(value);
+  if (!candidate) return null;
+  const normalized = normalizeCategoryValue(candidate);
+  if (!normalized) return null;
+
+  for (const item of allowed) {
+    if (normalizeCategoryValue(item) === normalized) return item;
+  }
+  for (const item of allowed) {
+    const itemNorm = normalizeCategoryValue(item);
+    if (itemNorm.includes(normalized) || normalized.includes(itemNorm)) return item;
+  }
+  return null;
+}
+
+function inferSubCategoryFromName(name: string, allowed: string[]): string {
+  const value = normalizeCategoryValue(name);
+  const find = (query: string, fallback?: string) => {
+    const direct = allowed.find((item) => normalizeCategoryValue(item) === normalizeCategoryValue(query));
+    if (direct) return direct;
+    if (fallback) {
+      const contains = allowed.find((item) => normalizeCategoryValue(item).includes(normalizeCategoryValue(fallback)));
+      if (contains) return contains;
+    }
+    return null;
+  };
+
+  if (value.includes('osb')) return find('Osb') || find('Plaat') || 'Overig';
+  if (value.includes('underlayment')) return find('Underlayment') || find('Plaat') || 'Overig';
+  if (value.includes('multiplex')) return find('Multiplex') || find('Plaat') || 'Overig';
+  if (value.includes('mdf')) return find('Mdf') || find('Plaat') || 'Overig';
+  if (value.includes('spaanplaat')) return find('Spaanplaat') || find('Plaat') || 'Overig';
+  if (value.includes('vuren')) return find('Vuren') || find('Balken') || 'Overig';
+  if (value.includes('meranti') || value.includes('merantie')) return find('Meranti') || find('Merantie') || 'Overig';
+  if (value.includes('balk')) return find('Balken') || 'Overig';
+  if (value.includes('schroef')) return find('Schroeven') || 'Overig';
+  if (value.includes('nagel')) return find('Nagels') || 'Overig';
+  if (value.includes('deur')) return find('Stomp') || find('Opdek') || 'Overig';
+  if (value.includes('dakraam')) return find('Dakraam') || find('Velux') || 'Overig';
+
+  return allowed.includes('Overig') ? 'Overig' : allowed[0] || 'Overig';
+}
+
 function supplierDisplayName(value: string): string {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : 'Bouwmaat';
 }
@@ -351,7 +430,8 @@ function parseDimensionsFromName(name: string): {
 
 async function runAiMapper(
   rows: CanonicalRow[],
-  tableColumns: string[]
+  tableColumns: string[],
+  allowedSubCategories: string[]
 ): Promise<Map<number, AiMappedRow>> {
   const apiKey = normalizeString(process.env.OPENAI_API_KEY);
   if (!apiKey || rows.length === 0) return new Map();
@@ -373,6 +453,7 @@ async function runAiMapper(
     'Antwoord uitsluitend met JSON.',
     `Beschikbare kolommen: ${JSON.stringify(tableColumns)}`,
     `Toegestane categorie waardes (exact een hiervan): ${JSON.stringify(ALLOWED_CATEGORIES)}`,
+    `Toegestane sub_categorie waardes (exact een hiervan): ${JSON.stringify(allowedSubCategories)}`,
     'Belangrijk:',
     '- materiaalnaam moet schoon zijn (geen losse (35) aantallen, geen rommel).',
     '- Vul categorie en sub_categorie logisch.',
@@ -441,8 +522,9 @@ function buildPayloadFromRow(params: {
   row: CanonicalRow;
   aiRow?: AiMappedRow;
   tableColumns: Set<string>;
+  allowedSubCategories: string[];
 }): { payload: Record<string, unknown> | null; issues: string[] } {
-  const { uid, importJobId, row, aiRow, tableColumns } = params;
+  const { uid, importJobId, row, aiRow, tableColumns, allowedSubCategories } = params;
   const mapped = aiRow?.mapped && typeof aiRow.mapped === 'object' ? aiRow.mapped : {};
   const issues = [...(Array.isArray(aiRow?.issues) ? aiRow.issues : [])].filter(
     (item): item is string => typeof item === 'string'
@@ -457,12 +539,16 @@ function buildPayloadFromRow(params: {
   const prijsIncl = prijsExcl == null ? null : roundToCents(prijsExcl * 1.21);
 
   const mappedCategorieRaw = normalizeString((mapped as Record<string, unknown>).categorie);
-  const mappedSubCategorie = normalizeString((mapped as Record<string, unknown>).sub_categorie);
+  const mappedSubCategorieRaw = normalizeString((mapped as Record<string, unknown>).sub_categorie);
   const mappedEenheid = mapUnit(normalizeString((mapped as Record<string, unknown>).eenheid));
   const selectedCategory =
     pickAllowedCategory(mappedCategorieRaw) ||
     pickAllowedCategory(row.hoofdcategorie) ||
     inferCategoryFromName(materialName);
+  const selectedSubCategory =
+    pickAllowedSubCategory(mappedSubCategorieRaw, allowedSubCategories) ||
+    pickAllowedSubCategory(row.subcategorie, allowedSubCategories) ||
+    inferSubCategoryFromName(materialName, allowedSubCategories);
 
   const parsedDims = parseDimensionsFromName(materialName);
   const mappedLengte = normalizeString((mapped as Record<string, unknown>).lengte);
@@ -478,7 +564,7 @@ function buildPayloadFromRow(params: {
   setIfAllowed(payload, tableColumns, 'prijs_excl_btw', prijsExcl);
   setIfAllowed(payload, tableColumns, 'prijs_incl_btw', prijsIncl);
   setIfAllowed(payload, tableColumns, 'categorie', selectedCategory);
-  setIfAllowed(payload, tableColumns, 'sub_categorie', mappedSubCategorie || row.subcategorie);
+  setIfAllowed(payload, tableColumns, 'sub_categorie', selectedSubCategory);
   setIfAllowed(payload, tableColumns, 'leverancier', row.leverancier);
 
   setIfAllowed(payload, tableColumns, 'lengte', mappedLengte || parsedDims.lengte);
@@ -509,6 +595,7 @@ function buildPayloadFromRow(params: {
     mapping_confidence: typeof aiRow?.confidence === 'number' ? aiRow.confidence : null,
     mapping_issues: issues,
     parsed_dimensions: parsedDims,
+    selected_sub_categorie: selectedSubCategory,
     imported_at: new Date().toISOString(),
   });
 
@@ -572,7 +659,8 @@ export async function POST(request: Request) {
     }
 
     const tableColumns = await getTableColumns();
-    const aiMappedRows = await runAiMapper(scrapedRows, [...tableColumns]).catch(
+    const allowedSubCategories = await getAllowedSubCategories();
+    const aiMappedRows = await runAiMapper(scrapedRows, [...tableColumns], allowedSubCategories).catch(
       () => new Map<number, AiMappedRow>()
     );
 
@@ -588,6 +676,7 @@ export async function POST(request: Request) {
         row,
         aiRow: aiMappedRows.get(index),
         tableColumns,
+        allowedSubCategories,
       });
 
       if (!mapping.payload) {

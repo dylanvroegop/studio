@@ -52,6 +52,11 @@ type BouwmaatImportDialogProps = {
   onOpenChange: (open: boolean) => void;
   getToken: () => Promise<string>;
   onImported: () => Promise<void> | void;
+  onStartBackgroundImport: (params: {
+    importJobId: string;
+    selectedIds: string[];
+    supplier: string;
+  }) => Promise<void> | void;
 };
 
 const DEFAULT_BOUWMAAT_URL = '';
@@ -239,6 +244,7 @@ export function BouwmaatImportDialog({
   onOpenChange,
   getToken,
   onImported,
+  onStartBackgroundImport,
 }: BouwmaatImportDialogProps) {
   const [supplierTabs, setSupplierTabs] = useState<SupplierTab[]>(() =>
     BUILT_IN_SUPPLIER_TABS.map((tab) => ({ ...tab }))
@@ -261,7 +267,7 @@ export function BouwmaatImportDialog({
   const [error, setError] = useState<string | null>(null);
 
   const [isStartingImport, setIsStartingImport] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
+  const [isQueueingImport, setIsQueueingImport] = useState(false);
 
   const [activeImportJobId, setActiveImportJobId] = useState<string>('');
   const [activeImportJobStatus, setActiveImportJobStatus] = useState<string>('');
@@ -326,7 +332,7 @@ export function BouwmaatImportDialog({
     setStatus('');
     setError(null);
     setIsStartingImport(false);
-    setIsImporting(false);
+    setIsQueueingImport(false);
     setActiveImportJobId('');
     setActiveImportJobStatus('');
   };
@@ -702,40 +708,25 @@ export function BouwmaatImportDialog({
       return;
     }
 
-    setIsImporting(true);
+    setIsQueueingImport(true);
     setError(null);
-    setStatus('Geselecteerde producten worden geïmporteerd...');
+    setStatus('Import gestart op de achtergrond...');
     try {
-      const token = await getToken();
-      const res = await fetch('/api/supplier-import/import-selection', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          import_job_id: activeImportJobId,
-          selected_ids: selectedMaterials.map((item) => item.id),
-        }),
+      await onStartBackgroundImport({
+        importJobId: activeImportJobId,
+        selectedIds: selectedMaterials.map((item) => item.id),
+        supplier: activeSupplierApiKey || activeSupplierKey,
       });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.message || 'Import mislukt.');
-      }
-
-      setStatus(
-        `${json.inserted ?? 0} nieuw, ${json.updated ?? 0} bijgewerkt, ${(json.skipped || []).length} overgeslagen.`
-      );
-      await onImported();
-      await loadJob(activeImportJobId, { silent: true });
+      setStatus('Import draait op de achtergrond. Je kunt doorgaan met andere taken.');
+      onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import mislukt.');
     } finally {
-      setIsImporting(false);
+      setIsQueueingImport(false);
     }
   };
 
-  const isBusy = isStartingImport || isImporting;
+  const isBusy = isStartingImport || isQueueingImport;
 
   return (
     <Dialog
@@ -1052,7 +1043,7 @@ export function BouwmaatImportDialog({
             disabled={isBusy || selectedMaterials.length === 0 || !activeImportJobId}
             className="gap-2"
           >
-            {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {isQueueingImport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             Importeer selectie
           </Button>
         </DialogFooter>
