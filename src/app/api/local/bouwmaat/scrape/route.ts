@@ -7,6 +7,7 @@ import {
   type BouwmaatScrapedMaterial,
   extractBouwmaatProductsFromPage,
   getBouwmaatBrowserProfilePath,
+  isSupportedSupplierUrl,
   isLocalRequest,
   normalizeBouwmaatProduct,
 } from '@/lib/scrapers/bouwmaat';
@@ -26,9 +27,10 @@ type Body = {
   maxPagesPerUrl?: unknown;
   pageDelaySeconds?: unknown;
   aiAudit?: unknown;
+  priceMode?: unknown;
 };
 
-const OPENAI_AUDIT_MODEL = 'gpt-5-mini';
+const OPENAI_AUDIT_MODEL = 'gpt-5.1';
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -72,7 +74,10 @@ function isSuspiciousUiLabel(value: string): boolean {
   return false;
 }
 
-function deterministicAudit(material: BouwmaatScrapedMaterial): BouwmaatScrapedMaterial {
+function deterministicAudit(
+  material: BouwmaatScrapedMaterial,
+  priceMode: 'excl' | 'incl'
+): BouwmaatScrapedMaterial {
   const next = { ...material };
   if (!next.materiaalnaam || isSuspiciousUiLabel(next.materiaalnaam)) {
     next.audit_status = 'rejected';
@@ -88,7 +93,11 @@ function deterministicAudit(material: BouwmaatScrapedMaterial): BouwmaatScrapedM
   }
 
   const unitPrice = parseDutchMoney(next.unit_price_text || '');
-  if (unitPrice != null && Math.abs(unitPrice - next.prijs_excl_btw) >= 0.01) {
+  if (
+    priceMode === 'excl'
+    && unitPrice != null
+    && Math.abs(unitPrice - next.prijs_excl_btw) >= 0.01
+  ) {
     const original = next.prijs_excl_btw;
     next.prijs_excl_btw = unitPrice;
     next.prijs_incl_btw = Number((unitPrice * 1.21).toFixed(2));
@@ -220,7 +229,7 @@ function normalizeUrls(raw: unknown): BouwmaatCategoryInput[] {
       if (!entry || typeof entry !== 'object') return null;
       const row = entry as Record<string, unknown>;
       const url = safeString(row.url);
-      if (!url || !/^https:\/\/(?:www\.)?bouwmaat\.nl\//i.test(url)) return null;
+      if (!url || !isSupportedSupplierUrl(url)) return null;
       rows.push({
         url,
         categorie: safeString(row.categorie),
@@ -295,7 +304,28 @@ async function findNextPageUrl(page: any): Promise<string | null> {
       return normalized.toString();
     };
 
-    const byRel = anchors.find((anchor) => anchor.rel?.toLowerCase().split(/\s+/).includes('next'));
+    const samePathname = (a: URL, b: URL) => a.pathname.replace(/\/+$/, '') === b.pathname.replace(/\/+$/, '');
+    const isListingLikePath = (pathname: string) => /\/[cp]\d+(?:\/)?$/i.test(pathname);
+    const currentHasListingPath = isListingLikePath(current.pathname);
+
+    const byRel = anchors
+      .map((anchor) => {
+        if (!anchor.rel?.toLowerCase().split(/\s+/).includes('next')) return null;
+        try {
+          return new URL(anchor.href);
+        } catch {
+          return null;
+        }
+      })
+      .filter((url): url is URL => Boolean(url))
+      .find((url) => {
+        if (url.origin !== current.origin) return false;
+        // Keep pagination on the same listing path whenever possible.
+        if (samePathname(url, current)) return true;
+        // Some shops keep listing slug but add/remove trailing slash.
+        if (url.pathname.startsWith(current.pathname) || current.pathname.startsWith(url.pathname)) return true;
+        return false;
+      });
     if (byRel?.href) return byRel.href;
 
     const currentPageNumber = readPageParam(current) || 1;
@@ -314,6 +344,14 @@ async function findNextPageUrl(page: any): Promise<string | null> {
         if (url.origin !== current.origin) return null;
         const normalizedHref = normalizeUrl(url);
         if (normalizedHref === currentNormalized) return null;
+        const samePath = samePathname(url, current);
+        const samePathPrefix = url.pathname.startsWith(current.pathname) || current.pathname.startsWith(url.pathname);
+        const listingCompatible = samePath || samePathPrefix || (!currentHasListingPath && samePathPrefix);
+
+        if (!listingCompatible) {
+          // Never jump to unrelated pages (e.g. /branches) just because they have a "next" arrow.
+          return null;
+        }
 
         const pageParam = readPageParam(url);
         const numericLabel = Number.parseInt(label, 10);
@@ -329,9 +367,16 @@ async function findNextPageUrl(page: any): Promise<string | null> {
           normalizedHref,
           isExplicitNext,
           pageNumber: Number.isFinite(pageParam) ? pageParam : (Number.isFinite(numericLabel) ? numericLabel : null),
+          samePath,
         };
       })
-      .filter((item): item is { href: string; normalizedHref: string; isExplicitNext: boolean; pageNumber: number | null } => Boolean(item));
+      .filter((item): item is { href: string; normalizedHref: string; isExplicitNext: boolean; pageNumber: number | null; samePath: boolean } => Boolean(item));
+
+    // Strong preference: same-path numbered pagination (typical listing pages).
+    const samePathNumbered = candidates
+      .filter((item) => item.samePath && typeof item.pageNumber === 'number' && item.pageNumber > currentPageNumber)
+      .sort((a, b) => (a.pageNumber || 0) - (b.pageNumber || 0))[0];
+    if (samePathNumbered) return samePathNumbered.href;
 
     const explicit = candidates.find((item) => item.isExplicitNext);
     if (explicit) return explicit.href;
@@ -340,7 +385,40 @@ async function findNextPageUrl(page: any): Promise<string | null> {
       .filter((item) => typeof item.pageNumber === 'number' && item.pageNumber > currentPageNumber)
       .sort((a, b) => (a.pageNumber || 0) - (b.pageNumber || 0))[0];
 
-    return numbered?.href || null;
+    if (numbered?.href) return numbered.href;
+
+    // Fallback for suppliers where pagination controls are buttons/spans without href.
+    // We only synthesize a next URL when we can observe numeric pagination in the UI.
+    const paginationRoots = Array.from(document.querySelectorAll<HTMLElement>('nav, [role="navigation"], [class*="pagination"], [data-testid*="pagination"]'));
+    const numericPages = new Set<number>();
+    const collectNumbers = (root: ParentNode) => {
+      const nodes = Array.from(root.querySelectorAll<HTMLElement>('a,button,span,li,div'));
+      nodes.forEach((node) => {
+        const text = (node.textContent || '').trim();
+        if (!/^\d{1,4}$/.test(text)) return;
+        const value = Number.parseInt(text, 10);
+        if (Number.isFinite(value) && value > 0) numericPages.add(value);
+      });
+    };
+    paginationRoots.forEach((root) => collectNumbers(root));
+    if (numericPages.size === 0) {
+      // Last resort: scan document for compact numeric pagination patterns.
+      collectNumbers(document);
+    }
+
+    const nextNumeric = Array.from(numericPages)
+      .filter((value) => value > currentPageNumber)
+      .sort((a, b) => a - b)[0];
+
+    if (Number.isFinite(nextNumeric)) {
+      const nextUrl = new URL(current.toString());
+      const knownKey = ['page', 'Page', 'PAGE', 'p', 'P'].find((key) => nextUrl.searchParams.has(key));
+      const pageKey = knownKey || 'page';
+      nextUrl.searchParams.set(pageKey, String(nextNumeric));
+      return nextUrl.toString();
+    }
+
+    return null;
   });
 }
 
@@ -366,6 +444,11 @@ function normalizePageDelaySeconds(raw: unknown): number {
   return 6;
 }
 
+function normalizePriceMode(raw: unknown): 'excl' | 'incl' {
+  const value = safeString(raw).toLowerCase();
+  return value === 'incl' ? 'incl' : 'excl';
+}
+
 async function waitBetweenPages(baseSeconds: number): Promise<void> {
   const baseMs = baseSeconds * 1000;
   const jitterMs = randomInt(1000, 5000);
@@ -376,7 +459,7 @@ export async function POST(request: Request) {
   try {
     if (!isLocalRequest(request)) {
       return NextResponse.json(
-        { ok: false, message: 'Bouwmaat import is alleen lokaal beschikbaar.' },
+        { ok: false, message: 'Supplier import is alleen lokaal beschikbaar.' },
         { status: 403 }
       );
     }
@@ -392,14 +475,16 @@ export async function POST(request: Request) {
     const maxPagesPerUrl = normalizeMaxPages(body.maxPagesPerUrl);
     const pageDelaySeconds = normalizePageDelaySeconds(body.pageDelaySeconds);
     const aiAudit = normalizeAiAudit(body.aiAudit);
+    const priceMode = normalizePriceMode(body.priceMode);
     if (urls.length === 0) {
-      return NextResponse.json({ ok: false, message: 'Voeg minimaal één Bouwmaat URL toe.' }, { status: 400 });
+      return NextResponse.json({ ok: false, message: 'Voeg minimaal één geldige supplier URL toe (Bouwmaat, Toolstation of Gamma).' }, { status: 400 });
     }
 
     const context = await getContext();
     const page = context.pages()[0] || await context.newPage();
     const materials: BouwmaatScrapedMaterial[] = [];
     const failures = [];
+    const rejectedSamples: Array<{ linkText: string; textSample: string; url: string }> = [];
     const seen = new Set<string>();
     let rawCardsSeen = 0;
     let normalizedAccepted = 0;
@@ -436,11 +521,30 @@ export async function POST(request: Request) {
           rawCardsSeen += rawProducts.length;
           for (const raw of rawProducts) {
             const normalized = normalizeBouwmaatProduct(raw, category);
-            if (!normalized) continue;
-            const key = normalized.source_product_id || `${normalized.materiaalnaam}|${normalized.source_url}`;
+            if (!normalized) {
+              if (rejectedSamples.length < 8) {
+                rejectedSamples.push({
+                  linkText: safeString(raw.linkText).slice(0, 180),
+                  textSample: safeString(raw.text).slice(0, 280),
+                  url: safeString(raw.href || category.url),
+                });
+              }
+              continue;
+            }
+            const normalizedWithPriceMode = (() => {
+              if (priceMode !== 'incl' || normalized.prijs_excl_btw == null) return normalized;
+              const parsedIncl = Number(normalized.prijs_excl_btw.toFixed(2));
+              const derivedExcl = Number((parsedIncl / 1.21).toFixed(2));
+              return {
+                ...normalized,
+                prijs_excl_btw: derivedExcl,
+                prijs_incl_btw: parsedIncl,
+              };
+            })();
+            const key = normalizedWithPriceMode.source_product_id || `${normalizedWithPriceMode.materiaalnaam}|${normalizedWithPriceMode.source_url}`;
             if (seen.has(key)) continue;
             seen.add(key);
-            materials.push(normalized);
+            materials.push(normalizedWithPriceMode);
             normalizedAccepted += 1;
           }
 
@@ -464,10 +568,11 @@ export async function POST(request: Request) {
         ok: false,
         message: `Geen producten gevonden (cards: ${rawCardsSeen}, valid: ${normalizedAccepted}). Controleer login of pagina-opmaak.`,
         failures,
+        rejectedSamples,
       }, { status: 422 });
     }
 
-    let audited = materials.map((row) => deterministicAudit(row));
+    let audited = materials.map((row) => deterministicAudit(row, priceMode));
     const uncertain = audited.filter(isUncertainForAi).slice(0, 120);
     if (aiAudit && uncertain.length > 0 && !isCancelRequested()) {
       const aiDecisions = await runAiAudit(uncertain).catch(() => new Map<string, AiAuditDecision>());
@@ -518,6 +623,7 @@ export async function POST(request: Request) {
       pagesVisited,
       maxPagesPerUrl,
       pageDelaySeconds,
+      priceMode,
       cancelled,
       failures,
       aiAudit,

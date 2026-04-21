@@ -17,6 +17,12 @@ function normalizeLegacyCategoryName(value: unknown): string | null {
   return trimmed;
 }
 
+function hasDefaultTemplateConfig(): boolean {
+  const direct = (process.env.DEFAULT_TEMPLATE_UID || '').trim();
+  const legacy = (process.env.TEMPLATE_UID || '').trim();
+  return Boolean(direct || legacy);
+}
+
 export async function GET(req: Request) {
   try {
     // 1. Get UID from Token
@@ -46,16 +52,23 @@ export async function GET(req: Request) {
     let data = [...(ownData || [])];
 
     // First-login/self-heal: ensure the user has a personal catalog from template defaults.
-    if (data.length === 0) {
-      await bootstrapDefaultCatalogForUser(uid, { ignoreCompletionMarker: true });
-      const { data: refetchedOwnData, error: refetchError } = await supabaseAdmin
-        .from('main_material_list')
-        .select('*')
-        .eq('gebruikerid', uid)
-        .order('order_id', { ascending: true })
-        .range(0, 5000);
-      if (refetchError) throw refetchError;
-      data = [...(refetchedOwnData || [])];
+    if (data.length === 0 && hasDefaultTemplateConfig()) {
+      try {
+        await bootstrapDefaultCatalogForUser(uid, { ignoreCompletionMarker: true });
+        const { data: refetchedOwnData, error: refetchError } = await supabaseAdmin
+          .from('main_material_list')
+          .select('*')
+          .eq('gebruikerid', uid)
+          .order('order_id', { ascending: true })
+          .range(0, 5000);
+        if (refetchError) throw refetchError;
+        data = [...(refetchedOwnData || [])];
+      } catch (bootstrapError: any) {
+        console.warn(
+          '[Materialen API] Bootstrap defaults overgeslagen:',
+          bootstrapError?.message || bootstrapError
+        );
+      }
     }
 
     // DB now enforces uniqueness via Primary Key on (gebruikerid, row_id).

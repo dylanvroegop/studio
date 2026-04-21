@@ -207,20 +207,9 @@ html[data-theme='light'] .bg-black\/70 {
   background-color: hsl(var(--card)) !important;
 }
 
-html[data-theme='light'] .text-zinc-100,
-html[data-theme='light'] .text-zinc-200 {
-  color: hsl(var(--foreground)) !important;
-}
-
-html[data-theme='light'] .text-zinc-300,
-html[data-theme='light'] .text-zinc-400,
-html[data-theme='light'] .text-zinc-500,
-html[data-theme='light'] .text-white\/90,
-html[data-theme='light'] .text-white\/80,
-html[data-theme='light'] .text-white\/70,
-html[data-theme='light'] .text-white\/60 {
-  color: hsl(var(--muted-foreground)) !important;
-}
+/* Keep legacy text colors untouched.
+   The global remap made dark-styled pages unreadable (dark text on dark backgrounds)
+   when data-theme='light'. */
 
 html[data-theme='light'] .border-zinc-800,
 html[data-theme='light'] .border-zinc-800\/50,

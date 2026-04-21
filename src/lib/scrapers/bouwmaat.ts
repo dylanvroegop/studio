@@ -37,9 +37,36 @@ type RawProductCard = {
 
 const VAT_RATE = 1.21;
 const MAX_MATERIAL_NAME_LENGTH = 260;
+const SUPPORTED_SUPPLIER_HOSTS = ['bouwmaat.nl', 'toolstation.nl', 'gamma.nl'] as const;
+
+function normalizeHost(input: string): string {
+  return input.trim().toLowerCase().replace(/^www\./, '');
+}
+
+export function isSupportedSupplierUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:') return false;
+    const host = normalizeHost(url.hostname);
+    return SUPPORTED_SUPPLIER_HOSTS.some((allowed) => host === allowed);
+  } catch {
+    return false;
+  }
+}
+
+function inferSupplierFromUrl(value: string): 'Bouwmaat' | 'Toolstation' | 'Gamma' {
+  try {
+    const host = normalizeHost(new URL(value).hostname);
+    if (host === 'toolstation.nl') return 'Toolstation';
+    if (host === 'gamma.nl') return 'Gamma';
+  } catch {
+    // Ignore parse failure and use default.
+  }
+  return 'Bouwmaat';
+}
 
 export function getBouwmaatBrowserProfilePath(): string {
-  return path.join(process.cwd(), '.browser-profiles', 'bouwmaat');
+  return path.join(process.cwd(), '.browser-profiles', 'supplier-import');
 }
 
 export function isLocalRequest(request: Request): boolean {
@@ -129,6 +156,8 @@ function normalizeUnit(rawText: string, materialName: string): string {
   if (/\b(doos|box)\b/.test(lowerName)) return 'doos';
   if (/\b(set)\b/.test(lowerName)) return 'set';
   if (/\b(pak|st\/pak)\b/.test(lowerName)) return 'pak';
+  if (/\b(m2|m²)\b/.test(rawText.toLowerCase())) return 'p/m2';
+  if (/\b(m1)\b/.test(rawText.toLowerCase())) return 'p/m1';
   return 'stuk';
 }
 
@@ -191,6 +220,7 @@ function pickProductName(raw: RawProductCard): string {
     linkText
     && !/^€/.test(linkText)
     && linkText.length >= 5
+    && linkText.length <= 140
     && !looksLikeUiLabel(linkText)
   ) {
     return linkText;
@@ -206,6 +236,7 @@ function pickProductName(raw: RawProductCard): string {
   return lines.find((line) =>
     /[a-z]/i.test(line)
     && line.length >= 8
+    && line.length <= 140
     && !looksLikeUiLabel(line)
   ) || '';
 }
@@ -265,6 +296,8 @@ export function normalizeBouwmaatProduct(
   const sourceProductId = extractArticleNumber(raw.text, raw.href);
   const unitPriceText = parseUnitPriceText(raw.text);
   const bulkPriceText = parseBulkPriceText(raw.text);
+  const sourceUrl = raw.href || category.url;
+  const leverancier = inferSupplierFromUrl(sourceUrl);
 
   return {
     materiaalnaam,
@@ -273,12 +306,12 @@ export function normalizeBouwmaatProduct(
     prijs_incl_btw: prijsExcl == null ? null : Number((prijsExcl * VAT_RATE).toFixed(2)),
     categorie: safeText(category.categorie),
     sub_categorie: safeText(category.sub_categorie),
-    leverancier: 'Bouwmaat',
+    leverancier,
     lengte: dimensions.lengte,
     breedte: dimensions.breedte,
     dikte: dimensions.dikte,
     hoogte: dimensions.hoogte,
-    source_url: raw.href || category.url,
+    source_url: sourceUrl,
     source_product_id: sourceProductId,
     unit_price_text: unitPriceText,
     bulk_price_text: bulkPriceText,
@@ -322,6 +355,10 @@ export async function extractBouwmaatProductsFromPage(page: any): Promise<RawPro
         && (
           /\/\d{5,9}(?:$|[/?#-])/.test(href)
           || /bouwmaat\.nl\/.*\/p\//i.test(href)
+          || /toolstation\.nl\/.+\/p\d+/i.test(href)
+          || /gamma\.nl\/.+\/p\//i.test(href)
+          || /\/p\//i.test(href)
+          || /\/product\//i.test(href)
           || anchor.closest('[data-product-id], [data-testid*="product"], article, li')
         )
       );

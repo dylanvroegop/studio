@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { chromium } from 'playwright';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
-import { getBouwmaatBrowserProfilePath, isLocalRequest } from '@/lib/scrapers/bouwmaat';
+import { getBouwmaatBrowserProfilePath, isLocalRequest, isSupportedSupplierUrl } from '@/lib/scrapers/bouwmaat';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,6 +40,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Niet ingelogd.' }, { status: 401 });
     }
 
+    const body = await request.json().catch(() => ({}));
+    const rawUrl = typeof (body as Record<string, unknown>)?.url === 'string'
+      ? ((body as Record<string, unknown>).url as string).trim()
+      : '';
+    const targetUrl = isSupportedSupplierUrl(rawUrl) ? rawUrl : 'https://www.bouwmaat.nl/';
+
     const context = globalThis.__bouwmaatPlaywrightContext
       ?? await chromium.launchPersistentContext(getBouwmaatBrowserProfilePath(), {
         headless: false,
@@ -48,14 +54,14 @@ export async function POST(request: Request) {
     globalThis.__bouwmaatPlaywrightContext = context;
 
     const page = context.pages()[0] || await context.newPage();
-    await page.goto('https://www.bouwmaat.nl/', { waitUntil: 'domcontentloaded' });
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
 
     return NextResponse.json({
       ok: true,
-      message: 'Bouwmaat browser geopend. Log in en laat het venster open staan.',
+      message: 'Supplier browser geopend. Log in en laat het venster open staan.',
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Bouwmaat browser kon niet openen.';
+    const message = error instanceof Error ? error.message : 'Supplier browser kon niet openen.';
     return NextResponse.json({ ok: false, message }, { status: 500 });
   }
 }

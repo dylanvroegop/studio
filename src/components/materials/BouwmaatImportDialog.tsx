@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Eraser, ExternalLink, Loader2, Octagon, PackageSearch, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Check, Eraser, Loader2, PackageSearch, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -13,29 +13,38 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
-type BouwmaatImportMaterial = {
-  materiaalnaam: string;
-  eenheid: string;
-  prijs_excl_btw: number | null;
-  prijs_incl_btw: number | null;
-  categorie: string;
-  sub_categorie: string;
-  leverancier: string;
-  lengte: string;
-  breedte: string;
-  dikte: string;
-  hoogte: string;
-  source_url: string;
-  source_product_id: string;
-  unit_price_text: string;
-  bulk_price_text: string;
-  confidence: number;
-  audit_status?: 'valid' | 'review' | 'rejected';
-  audit_reason?: string;
-  audit_confidence?: number | null;
+type SupplierImportMaterial = {
+  id: string;
+  name: string;
+  unit: string;
+  price_excl_btw: number | null;
+  price_per_unit: number | null;
+  supplier: string;
+  sku: string;
+  product_url: string;
+  hoofdcategorie: string;
+  subcategorie: string;
+  selected: boolean;
+};
+
+type SupplierImportJob = {
+  id: string;
+  supplier: string;
+  status: 'pending' | 'scraping' | 'completed' | 'failed' | 'imported';
+  total_products: number;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
 };
 
 type BouwmaatImportDialogProps = {
@@ -47,17 +56,58 @@ type BouwmaatImportDialogProps = {
 
 const DEFAULT_BOUWMAAT_URL = '';
 const PRESETS_STORAGE_KEY = 'bouwmaat-import-link-presets-v1';
+const SUPPORTED_SUPPLIER_HOSTS = ['bouwmaat.nl', 'toolstation.nl', 'gamma.nl'];
+const BUILT_IN_SUPPLIER_TABS = [
+  { id: 'bouwmaat', label: 'Bouwmaat', host: 'bouwmaat.nl', removable: false, supplierKey: 'bouwmaat' as const },
+  { id: 'toolstation', label: 'Toolstation', host: 'toolstation.nl', removable: false, supplierKey: 'toolstation' as const },
+  { id: 'gamma', label: 'Gamma', host: 'gamma.nl', removable: false, supplierKey: 'gamma' as const },
+] as const;
+
+type PriceMode = 'excl' | 'incl';
+type SupplierKey = 'bouwmaat' | 'toolstation' | 'gamma' | 'custom';
+type SupplierApiKey = 'bouwmaat' | 'toolstation' | 'gamma';
+
+type SupplierTab = {
+  id: string;
+  label: string;
+  host: string | null;
+  removable: boolean;
+  supplierKey: SupplierKey;
+};
+
+type SupplierDraft = {
+  urlLines: string[];
+  maxPagesPerUrl: string;
+  aiAuditEnabled: boolean;
+  priceMode: PriceMode;
+};
+
+const DEFAULT_SUPPLIER_DRAFT: SupplierDraft = {
+  urlLines: [DEFAULT_BOUWMAAT_URL],
+  maxPagesPerUrl: '',
+  aiAuditEnabled: false,
+  priceMode: 'excl',
+};
 
 type BouwmaatLinkPreset = {
   id: string;
   name: string;
   links: string[];
+  supplierKey: SupplierKey;
+  priceMode: PriceMode;
   maxPagesPerUrl: string;
   aiAuditEnabled: boolean;
 };
 
+type ParsedUrlRow = {
+  base_url: string;
+  pages: number;
+  hoofdcategorie: string;
+  subcategorie: string;
+};
+
 function formatEuro(value: number | null): string {
-  if (value == null) return '—';
+  if (value == null || Number.isNaN(value)) return '—';
   return new Intl.NumberFormat('nl-NL', {
     style: 'currency',
     currency: 'EUR',
@@ -66,19 +116,16 @@ function formatEuro(value: number | null): string {
   }).format(value);
 }
 
-function parseUrlRows(lines: string[]) {
-  return lines
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [urlRaw, categoryRaw, subCategoryRaw] = line.split('|').map((part) => part.trim());
-      return {
-        url: urlRaw,
-        categorie: categoryRaw || '',
-        sub_categorie: subCategoryRaw || '',
-      };
-    })
-    .filter((row) => row.url.startsWith('https://www.bouwmaat.nl/') || row.url.startsWith('https://bouwmaat.nl/'));
+function normalizeString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function parseNumberOrNull(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value !== 'string') return null;
+  const normalized = value.replace(',', '.').replace(/[^0-9.-]/g, '');
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function normalizeStoredLinks(entry: Record<string, unknown>): string[] {
@@ -87,7 +134,6 @@ function normalizeStoredLinks(entry: Record<string, unknown>): string[] {
     : [];
   if (fromArray.length > 0) return fromArray;
 
-  // Backward compatibility for earlier storage shapes.
   const fromUrlLines = Array.isArray(entry.urlLines)
     ? (entry.urlLines as unknown[]).filter((link) => typeof link === 'string').map((link) => (link as string).trim()).filter(Boolean)
     : [];
@@ -119,8 +165,14 @@ function readPresets(): BouwmaatLinkPreset[] {
           id: typeof entry.id === 'string' ? entry.id : `preset-${Date.now()}`,
           name: typeof entry.name === 'string' ? entry.name : 'Preset',
           links: links.length > 0 ? links : [''],
+          supplierKey: (() => {
+            const key = typeof entry.supplierKey === 'string' ? entry.supplierKey : 'bouwmaat';
+            if (key === 'toolstation' || key === 'gamma' || key === 'custom') return key;
+            return 'bouwmaat';
+          })(),
+          priceMode: typeof entry.priceMode === 'string' && entry.priceMode === 'incl' ? 'incl' : 'excl',
           maxPagesPerUrl: typeof entry.maxPagesPerUrl === 'string' ? entry.maxPagesPerUrl : '',
-          aiAuditEnabled: typeof entry.aiAuditEnabled === 'boolean' ? entry.aiAuditEnabled : true,
+          aiAuditEnabled: typeof entry.aiAuditEnabled === 'boolean' ? entry.aiAuditEnabled : false,
         };
       });
   } catch {
@@ -128,9 +180,58 @@ function readPresets(): BouwmaatLinkPreset[] {
   }
 }
 
-function writePresets(next: BouwmaatLinkPreset[]) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(next));
+function parseUrlRows(lines: string[], expectedHost: string | null, defaultPages: number): ParsedUrlRow[] {
+  const isSupportedSupplierUrl = (value: string) => {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== 'https:') return false;
+      const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+      if (!SUPPORTED_SUPPLIER_HOSTS.includes(host)) return false;
+      if (!expectedHost) return true;
+      return host === expectedHost;
+    } catch {
+      return false;
+    }
+  };
+
+  return lines
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [urlRaw, categoryRaw, subCategoryRaw] = line.split('|').map((part) => part.trim());
+      return {
+        base_url: urlRaw,
+        pages: defaultPages,
+        hoofdcategorie: categoryRaw || '',
+        subcategorie: subCategoryRaw || '',
+      };
+    })
+    .filter((row) => isSupportedSupplierUrl(row.base_url));
+}
+
+function mapSupplierKeyForApi(key: SupplierKey): SupplierApiKey | null {
+  if (key === 'bouwmaat' || key === 'toolstation' || key === 'gamma') return key;
+  return null;
+}
+
+function mapMaterialRow(row: Record<string, unknown>): SupplierImportMaterial | null {
+  const id = normalizeString(row.id);
+  const name = normalizeString(row.name);
+  if (!id || !name) return null;
+
+  return {
+    id,
+    name,
+    unit: normalizeString(row.unit),
+    price_excl_btw: parseNumberOrNull(row.price_excl_btw),
+    price_per_unit: parseNumberOrNull(row.price_per_unit),
+    supplier: normalizeString(row.supplier),
+    sku: normalizeString(row.sku),
+    product_url: normalizeString(row.product_url),
+    hoofdcategorie: normalizeString(row.hoofdcategorie),
+    subcategorie: normalizeString(row.subcategorie),
+    selected: row.selected !== false,
+  };
 }
 
 export function BouwmaatImportDialog({
@@ -139,63 +240,95 @@ export function BouwmaatImportDialog({
   getToken,
   onImported,
 }: BouwmaatImportDialogProps) {
-  const [urlLines, setUrlLines] = useState<string[]>([DEFAULT_BOUWMAAT_URL]);
+  const [supplierTabs, setSupplierTabs] = useState<SupplierTab[]>(() =>
+    BUILT_IN_SUPPLIER_TABS.map((tab) => ({ ...tab }))
+  );
+  const [activeTabId, setActiveTabId] = useState<string>('bouwmaat');
+  const [supplierDrafts, setSupplierDrafts] = useState<Record<string, SupplierDraft>>(() =>
+    BUILT_IN_SUPPLIER_TABS.reduce<Record<string, SupplierDraft>>((acc, tab) => {
+      acc[tab.id] = { ...DEFAULT_SUPPLIER_DRAFT };
+      return acc;
+    }, {})
+  );
+
   const [presets, setPresets] = useState<BouwmaatLinkPreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState('');
   const [presetName, setPresetName] = useState('');
-  const [maxPagesPerUrl, setMaxPagesPerUrl] = useState('');
-  const [pageDelaySeconds, setPageDelaySeconds] = useState('6');
-  const [aiAuditEnabled, setAiAuditEnabled] = useState(true);
-  const [materials, setMaterials] = useState<BouwmaatImportMaterial[]>([]);
+
+  const [materials, setMaterials] = useState<SupplierImportMaterial[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [isOpeningBrowser, setIsOpeningBrowser] = useState(false);
-  const [isScraping, setIsScraping] = useState(false);
-  const [isStoppingScrape, setIsStoppingScrape] = useState(false);
+
+  const [isStartingImport, setIsStartingImport] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
-  const urlRows = useMemo(() => parseUrlRows(urlLines), [urlLines]);
+  const [activeImportJobId, setActiveImportJobId] = useState<string>('');
+  const [activeImportJobStatus, setActiveImportJobStatus] = useState<string>('');
+
+  const activeTab = useMemo(
+    () => supplierTabs.find((tab) => tab.id === activeTabId) || supplierTabs[0] || null,
+    [supplierTabs, activeTabId]
+  );
+
+  const activeSupplierKey: SupplierKey = activeTab?.supplierKey || 'bouwmaat';
+  const activeSupplierApiKey = mapSupplierKeyForApi(activeSupplierKey);
+  const activeHost = activeTab?.host || null;
+  const activeDraft = supplierDrafts[activeTabId] || DEFAULT_SUPPLIER_DRAFT;
+  const urlLines = activeDraft.urlLines;
+  const maxPagesPerUrl = activeDraft.maxPagesPerUrl;
+  const aiAuditEnabled = activeDraft.aiAuditEnabled;
+  const priceMode = activeDraft.priceMode;
+
+  const updateActiveDraft = (updater: (current: SupplierDraft) => SupplierDraft) => {
+    setSupplierDrafts((current) => {
+      const draft = current[activeTabId] || DEFAULT_SUPPLIER_DRAFT;
+      return { ...current, [activeTabId]: updater(draft) };
+    });
+  };
 
   const selectedMaterials = useMemo(() => {
-    return materials.filter((material) => selectedKeys.has(material.source_product_id || material.source_url || material.materiaalnaam));
+    return materials.filter((material) => selectedKeys.has(material.id));
   }, [materials, selectedKeys]);
 
-  useEffect(() => {
-    if (!open) return;
-    setPresets(readPresets());
-  }, [open]);
+  const parsedPages = useMemo(() => {
+    const raw = Number.parseInt(maxPagesPerUrl, 10);
+    return Number.isFinite(raw) && raw > 0 ? raw : 1;
+  }, [maxPagesPerUrl]);
+
+  const urlRows = useMemo(
+    () => parseUrlRows(urlLines, activeHost, parsedPages),
+    [urlLines, activeHost, parsedPages]
+  );
 
   const resetPreview = () => {
     setMaterials([]);
     setSelectedKeys(new Set());
     setStatus('');
     setError(null);
-  };
-
-  const refreshClean = () => {
-    setMaterials([]);
-    setSelectedKeys(new Set());
-    setStatus('');
-    setError(null);
-    setIsScraping(false);
-    setIsStoppingScrape(false);
-    setIsImporting(false);
+    setActiveImportJobId('');
+    setActiveImportJobStatus('');
   };
 
   const resetInterface = () => {
-    setUrlLines([DEFAULT_BOUWMAAT_URL]);
-    setMaxPagesPerUrl('');
-    setPageDelaySeconds('6');
-    setAiAuditEnabled(true);
+    setSupplierTabs(BUILT_IN_SUPPLIER_TABS.map((tab) => ({ ...tab })));
+    setActiveTabId('bouwmaat');
+    setSupplierDrafts(
+      BUILT_IN_SUPPLIER_TABS.reduce<Record<string, SupplierDraft>>((acc, tab) => {
+        acc[tab.id] = { ...DEFAULT_SUPPLIER_DRAFT };
+        return acc;
+      }, {})
+    );
+    setSelectedPresetId('');
+    setPresetName('');
     setMaterials([]);
     setSelectedKeys(new Set());
     setStatus('');
     setError(null);
-    setIsOpeningBrowser(false);
-    setIsScraping(false);
-    setIsStoppingScrape(false);
+    setIsStartingImport(false);
     setIsImporting(false);
+    setActiveImportJobId('');
+    setActiveImportJobStatus('');
   };
 
   const closeAndReset = () => {
@@ -204,24 +337,217 @@ export function BouwmaatImportDialog({
   };
 
   const updateUrlLine = (index: number, value: string) => {
-    setUrlLines((current) => current.map((item, itemIndex) => (itemIndex === index ? value : item)));
-    resetPreview();
+    updateActiveDraft((current) => ({
+      ...current,
+      urlLines: current.urlLines.map((item, itemIndex) => (itemIndex === index ? value : item)),
+    }));
+    setError(null);
   };
 
   const addUrlLine = () => {
-    setUrlLines((current) => [...current, '']);
-    resetPreview();
+    updateActiveDraft((current) => ({ ...current, urlLines: [...current.urlLines, ''] }));
+    setError(null);
   };
 
   const removeUrlLine = (index: number) => {
-    setUrlLines((current) => {
-      if (current.length <= 1) return [''];
-      return current.filter((_, itemIndex) => itemIndex !== index);
+    updateActiveDraft((current) => {
+      if (current.urlLines.length <= 1) return { ...current, urlLines: [''] };
+      return { ...current, urlLines: current.urlLines.filter((_, itemIndex) => itemIndex !== index) };
     });
+    setError(null);
+  };
+
+  const addSupplierTab = () => {
+    const customCount = supplierTabs.filter((tab) => tab.supplierKey === 'custom').length;
+    const nextId = `custom-${Date.now()}`;
+    const nextTab: SupplierTab = {
+      id: nextId,
+      label: `Extra ${customCount + 1}`,
+      host: null,
+      removable: true,
+      supplierKey: 'custom',
+    };
+    setSupplierTabs((current) => [...current, nextTab]);
+    setSupplierDrafts((current) => ({ ...current, [nextId]: { ...DEFAULT_SUPPLIER_DRAFT } }));
+    setActiveTabId(nextId);
+    setSelectedPresetId('');
     resetPreview();
   };
 
-  const saveCurrentAsPreset = () => {
+  const removeSupplierTab = (tabId: string) => {
+    const tab = supplierTabs.find((item) => item.id === tabId);
+    if (!tab?.removable) return;
+    const nextTabs = supplierTabs.filter((item) => item.id !== tabId);
+    setSupplierTabs(nextTabs);
+    setSupplierDrafts((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    if (activeTabId === tabId) {
+      setActiveTabId(nextTabs[0]?.id || 'bouwmaat');
+    }
+    setSelectedPresetId('');
+    resetPreview();
+  };
+
+  const loadJob = async (jobId: string, options?: { silent?: boolean }) => {
+    if (!jobId) return;
+    try {
+      const token = await getToken();
+      const query = new URLSearchParams({ import_job_id: jobId });
+      const res = await fetch(`/api/supplier-import/job?${query.toString()}`, {
+        method: 'GET',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || 'Kon import job niet ophalen.');
+      }
+
+      const job = (json.job || null) as SupplierImportJob | null;
+      const nextRows: unknown[] = Array.isArray(json.materials) ? json.materials : [];
+      const mapped = nextRows
+        .map((row: unknown) => mapMaterialRow(row as Record<string, unknown>))
+        .filter((row: SupplierImportMaterial | null): row is SupplierImportMaterial => Boolean(row));
+
+      setMaterials(mapped);
+      setSelectedKeys((current) => {
+        const next = new Set<string>();
+        mapped.forEach((row) => {
+          if (current.has(row.id) || row.selected) next.add(row.id);
+        });
+        return next;
+      });
+      setActiveImportJobId(job?.id || '');
+      setActiveImportJobStatus(job?.status || '');
+
+      if (!options?.silent) {
+        if (job?.status === 'failed') {
+          setError(job.error_message || 'Import job is mislukt.');
+          setStatus('');
+        } else if (job?.status === 'completed') {
+          setError(null);
+          setStatus(`Klaar! ${mapped.length} producten in preview.`);
+        } else if (job?.status === 'imported') {
+          setError(null);
+          setStatus('Import voltooid.');
+        } else if (job?.status === 'pending' || job?.status === 'scraping') {
+          setError(null);
+          setStatus('Bezig met ophalen... dit kan 5-10 minuten duren.');
+        }
+      }
+    } catch (err) {
+      if (!options?.silent) {
+        setError(err instanceof Error ? err.message : 'Kon import job niet ophalen.');
+      }
+    }
+  };
+
+  const loadActiveJobForSupplier = async (supplierKey: SupplierApiKey) => {
+    try {
+      const token = await getToken();
+      const query = new URLSearchParams({ active: '1', supplier: supplierKey });
+      const res = await fetch(`/api/supplier-import/job?${query.toString()}`, {
+        method: 'GET',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) return;
+
+      const job = (json.job || null) as SupplierImportJob | null;
+      if (!job?.id) return;
+
+      const nextRows: unknown[] = Array.isArray(json.materials) ? json.materials : [];
+      const mapped = nextRows
+        .map((row: unknown) => mapMaterialRow(row as Record<string, unknown>))
+        .filter((row: SupplierImportMaterial | null): row is SupplierImportMaterial => Boolean(row));
+
+      setActiveImportJobId(job.id);
+      setActiveImportJobStatus(job.status);
+      setMaterials(mapped);
+      setSelectedKeys(new Set(mapped.filter((row: SupplierImportMaterial) => row.selected).map((row: SupplierImportMaterial) => row.id)));
+      if (job.status === 'pending' || job.status === 'scraping') {
+        setStatus('Bezig met ophalen... dit kan 5-10 minuten duren.');
+      } else if (job.status === 'completed') {
+        setStatus(`Klaar! ${mapped.length} producten in preview.`);
+      } else {
+        setStatus('');
+      }
+      setError(job.status === 'failed' ? job.error_message || 'Import job is mislukt.' : null);
+    } catch {
+      // non-blocking
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const loadPresets = async () => {
+      try {
+        const token = await getToken();
+        const query = new URLSearchParams({ supplierKey: activeSupplierKey });
+        const res = await fetch(`/api/local/bouwmaat/presets?${query.toString()}`, {
+          method: 'GET',
+          headers: { authorization: `Bearer ${token}` },
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok || !Array.isArray(json.presets)) {
+          throw new Error(json?.message || 'Kon presets niet laden.');
+        }
+        if (cancelled) return;
+        setPresets(json.presets);
+        setSelectedPresetId('');
+      } catch {
+        if (cancelled) return;
+        setPresets(readPresets().filter((preset) => preset.supplierKey === activeSupplierKey));
+        setSelectedPresetId('');
+      }
+    };
+    loadPresets();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, getToken, activeSupplierKey]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!activeSupplierApiKey) return;
+    void loadActiveJobForSupplier(activeSupplierApiKey);
+  }, [open, activeSupplierApiKey]);
+
+  useEffect(() => {
+    if (!open || !activeImportJobId) return;
+    if (!['pending', 'scraping'].includes(activeImportJobStatus)) return;
+
+    const handle = window.setInterval(() => {
+      void loadJob(activeImportJobId, { silent: true });
+    }, 3000);
+
+    return () => window.clearInterval(handle);
+  }, [open, activeImportJobId, activeImportJobStatus]);
+
+  const persistActivePreference = async (next: Partial<Pick<SupplierDraft, 'priceMode' | 'aiAuditEnabled'>>) => {
+    try {
+      const token = await getToken();
+      await fetch('/api/local/bouwmaat/preferences', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          supplierKey: activeSupplierKey,
+          priceMode: next.priceMode ?? priceMode,
+          aiAuditEnabled: typeof next.aiAuditEnabled === 'boolean' ? next.aiAuditEnabled : aiAuditEnabled,
+        }),
+      });
+    } catch {
+      // Non-blocking
+    }
+  };
+
+  const saveCurrentAsPreset = async () => {
     const name = presetName.trim();
     const links = urlLines.map((line) => line.trim()).filter(Boolean);
     if (!name) {
@@ -233,162 +559,127 @@ export function BouwmaatImportDialog({
       return;
     }
 
-    const existing = presets.find((preset) => preset.name.toLowerCase() === name.toLowerCase());
-    const id = existing?.id || `preset-${Date.now()}`;
-    const entry: BouwmaatLinkPreset = {
-      id,
-      name,
-      links,
-      maxPagesPerUrl: maxPagesPerUrl.trim(),
-      aiAuditEnabled,
-    };
-    const next = existing
-      ? presets.map((preset) => (preset.id === existing.id ? entry : preset))
-      : [...presets, entry];
-    setPresets(next);
-    setSelectedPresetId(id);
-    writePresets(next);
-    setError(null);
-    setStatus(`Preset "${name}" opgeslagen.`);
-  };
-
-  const loadSelectedPreset = () => {
-    const preset = presets.find((item) => item.id === selectedPresetId);
-    if (!preset) return;
-    setUrlLines(preset.links.length ? preset.links : ['']);
-    setMaxPagesPerUrl(preset.maxPagesPerUrl || '');
-    setAiAuditEnabled(preset.aiAuditEnabled);
-    setMaterials([]);
-    setSelectedKeys(new Set());
-    setError(null);
-    setStatus(`Preset "${preset.name}" geladen.`);
-  };
-
-  const loadPresetById = (presetId: string) => {
-    const preset = presets.find((item) => item.id === presetId);
-    if (!preset) return;
-    setUrlLines(preset.links.length ? preset.links : ['']);
-    setMaxPagesPerUrl(preset.maxPagesPerUrl || '');
-    setAiAuditEnabled(preset.aiAuditEnabled);
-    setMaterials([]);
-    setSelectedKeys(new Set());
-    setError(null);
-    setStatus(`Preset "${preset.name}" geladen.`);
-  };
-
-  const deleteSelectedPreset = () => {
-    const preset = presets.find((item) => item.id === selectedPresetId);
-    if (!preset) return;
-    const next = presets.filter((item) => item.id !== selectedPresetId);
-    setPresets(next);
-    setSelectedPresetId('');
-    writePresets(next);
-    setError(null);
-    setStatus(`Preset "${preset.name}" verwijderd.`);
-  };
-
-  const openBouwmaatBrowser = async () => {
-    setIsOpeningBrowser(true);
-    setError(null);
     try {
+      const existing = presets.find((preset) => preset.name.toLowerCase() === name.toLowerCase());
       const token = await getToken();
-      const res = await fetch('/api/local/bouwmaat/session', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${token}` },
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.message || 'Bouwmaat browser kon niet openen.');
-      }
-      setStatus(json.message || 'Bouwmaat browser geopend.');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bouwmaat browser kon niet openen.');
-    } finally {
-      setIsOpeningBrowser(false);
-    }
-  };
-
-  const scrapeProducts = async () => {
-    if (urlRows.length === 0) {
-      setError('Plak minimaal één geldige Bouwmaat URL.');
-      return;
-    }
-
-    setIsScraping(true);
-    setError(null);
-    setStatus('Bouwmaat pagina’s worden uitgelezen...');
-    try {
-      const token = await getToken();
-      const parsedMaxPages = Number.parseInt(maxPagesPerUrl, 10);
-      const res = await fetch('/api/local/bouwmaat/scrape', {
+      const res = await fetch('/api/local/bouwmaat/presets', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          urls: urlRows,
-          maxPagesPerUrl: Number.isFinite(parsedMaxPages) && parsedMaxPages > 0 ? parsedMaxPages : 1,
-          pageDelaySeconds: Number.parseInt(pageDelaySeconds, 10) || 6,
-          aiAudit: aiAuditEnabled,
+          id: existing?.id || '',
+          name,
+          links,
+          supplierKey: activeSupplierKey,
+          priceMode,
+          maxPagesPerUrl: maxPagesPerUrl.trim(),
+          aiAuditEnabled,
         }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.message || 'Bouwmaat scrape mislukt.');
+      if (!res.ok || !json?.ok || !Array.isArray(json?.presets)) {
+        throw new Error(json?.message || 'Preset opslaan mislukt.');
       }
-
-      const nextMaterials = Array.isArray(json.materials) ? json.materials : [];
-      setMaterials(nextMaterials);
-      setSelectedKeys(new Set(nextMaterials.map((material: BouwmaatImportMaterial) =>
-        material.source_product_id || material.source_url || material.materiaalnaam
-      )));
-      const reviewCount = typeof json.reviewCount === 'number' ? json.reviewCount : 0;
-      const rejectedCount = typeof json.rejectedCount === 'number' ? json.rejectedCount : 0;
-      const auditPart = aiAuditEnabled
-        ? ` Validatie: ${reviewCount} ter controle, ${rejectedCount} afgekeurd.`
-        : '';
-      setStatus(
-        json.cancelled
-          ? `Gestopt. ${nextMaterials.length} producten gevonden over ${json.pagesVisited ?? '?'} pagina’s.${auditPart}`
-          : `${nextMaterials.length} producten gevonden over ${json.pagesVisited ?? '?'} pagina’s.${auditPart}`
-      );
+      setPresets(json.presets);
+      setSelectedPresetId(typeof json.savedId === 'string' ? json.savedId : existing?.id || '');
+      setError(null);
+      setStatus(`Preset "${name}" opgeslagen.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bouwmaat scrape mislukt.');
-      setStatus('');
-    } finally {
-      setIsScraping(false);
+      setError(err instanceof Error ? err.message : 'Preset opslaan mislukt.');
     }
   };
 
-  const stopScrape = async () => {
-    setIsStoppingScrape(true);
+  const loadPresetById = (presetId: string) => {
+    const preset = presets.find((item) => item.id === presetId);
+    if (!preset) return;
+    updateActiveDraft((current) => ({
+      ...current,
+      urlLines: preset.links.length ? preset.links : [''],
+      maxPagesPerUrl: preset.maxPagesPerUrl || '',
+      aiAuditEnabled: preset.aiAuditEnabled,
+      priceMode: preset.priceMode || 'excl',
+    }));
     setError(null);
-    setStatus('Stopverzoek wordt verstuurd...');
+    setStatus(`Preset "${preset.name}" geladen.`);
+  };
+
+  const deleteSelectedPreset = async () => {
+    const preset = presets.find((item) => item.id === selectedPresetId);
+    if (!preset) return;
     try {
       const token = await getToken();
-      const res = await fetch('/api/local/bouwmaat/cancel', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${token}` },
+      const res = await fetch('/api/local/bouwmaat/presets', {
+        method: 'DELETE',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: selectedPresetId, supplierKey: activeSupplierKey }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.message || 'Stoppen mislukt.');
+      if (!res.ok || !json?.ok || !Array.isArray(json?.presets)) {
+        throw new Error(json?.message || 'Preset verwijderen mislukt.');
       }
-      setStatus('Stopverzoek ontvangen. De scraper stopt na de huidige stap.');
+      setPresets(json.presets);
+      setSelectedPresetId('');
+      setError(null);
+      setStatus(`Preset "${preset.name}" verwijderd.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Stoppen mislukt.');
-    } finally {
-      setIsStoppingScrape(false);
+      setError(err instanceof Error ? err.message : 'Preset verwijderen mislukt.');
     }
   };
 
-  const toggleMaterial = (material: BouwmaatImportMaterial, checked: boolean) => {
-    const key = material.source_product_id || material.source_url || material.materiaalnaam;
+  const startSupplierImport = async () => {
+    if (!activeSupplierApiKey) {
+      setError('Alleen Bouwmaat, Toolstation en Gamma worden nu ondersteund.');
+      return;
+    }
+    if (urlRows.length === 0) {
+      setError('Plak minimaal één geldige URL voor deze leverancier.');
+      return;
+    }
+
+    setIsStartingImport(true);
+    setError(null);
+    setStatus('Bezig met ophalen... dit kan 5-10 minuten duren.');
+    try {
+      const token = await getToken();
+      const res = await fetch('/api/supplier-import/start', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          supplier: activeSupplierApiKey,
+          categories: urlRows,
+          price_mode: priceMode === 'incl' ? 'incl_btw' : 'excl_btw',
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok || !json?.import_job_id) {
+        throw new Error(json?.message || 'Starten van supplier import mislukt.');
+      }
+
+      const jobId = normalizeString(json.import_job_id);
+      setActiveImportJobId(jobId);
+      setActiveImportJobStatus('scraping');
+      await loadJob(jobId, { silent: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Starten van supplier import mislukt.');
+      setStatus('');
+    } finally {
+      setIsStartingImport(false);
+    }
+  };
+
+  const toggleMaterial = (materialId: string, checked: boolean) => {
     setSelectedKeys((current) => {
       const next = new Set(current);
-      if (checked) next.add(key);
-      else next.delete(key);
+      if (checked) next.add(materialId);
+      else next.delete(materialId);
       return next;
     });
   };
@@ -398,12 +689,14 @@ export function BouwmaatImportDialog({
       setSelectedKeys(new Set());
       return;
     }
-    setSelectedKeys(new Set(materials.map((material) =>
-      material.source_product_id || material.source_url || material.materiaalnaam
-    )));
+    setSelectedKeys(new Set(materials.map((material) => material.id)));
   };
 
   const importSelected = async () => {
+    if (!activeImportJobId) {
+      setError('Geen actieve import job gevonden.');
+      return;
+    }
     if (selectedMaterials.length === 0) {
       setError('Selecteer minimaal één materiaal.');
       return;
@@ -411,25 +704,30 @@ export function BouwmaatImportDialog({
 
     setIsImporting(true);
     setError(null);
-    setStatus('Materialen worden geïmporteerd...');
+    setStatus('Geselecteerde producten worden geïmporteerd...');
     try {
       const token = await getToken();
-      const res = await fetch('/api/materialen/import/bulk-upsert', {
+      const res = await fetch('/api/supplier-import/import-selection', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ materials: selectedMaterials }),
+        body: JSON.stringify({
+          import_job_id: activeImportJobId,
+          selected_ids: selectedMaterials.map((item) => item.id),
+        }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
         throw new Error(json?.message || 'Import mislukt.');
       }
 
-      setStatus(`${json.inserted ?? 0} nieuw, ${json.updated ?? 0} bijgewerkt, ${(json.skipped || []).length} overgeslagen.`);
+      setStatus(
+        `${json.inserted ?? 0} nieuw, ${json.updated ?? 0} bijgewerkt, ${(json.skipped || []).length} overgeslagen.`
+      );
       await onImported();
-      closeAndReset();
+      await loadJob(activeImportJobId, { silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import mislukt.');
     } finally {
@@ -437,7 +735,7 @@ export function BouwmaatImportDialog({
     }
   };
 
-  const isBusy = isOpeningBrowser || isScraping || isImporting;
+  const isBusy = isStartingImport || isImporting;
 
   return (
     <Dialog
@@ -454,8 +752,58 @@ export function BouwmaatImportDialog({
         <DialogHeader className="border-b border-border/70 px-6 py-5 text-left">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <PackageSearch className="h-5 w-5 text-emerald-400" />
-            Bouwmaat import
+            Supplier import
           </DialogTitle>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {supplierTabs.map((tab) => {
+              const isActive = tab.id === activeTabId;
+              return (
+                <div key={tab.id} className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={isActive ? 'success' : 'outline'}
+                    onClick={() => {
+                      setActiveTabId(tab.id);
+                      setSelectedPresetId('');
+                      setMaterials([]);
+                      setSelectedKeys(new Set());
+                      setStatus('');
+                      setError(null);
+                      setActiveImportJobId('');
+                      setActiveImportJobStatus('');
+                    }}
+                    className="h-8 px-3"
+                  >
+                    {tab.label}
+                  </Button>
+                  {tab.removable ? (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => removeSupplierTab(tab.id)}
+                      aria-label="Supplier tab verwijderen"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
+              );
+            })}
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-8 w-8"
+              onClick={addSupplierTab}
+              aria-label="Supplier tab toevoegen"
+              title="Supplier tab toevoegen"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
         </DialogHeader>
 
         <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto px-6 py-5 lg:grid-cols-[420px_minmax(0,1fr)]">
@@ -464,25 +812,24 @@ export function BouwmaatImportDialog({
               <div className="space-y-2">
                 <div className="text-sm font-medium">Link presets</div>
                 <div className="flex items-center gap-2">
-                  <select
-                    value={selectedPresetId}
-                    onChange={(event) => {
-                      const value = event.target.value;
+                  <Select
+                    value={selectedPresetId || undefined}
+                    onValueChange={(value) => {
                       setSelectedPresetId(value);
                       if (value) loadPresetById(value);
                     }}
-                    className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
                   >
-                    <option value="">Kies preset</option>
-                    {presets.map((preset) => (
-                      <option key={preset.id} value={preset.id}>
-                        {preset.name}
-                      </option>
-                    ))}
-                  </select>
-                  <Button type="button" variant="outline" onClick={loadSelectedPreset} disabled={!selectedPresetId}>
-                    Laad
-                  </Button>
+                    <SelectTrigger className="min-w-0 flex-1 rounded-md transition-colors duration-200">
+                      <SelectValue placeholder="Kies preset" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {presets.map((preset) => (
+                        <SelectItem key={preset.id} value={preset.id}>
+                          {preset.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button type="button" variant="outline" size="icon" onClick={deleteSelectedPreset} disabled={!selectedPresetId}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -493,13 +840,14 @@ export function BouwmaatImportDialog({
                     onChange={(event) => setPresetName(event.target.value)}
                     placeholder="Preset naam (bijv. Hout)"
                   />
-                  <Button type="button" variant="outline" onClick={saveCurrentAsPreset}>
-                    Opslaan
+                  <Button type="button" variant="outline" size="icon" onClick={saveCurrentAsPreset} aria-label="Preset opslaan" title="Preset opslaan">
+                    <Save className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
+
               <div className="space-y-2">
-                <div className="text-sm font-medium">Bouwmaat URL’s</div>
+                <div className="text-sm font-medium">Leverancier URL&apos;s</div>
                 <div className="space-y-2">
                   {urlLines.map((line, index) => (
                     <div key={`url-line-${index}`} className="flex items-center gap-2">
@@ -507,7 +855,7 @@ export function BouwmaatImportDialog({
                         value={line}
                         onChange={(event) => updateUrlLine(index, event.target.value)}
                         className="font-mono text-xs"
-                        placeholder="https://www.bouwmaat.nl/.../hout | Constructieplaten | Osb"
+                        placeholder="https://... | hoofdcategorie | subcategorie"
                       />
                       <Button
                         type="button"
@@ -530,19 +878,53 @@ export function BouwmaatImportDialog({
                   Eén URL per regel. Optioneel: URL | hoofdcategorie | subcategorie.
                 </p>
               </div>
+
               <div className="space-y-2">
-                <div className="text-sm font-medium">Hoeveel pagina’s?</div>
+                <div className="text-sm font-medium">Hoeveel pagina&apos;s?</div>
                 <Input
                   value={maxPagesPerUrl}
                   onChange={(event) => {
-                    setMaxPagesPerUrl(event.target.value);
-                    resetPreview();
+                    updateActiveDraft((current) => ({ ...current, maxPagesPerUrl: event.target.value }));
+                    setError(null);
                   }}
                   type="number"
                   min="1"
-                  max="150"
+                  max="250"
                   inputMode="numeric"
+                  placeholder="Leeg = 1"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Prijsmodus</div>
+                <div className="inline-flex rounded-xl border border-border/70 bg-background p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateActiveDraft((current) => ({ ...current, priceMode: 'excl' }));
+                      persistActivePreference({ priceMode: 'excl' });
+                    }}
+                    className={cn(
+                      'rounded-lg px-3 py-1.5 text-sm transition-colors',
+                      priceMode === 'excl' ? 'bg-emerald-600/25 text-emerald-100' : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    Prijzen zijn excl btw
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateActiveDraft((current) => ({ ...current, priceMode: 'incl' }));
+                      persistActivePreference({ priceMode: 'incl' });
+                    }}
+                    className={cn(
+                      'rounded-lg px-3 py-1.5 text-sm transition-colors',
+                      priceMode === 'incl' ? 'bg-emerald-600/25 text-emerald-100' : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    Prijzen zijn incl btw
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -559,6 +941,7 @@ export function BouwmaatImportDialog({
                 <div className="text-sm font-semibold">Preview</div>
                 <div className="text-xs text-muted-foreground">
                   {materials.length ? `${selectedMaterials.length} van ${materials.length} geselecteerd` : 'Nog geen producten opgehaald'}
+                  {activeImportJobId ? ` • Job: ${activeImportJobStatus || 'onbekend'}` : ''}
                 </div>
               </div>
               {materials.length ? (
@@ -591,49 +974,39 @@ export function BouwmaatImportDialog({
                 </TableHeader>
                 <TableBody>
                   {materials.length ? materials.map((material) => {
-                    const key = material.source_product_id || material.source_url || material.materiaalnaam;
-                    const selected = selectedKeys.has(key);
+                    const selected = selectedKeys.has(material.id);
+                    const excl = material.price_excl_btw ?? material.price_per_unit;
+                    const incl = excl == null ? null : Number((excl * 1.21).toFixed(2));
                     return (
-                      <TableRow
-                        key={key}
-                        className={cn(
-                          !selected && 'opacity-50',
-                          material.audit_status === 'review' && 'bg-amber-500/5'
-                        )}
-                      >
+                      <TableRow key={material.id} className={cn(!selected && 'opacity-50')}>
                         <TableCell>
                           <Checkbox
                             checked={selected}
-                            onCheckedChange={(checked) => toggleMaterial(material, Boolean(checked))}
-                            aria-label={`${material.materiaalnaam} selecteren`}
+                            onCheckedChange={(checked) => toggleMaterial(material.id, Boolean(checked))}
+                            aria-label={`${material.name} selecteren`}
                           />
                         </TableCell>
                         <TableCell>
                           <div className="min-w-0">
-                            <div className="font-medium leading-snug">{material.materiaalnaam}</div>
+                            <div className="font-medium leading-snug">{material.name}</div>
                             <div className="mt-1 text-xs text-muted-foreground">
-                              {[material.source_product_id, `${material.categorie || '—'} / ${material.sub_categorie || '—'}`, material.unit_price_text]
+                              {[material.sku, `${material.hoofdcategorie || '—'} / ${material.subcategorie || '—'}`]
                                 .filter(Boolean)
                                 .join(' • ') || '—'}
                             </div>
-                            {material.audit_status === 'review' && material.audit_reason ? (
-                              <div className="mt-1 text-xs text-amber-300">{material.audit_reason}</div>
-                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div>{formatEuro(material.prijs_excl_btw)}</div>
-                          <div className="text-xs text-muted-foreground">
-                            incl: {formatEuro(material.prijs_incl_btw ?? (material.prijs_excl_btw == null ? null : Number((material.prijs_excl_btw * 1.21).toFixed(2))))}
-                          </div>
+                          <div>{formatEuro(excl)}</div>
+                          <div className="text-xs text-muted-foreground">incl: {formatEuro(incl)}</div>
                         </TableCell>
-                        <TableCell className="hidden md:table-cell">{material.eenheid}</TableCell>
+                        <TableCell className="hidden md:table-cell">{material.unit || 'stuk'}</TableCell>
                       </TableRow>
                     );
                   }) : (
                     <TableRow>
                       <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
-                        Open de Bouwmaat browser, log in en haal daarna producten op.
+                        {status || 'Klik op Producten ophalen om async import te starten.'}
                       </TableCell>
                     </TableRow>
                   )}
@@ -647,14 +1020,14 @@ export function BouwmaatImportDialog({
           <Button
             type="button"
             variant="success"
-            onClick={scrapeProducts}
+            onClick={startSupplierImport}
             disabled={isBusy || urlRows.length === 0}
             className="gap-2"
           >
-            {isScraping ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {isStartingImport ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Producten ophalen
           </Button>
-          <Button type="button" variant="outline" onClick={refreshClean} disabled={isScraping || isImporting} className="gap-2">
+          <Button type="button" variant="outline" onClick={resetPreview} disabled={isBusy} className="gap-2">
             <Eraser className="h-4 w-4" />
             Preview leegmaken
           </Button>
@@ -662,34 +1035,13 @@ export function BouwmaatImportDialog({
             type="button"
             variant={aiAuditEnabled ? 'success' : 'outline'}
             onClick={() => {
-              setAiAuditEnabled((current) => !current);
-              resetPreview();
+              const nextValue = !aiAuditEnabled;
+              updateActiveDraft((current) => ({ ...current, aiAuditEnabled: nextValue }));
+              persistActivePreference({ aiAuditEnabled: nextValue });
             }}
           >
             {aiAuditEnabled ? 'AI controle: aan' : 'AI controle: uit'}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={openBouwmaatBrowser}
-            disabled={isBusy}
-            className="gap-2"
-          >
-            {isOpeningBrowser ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-            Open Bouwmaat browser
-          </Button>
-          {isScraping ? (
-            <Button
-              type="button"
-              variant="destructiveSoft"
-              onClick={stopScrape}
-              disabled={isStoppingScrape}
-              className="gap-2"
-            >
-              {isStoppingScrape ? <Loader2 className="h-4 w-4 animate-spin" /> : <Octagon className="h-4 w-4" />}
-              Stop ophalen
-            </Button>
-          ) : null}
           <Button type="button" variant="ghost" onClick={closeAndReset} disabled={isBusy}>
             Sluiten
           </Button>
@@ -697,7 +1049,7 @@ export function BouwmaatImportDialog({
             type="button"
             variant="success"
             onClick={importSelected}
-            disabled={isBusy || selectedMaterials.length === 0}
+            disabled={isBusy || selectedMaterials.length === 0 || !activeImportJobId}
             className="gap-2"
           >
             {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}

@@ -2,9 +2,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus, Trash2, Calculator, Package, Rows3, List, ArrowUpDown, PackageSearch } from 'lucide-react';
+import { Loader2, Plus, Trash2, Calculator, Package, Rows3, List, ArrowUpDown, PackageSearch, Eraser } from 'lucide-react';
 
 import { useUser } from '@/firebase';
 
@@ -296,6 +295,8 @@ export default function MaterialenPage() {
   const [deleteTarget, setDeleteTarget] = useState<Material | null>(null);
   const [dontAutoIncludeNextTime, setDontAutoIncludeNextTime] = useState<boolean>(false);
   const [deleting, setDeleting] = useState<boolean>(false);
+  const [deleteAllOpen, setDeleteAllOpen] = useState<boolean>(false);
+  const [deletingAll, setDeletingAll] = useState<boolean>(false);
 
   // Voeg deze twee toe aan je bestaande states
   const [step, setStep] = useState<'choice' | 'form'>('choice');
@@ -851,6 +852,57 @@ export default function MaterialenPage() {
     }
   }, [deleteTarget, fetchMaterials]);
 
+  const bevestigDeleteAll = useCallback(async () => {
+    try {
+      setDeletingAll(true);
+      setPageError(null);
+
+      const token = await haalFirebaseIdToken();
+
+      const res = await fetch('/api/materialen/delete-all', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        const msg =
+          json?.message ||
+          json?.error ||
+          (typeof json === 'string' ? json : null) ||
+          'Onbekende fout bij volledig verwijderen.';
+        setPageError(`Alles verwijderen mislukt: ${msg}`);
+        void reportOperationalError({
+          source: 'materialen_delete_all',
+          title: 'Alles verwijderen mislukt',
+          message: msg,
+          severity: 'critical',
+          context: { httpStatus: res.status },
+        });
+        setDeletingAll(false);
+        return;
+      }
+
+      setDeleteAllOpen(false);
+      setMaterials([]);
+      await fetchMaterials();
+      setDeletingAll(false);
+    } catch (e: any) {
+      const message = e?.message || 'Onbekende fout.';
+      setPageError(message);
+      void reportOperationalError({
+        source: 'materialen_delete_all',
+        title: 'Alles verwijderen mislukt',
+        message,
+        severity: 'critical',
+      });
+      setDeletingAll(false);
+    }
+  }, [fetchMaterials]);
+
   if (isUserLoading || (!user && !pageError)) {
     return <PageSkeleton />;
   }
@@ -914,15 +966,21 @@ export default function MaterialenPage() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button
               type="button"
+              variant="destructiveSoft"
+              className="h-10 w-full px-4 sm:w-auto"
+              onClick={() => setDeleteAllOpen(true)}
+            >
+              <Eraser className="mr-2 h-4 w-4" />
+              Alles verwijderen
+            </Button>
+            <Button
+              type="button"
               variant="outline"
               className="h-10 w-full px-4 sm:w-auto"
               onClick={() => setBouwmaatImportOpen(true)}
             >
               <PackageSearch className="mr-2 h-4 w-4" />
-              Bouwmaat import
-            </Button>
-            <Button asChild variant="outline" className="h-10 w-full px-4 sm:w-auto">
-              <Link href="/prijs-import-aanvragen">Prijs import aanvragen</Link>
+              Producten importeren
             </Button>
             <Button
               onClick={openCustomDialog}
@@ -1472,6 +1530,31 @@ export default function MaterialenPage() {
                 <Button variant="destructiveSoft">
                   {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
                   Verwijderen
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Alle materialen verwijderen?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Dit verwijdert alle regels uit <strong>main_material_list</strong> voor jouw account.
+                <br />
+                Deze actie kan niet ongedaan worden gemaakt.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter>
+              <AlertDialogCancel asChild>
+                <Button variant="ghost">Annuleren</Button>
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={bevestigDeleteAll} asChild disabled={deletingAll}>
+                <Button variant="destructiveSoft">
+                  {deletingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eraser className="mr-2 h-4 w-4" />}
+                  Ja, verwijder alles
                 </Button>
               </AlertDialogAction>
             </AlertDialogFooter>
