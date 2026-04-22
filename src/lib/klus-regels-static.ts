@@ -1,4 +1,4 @@
-export const KLUS_REGELS_STATIC_VERSION = 6;
+export const KLUS_REGELS_STATIC_VERSION = 7;
 
 export interface MaterialRuleMeta {
   source: 'static_file';
@@ -1556,11 +1556,13 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
     },
     afwerkplaat: {
       logic: 'vertical_position_based',
-      method: 'vertical sheets; move by material.breedte per column',
+      method: 'kolommen = ceil(wandlengte/plaatbreedte); volle rijen = floor(wandhoogte/plaathoogte); resthoogte wordt over alle kolommen geaggregeerd i.p.v. per kolom direct 1 extra plaat',
+      formula: 'plaatbreedte_mm = material.breedte_mm; plaathoogte_mm = material.lengte_mm; kolommen = ceil(wandlengte_mm / plaatbreedte_mm); volle_rijen = floor(wandhoogte_mm / plaathoogte_mm); resthoogte_mm = max(0, wandhoogte_mm - (volle_rijen * plaathoogte_mm)); volle_platen = kolommen * volle_rijen; rest_platen = if resthoogte_mm > 0 then ceil((kolommen * resthoogte_mm) / plaathoogte_mm) else 0; aantal = volle_platen + rest_platen',
       orientation: 'staand',
       sectionKey: 'afwerkplaat',
       plate_width: 'material.breedte',
       plate_height: 'material.lengte',
+      cutting_policy: 'reststroken uit meerdere kolommen samenvoegen; pas daarna afronden',
       wastePercentage: 'user_input',
     },
     constructieplaat_1: {
@@ -1575,11 +1577,13 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
     },
     beplating_1: {
       logic: 'vertical_position_based',
-      method: 'vertical sheets; move by material.breedte per column',
+      method: 'kolommen = ceil(wandlengte/plaatbreedte); volle rijen = floor(wandhoogte/plaathoogte); resthoogte wordt over alle kolommen geaggregeerd i.p.v. per kolom direct 1 extra plaat',
+      formula: 'plaatbreedte_mm = material.breedte_mm; plaathoogte_mm = material.lengte_mm; kolommen = ceil(wandlengte_mm / plaatbreedte_mm); volle_rijen = floor(wandhoogte_mm / plaathoogte_mm); resthoogte_mm = max(0, wandhoogte_mm - (volle_rijen * plaathoogte_mm)); volle_platen = kolommen * volle_rijen; rest_platen = if resthoogte_mm > 0 then ceil((kolommen * resthoogte_mm) / plaathoogte_mm) else 0; aantal = volle_platen + rest_platen',
       orientation: 'staand',
       sectionKey: 'beplating_1',
       plate_width: 'material.breedte',
       plate_height: 'material.lengte',
+      cutting_policy: 'reststroken uit meerdere kolommen samenvoegen; pas daarna afronden',
       wastePercentage: 'user_input',
     },
     dagkanten: {
@@ -1658,6 +1662,9 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
     },
     afwerkplaat: {
       logic: 'vertical_position_based',
+      method: 'kolommen = ceil(wandlengte/plaatbreedte); volle rijen = floor(wandhoogte/plaathoogte); resthoogte wordt over alle kolommen geaggregeerd i.p.v. per kolom direct 1 extra plaat',
+      formula: 'plaatbreedte_mm = material.breedte_mm; plaathoogte_mm = material.lengte_mm; kolommen = ceil(wandlengte_mm / plaatbreedte_mm); volle_rijen = floor(wandhoogte_mm / plaathoogte_mm); resthoogte_mm = max(0, wandhoogte_mm - (volle_rijen * plaathoogte_mm)); volle_platen = kolommen * volle_rijen; rest_platen = if resthoogte_mm > 0 then ceil((kolommen * resthoogte_mm) / plaathoogte_mm) else 0; aantal = volle_platen + rest_platen',
+      cutting_policy: 'reststroken uit meerdere kolommen samenvoegen; pas daarna afronden',
       sectionKey: 'afwerkplaat',
     },
     constructieplaat: {
@@ -2134,15 +2141,23 @@ const SECTION_KEY_ALIASES_BY_SLUG: Record<string, Record<string, string>> = {
   },
   'boeiboorden-trespa': {
     balklaag: 'regelwerk',
+    boeiboord_plaat_voorkant: 'boeiboord_plaat',
+    boeiboord_plaat_onderkant: 'boeiboord_plaat',
   },
   'boeiboorden-rockpanel': {
     balklaag: 'regelwerk',
+    boeiboord_plaat_voorkant: 'boeiboord_plaat',
+    boeiboord_plaat_onderkant: 'boeiboord_plaat',
   },
   'boeiboorden-hout': {
     balklaag: 'regelwerk',
+    boeiboord_hout_voorkant: 'boeiboord_hout',
+    boeiboord_hout_onderkant: 'boeiboord_hout',
   },
   'boeiboorden-keralit': {
     balklaag: 'regelwerk',
+    keralit_panelen_voorkant: 'keralit_panelen',
+    keralit_panelen_onderkant: 'keralit_panelen',
   },
   isolatieglas: {
     ventilatierooster: 'roosters',

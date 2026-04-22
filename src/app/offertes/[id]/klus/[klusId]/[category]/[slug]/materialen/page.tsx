@@ -2769,10 +2769,35 @@ export default function GenericMaterialsPageRedesigned() {
 
   const componentPresetPickerCards = useMemo(() => {
     if (!componentPresetPickerType) return [] as any[];
+    const componentConfig = COMPONENT_REGISTRY[componentPresetPickerType as JobComponentType];
+    const sectionLabelMap = new Map<string, string>(
+      (componentConfig?.defaultMaterials || []).map((section: any) => [String(section.key), String(section.label || section.key)])
+    );
     const list = [...(componentPresets[componentPresetPickerType] || [])];
-    return list.sort((a: any, b: any) => {
-      const aFavorite = !!a.isDefault || String(a.name || '').toLowerCase().includes('standaard');
-      const bFavorite = !!b.isDefault || String(b.name || '').toLowerCase().includes('standaard');
+    const cards = list.map((preset: any) => {
+      const materials = Array.isArray(preset.materials) ? preset.materials : [];
+      const sectionKeys: string[] = Array.from(
+        new Set(
+          materials
+            .map((m: any) => String(m?.sectionKey || '').trim())
+            .filter(Boolean)
+        )
+      );
+      const chips = sectionKeys
+        .map((key: string) => sectionLabelMap.get(key) || key.replace(/[_-]+/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase()))
+        .slice(0, 7);
+      const isFavorite = !!preset.isDefault || String(preset.name || '').toLowerCase().includes('standaard');
+      return {
+        ...preset,
+        isFavorite,
+        summary: `${materials.length} materiaal${materials.length === 1 ? '' : 'en'} · 1 onderdeel`,
+        chips,
+      };
+    });
+
+    return cards.sort((a: any, b: any) => {
+      const aFavorite = !!a.isFavorite;
+      const bFavorite = !!b.isFavorite;
       if (aFavorite !== bFavorite) return aFavorite ? -1 : 1;
       return String(a.name || '').localeCompare(String(b.name || ''), 'nl');
     });
@@ -2782,20 +2807,20 @@ export default function GenericMaterialsPageRedesigned() {
     const q = componentPresetPickerSearch.trim().toLowerCase();
     if (!q) return componentPresetPickerCards;
     return componentPresetPickerCards.filter((preset: any) =>
-      String(preset.name || '').toLowerCase().includes(q)
+      `${String(preset.name || '')} ${String(preset.summary || '')} ${Array.isArray(preset.chips) ? preset.chips.join(' ') : ''}`.toLowerCase().includes(q)
     );
   }, [componentPresetPickerCards, componentPresetPickerSearch]);
 
   const componentFavoritePresetCards = useMemo(
     () => componentPresetPickerFilteredCards.filter((preset: any) =>
-      !!preset.isDefault || String(preset.name || '').toLowerCase().includes('standaard')
+      !!preset.isFavorite
     ),
     [componentPresetPickerFilteredCards]
   );
 
   const componentNormalPresetCards = useMemo(
     () => componentPresetPickerFilteredCards.filter((preset: any) =>
-      !preset.isDefault && !String(preset.name || '').toLowerCase().includes('standaard')
+      !preset.isFavorite
     ),
     [componentPresetPickerFilteredCards]
   );
@@ -6862,11 +6887,43 @@ export default function GenericMaterialsPageRedesigned() {
       <Dialog open={componentPresetPickerOpen} onOpenChange={setComponentPresetPickerOpen}>
         <DialogContent className={cn('w-[95vw] max-w-[900px] h-[82vh] overflow-hidden flex flex-col', DIALOG_CLOSE_TAP)}>
           <DialogHeader className="space-y-2">
-            <DialogTitle>Kies werkpakket voor {componentPresetPickerTitle}</DialogTitle>
+            <DialogTitle>Kies een werkpakket</DialogTitle>
             <DialogDescription>
-              Selecteer een werkpakket voor dit onderdeel.
+              Selecteer een werkpakket of beheer het direct vanuit deze lijst.
             </DialogDescription>
           </DialogHeader>
+
+          <div className="space-y-2 py-1">
+            <div
+              className={cn(
+                "group relative w-full text-left rounded-xl border border-l-4 px-4 py-2.5 transition-all duration-200",
+                componentPresetPickerSelectedId === 'default'
+                  ? "border-white/20 border-l-white/30 bg-card/60 shadow-[0_10px_24px_-18px_rgba(255,255,255,0.35)]"
+                  : "border-white/10 border-l-white/10 bg-card/40 hover:bg-card/60 hover:border-white/20 hover:border-l-white/20"
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (!componentPresetPickerCompId || !componentPresetPickerType) return;
+                  handleSelectComponentPreset('default', componentPresetPickerType, componentPresetPickerCompId);
+                  setComponentPresetPickerOpen(false);
+                }}
+                className="w-full min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 rounded-md"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-emerald-400 shrink-0" />
+                      <span className="text-sm font-semibold text-zinc-100">Nieuw</span>
+                      <span className="text-sm text-zinc-400">Start zonder werkpakket</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+                </div>
+              </button>
+            </div>
+          </div>
 
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -6879,60 +6936,57 @@ export default function GenericMaterialsPageRedesigned() {
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-3 py-1">
-            <button
-              type="button"
-              onClick={() => {
-                if (!componentPresetPickerCompId || !componentPresetPickerType) return;
-                handleSelectComponentPreset('default', componentPresetPickerType, componentPresetPickerCompId);
-                setComponentPresetPickerOpen(false);
-              }}
-              className={cn(
-                'w-full rounded-xl border p-4 text-left transition-colors',
-                componentPresetPickerSelectedId === 'default'
-                  ? 'border-emerald-500/40 bg-emerald-500/10'
-                  : 'border-border/70 bg-card/30 hover:bg-muted/30'
-              )}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-foreground">Nieuw</div>
-                  <div className="text-xs text-muted-foreground">Start zonder werkpakket</div>
-                </div>
-                {componentPresetPickerSelectedId === 'default' ? <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" /> : null}
-              </div>
-            </button>
-
             {componentFavoritePresetCards.length > 0 ? (
               <div className="space-y-2">
-                <div className="px-1 text-[11px] uppercase tracking-wider text-yellow-400/90 font-semibold">Standaard / Favoriet</div>
+                <div className="px-1 text-[11px] uppercase tracking-wider text-yellow-400/90 font-semibold">Favorieten</div>
                 {componentFavoritePresetCards.map((preset: any) => {
-                  const isActive = componentPresetPickerSelectedId === preset.id;
+                  const isSelected = componentPresetPickerSelectedId === preset.id;
                   return (
-                    <button
+                    <div
                       key={preset.id}
-                      type="button"
-                      onClick={() => {
-                        if (!componentPresetPickerCompId || !componentPresetPickerType) return;
-                        handleSelectComponentPreset(preset.id, componentPresetPickerType, componentPresetPickerCompId);
-                        setComponentPresetPickerOpen(false);
-                      }}
                       className={cn(
-                        'w-full rounded-xl border p-4 text-left transition-colors',
-                        isActive
-                          ? 'border-emerald-500/40 bg-emerald-500/10'
-                          : 'border-border/70 bg-card/30 hover:bg-muted/30'
+                        "group relative w-full text-left rounded-xl border border-l-4 px-4 py-3 transition-all duration-200",
+                        isSelected
+                          ? "border-white/20 border-l-white/30 bg-card/60 shadow-[0_10px_24px_-18px_rgba(255,255,255,0.35)]"
+                          : "border-white/10 border-l-white/10 bg-card/40 hover:bg-card/60 hover:border-white/20 hover:border-l-white/20"
                       )}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-foreground truncate">{preset.name}</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!componentPresetPickerCompId || !componentPresetPickerType) return;
+                          handleSelectComponentPreset(preset.id, componentPresetPickerType, componentPresetPickerCompId);
+                          setComponentPresetPickerOpen(false);
+                        }}
+                        className="w-full min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 rounded-md"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 space-y-1.5">
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <Box className="h-4 w-4 text-emerald-400 shrink-0" />
+                              <span className="truncate text-base font-bold text-zinc-100">{preset.name}</span>
+                              <span className="truncate text-sm text-zinc-400">{preset.summary}</span>
+                            </div>
+                            {Array.isArray(preset.chips) && preset.chips.length > 0 ? (
+                              <div className="flex flex-wrap gap-1 overflow-hidden max-h-12">
+                                {preset.chips.map((chip: string) => (
+                                  <span
+                                    key={`${preset.id}-${chip}`}
+                                    className="shrink-0 whitespace-nowrap text-[11px] px-2 py-0.5 rounded-full border border-white/10 bg-white/[0.03] text-zinc-400"
+                                  >
+                                    {chip}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Star className={cn('h-4 w-4', preset.isDefault ? 'fill-yellow-400 text-yellow-400' : 'text-yellow-300/90')} />
+                            <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Star className={cn('h-4 w-4', preset.isDefault ? 'fill-yellow-400 text-yellow-400' : 'text-yellow-300/90')} />
-                          {isActive ? <CheckCircle2 className="h-5 w-5 text-emerald-400" /> : null}
-                        </div>
-                      </div>
-                    </button>
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -6946,30 +7000,50 @@ export default function GenericMaterialsPageRedesigned() {
               <div className="space-y-2">
                 <div className="px-1 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Overige werkpakketten</div>
                 {componentNormalPresetCards.map((preset: any) => {
-                  const isActive = componentPresetPickerSelectedId === preset.id;
+                  const isSelected = componentPresetPickerSelectedId === preset.id;
                   return (
-                    <button
+                    <div
                       key={preset.id}
-                      type="button"
-                      onClick={() => {
-                        if (!componentPresetPickerCompId || !componentPresetPickerType) return;
-                        handleSelectComponentPreset(preset.id, componentPresetPickerType, componentPresetPickerCompId);
-                        setComponentPresetPickerOpen(false);
-                      }}
                       className={cn(
-                        'w-full rounded-xl border p-4 text-left transition-colors',
-                        isActive
-                          ? 'border-emerald-500/40 bg-emerald-500/10'
-                          : 'border-border/70 bg-card/30 hover:bg-muted/30'
+                        "group relative w-full text-left rounded-xl border border-l-4 px-4 py-3 transition-all duration-200",
+                        isSelected
+                          ? "border-white/20 border-l-white/30 bg-card/60 shadow-[0_10px_24px_-18px_rgba(255,255,255,0.35)]"
+                          : "border-white/10 border-l-white/10 bg-card/40 hover:bg-card/60 hover:border-white/20 hover:border-l-white/20"
                       )}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-foreground truncate">{preset.name}</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!componentPresetPickerCompId || !componentPresetPickerType) return;
+                          handleSelectComponentPreset(preset.id, componentPresetPickerType, componentPresetPickerCompId);
+                          setComponentPresetPickerOpen(false);
+                        }}
+                        className="w-full min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 rounded-md"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 space-y-1.5">
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <Box className="h-4 w-4 text-emerald-400 shrink-0" />
+                              <span className="truncate text-base font-bold text-zinc-100">{preset.name}</span>
+                              <span className="truncate text-sm text-zinc-400">{preset.summary}</span>
+                            </div>
+                            {Array.isArray(preset.chips) && preset.chips.length > 0 ? (
+                              <div className="flex flex-wrap gap-1 overflow-hidden max-h-12">
+                                {preset.chips.map((chip: string) => (
+                                  <span
+                                    key={`${preset.id}-${chip}`}
+                                    className="shrink-0 whitespace-nowrap text-[11px] px-2 py-0.5 rounded-full border border-white/10 bg-white/[0.03] text-zinc-400"
+                                  >
+                                    {chip}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground/60 shrink-0" />
                         </div>
-                        {isActive ? <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" /> : null}
-                      </div>
-                    </button>
+                      </button>
+                    </div>
                   );
                 })}
               </div>

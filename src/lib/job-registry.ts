@@ -989,7 +989,8 @@ const BOEIBOORD_ROCKPANEL_MATS: MaterialSection[] = [
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
 
   // 3. BEKLEDING
-  { label: 'Rockpanel Plaat', categoryFilter: 'Rockpanel, Exterieur platen', category: 'beplating', key: 'boeiboord_plaat', category_ultra_filter: '' },
+  { label: 'Rockpanel Plaat (Voorkant)', categoryFilter: 'Rockpanel, Exterieur platen', category: 'beplating', key: 'boeiboord_plaat_voorkant', category_ultra_filter: '' },
+  { label: 'Rockpanel Plaat (Onderkant)', categoryFilter: 'Rockpanel, Exterieur platen', category: 'beplating', key: 'boeiboord_plaat_onderkant', category_ultra_filter: '' },
 
   // 4. AFWERKING
   { label: 'Ventilatieprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'ventilatieprofiel', category_ultra_filter: '' },
@@ -1012,7 +1013,8 @@ const BOEIBOORD_TRESPA_MATS: MaterialSection[] = [
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
 
   // 3. BEKLEDING
-  { label: 'Trespa / HPL Plaat', categoryFilter: 'Trespa', category: 'beplating', key: 'boeiboord_plaat', category_ultra_filter: '' },
+  { label: 'Trespa / HPL Plaat (Voorkant)', categoryFilter: 'Trespa', category: 'beplating', key: 'boeiboord_plaat_voorkant', category_ultra_filter: '' },
+  { label: 'Trespa / HPL Plaat (Onderkant)', categoryFilter: 'Trespa', category: 'beplating', key: 'boeiboord_plaat_onderkant', category_ultra_filter: '' },
 
   // 4. AFWERKING
   { label: 'Ventilatieprofiel', categoryFilter: 'Overig', category: 'afwerking', key: 'ventilatieprofiel', category_ultra_filter: '' },
@@ -1035,7 +1037,8 @@ const BOEIBOORD_HOUT_MATS: MaterialSection[] = [
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
 
   // 3. BEKLEDING
-  { label: 'Boeiboord Hout', categoryFilter: 'Exterieur platen', category: 'beplating', key: 'boeiboord_hout', category_ultra_filter: '' },
+  { label: 'Boeiboord Hout (Voorkant)', categoryFilter: 'Exterieur platen', category: 'beplating', key: 'boeiboord_hout_voorkant', category_ultra_filter: '' },
+  { label: 'Boeiboord Hout (Onderkant)', categoryFilter: 'Exterieur platen', category: 'beplating', key: 'boeiboord_hout_onderkant', category_ultra_filter: '' },
 
   // 4. AFWERKING
   { label: 'Ventilatieprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'ventilatieprofiel', category_ultra_filter: '' },
@@ -1058,7 +1061,8 @@ const BOEIBOORD_KERALIT_MATS: MaterialSection[] = [
   { label: 'Isolatiemateriaal', categoryFilter: 'Isolatie', category: 'isolatie', key: 'isolatie', category_ultra_filter: '' },
 
   // 3. BEKLEDING
-  { label: 'Keralit Panelen', categoryFilter: 'Vloer-rabat-vellingdelen, Overig', category: 'beplating', key: 'keralit_panelen', category_ultra_filter: '' },
+  { label: 'Keralit Panelen (Voorkant)', categoryFilter: 'Vloer-rabat-vellingdelen, Overig', category: 'beplating', key: 'keralit_panelen_voorkant', category_ultra_filter: '' },
+  { label: 'Keralit Panelen (Onderkant)', categoryFilter: 'Vloer-rabat-vellingdelen, Overig', category: 'beplating', key: 'keralit_panelen_onderkant', category_ultra_filter: '' },
 
   // 4. AFWERKING
   { label: 'Ventilatieprofiel', categoryFilter: 'Daktoebehoren, Overig', category: 'afwerking', key: 'ventilatieprofiel', category_ultra_filter: '' },

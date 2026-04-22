@@ -27,6 +27,18 @@ function clampPct(value: number) {
   return Math.max(0, Math.min(100, value));
 }
 
+function roundCurrency(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function parseCurrencyInput(value: string): number | null {
+  const normalized = (value || '').trim().replace(',', '.');
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return null;
+  return roundCurrency(Math.max(0, parsed));
+}
+
 function toNumber(value: unknown): number | null {
   const n = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(n)) return null;
@@ -132,6 +144,9 @@ function NieuweFactuurPageContent() {
   const [existingVoorschotId, setExistingVoorschotId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [voorschotBedragStr, setVoorschotBedragStr] = useState<string>('');
+  const [handmatigEindbedrag, setHandmatigEindbedrag] = useState(false);
+  const [handmatigEindbedragStr, setHandmatigEindbedragStr] = useState<string>('');
+  const [eindfactuurOpmerking, setEindfactuurOpmerking] = useState<string>('');
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -231,20 +246,37 @@ function NieuweFactuurPageContent() {
   }, [quote]);
 
   const pct = useMemo(() => clampPct(Number(voorschotPercentage) || 0), [voorschotPercentage]);
-  const voorschotBedrag = useMemo(() => Math.round(totalIncl * (pct / 100) * 100) / 100, [totalIncl, pct]);
+  const voorschotBedrag = useMemo(() => roundCurrency(totalIncl * (pct / 100)), [totalIncl, pct]);
 
   useEffect(() => {
     if (totalIncl > 0) {
-      const bedrag = Math.round(totalIncl * (pct / 100) * 100) / 100;
+      const bedrag = roundCurrency(totalIncl * (pct / 100));
       setVoorschotBedragStr(bedrag.toFixed(2));
     }
   }, [totalIncl]); // only sync on initial load
   const hasVoorschotFactuur = !!existingVoorschotId;
-  const aftrek = useMemo(
+  const berekendeAftrek = useMemo(
     () => (hasVoorschotFactuur && voorschotIngeschakeld ? voorschotBedrag : 0),
     [hasVoorschotFactuur, voorschotIngeschakeld, voorschotBedrag]
   );
-  const eindBedrag = useMemo(() => Math.round(Math.max(0, totalIncl - aftrek) * 100) / 100, [totalIncl, aftrek]);
+  const berekendEindBedrag = useMemo(() => roundCurrency(Math.max(0, totalIncl - berekendeAftrek)), [totalIncl, berekendeAftrek]);
+  const handmatigEindbedragParsed = useMemo(() => parseCurrencyInput(handmatigEindbedragStr), [handmatigEindbedragStr]);
+  const effectiefEindBedrag = useMemo(() => {
+    if (handmatigEindbedrag && handmatigEindbedragParsed !== null) {
+      return roundCurrency(Math.min(totalIncl, handmatigEindbedragParsed));
+    }
+    return berekendEindBedrag;
+  }, [handmatigEindbedrag, handmatigEindbedragParsed, totalIncl, berekendEindBedrag]);
+  const effectiefAftrek = useMemo(
+    () => roundCurrency(Math.max(0, totalIncl - effectiefEindBedrag)),
+    [totalIncl, effectiefEindBedrag]
+  );
+
+  useEffect(() => {
+    if (!handmatigEindbedrag) {
+      setHandmatigEindbedragStr(berekendEindBedrag.toFixed(2));
+    }
+  }, [handmatigEindbedrag, berekendEindBedrag]);
 
   const canCreate = !!user && !!firestore && !!settings && !!quote && totalIncl > 0;
 
@@ -286,8 +318,10 @@ function NieuweFactuurPageContent() {
 
       const existingId = await findExistingVoorschotInvoiceId(firestore, { userId: user.uid, quoteId });
       const voorschotSnapshot = existingId ? await getInvoiceSnapshotForAdjustments(firestore, existingId) : null;
-      const effectiveAftrek = existingId && voorschotIngeschakeld ? voorschotBedrag : 0;
-      const effectiveEindBedrag = Math.round(Math.max(0, totalIncl - effectiveAftrek) * 100) / 100;
+      if (handmatigEindbedrag && handmatigEindbedragParsed === null) {
+        toast({ title: 'Ongeldig bedrag', description: 'Vul een geldig handmatig eindbedrag in.', variant: 'destructive' });
+        return;
+      }
 
       const invoiceId = await createInvoiceFromQuote(firestore, {
         userId: user.uid,
@@ -296,10 +330,13 @@ function NieuweFactuurPageContent() {
         settings,
         invoiceType: 'eind',
         originalTotalInclBtw: totalIncl,
-        totalsInclBtw: effectiveEindBedrag,
-        voorschotAftrekInclBtw: effectiveAftrek,
+        totalsInclBtw: effectiefEindBedrag,
+        voorschotAftrekInclBtw: existingId && voorschotIngeschakeld ? voorschotBedrag : 0,
         voorschotFactuurSnapshot: voorschotSnapshot,
-        opmerking: '',
+        opmerking: eindfactuurOpmerking.trim()
+          || (handmatigEindbedrag
+            ? `Handmatig eindbedrag ingesteld op ${formatCurrency(effectiefEindBedrag)} (berekend was ${formatCurrency(berekendEindBedrag)}).`
+            : ''),
       });
       router.push(`/facturen/${invoiceId}`);
     } catch (e) {
@@ -409,7 +446,7 @@ function NieuweFactuurPageContent() {
                               onChange={(e) => {
                                 const newPct = Number(e.target.value);
                                 setVoorschotPercentage(newPct);
-                                const newBedrag = Math.round(totalIncl * (clampPct(newPct) / 100) * 100) / 100;
+                                const newBedrag = roundCurrency(totalIncl * (clampPct(newPct) / 100));
                                 setVoorschotBedragStr(newBedrag.toFixed(2));
                               }}
                               className="pr-10"
@@ -504,7 +541,7 @@ function NieuweFactuurPageContent() {
                               onChange={(e) => {
                                 const newPct = Number(e.target.value);
                                 setVoorschotPercentage(newPct);
-                                const newBedrag = Math.round(totalIncl * (clampPct(newPct) / 100) * 100) / 100;
+                                const newBedrag = roundCurrency(totalIncl * (clampPct(newPct) / 100));
                                 setVoorschotBedragStr(newBedrag.toFixed(2));
                               }}
                               disabled={!voorschotIngeschakeld}
@@ -517,15 +554,70 @@ function NieuweFactuurPageContent() {
                           <Label>Voorschot in mindering (incl. BTW)</Label>
                           <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
                             <span className="text-sm text-muted-foreground">Aftrek</span>
-                            <span className="text-sm font-semibold">{formatCurrency(aftrek)}</span>
+                            <span className="text-sm font-semibold">{formatCurrency(berekendeAftrek)}</span>
                           </div>
                         </div>
                       </div>
 
+                      <div className="flex items-center justify-between gap-4 rounded-md border border-input bg-background/40 px-3 py-2">
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">Handmatig eindbedrag</div>
+                          <div className="text-xs text-muted-foreground">
+                            Zet aan om het eindbedrag zelf te kiezen (bijv. factuur lager maken).
+                          </div>
+                        </div>
+                        <Switch
+                          checked={handmatigEindbedrag}
+                          onCheckedChange={(checked) => {
+                            setHandmatigEindbedrag(checked);
+                            if (checked) setHandmatigEindbedragStr(berekendEindBedrag.toFixed(2));
+                          }}
+                        />
+                      </div>
+
+                      {handmatigEindbedrag ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Handmatig bedrag (incl. BTW)</Label>
+                            <Input
+                              value={handmatigEindbedragStr}
+                              onChange={(e) => setHandmatigEindbedragStr(e.target.value)}
+                              onBlur={() => {
+                                if (handmatigEindbedragParsed !== null) {
+                                  setHandmatigEindbedragStr(Math.min(totalIncl, handmatigEindbedragParsed).toFixed(2));
+                                }
+                              }}
+                              placeholder="bijv. 650,00"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Berekend bedrag</Label>
+                            <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">Standaard</span>
+                              <span className="text-sm font-semibold">{formatCurrency(berekendEindBedrag)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-2">
+                        <Label>Notitie bij aanpassing (optioneel)</Label>
+                        <Input
+                          value={eindfactuurOpmerking}
+                          onChange={(e) => setEindfactuurOpmerking(e.target.value)}
+                          placeholder="bijv. afgesproken korting"
+                        />
+                      </div>
+
                       <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Te betalen eindfactuur</span>
-                        <span className="text-sm font-semibold">{formatCurrency(eindBedrag)}</span>
+                        <span className="text-sm font-semibold">{formatCurrency(effectiefEindBedrag)}</span>
                       </div>
+                      {handmatigEindbedrag && effectiefAftrek > 0 ? (
+                        <div className="text-xs text-muted-foreground">
+                          Verschil t.o.v. offerte: {formatCurrency(effectiefAftrek)} lager.
+                        </div>
+                      ) : null}
 
                       <Button
                         type="button"

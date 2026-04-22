@@ -141,6 +141,8 @@ export function CostSummaryCard({
     const winstMargeExclBtw = totals ? totals.winstMarge : 0;
     const btwMetMarge = totals ? totals.btw : 0;
     const vatMultiplier = 1 + (Number(settings?.btwTarief) || 0) / 100;
+    const materiaalKostenInclBtw = (totals?.materialenTotaal ?? 0) * vatMultiplier;
+    const geschatteWinstInclBtw = (totals?.totaalInclBtw ?? 0) - materiaalKostenInclBtw;
     const amountGridClass = 'grid w-[190px] sm:w-[260px] grid-cols-2 gap-3 sm:gap-4 text-right';
     const winstMargeBasisLabel =
         settings?.extras?.winstMarge?.basis === 'materiaal'
@@ -503,6 +505,15 @@ export function CostSummaryCard({
                     <span className="font-bold text-lg text-primary">
                         {formatCurrency(totals.totaalInclBtw)}
                     </span>
+                </div>
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2.5 flex justify-between items-start gap-4">
+                    <div className="space-y-0.5">
+                        <span className="font-medium text-foreground">GESCHATTE WINST (incl. btw)</span>
+                        <p className="text-xs text-muted-foreground">
+                            {formatCurrency(totals.totaalInclBtw)} - {formatCurrency(materiaalKostenInclBtw)}
+                        </p>
+                    </div>
+                    <span className="font-semibold text-emerald-500">{formatCurrency(geschatteWinstInclBtw)}</span>
                 </div>
             </div>
         </div>
