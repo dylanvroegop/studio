@@ -219,6 +219,13 @@ function normalizeWorkDescriptionItems(value: unknown): string[] {
     return value.flatMap((item) => flattenValue(item)).filter(Boolean);
 }
 
+function normalizeEditableWorkDescriptionItems(value: unknown): string[] {
+    if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
+        return value.map((item) => String(item ?? ''));
+    }
+    return normalizeWorkDescriptionItems(value);
+}
+
 function normalizeLegacyRows(value: unknown): string[] {
     if (typeof value === 'string') {
         return value
@@ -260,11 +267,11 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
                 title: normalizeWorkDescriptionText(job?.title),
                 context: normalizeWorkDescriptionText(job?.context),
                 sections: {
-                    voorbereiding: normalizeWorkDescriptionItems(job?.sections?.voorbereiding),
-                    uitvoering: normalizeWorkDescriptionItems(job?.sections?.uitvoering),
-                    afwerking: normalizeWorkDescriptionItems(job?.sections?.afwerking),
+                    voorbereiding: normalizeEditableWorkDescriptionItems(job?.sections?.voorbereiding),
+                    uitvoering: normalizeEditableWorkDescriptionItems(job?.sections?.uitvoering),
+                    afwerking: normalizeEditableWorkDescriptionItems(job?.sections?.afwerking),
                 },
-                legacyNotes: normalizeWorkDescriptionItems(job?.legacyNotes),
+                legacyNotes: normalizeEditableWorkDescriptionItems(job?.legacyNotes),
             }))
             : [],
         activeJobIndex: Number.isFinite(Number(value.activeJobIndex))
@@ -293,8 +300,8 @@ function normalizeWorkDescriptionJob(input: unknown): WorkDescriptionJob {
         row.werkbeschrijving ?? row.stappen ?? row.steps ?? row.uitvoering ?? row.items ?? row.description ?? row.text
     );
 
-    const voorbereiding = normalizeWorkDescriptionItems(sectionsValue.voorbereiding ?? row.voorbereiding);
-    const uitvoering = normalizeWorkDescriptionItems(
+    const voorbereiding = normalizeEditableWorkDescriptionItems(sectionsValue.voorbereiding ?? row.voorbereiding);
+    const uitvoering = normalizeEditableWorkDescriptionItems(
         sectionsValue.uitvoering
         ?? row.uitvoering
         ?? row.werkbeschrijving
@@ -302,7 +309,7 @@ function normalizeWorkDescriptionJob(input: unknown): WorkDescriptionJob {
         ?? row.steps
         ?? row.items
     );
-    const afwerking = normalizeWorkDescriptionItems(sectionsValue.afwerking ?? row.afwerking);
+    const afwerking = normalizeEditableWorkDescriptionItems(sectionsValue.afwerking ?? row.afwerking);
 
     return {
         title: normalizeWorkDescriptionText(row.korteTitel ?? row.korte_titel ?? row.title),
@@ -312,7 +319,7 @@ function normalizeWorkDescriptionJob(input: unknown): WorkDescriptionJob {
             uitvoering: uitvoering.length > 0 ? uitvoering : fallbackRows,
             afwerking,
         },
-        legacyNotes: normalizeWorkDescriptionItems(row.legacyNotes),
+        legacyNotes: normalizeEditableWorkDescriptionItems(row.legacyNotes),
     };
 }
 
@@ -373,17 +380,17 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
         sections: {
             voorbereiding: activeJob
                 ? [...activeJob.sections.voorbereiding]
-                : normalizeWorkDescriptionItems(sectionsValue.voorbereiding ?? row.voorbereiding),
+                : normalizeEditableWorkDescriptionItems(sectionsValue.voorbereiding ?? row.voorbereiding),
             uitvoering: activeJob
                 ? [...activeJob.sections.uitvoering]
-                : normalizeWorkDescriptionItems(sectionsValue.uitvoering ?? row.uitvoering),
+                : normalizeEditableWorkDescriptionItems(sectionsValue.uitvoering ?? row.uitvoering),
             afwerking: activeJob
                 ? [...activeJob.sections.afwerking]
-                : normalizeWorkDescriptionItems(sectionsValue.afwerking ?? row.afwerking),
+                : normalizeEditableWorkDescriptionItems(sectionsValue.afwerking ?? row.afwerking),
         },
         jobs,
         activeJobIndex: resolvedActiveJobIndex,
-        legacyNotes: normalizeWorkDescriptionItems(row.legacyNotes),
+        legacyNotes: normalizeEditableWorkDescriptionItems(row.legacyNotes),
     };
 
     if ((!normalized.legacyNotes || normalized.legacyNotes.length === 0) && activeJob?.legacyNotes?.length) {

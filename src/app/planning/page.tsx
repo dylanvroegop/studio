@@ -917,7 +917,6 @@ function PlanningPageContent() {
                         schedulingMode={schedulingMode}
                         currentDate={currentDate}
                         pauseMinutes={planningSettings.pauzeMinuten ?? 0}
-                        showDailyEarnings={!!planningSettings.showDailyEarnings}
                     />
                 )}
             </div>
@@ -1078,18 +1077,6 @@ function PlanningPageContent() {
                             />
                         </div>
 
-                        <div className="flex items-center justify-between rounded-md border border-border p-3">
-                            <div className="space-y-0.5">
-                                <Label className="text-sm">Dagopbrengst tonen</Label>
-                                <p className="text-xs text-muted-foreground">
-                                    Toon verwachte opbrengst per geplande dag in planningblokken.
-                                </p>
-                            </div>
-                            <Switch
-                                checked={!!draftPlanningSettings.showDailyEarnings}
-                                onCheckedChange={(checked) => updateDraftPlanningSetting('showDailyEarnings', checked)}
-                            />
-                        </div>
                     </div>
 
                     <DialogFooter>

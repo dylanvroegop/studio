@@ -2229,6 +2229,7 @@ export default function QuotePage() {
     const applyMaterialTargetWithAdjustment = async (
         category: 'groot' | 'verbruik',
         targetSubtotal: number,
+        adjustmentLabel: string = 'Extra kosten',
     ) => {
         if (!calculation) return;
         const safeTarget = roundMoney(Math.max(0, targetSubtotal));
@@ -2238,9 +2239,10 @@ export default function QuotePage() {
         );
         const delta = roundMoney(safeTarget - currentSubtotal);
         if (Math.abs(delta) < 0.01) return;
+        const normalizedAdjustmentLabel = adjustmentLabel.trim().toLowerCase();
 
         const adjustmentIndex = currentList.findIndex((item) => {
-            return isExtraKostenItem(item);
+            return String(item.product || '').trim().toLowerCase() === normalizedAdjustmentLabel;
         });
 
         let nextList: MaterialItem[];
@@ -2260,7 +2262,7 @@ export default function QuotePage() {
             nextList = [
                 ...currentList,
                 {
-                    product: 'Extra kosten',
+                    product: adjustmentLabel,
                     aantal: 1,
                     prijs_per_stuk: delta,
                     eenheid: 'stuk',
@@ -2288,7 +2290,7 @@ export default function QuotePage() {
 
             toast({
                 title: 'Kosten aangepast',
-                description: 'Verschil toegevoegd als "Extra kosten".',
+                description: `Verschil toegevoegd als "${adjustmentLabel}".`,
             });
         } finally {
             isUpdatingRef.current = false;
@@ -2296,11 +2298,11 @@ export default function QuotePage() {
     };
 
     const handleUpdateMaterialenGrootTotal = async (value: number) => {
-        await applyMaterialTargetWithAdjustment('groot', value);
+        await applyMaterialTargetWithAdjustment('groot', value, 'Handmatige grootmateriaalcorrectie');
     };
 
     const handleUpdateMaterialenVerbruikTotal = async (value: number) => {
-        await applyMaterialTargetWithAdjustment('verbruik', value);
+        await applyMaterialTargetWithAdjustment('verbruik', value, 'Handmatige verbruikscorrectie');
     };
 
     const handleUpdateMaterialenSubtotal = async (value: number) => {
@@ -2308,7 +2310,7 @@ export default function QuotePage() {
         const currentSubtotal = roundMoney(grootSubtotal + verbruikSubtotal);
         const delta = roundMoney(safeTarget - currentSubtotal);
         if (Math.abs(delta) < 0.01) return;
-        await applyMaterialTargetWithAdjustment('groot', roundMoney(grootSubtotal + delta));
+        await applyMaterialTargetWithAdjustment('groot', roundMoney(grootSubtotal + delta), 'Handmatige grootmateriaalcorrectie');
     };
 
     const handleUpdateExtraKostenTotal = async (value: number) => {
@@ -2910,43 +2912,6 @@ export default function QuotePage() {
         const safeKlantNaam = sanitizeFileNamePart(klantNaam) || 'Klant';
         const safeOfferteNummer = sanitizeFileNamePart(offerteNummer || 'CONCEPT');
         return `${safeKlantNaam} - ${safeOfferteNummer}.pdf`;
-    };
-
-    const createShareableOffertePdfLink = async (): Promise<string | null> => {
-        if (!user || !id) return null;
-
-        try {
-            const baseData = preparePDFData();
-            const offerteData: PDFQuoteData = {
-                ...baseData,
-                settings: {
-                    ...baseData.settings,
-                    showTekeningen: false,
-                    showFullWerkbeschrijving: false,
-                },
-            };
-
-            const offerteBlob = await generateQuotePDF(offerteData);
-            const safeOfferteNummer = sanitizeFileNamePart(baseData.offerteNummer || 'CONCEPT').replace(/\s+/g, '-');
-            const storagePath = `users/${user.uid}/quotes/${id}/shared/offerte-${safeOfferteNummer}-${Date.now()}.pdf`;
-            const storage = getStorage();
-            const fileRef = storageRef(storage, storagePath);
-
-            await uploadBytes(fileRef, offerteBlob, { contentType: 'application/pdf' });
-            return await getDownloadURL(fileRef);
-        } catch (error) {
-            console.error('Error creating shareable offerte PDF link:', error);
-            const message = error instanceof Error ? error.message : 'Kon geen deelbare PDF-link maken.';
-            void reportOperationalError({
-                source: 'create_shareable_offerte_pdf_link',
-                title: 'PDF-link maken mislukt',
-                message,
-                context: {
-                    quoteId: id,
-                },
-            });
-            return null;
-        }
     };
 
     const receiptAttachments = useMemo<ReceiptAttachment[]>(() => {
@@ -6828,7 +6793,6 @@ export default function QuotePage() {
                 afzenderNaam={businessData?.contactNaam || user?.displayName || userProfile?.naam || ''}
                 korteTitel={workDescriptionStructured.title || normalizedData?.korteTitel}
                 korteBeschrijving={workDescriptionStructured.context || normalizedData?.korteBeschrijving}
-                onCreateShareableOffertePdfLink={createShareableOffertePdfLink}
             />
 
             {activeCategory && (

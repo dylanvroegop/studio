@@ -22,7 +22,6 @@ interface PlanningGridProps {
     schedulingMode?: boolean;
     currentDate?: Date;
     pauseMinutes?: number;
-    showDailyEarnings?: boolean;
 }
 
 export function PlanningGrid({
@@ -37,7 +36,6 @@ export function PlanningGrid({
     schedulingMode = false,
     currentDate = new Date(),
     pauseMinutes = 0,
-    showDailyEarnings = false,
 }: PlanningGridProps) {
     const days = useMemo(() => getDaysInRange(dateRange.start, dateRange.end), [dateRange]);
     const hours = useMemo(() => getHoursInDay(6, 20), []);
@@ -91,20 +89,6 @@ export function PlanningGrid({
             const bStart = b.startDate instanceof Timestamp ? b.startDate.toDate() : new Date(b.startDate as unknown as string);
             return aStart.getTime() - bStart.getTime();
         });
-    };
-
-    const getEntryEarnings = (entry: PlanningEntry): number => {
-        const planningType = entry.planningType || 'job';
-        if (planningType !== 'job') return 0;
-        if (!showDailyEarnings) return 0;
-        const totalQuoteEarnings = Number((entry.cache as any)?.totalQuoteEarnings || 0);
-        const totalQuoteHours = Number((entry.cache as any)?.totalQuoteHours || 0);
-        const scheduledHours = Number(entry.scheduledHours || 0);
-        if (!Number.isFinite(totalQuoteEarnings) || totalQuoteEarnings <= 0) return 0;
-        if (!Number.isFinite(totalQuoteHours) || totalQuoteHours <= 0) return 0;
-        if (!Number.isFinite(scheduledHours) || scheduledHours <= 0) return 0;
-        const value = (totalQuoteEarnings / totalQuoteHours) * scheduledHours;
-        return Number.isFinite(value) && value > 0 ? value : 0;
     };
 
     if (view === 'day') {
@@ -202,7 +186,6 @@ export function PlanningGrid({
                                                     day={day}
                                                     hours={hours}
                                                     pauseMinutes={pauseMinutes}
-                                                    showDailyEarnings={showDailyEarnings}
                                                     onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
                                                     onDragStart={onDragStart}
                                                 />
@@ -293,7 +276,6 @@ export function PlanningGrid({
                                                             hours={hours}
                                                             pauseMinutes={pauseMinutes}
                                                             stackIndex={idx}
-                                                            showDailyEarnings={showDailyEarnings}
                                                             onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
                                                             onDragStart={onDragStart}
                                                         />
@@ -320,21 +302,16 @@ export function PlanningGrid({
 
         // Days header (Mon - Sun) - just use the first week to get names
         const headerDays = weeks[0] || [];
-        const weekGridStyle: React.CSSProperties = { gridTemplateColumns: '100px repeat(7, minmax(0, 1fr))' };
+        const weekGridStyle: React.CSSProperties = { gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' };
 
         return (
             <div className="flex-1 bg-card rounded-lg border border-zinc-700/50 overflow-auto">
                 <div className="min-w-[740px]">
-                    {/* Header: Month + Mon - Sun */}
+                    {/* Header: Mon - Sun */}
                     <div
                         className="sticky top-0 z-10 bg-card/95 backdrop-blur border-b border-zinc-700/50 grid"
                         style={weekGridStyle}
                     >
-                        <div className="min-w-0 p-2 text-center border-r border-zinc-700/50">
-                            <span className="text-[10px] text-emerald-200/70 font-medium uppercase tracking-wide">
-                                Winst
-                            </span>
-                        </div>
                         {headerDays.map(day => {
                             const dayIsToday = isToday(day);
                             return (
@@ -361,35 +338,9 @@ export function PlanningGrid({
                         <div key={employee.id} className="border-b border-zinc-700/50 last:border-b-0">
                             {/* Weeks */}
                             {weeks.map((weekDays, weekIdx) => {
-                                const weekEntryIds = new Set<string>();
-                                const weekEarnings = weekDays.reduce((sum, day) => {
-                                    const dayEntries = getEntriesForEmployeeAndDay(employee.id, day);
-                                    return dayEntries.reduce((daySum, entry) => {
-                                        if (weekEntryIds.has(entry.id)) return daySum;
-                                        weekEntryIds.add(entry.id);
-                                        return daySum + getEntryEarnings(entry);
-                                    }, sum);
-                                }, 0);
-
-                                const weekEarningsLabel = new Intl.NumberFormat('nl-NL', {
-                                    style: 'currency',
-                                    currency: 'EUR',
-                                    maximumFractionDigits: 0,
-                                }).format(Math.max(0, weekEarnings));
-
                                 return (
                                 <div key={`${employee.id}-week-${weekIdx}`} className="border-b border-zinc-700/50 last:border-b-0">
                                     <div className="grid" style={weekGridStyle}>
-                                        <div className="border-r border-zinc-700/50 border-b border-zinc-700/50 px-2 py-1.5">
-                                            <div className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2 py-1">
-                                                <div className="truncate text-[10px] leading-none text-emerald-200/75">
-                                                    Week
-                                                </div>
-                                                <div className="mt-1 truncate text-xs font-semibold leading-none text-emerald-300">
-                                                    {weekEarningsLabel}
-                                                </div>
-                                            </div>
-                                        </div>
                                         {weekDays.map((day, dayIdx) => {
                                             const dayEntries = getEntriesForEmployeeAndDay(employee.id, day);
                                             const dayOfWeek = day.getDay();
@@ -441,7 +392,6 @@ export function PlanningGrid({
                                                                     hours={hours}
                                                                     pauseMinutes={pauseMinutes}
                                                                     stackIndex={idx}
-                                                                    showDailyEarnings={showDailyEarnings}
                                                                     onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
                                                                     onDragStart={onDragStart}
                                                                 />
@@ -536,7 +486,6 @@ export function PlanningGrid({
                                             hours={hours}
                                             pauseMinutes={pauseMinutes}
                                             stackIndex={idx}
-                                            showDailyEarnings={showDailyEarnings}
                                         onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
                                         onDragStart={onDragStart}
                                     />

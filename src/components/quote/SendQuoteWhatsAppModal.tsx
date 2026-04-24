@@ -33,7 +33,14 @@ interface SendQuoteWhatsAppModalProps {
   korteTitel?: string;
   korteBeschrijving?: string;
   onMarkAsSent?: () => Promise<void> | void;
-  onCreateShareableOffertePdfLink?: () => Promise<string | null>;
+}
+
+function stripUrlsFromMessage(value: string): string {
+  return value
+    .replace(/\bblob:[^\s]+/gi, '')
+    .replace(/\bhttps?:\/\/[^\s]+/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function normalizePhoneForWhatsApp(raw: string): string {
@@ -71,7 +78,6 @@ export function SendQuoteWhatsAppModal({
   korteTitel,
   korteBeschrijving,
   onMarkAsSent,
-  onCreateShareableOffertePdfLink,
 }: SendQuoteWhatsAppModalProps) {
   const { user } = useUser();
   const [phone, setPhone] = useState('');
@@ -234,15 +240,6 @@ export function SendQuoteWhatsAppModal({
         return;
       }
 
-      let shareablePdfLink: string | null = null;
-      if (attachments.includeOfferte && onCreateShareableOffertePdfLink) {
-        try {
-          shareablePdfLink = await onCreateShareableOffertePdfLink();
-        } catch (error) {
-          console.error('Error creating shareable offerte PDF link:', error);
-        }
-      }
-
       if (onMarkAsSent) {
         try {
           await Promise.resolve(onMarkAsSent());
@@ -257,9 +254,7 @@ export function SendQuoteWhatsAppModal({
         }
       }
 
-      const messageWithLink = shareablePdfLink
-        ? `${message.trim()}\n\nOfferte PDF link:\n${shareablePdfLink}`
-        : message.trim();
+      const messageWithLink = stripUrlsFromMessage(message);
       const encodedText = encodeURIComponent(messageWithLink);
       const waUrl = normalizedPhone
         ? `https://wa.me/${normalizedPhone}?text=${encodedText}`
@@ -273,11 +268,9 @@ export function SendQuoteWhatsAppModal({
       toast({
         title: 'WhatsApp geopend',
         description:
-          shareablePdfLink
-            ? 'Bericht bevat nu ook een directe PDF-link voor de klant.'
-            : selectedAttachmentCount === 1
-              ? 'Vergeet niet de gedownloade PDF handmatig toe te voegen in WhatsApp.'
-              : `Vergeet niet ${selectedAttachmentCount} gedownloade PDF's handmatig toe te voegen in WhatsApp.`,
+          selectedAttachmentCount === 1
+            ? 'Vergeet niet de gedownloade PDF handmatig toe te voegen in WhatsApp.'
+            : `Vergeet niet ${selectedAttachmentCount} gedownloade PDF's handmatig toe te voegen in WhatsApp.`,
         duration: 5000,
       });
 

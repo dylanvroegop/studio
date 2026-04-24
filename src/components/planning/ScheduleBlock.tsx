@@ -24,7 +24,6 @@ interface ScheduleBlockProps {
     onClick: () => void;
     onDragStart?: (e: React.PointerEvent, entryId: string, type: 'move' | 'resize-start' | 'resize-end') => void;
     pauseMinutes?: number;
-    showDailyEarnings?: boolean;
 }
 
 export function ScheduleBlock({
@@ -37,7 +36,6 @@ export function ScheduleBlock({
     onClick,
     onDragStart,
     pauseMinutes = 0,
-    showDailyEarnings = false,
 }: ScheduleBlockProps) {
     const startDate = entry.startDate instanceof Timestamp
         ? entry.startDate.toDate()
@@ -76,26 +74,6 @@ export function ScheduleBlock({
 
     const timeLabel = `${format(startDate, 'HH:mm')} - ${format(displayEndDate, 'HH:mm')}`;
     const planningType = entry.planningType || 'job';
-    const dailyEarnings = (() => {
-        if (!showDailyEarnings) return null;
-        if (planningType !== 'job') return null;
-        const totalEarnings = Number(entry.cache?.totalQuoteEarnings || 0);
-        const totalHours = Number(entry.cache?.totalQuoteHours || 0);
-        const hoursForThisEntry = Number(entry.scheduledHours || 0);
-        if (!Number.isFinite(totalEarnings) || totalEarnings <= 0) return null;
-        if (!Number.isFinite(totalHours) || totalHours <= 0) return null;
-        if (!Number.isFinite(hoursForThisEntry) || hoursForThisEntry <= 0) return null;
-        const value = (totalEarnings / totalHours) * hoursForThisEntry;
-        if (!Number.isFinite(value) || value <= 0) return null;
-        return value;
-    })();
-    const dailyEarningsLabel = dailyEarnings !== null
-        ? new Intl.NumberFormat('nl-NL', {
-            style: 'currency',
-            currency: 'EUR',
-            maximumFractionDigits: 0,
-        }).format(dailyEarnings)
-        : null;
 
     const planningTypeLabel = planningType === 'werkbespreking' ? 'Werkbespreking' : 'Klus';
     const planningTypeColor = planningType === 'werkbespreking' ? '#22d3ee' : '#10b981';
@@ -200,13 +178,7 @@ export function ScheduleBlock({
             {view !== 'day' && (
                 <div className="text-[11px] text-white/45 truncate select-none mt-0.5">
                     {timeLabel}
-                    {dailyEarningsLabel ? ` · ${dailyEarningsLabel}` : ''}
                 </div>
-            )}
-            {view === 'day' && dailyEarningsLabel && (
-                <span className="text-[11px] text-white/55 shrink-0 select-none">
-                    {dailyEarningsLabel}
-                </span>
             )}
         </div>
     );

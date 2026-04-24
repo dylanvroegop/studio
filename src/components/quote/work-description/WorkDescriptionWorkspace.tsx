@@ -29,30 +29,36 @@ function ensureRows(rows: string[]): string[] {
   return rows.length > 0 ? rows : [''];
 }
 
+function normalizeEditableRows(rows: unknown): string[] {
+  if (Array.isArray(rows) && rows.every((row) => typeof row === 'string')) {
+    return rows.map((row) => String(row ?? ''));
+  }
+  return normalizeWerkbeschrijving(rows || []);
+}
+
 function normalizeJobs(value: WorkDescriptionStructured): WorkDescriptionJob[] {
-  const normalizeRows = (rows: unknown): string[] => normalizeWerkbeschrijving(rows || []);
   if (Array.isArray(value.jobs) && value.jobs.length > 0) {
     return value.jobs.map((job) => ({
       ...job,
       title: String(job?.title || ''),
       context: String(job?.context || ''),
       sections: {
-        voorbereiding: normalizeRows(job?.sections?.voorbereiding),
-        uitvoering: normalizeRows(job?.sections?.uitvoering),
-        afwerking: normalizeRows(job?.sections?.afwerking),
+        voorbereiding: normalizeEditableRows(job?.sections?.voorbereiding),
+        uitvoering: normalizeEditableRows(job?.sections?.uitvoering),
+        afwerking: normalizeEditableRows(job?.sections?.afwerking),
       },
-      legacyNotes: normalizeRows(job?.legacyNotes || []),
+      legacyNotes: normalizeEditableRows(job?.legacyNotes || []),
     }));
   }
   return [{
     title: value.title || '',
     context: value.context || '',
     sections: {
-      voorbereiding: normalizeRows(value.sections?.voorbereiding),
-      uitvoering: normalizeRows(value.sections?.uitvoering),
-      afwerking: normalizeRows(value.sections?.afwerking),
+      voorbereiding: normalizeEditableRows(value.sections?.voorbereiding),
+      uitvoering: normalizeEditableRows(value.sections?.uitvoering),
+      afwerking: normalizeEditableRows(value.sections?.afwerking),
     },
-    legacyNotes: normalizeRows(value.legacyNotes || []),
+    legacyNotes: normalizeEditableRows(value.legacyNotes || []),
   }];
 }
 
