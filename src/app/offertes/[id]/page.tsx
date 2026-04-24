@@ -730,8 +730,6 @@ export default function QuotePage() {
     const [compareMaterialView, setCompareMaterialView] = useState<'groot' | 'verbruik'>('groot');
     const [calculationElapsedSeconds, setCalculationElapsedSeconds] = useState(0);
     const [isRetryingCalculation, setIsRetryingCalculation] = useState(false);
-    const [isDevResetAndRecalculating, setIsDevResetAndRecalculating] = useState(false);
-    const [devRecalculateTarget, setDevRecalculateTarget] = useState<'test' | 'production' | null>(null);
     const calculationTimerStartedAtRef = useRef<number | null>(null);
 
     // Fetch user profile and business details
@@ -4159,21 +4157,6 @@ export default function QuotePage() {
         }
     };
 
-    const handleDevResetAndRecalculate = async (target: 'test' | 'production'): Promise<void> => {
-        if (isDevResetAndRecalculating || isRetryingCalculation) return;
-
-        setDevRecalculateTarget(target);
-        setIsDevResetAndRecalculating(true);
-        try {
-            const resetSucceeded = await handleResetMaterialPackageToNieuw();
-            if (!resetSucceeded) return;
-            await handleRetryCalculation(target);
-        } finally {
-            setIsDevResetAndRecalculating(false);
-            setDevRecalculateTarget(null);
-        }
-    };
-
     const currentWerkbeschrijvingStructured = useMemo(
         () => toStructuredWorkDescription({
             werkbeschrijving: normalizedData?.werkbeschrijving,
@@ -5821,43 +5804,6 @@ export default function QuotePage() {
                                                 Nieuw
                                             </Button>
 
-                                            {process.env.NODE_ENV !== 'production' && (
-                                                <div className="col-span-2 grid grid-cols-2 gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="secondary"
-                                                        className="h-10 rounded-xl px-3 font-semibold"
-                                                        onClick={() => { void handleDevResetAndRecalculate('test'); }}
-                                                        disabled={isDevResetAndRecalculating || isRetryingCalculation}
-                                                    >
-                                                        {(isDevResetAndRecalculating || isRetryingCalculation) && devRecalculateTarget === 'test' ? (
-                                                            <>
-                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                                Reset + bereken (test)...
-                                                            </>
-                                                        ) : (
-                                                            'Reset + bereken (test)'
-                                                        )}
-                                                    </Button>
-
-                                                    <Button
-                                                        type="button"
-                                                        variant="destructive"
-                                                        className="h-10 rounded-xl px-3 font-semibold"
-                                                        onClick={() => { void handleDevResetAndRecalculate('production'); }}
-                                                        disabled={isDevResetAndRecalculating || isRetryingCalculation}
-                                                    >
-                                                        {(isDevResetAndRecalculating || isRetryingCalculation) && devRecalculateTarget === 'production' ? (
-                                                            <>
-                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                                Reset + bereken (prod)...
-                                                            </>
-                                                        ) : (
-                                                            'Reset + bereken (prod)'
-                                                        )}
-                                                    </Button>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
 

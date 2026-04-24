@@ -2415,6 +2415,49 @@ export default function GenericMeasurementPage() {
                 }
               }
 
+              if (isBoeiboord) {
+                const panelen = Array.isArray(normalizedItem.boeiboord_panelen)
+                  ? normalizedItem.boeiboord_panelen
+                  : [];
+                const toPositiveNum = (value: any): number | null => {
+                  const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+                  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+                  return parsed;
+                };
+                const voorzijde = panelen.find((paneel: any) => {
+                  const zijde = String(paneel?.zijde ?? '').toLowerCase();
+                  return zijde === 'voorzijde'
+                    && toPositiveNum(paneel?.lengte) !== null
+                    && toPositiveNum(paneel?.hoogte) !== null;
+                });
+                const onderzijde = panelen.find((paneel: any) => {
+                  const zijde = String(paneel?.zijde ?? '').toLowerCase();
+                  return zijde === 'onderzijde'
+                    && toPositiveNum(paneel?.lengte) !== null
+                    && toPositiveNum(paneel?.breedte) !== null;
+                });
+
+                if (isEmptyValue(normalizedItem.lengte) && voorzijde) {
+                  const value = toPositiveNum(voorzijde?.lengte);
+                  if (value !== null) normalizedItem.lengte = Math.round(value);
+                }
+                if (isEmptyValue(normalizedItem.hoogte) && voorzijde) {
+                  const value = toPositiveNum(voorzijde?.hoogte);
+                  if (value !== null) normalizedItem.hoogte = Math.round(value);
+                }
+                if (isEmptyValue(normalizedItem.lengte_onderzijde) && onderzijde) {
+                  const value = toPositiveNum(onderzijde?.lengte);
+                  if (value !== null) normalizedItem.lengte_onderzijde = Math.round(value);
+                }
+                if (isEmptyValue(normalizedItem.breedte) && onderzijde) {
+                  const value = toPositiveNum(onderzijde?.breedte);
+                  if (value !== null) normalizedItem.breedte = Math.round(value);
+                }
+                if (isEmptyValue(normalizedItem.latafstand) && !isEmptyValue(normalizedItem.voorzijde_latafstand)) {
+                  normalizedItem.latafstand = normalizedItem.voorzijde_latafstand;
+                }
+              }
+
               if (Array.isArray(normalizedItem.openings)) {
                 normalizedItem.openings = normalizedItem.openings.map((opening: any) =>
                   normalizeVlizotrapOpeningDefaults(opening)
@@ -3970,51 +4013,88 @@ export default function GenericMeasurementPage() {
     }
 
     setSaving(true);
-    startTransition(async () => {
-      try {
-        let visualisatieUrl: string | null = null;
-        const visualisatieSnapshots: Array<{ url: string; title: string; index: number }> = [];
-        const snapshotItemLabel = jobConfig.measurementLabel || jobConfig.title.split(' ')[0] || 'Item';
-
+    try {
+      const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+        let timer: ReturnType<typeof setTimeout> | null = null;
         try {
-          const auth = getAuth();
-          const storage = getStorage(auth.app);
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`${label} timeout na ${ms}ms`)), ms);
+          });
+          return await Promise.race([promise, timeoutPromise]);
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      };
 
-          for (let index = 0; index < items.length; index += 1) {
-            const visualizerElement = visualizerRefs.current[index];
-            if (!visualizerElement) continue;
+      const snapshotItemLabel = jobConfig.measurementLabel || jobConfig.title.split(' ')[0] || 'Item';
+      let visualisatieUrl: string | null = null;
+      let visualisatieSnapshots: Array<{ url: string; title: string; index: number }> = [];
 
-            const canvas = await html2canvas(visualizerElement, {
+      try {
+        const auth = getAuth();
+        const storage = getStorage(auth.app);
+        const captured: Array<{ url: string; title: string; index: number }> = [];
+        const expectedSnapshotCount = items.length;
+
+        for (let index = 0; index < items.length; index += 1) {
+          const visualizerElement = visualizerRefs.current[index];
+          if (!visualizerElement) continue;
+
+          const canvas = await withTimeout(
+            html2canvas(visualizerElement, {
               backgroundColor: '#18181b',
-              scale: 2,
+              scale: 1.5,
               logging: false,
               useCORS: true,
               allowTaint: true,
-            });
-            const blob = await new Promise<Blob>((resolve, reject) => {
-              canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Failed to create blob')), 'image/png', 0.95);
-            });
+            }),
+            10000,
+            `html2canvas item ${index + 1}`
+          );
 
-            const storagePath = index === 0
-              ? `visualisaties/${quoteId}/${klusId}.png`
-              : `visualisaties/${quoteId}/${klusId}-${index + 1}.png`;
-            const storageRef = ref(storage, storagePath);
-            await uploadBytes(storageRef, blob, { contentType: 'image/png' });
-            const downloadUrl = await getDownloadURL(storageRef);
+          const blob = await withTimeout(
+            new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Failed to create blob')), 'image/png', 0.9);
+            }),
+            8000,
+            `toBlob item ${index + 1}`
+          );
 
-            visualisatieSnapshots.push({
-              url: downloadUrl,
-              title: `${snapshotItemLabel} ${index + 1}`,
-              index,
-            });
-          }
-        } catch (uploadError) {
-          console.error('Error capturing visualization(s):', uploadError);
+          const storagePath = index === 0
+            ? `visualisaties/${quoteId}/${klusId}.png`
+            : `visualisaties/${quoteId}/${klusId}-${index + 1}.png`;
+          const storageRef = ref(storage, storagePath);
+          await withTimeout(
+            uploadBytes(storageRef, blob, { contentType: 'image/png' }),
+            10000,
+            `upload visualisatie item ${index + 1}`
+          );
+          const downloadUrl = await withTimeout(
+            getDownloadURL(storageRef),
+            6000,
+            `downloadUrl item ${index + 1}`
+          );
+
+          captured.push({
+            url: downloadUrl,
+            title: `${snapshotItemLabel} ${index + 1}`,
+            index,
+          });
         }
 
-        if (visualisatieSnapshots.length > 0) {
-          visualisatieUrl = visualisatieSnapshots[0].url;
+        // Prevent overwriting existing full snapshot sets with partial captures.
+        if (captured.length === expectedSnapshotCount && captured.length > 0) {
+          visualisatieSnapshots = captured;
+          visualisatieUrl = captured[0].url;
+        } else {
+          console.warn('Skipping visualisatie update due to partial capture', {
+            captured: captured.length,
+            expected: expectedSnapshotCount,
+          });
         }
+      } catch (uploadError) {
+        console.error('Error capturing visualization(s):', uploadError);
+      }
 
         const quoteRef = doc(firestore, 'quotes', quoteId);
 
@@ -4090,6 +4170,13 @@ export default function GenericMeasurementPage() {
               ? (userData?.trespa_seam_thickness ?? 8)
               : (isRockpanel ? (userData?.rockpanel_seam_thickness ?? 8) : 8);
 
+            if (!isEmptyValue(processed.lengte)) processed.lengte = Number(processed.lengte);
+            if (!isEmptyValue(processed.hoogte)) processed.hoogte = Number(processed.hoogte);
+            if (!isEmptyValue(processed.lengte_onderzijde)) processed.lengte_onderzijde = Number(processed.lengte_onderzijde);
+            if (!isEmptyValue(processed.breedte)) processed.breedte = Number(processed.breedte);
+            if (!isEmptyValue(processed.latafstand)) processed.latafstand = Number(processed.latafstand);
+            if (!isEmptyValue(processed.onderzijde_latafstand)) processed.onderzijde_latafstand = Number(processed.onderzijde_latafstand);
+
             const boeiboordPanelen = buildBoeiboordPanelen(processed);
             const boeiboordAantallen = boeiboordPanelen.reduce(
               (acc, paneel) => {
@@ -4106,14 +4193,6 @@ export default function GenericMeasurementPage() {
             processed.latten_samenvatting = buildBoeiboordLattenSamenvatting(processed);
             processed.voorzijde_latafstand = processed.latafstand;
             delete processed.calculatedData;
-            delete processed.boeiboord_orientation;
-            delete processed.boeiboord_mirror;
-            delete processed.boeiboord_angle;
-            delete processed.lengte;
-            delete processed.hoogte;
-            delete processed.lengte_onderzijde;
-            delete processed.breedte;
-            delete processed.latafstand;
 
             if (!processed.kopkanten) {
               delete processed.kopkant_breedte;
@@ -4334,12 +4413,16 @@ export default function GenericMeasurementPage() {
         await updateDoc(quoteRef, updateData);
         router.push(`/offertes/${quoteId}/overzicht`);
 
-      } catch (error: any) {
-        console.error(error);
-        toast({ variant: 'destructive', title: 'Opslaan mislukt', description: error.message });
-        setSaving(false);
-      }
-    });
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        variant: 'destructive',
+        title: 'Opslaan mislukt',
+        description: error?.message || 'Onbekende fout bij opslaan.',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!isMounted) return null;

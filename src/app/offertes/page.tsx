@@ -59,6 +59,8 @@ import { cn } from '@/lib/utils';
 
 type FilterMode = 'alle' | 'concept' | 'verzonden' | 'geaccepteerd' | 'berekend' | 'archief';
 const OFFERTES_FILTER_STORAGE_KEY = 'offertes:last-filter';
+type DefaultFilterMode = 'concept' | 'geaccepteerd';
+const OFFERTES_DEFAULT_FILTER_STORAGE_KEY = 'offertes:default-filter';
 
 type QuoteRow = Quote & {
   id: string;
@@ -107,6 +109,10 @@ function isFilterMode(value: unknown): value is FilterMode {
     value === 'berekend' ||
     value === 'archief'
   );
+}
+
+function isDefaultFilterMode(value: unknown): value is DefaultFilterMode {
+  return value === 'concept' || value === 'geaccepteerd';
 }
 
 function naarDate(value: unknown): Date | null {
@@ -383,6 +389,7 @@ export default function OffertesPage() {
   const [invoices, setInvoices] = useState<InvoiceSyncRow[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('alle');
+  const [defaultFilter, setDefaultFilter] = useState<DefaultFilterMode>('concept');
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -407,6 +414,13 @@ export default function OffertesPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const storedDefaultFilter = window.localStorage.getItem(OFFERTES_DEFAULT_FILTER_STORAGE_KEY);
+    if (isDefaultFilterMode(storedDefaultFilter)) {
+      setDefaultFilter(storedDefaultFilter);
+      setFilter(storedDefaultFilter);
+      return;
+    }
+
     const storedFilter = window.localStorage.getItem(OFFERTES_FILTER_STORAGE_KEY);
     if (isFilterMode(storedFilter)) {
       setFilter(storedFilter);
@@ -417,6 +431,11 @@ export default function OffertesPage() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(OFFERTES_FILTER_STORAGE_KEY, filter);
   }, [filter]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(OFFERTES_DEFAULT_FILTER_STORAGE_KEY, defaultFilter);
+  }, [defaultFilter]);
 
   useEffect(() => {
     if (!user || !firestore) return;
@@ -764,16 +783,16 @@ export default function OffertesPage() {
           setHoofdtitelsByQuoteId((prev) => ({ ...prev, ...nextTitles }));
         }
 
-        if (!didCompleteInitialHoofdtitelSyncRef.current) {
-          didCompleteInitialHoofdtitelSyncRef.current = true;
-          setIsInitialHoofdtitelSyncDone(true);
-        }
       } catch (err) {
         if (!cancelled) {
           console.warn('Kon hoofdtitels niet ophalen uit calculaties:', err);
         }
       } finally {
         isSyncingHoofdtitelsRef.current = false;
+        if (!cancelled && !didCompleteInitialHoofdtitelSyncRef.current) {
+          didCompleteInitialHoofdtitelSyncRef.current = true;
+          setIsInitialHoofdtitelSyncDone(true);
+        }
       }
     };
 
@@ -1085,6 +1104,13 @@ export default function OffertesPage() {
     { value: 'archief', label: 'Archief', count: filterCountsByMode.archief },
   ];
 
+  const defaultFilterLabel = defaultFilter === 'geaccepteerd' ? 'Geaccepteerd' : 'Concept';
+
+  function handleDefaultFilterSelect(nextDefaultFilter: DefaultFilterMode): void {
+    setDefaultFilter(nextDefaultFilter);
+    setFilter(nextDefaultFilter);
+  }
+
   return (
     <div className="app-shell min-h-screen bg-background">
       <AppNavigation />
@@ -1119,17 +1145,37 @@ export default function OffertesPage() {
             </div>
 
             <div className="flex justify-end">
-              <select
-                value={String(selectedYear)}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm text-foreground"
-              >
-                {yearOptions.map((year) => (
-                  <option key={`mobile-year-${year}`} value={year}>
-                    Jaar {year}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="outline" className="h-9 rounded-md border-border/70 px-3 text-xs sm:text-sm">
+                      Standaard: {defaultFilterLabel}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Open offertes standaard op</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => handleDefaultFilterSelect('concept')}>
+                      Concept {defaultFilter === 'concept' ? '(actief)' : ''}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleDefaultFilterSelect('geaccepteerd')}>
+                      Geaccepteerd {defaultFilter === 'geaccepteerd' ? '(actief)' : ''}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <select
+                  value={String(selectedYear)}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm text-foreground"
+                >
+                  {yearOptions.map((year) => (
+                    <option key={`mobile-year-${year}`} value={year}>
+                      Jaar {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="-mx-1 overflow-x-auto pb-1">
@@ -1190,6 +1236,24 @@ export default function OffertesPage() {
                     </option>
                   ))}
                 </select>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="outline" className="h-10 shrink-0 border-border/70">
+                      Standaard: {defaultFilterLabel}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Open offertes standaard op</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => handleDefaultFilterSelect('concept')}>
+                      Concept {defaultFilter === 'concept' ? '(actief)' : ''}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleDefaultFilterSelect('geaccepteerd')}>
+                      Geaccepteerd {defaultFilter === 'geaccepteerd' ? '(actief)' : ''}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                   <DialogTrigger asChild>
