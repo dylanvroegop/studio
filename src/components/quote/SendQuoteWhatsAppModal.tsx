@@ -12,38 +12,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, MessageCircle, Sparkles } from 'lucide-react';
-import { type KlantInformatie, generateWorkSummary } from '@/lib/quote-calculations';
+import { Loader2, MessageCircle } from 'lucide-react';
+import { type KlantInformatie } from '@/lib/quote-calculations';
 import { toast } from '@/hooks/use-toast';
-import { useUser } from '@/firebase';
-import { reportOperationalError } from '@/lib/report-operational-error';
-import type { QuoteAttachmentOptions } from '@/components/quote/SendQuoteModal';
 
 interface SendQuoteWhatsAppModalProps {
   isOpen: boolean;
   onClose: () => void;
   klantInfo: KlantInformatie | null;
-  offerteNummer: string;
-  werkbeschrijving: any;
-  onSendViaWhatsApp: (params: {
-    phone: string;
-    message: string;
-    attachments: QuoteAttachmentOptions;
-  }) => Promise<void> | void;
-  totaalInclBtw: number;
-  geldigTot: string;
-  bedrijfsnaam: string;
-  afzenderNaam: string;
-  korteTitel?: string;
-  korteBeschrijving?: string;
-}
-
-function stripUrlsFromMessage(value: string): string {
-  return value
-    .replace(/\bblob:[^\s]+/gi, '')
-    .replace(/\bhttps?:\/\/[^\s]+/gi, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  clientName: string;
+  quoteId?: string;
+  quotePdfUrl: string;
+  onDownloadOfficialPdf?: () => Promise<void> | void;
 }
 
 function normalizePhoneForWhatsApp(raw: string): string {
@@ -67,32 +47,27 @@ function normalizePhoneForWhatsApp(raw: string): string {
   return digits;
 }
 
+function buildWhatsAppUrl(phone: string, message: string): string {
+  const normalizedPhone = normalizePhoneForWhatsApp(phone);
+  const encodedMessage = encodeURIComponent(message);
+  return `https://wa.me/${normalizedPhone}?text=${encodedMessage}`;
+}
+
 export function SendQuoteWhatsAppModal({
   isOpen,
   onClose,
   klantInfo,
-  offerteNummer,
-  werkbeschrijving,
-  onSendViaWhatsApp,
-  totaalInclBtw,
-  geldigTot,
-  bedrijfsnaam,
-  afzenderNaam,
-  korteTitel,
-  korteBeschrijving,
+  clientName,
+  quoteId,
+  quotePdfUrl,
+  onDownloadOfficialPdf,
 }: SendQuoteWhatsAppModalProps) {
-  const { user } = useUser();
   const [phone, setPhone] = useState('');
-  const [message, setMessage] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [message, setMessage] = useState(''); // editable after prefill
+  const [quoteUrl, setQuoteUrl] = useState('');
   const [isOpening, setIsOpening] = useState(false);
   const hasInitializedForOpenRef = useRef(false);
   const isLaunchingWhatsAppRef = useRef(false);
-  const [attachments, setAttachments] = useState<QuoteAttachmentOptions>({
-    includeOfferte: true,
-    includeTekeningen: true,
-    includeWerkbeschrijving: true,
-  });
 
   useEffect(() => {
     if (!isOpen) {
@@ -105,98 +80,16 @@ export function SendQuoteWhatsAppModal({
 
     hasInitializedForOpenRef.current = true;
     setPhone(klantInfo.telefoonnummer || '');
-    setAttachments({
-      includeOfferte: true,
-      includeTekeningen: true,
-      includeWerkbeschrijving: true,
-    });
+    const trimmedProvidedUrl = (quotePdfUrl || '').trim();
+    const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    const origin = isLocalhost ? 'https://app.calvora.nl' : (typeof window !== 'undefined' ? window.location.origin : 'https://app.calvora.nl');
+    const fallbackUrl = quoteId ? `${origin}/view/${quoteId}` : '';
+    const resolvedQuoteUrl = trimmedProvidedUrl || fallbackUrl;
+    setQuoteUrl(resolvedQuoteUrl);
 
-    const shortDesc = generateWorkSummary(werkbeschrijving, 40);
-    setMessage(
-      `Beste ${klantInfo.voornaam || klantInfo.bedrijfsnaam || 'klant'},\n\n` +
-        `Hierbij stuur ik je offerte #${offerteNummer}${shortDesc ? ` (${shortDesc})` : ''}.\n` +
-        `In de bijlage vind je de PDF.\n\n` +
-        `Met vriendelijke groet,\n${afzenderNaam || bedrijfsnaam || ''}`
-    );
-  }, [isOpen, klantInfo, offerteNummer, werkbeschrijving, afzenderNaam, bedrijfsnaam]);
-
-  const handleGenerateMessage = async () => {
-    if (!klantInfo) return;
-    if (!user) {
-      toast({
-        title: 'Niet ingelogd',
-        description: 'Log opnieuw in en probeer daarna nogmaals.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsGenerating(true);
-    try {
-      const token = await user.getIdToken();
-      const response = await fetch('/api/generate-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          klantNaam: `${klantInfo.voornaam} ${klantInfo.achternaam}`.trim(),
-          klantVoornaam: klantInfo.voornaam,
-          offerteNummer,
-          korteTitel: korteTitel || '',
-          korteBeschrijving: korteBeschrijving || '',
-          totaalInclBtw,
-          geldigTot,
-          bedrijfsnaam,
-          afzenderNaam,
-        }),
-      });
-
-      if (!response.ok) {
-        const apiError = await response
-          .json()
-          .then((payload) => {
-            if (!payload || typeof payload !== 'object') return null;
-            const candidate = payload as { error?: unknown; message?: unknown };
-            if (typeof candidate.error === 'string' && candidate.error.trim()) return candidate.error;
-            if (typeof candidate.message === 'string' && candidate.message.trim()) return candidate.message;
-            return null;
-          })
-          .catch(() => null);
-        throw new Error(apiError || `Generation failed (${response.status})`);
-      }
-
-      const data = await response.json();
-      if (data?.body && typeof data.body === 'string') {
-        setMessage(data.body);
-        toast({
-          title: 'Tekst gegenereerd',
-          description: 'De WhatsApp-tekst is aangepast.',
-        });
-      } else {
-        throw new Error('No valid content in response');
-      }
-    } catch (error) {
-      console.error('Error generating WhatsApp text:', error);
-      const message = error instanceof Error ? error.message : 'Onbekende fout bij genereren van WhatsApp-tekst.';
-      void reportOperationalError({
-        source: 'send_quote_generate_whatsapp_text',
-        title: 'Fout bij genereren',
-        message,
-        context: {
-          offerteNummer,
-        },
-      });
-      toast({
-        title: 'Fout bij genereren',
-        description: 'Kon tekst niet genereren, probeer opnieuw.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+    const displayName = (clientName || `${klantInfo.voornaam || ''} ${klantInfo.achternaam || ''}`.trim() || klantInfo.bedrijfsnaam || 'klant').trim();
+    setMessage(`Hallo ${displayName}, hier is je offerte: ${resolvedQuoteUrl}`);
+  }, [isOpen, klantInfo, clientName, quotePdfUrl, quoteId]);
 
   const handleSendViaWhatsApp = async () => {
     if (isOpening || isLaunchingWhatsAppRef.current) return;
@@ -204,11 +97,9 @@ export function SendQuoteWhatsAppModal({
 
     const trimmedPhone = phone.trim();
     const normalizedPhone = normalizePhoneForWhatsApp(trimmedPhone);
-    const selectedAttachmentCount = [attachments.includeOfferte, attachments.includeTekeningen, attachments.includeWerkbeschrijving]
-      .filter(Boolean)
-      .length;
+    const trimmedQuoteUrl = quoteUrl.trim();
 
-    if (trimmedPhone && (normalizedPhone.length < 8 || normalizedPhone.length > 15)) {
+    if (!trimmedPhone || normalizedPhone.length < 8 || normalizedPhone.length > 15) {
       toast({
         title: 'Telefoonnummer ongeldig',
         description: 'Vul een geldig WhatsApp-nummer in (bijv. +31 6...).',
@@ -218,10 +109,10 @@ export function SendQuoteWhatsAppModal({
       return;
     }
 
-    if (selectedAttachmentCount === 0) {
+    if (!trimmedQuoteUrl) {
       toast({
-        title: 'Kies minimaal één PDF',
-        description: 'Selecteer offerte, tekeningen en/of werkbeschrijving.',
+        title: 'Geen PDF-link beschikbaar',
+        description: 'Er is geen quote.pdf_url gevonden voor deze offerte.',
         variant: 'destructive',
       });
       isLaunchingWhatsAppRef.current = false;
@@ -229,24 +120,33 @@ export function SendQuoteWhatsAppModal({
     }
 
     setIsOpening(true);
+    const popup = window.open('about:blank', '_blank');
     try {
-      const messageWithLink = stripUrlsFromMessage(message);
-      await Promise.resolve(onSendViaWhatsApp({
-        phone: normalizedPhone,
-        message: messageWithLink,
-        attachments,
-      }));
+      const fallbackName = (clientName || 'klant').trim();
+      const outgoingMessage = message.trim() || `Hallo ${fallbackName}, hier is je offerte: ${trimmedQuoteUrl}`;
+
+      if (onDownloadOfficialPdf) {
+        await Promise.resolve(onDownloadOfficialPdf());
+      }
+
+      const waUrl = buildWhatsAppUrl(normalizedPhone, outgoingMessage);
+      if (popup && !popup.closed) {
+        popup.location.href = waUrl;
+      } else {
+        window.open(waUrl, '_blank');
+      }
 
       toast({
-        title: 'WhatsApp verstuurd',
-        description: selectedAttachmentCount === 1
-          ? 'Bericht en bijlage zijn direct verzonden.'
-          : `Bericht en ${selectedAttachmentCount} bijlagen zijn direct verzonden.`,
+        title: 'WhatsApp geopend',
+        description: 'De officiële PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur.',
         duration: 5000,
       });
 
       onClose();
     } catch (error) {
+      if (popup && !popup.closed) {
+        popup.close();
+      }
       console.error('Error sending WhatsApp quote:', error);
       const message = error instanceof Error ? error.message : 'Kon niet versturen via WhatsApp.';
       toast({
@@ -283,67 +183,22 @@ export function SendQuoteWhatsAppModal({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-zinc-400">PDF bijlagen (losse bestanden)</Label>
-            <div className="rounded-lg border border-zinc-800 bg-zinc-800/40 p-3 space-y-2">
-              <label className="flex items-center justify-between gap-3 text-sm text-zinc-200 cursor-pointer">
-                <span>Offerte (hoofdbestand)</span>
-                <input
-                  type="checkbox"
-                  checked={attachments.includeOfferte}
-                  onChange={(e) => setAttachments((prev) => ({ ...prev, includeOfferte: e.target.checked }))}
-                  className="h-4 w-4 accent-emerald-500"
-                />
-              </label>
-              <label className="flex items-center justify-between gap-3 text-sm text-zinc-200 cursor-pointer">
-                <span>Tekeningen (aparte PDF)</span>
-                <input
-                  type="checkbox"
-                  checked={attachments.includeTekeningen}
-                  onChange={(e) => setAttachments((prev) => ({ ...prev, includeTekeningen: e.target.checked }))}
-                  className="h-4 w-4 accent-emerald-500"
-                />
-              </label>
-              <label className="flex items-center justify-between gap-3 text-sm text-zinc-200 cursor-pointer">
-                <span>Werkbeschrijving (aparte PDF)</span>
-                <input
-                  type="checkbox"
-                  checked={attachments.includeWerkbeschrijving}
-                  onChange={(e) => setAttachments((prev) => ({ ...prev, includeWerkbeschrijving: e.target.checked }))}
-                  className="h-4 w-4 accent-emerald-500"
-                />
-              </label>
-            </div>
+            <Label className="text-zinc-400">Quote URL (quote.pdf_url)</Label>
+            <Input
+              value={quoteUrl}
+              onChange={(event) => setQuoteUrl(event.target.value)}
+              placeholder="https://app.calvora.nl/view/..."
+              className="bg-zinc-800 border-zinc-700 text-zinc-200"
+            />
           </div>
 
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <Label htmlFor="whatsapp-body" className="text-zinc-400">WhatsApp bericht</Label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleGenerateMessage}
-                disabled={isGenerating || isOpening}
-                className="h-7 text-xs gap-1 text-emerald-400 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 hover:text-emerald-300 transition-colors"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Genereren...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3 h-3" />
-                    Genereer tekst
-                  </>
-                )}
-              </Button>
-            </div>
+            <Label className="text-zinc-400">WhatsApp bericht</Label>
             <Textarea
-              id="whatsapp-body"
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Typ hier je WhatsApp-bericht..."
-              className="min-h-[150px] bg-zinc-800 border-zinc-700 focus:ring-emerald-500 text-white resize-none"
+              onChange={(event) => setMessage(event.target.value)}
+              placeholder="Typ het bericht dat in WhatsApp wordt voorgevuld"
+              className="min-h-[120px] bg-zinc-800 border-zinc-700 text-zinc-200"
             />
           </div>
         </div>
@@ -353,13 +208,13 @@ export function SendQuoteWhatsAppModal({
             type="button"
             variant="success"
             onClick={handleSendViaWhatsApp}
-            disabled={isOpening || isGenerating}
+            disabled={isOpening || !normalizePhoneForWhatsApp(phone) || !quoteUrl.trim()}
             className="w-full py-6 rounded-xl flex items-center justify-center gap-2"
           >
             {isOpening ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageCircle className="w-5 h-5" />}
             <div className="flex flex-col items-start leading-tight">
-              <span>{isOpening ? 'Versturen via WhatsApp...' : 'Verstuur direct via WhatsApp'}</span>
-              <span className="text-[10px] opacity-80 font-normal">Tekst + PDF bijlagen in één keer</span>
+              <span>{isOpening ? 'WhatsApp openen...' : 'Verstuur via WhatsApp'}</span>
+              <span className="text-[10px] opacity-80 font-normal">Download officiële PDF + open WhatsApp (handmatig bijvoegen)</span>
             </div>
           </Button>
         </DialogFooter>

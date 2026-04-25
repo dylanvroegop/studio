@@ -3620,45 +3620,6 @@ export default function QuotePage() {
         return files;
     };
 
-    const handleSendQuoteViaWhatsApp = async (params: {
-        phone: string;
-        message: string;
-        attachments: QuoteAttachmentOptions;
-    }): Promise<void> => {
-        if (!user || !id) {
-            throw new Error('Je moet ingelogd zijn om via WhatsApp te versturen.');
-        }
-
-        const files = await buildSelectedQuotePdfAttachments(params.attachments);
-        const token = await user.getIdToken();
-        const formData = new FormData();
-        formData.append('quoteId', id);
-        formData.append('phone', params.phone);
-        formData.append('message', params.message);
-
-        files.forEach((file, index) => {
-            const wrappedFile = new File([file.blob], file.fileName || `offerte-${index + 1}.pdf`, {
-                type: 'application/pdf',
-            });
-            formData.append('files', wrappedFile);
-        });
-
-        const response = await fetch('/api/whatsapp/send-quote', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
-            body: formData,
-        });
-
-        const payload = await response.json().catch(() => null) as { ok?: boolean; message?: string } | null;
-        if (!response.ok || !payload?.ok) {
-            throw new Error(payload?.message || 'Kon WhatsApp-bericht niet versturen.');
-        }
-
-        await handleMarkQuoteAsSent();
-    };
-
     const handleDownloadPDF = async (attachments?: QuoteAttachmentOptions): Promise<void> => {
         if (attachments) {
             const files = await buildSelectedQuotePdfAttachments(attachments);
@@ -6852,25 +6813,16 @@ export default function QuotePage() {
                 isOpen={isWhatsAppModalOpen}
                 onClose={() => setIsWhatsAppModalOpen(false)}
                 klantInfo={klantInfo}
-                offerteNummer={(quote as any)?.offerteNummer || 'CONCEPT'}
-                werkbeschrijving={normalizedData?.werkbeschrijving}
-                onSendViaWhatsApp={handleSendQuoteViaWhatsApp}
-                totaalInclBtw={totals?.totaalInclBtw || 0}
-                geldigTot={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric'
-                })}
-                bedrijfsnaam={
-                    userProfile?.settings?.bedrijfsnaam ||
-                    userProfile?.bedrijfsnaam ||
-                    userProfile?.companyName ||
-                    businessData?.bedrijfsnaam ||
-                    ''
+                clientName={`${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`.trim() || (klantInfo?.bedrijfsnaam || 'klant')}
+                quoteId={String(id || '')}
+                quotePdfUrl={String((quote as any)?.pdf_url || (quote as any)?.pdfUrl || '').trim()}
+                onDownloadOfficialPdf={() =>
+                    handleDownloadPDF({
+                        includeOfferte: true,
+                        includeTekeningen: false,
+                        includeWerkbeschrijving: false,
+                    })
                 }
-                afzenderNaam={businessData?.contactNaam || user?.displayName || userProfile?.naam || ''}
-                korteTitel={workDescriptionStructured.title || normalizedData?.korteTitel}
-                korteBeschrijving={workDescriptionStructured.context || normalizedData?.korteBeschrijving}
             />
 
             {activeCategory && (
