@@ -44,6 +44,7 @@ interface State {
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+const autoDismissTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 
 const addToRemoveQueue = (toastId: string) => {
   if (toastTimeouts.has(toastId)) return
@@ -57,6 +58,26 @@ const addToRemoveQueue = (toastId: string) => {
   }, TOAST_REMOVE_DELAY)
 
   toastTimeouts.set(toastId, timeout)
+}
+
+const clearAutoDismissTimeout = (toastId: string) => {
+  const timeout = autoDismissTimeouts.get(toastId)
+  if (!timeout) return
+  clearTimeout(timeout)
+  autoDismissTimeouts.delete(toastId)
+}
+
+const scheduleAutoDismiss = (toastId: string, durationMs: number) => {
+  clearAutoDismissTimeout(toastId)
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return
+
+  // Fallback: force dismiss when Radix auto-close does not trigger onOpenChange.
+  const timeout = setTimeout(() => {
+    autoDismissTimeouts.delete(toastId)
+    dispatch({ type: actionTypes.DISMISS_TOAST, toastId })
+  }, durationMs + 80)
+
+  autoDismissTimeouts.set(toastId, timeout)
 }
 
 export const reducer = (state: State, action: Action): State => {
@@ -79,8 +100,10 @@ export const reducer = (state: State, action: Action): State => {
       const { toastId } = action
 
       if (toastId) {
+        clearAutoDismissTimeout(toastId)
         addToRemoveQueue(toastId)
       } else {
+        state.toasts.forEach((t) => clearAutoDismissTimeout(t.id))
         state.toasts.forEach((t) => addToRemoveQueue(t.id))
       }
 
@@ -95,7 +118,11 @@ export const reducer = (state: State, action: Action): State => {
     }
 
     case actionTypes.REMOVE_TOAST:
-      if (action.toastId === undefined) return { ...state, toasts: [] }
+      if (action.toastId === undefined) {
+        state.toasts.forEach((t) => clearAutoDismissTimeout(t.id))
+        return { ...state, toasts: [] }
+      }
+      clearAutoDismissTimeout(action.toastId)
       return {
         ...state,
         toasts: state.toasts.filter((t) => t.id !== action.toastId),
@@ -157,6 +184,7 @@ function toast(input: ToastInput) {
       },
     },
   })
+  scheduleAutoDismiss(id, duration)
 
   return { id, dismiss, update }
 }

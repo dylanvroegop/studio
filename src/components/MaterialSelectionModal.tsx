@@ -583,6 +583,8 @@ const EENHEDEN: string[] = ['m1', 'm2', 'p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 
 const FAVORITE_SUBCATEGORY_FILTER = '__favorites__';
 const EXTENSION_IMPORT_EVENT = 'calvora:material-import';
 const EXTENSION_IMPORT_STORAGE_KEY = 'calvora_pending_material_import';
+const LEGACY_EXTENSION_TOAST_IDS = ['__calvora_import_toast', '__calvora_import_error_toast'] as const;
+const LEGACY_EXTENSION_TOAST_MESSAGE = 'Screenshot doorgestuurd. AI analyse wordt gestart in Calvora.';
 
 type ExtensionMaterialImportPayload = {
   naam: string;
@@ -736,6 +738,21 @@ export function MaterialSelectionModal({
   const [showAllLeverancierOptions, setShowAllLeverancierOptions] = useState(false);
   const pendingExtensionImportRef = useRef<ExtensionMaterialImportPayload | null>(null);
   const pendingVisualImportRef = useRef<ExtensionMaterialImportPayload | null>(null);
+  const clearLegacyExtensionToasts = useCallback(() => {
+    if (typeof document === 'undefined') return;
+
+    for (const id of LEGACY_EXTENSION_TOAST_IDS) {
+      document.getElementById(id)?.remove();
+    }
+
+    const nodes = Array.from(document.querySelectorAll('div'));
+    for (const node of nodes) {
+      const text = (node.textContent || '').trim();
+      if (!text.includes(LEGACY_EXTENSION_TOAST_MESSAGE)) continue;
+      if (node.style.position !== 'fixed') continue;
+      node.remove();
+    }
+  }, []);
 
   const subCategoryPreferenceScope = useMemo(() => {
     const scopeRaw = categoryTitle || (Array.isArray(defaultCategory) ? defaultCategory.join(',') : defaultCategory) || 'default';
@@ -750,6 +767,7 @@ export function MaterialSelectionModal({
   // --- RESET ON OPEN ---
   useEffect(() => {
     if (open) {
+      clearLegacyExtensionToasts();
       console.log('[DEBUG] MaterialSelectionModal opened. existingMaterials count:', existingMaterials?.length);
       if (existingMaterials?.length > 0) {
         console.log('[DEBUG] First 3 materials:', existingMaterials.slice(0, 3));
@@ -823,7 +841,7 @@ export function MaterialSelectionModal({
       // 4. Reset Edit State
       setEditingMaterialId(null);
     }
-  }, [open, defaultCategory, initialWastePercentage, favoriteSubCategoryKey]);
+  }, [clearLegacyExtensionToasts, open, defaultCategory, initialWastePercentage, favoriteSubCategoryKey]);
 
   useEffect(() => {
     setDisplayLimit(50);
@@ -1153,6 +1171,7 @@ export function MaterialSelectionModal({
   }, []);
 
   const applyExtensionImportPayload = useCallback((payload: ExtensionMaterialImportPayload): void => {
+    clearLegacyExtensionToasts();
     if ((payload.mode === 'visual' || payload.imageDataUrl) && payload.imageDataUrl) {
       const hintedSupplier = resolveSupplierForExtractedMaterial({
         rawSupplier: payload.leverancier || payload.sourceHost || '',
@@ -1240,6 +1259,7 @@ export function MaterialSelectionModal({
     formSubsectionOptions,
     formCategorySubsectionMap,
     uniqueLeveranciers,
+    clearLegacyExtensionToasts,
   ]);
 
   useEffect(() => {

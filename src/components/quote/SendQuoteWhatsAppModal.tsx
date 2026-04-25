@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, MessageCircle, Sparkles, Download } from 'lucide-react';
+import { Loader2, MessageCircle, Sparkles } from 'lucide-react';
 import { type KlantInformatie, generateWorkSummary } from '@/lib/quote-calculations';
 import { toast } from '@/hooks/use-toast';
 import { useUser } from '@/firebase';
@@ -25,14 +25,17 @@ interface SendQuoteWhatsAppModalProps {
   klantInfo: KlantInformatie | null;
   offerteNummer: string;
   werkbeschrijving: any;
-  onDownloadPDF: (options: QuoteAttachmentOptions) => Promise<void> | void;
+  onSendViaWhatsApp: (params: {
+    phone: string;
+    message: string;
+    attachments: QuoteAttachmentOptions;
+  }) => Promise<void> | void;
   totaalInclBtw: number;
   geldigTot: string;
   bedrijfsnaam: string;
   afzenderNaam: string;
   korteTitel?: string;
   korteBeschrijving?: string;
-  onMarkAsSent?: () => Promise<void> | void;
 }
 
 function stripUrlsFromMessage(value: string): string {
@@ -70,14 +73,13 @@ export function SendQuoteWhatsAppModal({
   klantInfo,
   offerteNummer,
   werkbeschrijving,
-  onDownloadPDF,
+  onSendViaWhatsApp,
   totaalInclBtw,
   geldigTot,
   bedrijfsnaam,
   afzenderNaam,
   korteTitel,
   korteBeschrijving,
-  onMarkAsSent,
 }: SendQuoteWhatsAppModalProps) {
   const { user } = useUser();
   const [phone, setPhone] = useState('');
@@ -196,7 +198,7 @@ export function SendQuoteWhatsAppModal({
     }
   };
 
-  const handleDownloadAndOpenWhatsApp = async () => {
+  const handleSendViaWhatsApp = async () => {
     if (isOpening || isLaunchingWhatsAppRef.current) return;
     isLaunchingWhatsAppRef.current = true;
 
@@ -228,53 +230,30 @@ export function SendQuoteWhatsAppModal({
 
     setIsOpening(true);
     try {
-      try {
-        await Promise.resolve(onDownloadPDF(attachments));
-      } catch (error) {
-        console.error('Error downloading PDF before WhatsApp:', error);
-        toast({
-          title: 'PDF downloaden mislukt',
-          description: 'WhatsApp is niet geopend. Probeer het opnieuw.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (onMarkAsSent) {
-        try {
-          await Promise.resolve(onMarkAsSent());
-        } catch (error) {
-          console.error("Error marking quote as sent from WhatsApp flow:", error);
-          toast({
-            title: 'Status bijwerken mislukt',
-            description: "Kon offerte niet op 'Verstuurd' zetten. Probeer het opnieuw.",
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
-
       const messageWithLink = stripUrlsFromMessage(message);
-      const encodedText = encodeURIComponent(messageWithLink);
-      const waUrl = normalizedPhone
-        ? `https://wa.me/${normalizedPhone}?text=${encodedText}`
-        : `https://wa.me/?text=${encodedText}`;
-
-      const opened = window.open(waUrl, '_blank', 'noopener,noreferrer');
-      if (!opened) {
-        window.location.href = waUrl;
-      }
+      await Promise.resolve(onSendViaWhatsApp({
+        phone: normalizedPhone,
+        message: messageWithLink,
+        attachments,
+      }));
 
       toast({
-        title: 'WhatsApp geopend',
-        description:
-          selectedAttachmentCount === 1
-            ? 'Vergeet niet de gedownloade PDF handmatig toe te voegen in WhatsApp.'
-            : `Vergeet niet ${selectedAttachmentCount} gedownloade PDF's handmatig toe te voegen in WhatsApp.`,
+        title: 'WhatsApp verstuurd',
+        description: selectedAttachmentCount === 1
+          ? 'Bericht en bijlage zijn direct verzonden.'
+          : `Bericht en ${selectedAttachmentCount} bijlagen zijn direct verzonden.`,
         duration: 5000,
       });
 
       onClose();
+    } catch (error) {
+      console.error('Error sending WhatsApp quote:', error);
+      const message = error instanceof Error ? error.message : 'Kon niet versturen via WhatsApp.';
+      toast({
+        title: 'Versturen mislukt',
+        description: message,
+        variant: 'destructive',
+      });
     } finally {
       setIsOpening(false);
       isLaunchingWhatsAppRef.current = false;
@@ -373,14 +352,14 @@ export function SendQuoteWhatsAppModal({
           <Button
             type="button"
             variant="success"
-            onClick={handleDownloadAndOpenWhatsApp}
+            onClick={handleSendViaWhatsApp}
             disabled={isOpening || isGenerating}
             className="w-full py-6 rounded-xl flex items-center justify-center gap-2"
           >
-            {isOpening ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+            {isOpening ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageCircle className="w-5 h-5" />}
             <div className="flex flex-col items-start leading-tight">
-              <span>{isOpening ? 'PDF(s) downloaden...' : 'Download PDF(s) en open WhatsApp'}</span>
-              <span className="text-[10px] opacity-80 font-normal">Voeg de bestanden handmatig toe in WhatsApp</span>
+              <span>{isOpening ? 'Versturen via WhatsApp...' : 'Verstuur direct via WhatsApp'}</span>
+              <span className="text-[10px] opacity-80 font-normal">Tekst + PDF bijlagen in één keer</span>
             </div>
           </Button>
         </DialogFooter>

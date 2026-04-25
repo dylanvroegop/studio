@@ -47,7 +47,6 @@ import {
   ChevronRight,
   BookUser,
   Sparkles,
-  Upload
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -488,22 +487,22 @@ export function NewQuoteForm({
     router.push(resolvedBackHref);
   };
 
-  const handleGenerateClientFromImage = async () => {
+  const handleGenerateClientFromImage = async (sourceImage: File) => {
     if (!user) {
       toast({ variant: 'destructive', title: 'Je moet ingelogd zijn.' });
       return;
     }
 
-    if (!aiSourceImage) {
-      toast({ variant: 'destructive', title: 'Kies eerst een screenshot of afbeelding.' });
+    if (isAiExtracting) {
       return;
     }
 
     setIsAiExtracting(true);
+    setAiSourceImage(sourceImage);
     try {
       const token = await user.getIdToken();
       const formData = new FormData();
-      formData.append('file', aiSourceImage);
+      formData.append('file', sourceImage);
 
       const response = await fetch('/api/quotes/extract-client-info', {
         method: 'POST',
@@ -596,20 +595,31 @@ export function NewQuoteForm({
                   </DialogHeader>
 
                   <div className="space-y-3">
-                    <Label htmlFor="ai-client-image">Afbeelding</Label>
-                    <Input
-                      id="ai-client-image"
-                      type="file"
-                      accept=".jpg,.jpeg,.png,.webp,.heic,.heif,image/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0] || null;
-                        setAiSourceImage(file);
-                      }}
-                    />
+                      <Label htmlFor="ai-client-image">Afbeelding</Label>
+                      <Input
+                        id="ai-client-image"
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp,.heic,.heif,image/*"
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0] || null;
+                          setAiSourceImage(file);
+                          if (file) {
+                            await handleGenerateClientFromImage(file);
+                          }
+                          event.currentTarget.value = '';
+                        }}
+                        disabled={isAiExtracting}
+                      />
                     {aiSourceImage ? (
                       <p className="text-xs text-muted-foreground">{aiSourceImage.name}</p>
                     ) : (
                       <p className="text-xs text-muted-foreground">Ondersteund: JPG, PNG, WEBP, HEIC/HEIF.</p>
+                    )}
+                    {isAiExtracting && (
+                      <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Screenshot wordt geanalyseerd en velden worden direct ingevuld...
+                      </div>
                     )}
 
                     <div className="flex justify-end gap-2 pt-1">
@@ -620,17 +630,9 @@ export function NewQuoteForm({
                           setIsAiDialogOpen(false);
                           setAiSourceImage(null);
                         }}
+                        disabled={isAiExtracting}
                       >
                         Annuleren
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={handleGenerateClientFromImage}
-                        disabled={!aiSourceImage || isAiExtracting}
-                        className="gap-2"
-                      >
-                        {isAiExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                        {isAiExtracting ? 'Genereren...' : 'Genereer velden'}
                       </Button>
                     </div>
                   </div>
