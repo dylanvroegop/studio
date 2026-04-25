@@ -24,7 +24,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, CalendarClock, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, MoreHorizontal } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -4842,43 +4842,46 @@ export default function QuotePage() {
                         </div>
                     </div>
                     {!loading && (
-                        <div className="grid w-full grid-cols-2 gap-2 sm:hidden">
+                        <div className={cn('grid w-full gap-2 sm:hidden', routeMapsUrl ? 'grid-cols-4' : 'grid-cols-3')}>
                             <Button
                                 variant="outline"
-                                className="h-11 justify-start gap-2 px-4"
+                                className="h-11 px-0"
                                 onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`)}
+                                aria-label="Maak factuur"
+                                title="Maak factuur"
                             >
                                 <ReceiptText size={16} />
-                                Maak factuur
                             </Button>
                             <Button
                                 variant="outline"
-                                className="h-11 justify-start gap-2 px-4"
+                                className="h-11 px-0"
                                 onClick={() => setIsPlanningTypeDialogOpen(true)}
+                                aria-label="Inplannen"
+                                title="Inplannen"
                             >
-                                <CalendarDays size={16} />
-                                Inplannen
+                                <CalendarClock size={16} />
                             </Button>
                             {routeMapsUrl && (
                                 <Button
                                     variant="outline"
-                                    className="h-11 justify-start gap-2 px-4"
+                                    className="h-11 px-0"
                                     onClick={() => {
                                         window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
                                     }}
+                                    aria-label="Route openen"
                                     title={routeDestinationAddress}
                                 >
                                     <Navigation size={16} />
-                                    Route openen
                                 </Button>
                             )}
                             <Button
                                 variant="outline"
-                                className={cn('h-11 justify-start gap-2 px-4', !routeMapsUrl && 'col-span-1')}
+                                className="h-11 px-0"
                                 onClick={() => setIsMobileMoreActionsOpen(true)}
+                                aria-label="Meer acties"
+                                title="Meer acties"
                             >
-                                <ChevronDown size={16} />
-                                Meer acties
+                                <MoreHorizontal size={16} />
                             </Button>
                         </div>
                     )}
@@ -5001,27 +5004,45 @@ export default function QuotePage() {
                         </div>
                     )}
                     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                        <div className="relative z-30 pointer-events-auto sm:hidden space-y-1.5 rounded-xl border border-border bg-card p-2">
-                            <TabsList className="h-auto w-full justify-between gap-1 bg-transparent p-0">
-                                <TabsTrigger value="overzicht" className="relative z-[31] h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    Overzicht
-                                </TabsTrigger>
-                                <TabsTrigger value="materialen" className="relative z-[31] h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    Materialen
-                                </TabsTrigger>
-                                <TabsTrigger value="pdf" className="relative z-[31] h-10 flex-1 px-2 text-sm data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                                    PDF
-                                </TabsTrigger>
-                            </TabsList>
-                            <Button
-                                type="button"
-                                variant={isSecondarySectionActive ? 'secondary' : 'outline'}
-                                className="h-9 w-full justify-between px-3 text-sm"
-                                onClick={() => setIsMobileMoreSectionsOpen(true)}
-                            >
-                                <span>Meer</span>
-                                <ChevronDown size={16} />
-                            </Button>
+                        <div className="relative z-30 pointer-events-auto rounded-xl border border-border bg-card p-2 sm:hidden">
+                            <div className="flex items-center gap-1">
+                                <TabsList className="h-auto w-full justify-between gap-1 bg-transparent p-0">
+                                    <TabsTrigger
+                                        value="overzicht"
+                                        className="relative z-[31] h-10 flex-1 px-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
+                                        aria-label="Overzicht"
+                                        title="Overzicht"
+                                    >
+                                        <LayoutDashboard size={16} />
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="materialen"
+                                        className="relative z-[31] h-10 flex-1 px-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
+                                        aria-label="Materialen"
+                                        title="Materialen"
+                                    >
+                                        <Package size={16} />
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="pdf"
+                                        className="relative z-[31] h-10 flex-1 px-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
+                                        aria-label="PDF"
+                                        title="PDF"
+                                    >
+                                        <FileText size={16} />
+                                    </TabsTrigger>
+                                </TabsList>
+                                <Button
+                                    type="button"
+                                    variant={isSecondarySectionActive ? 'secondary' : 'outline'}
+                                    className="h-10 w-10 shrink-0 px-0"
+                                    onClick={() => setIsMobileMoreSectionsOpen(true)}
+                                    aria-label="Meer secties"
+                                    title="Meer secties"
+                                >
+                                    <MoreHorizontal size={16} />
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="relative z-30 pointer-events-auto hidden w-full items-center gap-2 rounded-lg border border-border bg-card p-1 sm:flex">
