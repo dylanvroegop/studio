@@ -88,6 +88,7 @@ export type KlantInformatie = {
 export type QuoteSettings = {
     btwTarief: number; // 21
     uurTariefExclBtw: number; // 50
+    btwMode?: "normaal" | "materiaal_only";
     schattingUren?: boolean;
     extras: {
         transport: {
@@ -1105,7 +1106,9 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
     const totaalExclBtw = roundCurrency(subtotaalExclBtw + winstMargeExclBtw);
 
     const btwTarief = toNumber(quoteSettings?.btwTarief, 21);
-    const btwBedrag = roundCurrency((btwTarief / 100) * totaalExclBtw);
+    const btwMode = quoteSettings?.btwMode === "materiaal_only" ? "materiaal_only" : "normaal";
+    const btwGrondslag = btwMode === "materiaal_only" ? materiaalSubtotalExclBtw : totaalExclBtw;
+    const btwBedrag = roundCurrency((btwTarief / 100) * btwGrondslag);
     const totaalInclBtw = roundCurrency(totaalExclBtw + btwBedrag);
 
     return {

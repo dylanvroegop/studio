@@ -1126,6 +1126,7 @@ export default function QuotePage() {
 
                 const mappedSettings: QuoteCalculationSettings = {
                     btwTarief: rawInst?.btwTarief ?? quoteInst?.btwTarief ?? 21,
+                    btwMode: rawInst?.btwMode ?? quoteInst?.btwMode ?? 'normaal',
                     uurTariefExclBtw: rawInst?.uurTariefExclBtw ?? rawInst?.uurTarief ?? quoteInst?.uurTariefExclBtw ?? quoteInst?.uurTarief ?? 50,
                     schattingUren: rawInst?.schattingUren ?? quoteInst?.schattingUren ?? false,
                     extras: {
@@ -1259,6 +1260,7 @@ export default function QuotePage() {
                     const inst = quoteData.instellingen || {};
                     return {
                         btwTarief: inst.btwTarief || 21,
+                        btwMode: inst.btwMode === 'materiaal_only' ? 'materiaal_only' : 'normaal',
                         uurTariefExclBtw: inst.uurTarief || 50,
                         schattingUren: inst.schattingUren ?? false,
                         extras: {
@@ -5151,6 +5153,25 @@ export default function QuotePage() {
                                                                 </p>
                                                             </div>
                                                             <div className="p-5 space-y-5">
+                                                                <div className="flex items-center justify-between gap-4 rounded-lg border border-border/70 bg-muted/40 p-3">
+                                                                    <div className="space-y-1">
+                                                                        <div className="text-sm font-medium">Zonder btw op uren en transport</div>
+                                                                        <div className="text-xs text-muted-foreground">
+                                                                            Alleen materialen tellen mee voor btw in deze offerte en dashboard omzetbelasting.
+                                                                        </div>
+                                                                    </div>
+                                                                    <Switch
+                                                                        checked={quoteSettings.btwMode === 'materiaal_only'}
+                                                                        onCheckedChange={(checked) => {
+                                                                            void handleUpdateSettings({
+                                                                                ...quoteSettings,
+                                                                                btwMode: checked ? 'materiaal_only' : 'normaal',
+                                                                            });
+                                                                        }}
+                                                                        aria-label="Zonder btw op uren en transport inschakelen"
+                                                                    />
+                                                                </div>
+
                                                                 <div className="grid gap-2 max-w-md">
                                                                     <Label htmlFor="pdf-winstmarge-basis">Winstmarge basis</Label>
                                                                     <select

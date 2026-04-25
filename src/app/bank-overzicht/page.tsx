@@ -22,6 +22,7 @@ type ApiSyncResponse = {
 };
 
 const PAGE_SIZE = 10;
+const OVERVIEW_TAB_ID = 'overview';
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('nl-NL', {
@@ -61,7 +62,7 @@ export default function BankOverzichtPage() {
   const [summary, setSummary] = useState<BankOverviewSummary>({ incomeThisMonth: 0, expensesThisMonth: 0 });
   const [accounts, setAccounts] = useState<BankAccountView[]>([]);
   const [transactions, setTransactions] = useState<BankTransactionView[]>([]);
-  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+  const [activeTabId, setActiveTabId] = useState<string>(OVERVIEW_TAB_ID);
   const [currentPage, setCurrentPage] = useState(1);
 
   const hasSyncedOnMount = useRef(false);
@@ -90,7 +91,6 @@ export default function BankOverzichtPage() {
       setTransactions(data.data.transactions);
       if (!silent) {
         setCurrentPage(1);
-        setActiveAccountId((prev) => prev ?? data.data.accounts[0]?.id ?? null);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Kon bankoverzicht niet laden.';
@@ -135,13 +135,16 @@ export default function BankOverzichtPage() {
     void handleSync();
   }, [user, handleSync]);
 
-  // Set default active account once accounts load
+  // Keep selected tab valid when account list changes.
   useEffect(() => {
-    if (accounts.length > 0 && !activeAccountId) {
-      setActiveAccountId(accounts[0].id);
+    if (activeTabId === OVERVIEW_TAB_ID) return;
+    if (!accounts.some((account) => account.id === activeTabId)) {
+      setActiveTabId(OVERVIEW_TAB_ID);
+      setCurrentPage(1);
     }
-  }, [accounts, activeAccountId]);
+  }, [accounts, activeTabId]);
 
+  const activeAccountId = activeTabId === OVERVIEW_TAB_ID ? null : activeTabId;
   const activeAccount = accounts.find((a) => a.id === activeAccountId) ?? accounts[0] ?? null;
 
   const accountTransactions = useMemo(
@@ -173,164 +176,182 @@ export default function BankOverzichtPage() {
 
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
         <div className="w-full max-w-6xl space-y-5">
-
-          {/* Header card */}
-          <Card>
-            <CardHeader className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Landmark className="h-5 w-5 text-lime-400" />
-                    Banktransacties
-                  </CardTitle>
-                  <div className="text-sm text-muted-foreground">bunq synchronisatie voor je interne dashboard.</div>
+          <Tabs
+            value={activeTabId}
+            onValueChange={(id) => {
+              setActiveTabId(id);
+              setCurrentPage(1);
+            }}
+          >
+            <TabsList className="h-auto w-full justify-start gap-2 overflow-x-auto rounded-2xl border border-border/60 bg-card/70 p-2">
+              <TabsTrigger
+                value={OVERVIEW_TAB_ID}
+                className="h-auto min-w-[180px] rounded-xl px-5 py-3 text-left data-[state=active]:bg-background/80"
+              >
+                <div className="flex flex-col items-start gap-1">
+                  <span className="text-base font-semibold">Overzicht</span>
+                  <span className="text-xs text-muted-foreground">Sync, status en totalen</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{connectionLabel(connection)}</Badge>
-                  <Button type="button" onClick={handleSync} disabled={syncing} className="gap-2">
-                    {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                    {syncing ? 'Synchroniseren...' : 'Synchroniseer nu'}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-4">
-                <div className="rounded-xl border border-border/70 bg-card/55 p-4">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Bank</div>
-                  <div className="mt-1 text-sm font-medium">bunq personal</div>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-card/55 p-4">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Laatste synchronisatie</div>
-                  <div className="mt-1 text-sm font-medium">{formatDate(connection?.lastSyncedAt)}</div>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-card/55 p-4">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Totaal saldo</div>
-                  <div className="mt-1 text-lg font-semibold text-emerald-300">{formatCurrency(totalBalance)}</div>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-card/55 p-4">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Uitgaven deze maand</div>
-                  <div className="mt-1 text-lg font-semibold text-rose-300">{formatCurrency(summary.expensesThisMonth)}</div>
-                </div>
-              </div>
-
-              {error && (
-                <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>
-              )}
-              {infoMessage && (
-                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{infoMessage}</div>
-              )}
-            </CardHeader>
-          </Card>
-
-          {/* Account tabs */}
-          {accounts.length === 0 ? (
-            <Card>
-              <CardContent className="p-6 text-sm text-muted-foreground">
-                Nog geen rekeningen gevonden. Klik op 'Synchroniseer nu' om bunq-data op te halen.
-              </CardContent>
-            </Card>
-          ) : (
-            <Tabs value={activeAccountId ?? accounts[0]?.id} onValueChange={(id) => { setActiveAccountId(id); setCurrentPage(1); }}>
-              <TabsList className="w-full justify-start">
-                {accounts.map((account) => (
-                  <TabsTrigger key={account.id} value={account.id} className="flex flex-col items-start gap-0.5 px-4 py-2 h-auto">
-                    <span className="text-sm font-medium">{account.name}</span>
-                    <span className="text-xs text-muted-foreground">
+              </TabsTrigger>
+              {accounts.map((account) => (
+                <TabsTrigger
+                  key={account.id}
+                  value={account.id}
+                  className="h-auto min-w-[160px] rounded-xl px-5 py-3 text-left data-[state=active]:bg-background/80"
+                >
+                  <div className="flex flex-col items-start gap-1">
+                    <span className="text-base font-semibold">{account.name}</span>
+                    <span className="text-sm text-muted-foreground">
                       {account.latestBalanceAmount == null ? '-' : formatCurrency(account.latestBalanceAmount)}
                     </span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-
-              {accounts.map((account) => (
-                <TabsContent key={account.id} value={account.id} className="mt-4 space-y-4">
-                  {/* Account detail card */}
-                  <Card>
-                    <CardContent className="grid gap-4 p-6 md:grid-cols-4">
-                      <div>
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Rekening</div>
-                        <div className="mt-1 text-sm font-medium">{account.name}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">IBAN</div>
-                        <div className="mt-1 text-sm font-medium">{account.ibanMasked}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Valuta</div>
-                        <div className="mt-1 text-sm font-medium">{account.currency || 'EUR'}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">Saldo</div>
-                        <div className="mt-1 text-2xl font-semibold text-emerald-300">
-                          {account.latestBalanceAmount == null ? '-' : formatCurrency(account.latestBalanceAmount)}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Transactions for this account */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Transacties</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {accountTransactions.length === 0 ? (
-                        <div className="rounded-xl border border-border/70 bg-card/55 p-6 text-sm text-muted-foreground">
-                          Geen transacties gevonden voor deze rekening.
-                        </div>
-                      ) : (
-                        <>
-                          <div className="overflow-hidden rounded-xl border border-border/70">
-                            <div className="grid grid-cols-[110px_1.5fr_1fr_140px_120px_120px] gap-3 border-b border-border/70 bg-card/70 px-4 py-2 text-xs font-medium text-muted-foreground">
-                              <div>Datum</div>
-                              <div>Omschrijving</div>
-                              <div>Tegenpartij</div>
-                              <div className="text-right">Bedrag</div>
-                              <div>Type</div>
-                              <div>Status</div>
-                            </div>
-                            <div className="divide-y divide-border/70 bg-background/40">
-                              {paginatedTransactions.map((tx) => (
-                                <div key={tx.id} className="grid grid-cols-[110px_1.5fr_1fr_140px_120px_120px] items-center gap-3 px-4 py-3 text-sm">
-                                  <div>{formatDate(tx.bookingDate)}</div>
-                                  <div className="truncate font-medium">{tx.description}</div>
-                                  <div className="truncate text-muted-foreground">{tx.counterpartyName || '-'}</div>
-                                  <div className={`text-right font-medium ${tx.amount < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
-                                    {formatCurrency(tx.amount)}
-                                  </div>
-                                  <div>
-                                    <Badge variant="outline" className="text-[10px]">
-                                      {tx.direction === 'outgoing'
-                                        ? <span className="inline-flex items-center gap-1"><ArrowDownRight className="h-3 w-3" />Uitgaand</span>
-                                        : <span className="inline-flex items-center gap-1"><ArrowUpRight className="h-3 w-3" />Inkomend</span>}
-                                    </Badge>
-                                  </div>
-                                  <div className="truncate text-muted-foreground">{tx.status || '-'}</div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="mt-3 flex items-center justify-between">
-                            <div className="text-xs text-muted-foreground">Pagina {currentPage} van {totalPages}</div>
-                            <div className="flex items-center gap-2">
-                              <Button type="button" variant="outline" size="sm" disabled={currentPage <= 1}
-                                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>
-                                Vorige
-                              </Button>
-                              <Button type="button" variant="outline" size="sm" disabled={currentPage >= totalPages}
-                                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>
-                                Volgende
-                              </Button>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+                  </div>
+                </TabsTrigger>
               ))}
-            </Tabs>
-          )}
+            </TabsList>
+
+            <TabsContent value={OVERVIEW_TAB_ID} className="mt-4 space-y-4">
+              <Card>
+                <CardHeader className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <CardTitle className="flex items-center gap-2 text-xl">
+                        <Landmark className="h-5 w-5 text-lime-400" />
+                        Banktransacties
+                      </CardTitle>
+                      <div className="text-sm text-muted-foreground">bunq synchronisatie voor je interne dashboard.</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{connectionLabel(connection)}</Badge>
+                      <Button type="button" onClick={handleSync} disabled={syncing} className="gap-2">
+                        {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                        {syncing ? 'Synchroniseren...' : 'Synchroniseer nu'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Bank</div>
+                      <div className="mt-1 text-sm font-medium">bunq personal</div>
+                    </div>
+                    <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Laatste synchronisatie</div>
+                      <div className="mt-1 text-sm font-medium">{formatDate(connection?.lastSyncedAt)}</div>
+                    </div>
+                    <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Totaal saldo</div>
+                      <div className="mt-1 text-lg font-semibold text-emerald-300">{formatCurrency(totalBalance)}</div>
+                    </div>
+                    <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Uitgaven deze maand</div>
+                      <div className="mt-1 text-lg font-semibold text-rose-300">{formatCurrency(summary.expensesThisMonth)}</div>
+                    </div>
+                  </div>
+
+                  {accounts.length === 0 && (
+                    <div className="rounded-lg border border-border/70 bg-card/55 p-3 text-sm text-muted-foreground">
+                      Nog geen rekeningen gevonden. Klik op 'Synchroniseer nu' om bunq-data op te halen.
+                    </div>
+                  )}
+
+                  {error && (
+                    <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>
+                  )}
+                  {infoMessage && (
+                    <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{infoMessage}</div>
+                  )}
+                </CardHeader>
+              </Card>
+            </TabsContent>
+
+            {accounts.map((account) => (
+              <TabsContent key={account.id} value={account.id} className="mt-4 space-y-4">
+                {/* Account detail card */}
+                <Card>
+                  <CardContent className="grid gap-4 p-6 md:grid-cols-4">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Rekening</div>
+                      <div className="mt-1 text-sm font-medium">{account.name}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">IBAN</div>
+                      <div className="mt-1 text-sm font-medium">{account.ibanMasked}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Valuta</div>
+                      <div className="mt-1 text-sm font-medium">{account.currency || 'EUR'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Saldo</div>
+                      <div className="mt-1 text-2xl font-semibold text-emerald-300">
+                        {account.latestBalanceAmount == null ? '-' : formatCurrency(account.latestBalanceAmount)}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Transactions for this account */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Transacties</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {accountTransactions.length === 0 ? (
+                      <div className="rounded-xl border border-border/70 bg-card/55 p-6 text-sm text-muted-foreground">
+                        Geen transacties gevonden voor deze rekening.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="overflow-hidden rounded-xl border border-border/70">
+                          <div className="grid grid-cols-[110px_1.5fr_1fr_140px_120px_120px] gap-3 border-b border-border/70 bg-card/70 px-4 py-2 text-xs font-medium text-muted-foreground">
+                            <div>Datum</div>
+                            <div>Omschrijving</div>
+                            <div>Tegenpartij</div>
+                            <div className="text-right">Bedrag</div>
+                            <div>Type</div>
+                            <div>Status</div>
+                          </div>
+                          <div className="divide-y divide-border/70 bg-background/40">
+                            {paginatedTransactions.map((tx) => (
+                              <div key={tx.id} className="grid grid-cols-[110px_1.5fr_1fr_140px_120px_120px] items-center gap-3 px-4 py-3 text-sm">
+                                <div>{formatDate(tx.bookingDate)}</div>
+                                <div className="truncate font-medium">{tx.description}</div>
+                                <div className="truncate text-muted-foreground">{tx.counterpartyName || '-'}</div>
+                                <div className={`text-right font-medium ${tx.amount < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
+                                  {formatCurrency(tx.amount)}
+                                </div>
+                                <div>
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {tx.direction === 'outgoing'
+                                      ? <span className="inline-flex items-center gap-1"><ArrowDownRight className="h-3 w-3" />Uitgaand</span>
+                                      : <span className="inline-flex items-center gap-1"><ArrowUpRight className="h-3 w-3" />Inkomend</span>}
+                                  </Badge>
+                                </div>
+                                <div className="truncate text-muted-foreground">{tx.status || '-'}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between">
+                          <div className="text-xs text-muted-foreground">Pagina {currentPage} van {totalPages}</div>
+                          <div className="flex items-center gap-2">
+                            <Button type="button" variant="outline" size="sm" disabled={currentPage <= 1}
+                              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>
+                              Vorige
+                            </Button>
+                            <Button type="button" variant="outline" size="sm" disabled={currentPage >= totalPages}
+                              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>
+                              Volgende
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            ))}
+          </Tabs>
         </div>
       </main>
     </div>

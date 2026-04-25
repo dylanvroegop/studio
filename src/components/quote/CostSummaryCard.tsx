@@ -140,7 +140,9 @@ export function CostSummaryCard({
     const totaalExclZonderMarge = totals ? totals.subtotaalExclBtw : 0;
     const winstMargeExclBtw = totals ? totals.winstMarge : 0;
     const btwMetMarge = totals ? totals.btw : 0;
-    const vatMultiplier = 1 + (Number(settings?.btwTarief) || 0) / 100;
+    const vatRate = Math.max(0, Number(settings?.btwTarief) || 0);
+    const vatMultiplier = 1 + vatRate / 100;
+    const isMaterialsOnlyVatMode = settings?.btwMode === 'materiaal_only';
     const materiaalKostenInclBtw = (totals?.materialenTotaal ?? 0) * vatMultiplier;
     const geschatteWinstInclBtw = (totals?.totaalInclBtw ?? 0) - materiaalKostenInclBtw;
     const amountGridClass = 'grid w-[190px] sm:w-[260px] grid-cols-2 gap-3 sm:gap-4 text-right';
@@ -150,11 +152,15 @@ export function CostSummaryCard({
             : settings?.extras?.winstMarge?.basis === 'arbeid'
                 ? 'over arbeid'
                 : 'over totaal';
-    const formatIncl = (exclValue: number): string => formatCurrency(exclValue * vatMultiplier);
-    const renderAmountColumns = (exclNode: ReactNode, inclValue: number, inclClassName: string = 'text-foreground') => (
+    const calculateInclAmount = (exclValue: number, isVatApplicable: boolean): number => {
+        if (!isMaterialsOnlyVatMode) return exclValue * vatMultiplier;
+        if (!isVatApplicable) return exclValue;
+        return exclValue + ((exclValue * vatRate) / 100);
+    };
+    const renderAmountColumns = (exclNode: ReactNode, inclAmount: number, inclClassName: string = 'text-foreground') => (
         <div className={amountGridClass}>
             <div className="text-foreground">{exclNode}</div>
-            <div className={inclClassName}>{formatIncl(inclValue)}</div>
+            <div className={inclClassName}>{formatCurrency(inclAmount)}</div>
         </div>
     );
 
@@ -209,7 +215,7 @@ export function CostSummaryCard({
                                     <Pencil size={12} className="text-muted-foreground" />
                                 </button>
                             ),
-                            totals.materialenGroot
+                            calculateInclAmount(totals.materialenGroot, true)
                         )}
                     </div>
                     <div className="flex justify-between text-sm">
@@ -239,7 +245,7 @@ export function CostSummaryCard({
                                     <Pencil size={12} className="text-muted-foreground" />
                                 </button>
                             ),
-                            totals.materialenVerbruik
+                            calculateInclAmount(totals.materialenVerbruik, true)
                         )}
                     </div>
                     <div className="flex justify-between text-sm">
@@ -269,7 +275,7 @@ export function CostSummaryCard({
                                     <Pencil size={12} className="text-muted-foreground" />
                                 </button>
                             ),
-                            extraKostenExcl
+                            calculateInclAmount(extraKostenExcl, true)
                         )}
                     </div>
                     <div className="border-t border-border pt-1.5 flex justify-between text-sm">
@@ -299,7 +305,7 @@ export function CostSummaryCard({
                                     <Pencil size={12} className="text-muted-foreground" />
                                 </button>
                             ),
-                            totals.materialenTotaal
+                            calculateInclAmount(totals.materialenTotaal, true)
                         )}
                     </div>
                 </div>
@@ -368,7 +374,7 @@ export function CostSummaryCard({
                         </span>
                         {renderAmountColumns(
                             <span>{formatCurrency(totals.arbeidTotaal)}</span>,
-                            totals.arbeidTotaal
+                            calculateInclAmount(totals.arbeidTotaal, !isMaterialsOnlyVatMode)
                         )}
                     </div>
                 </div>
@@ -413,7 +419,7 @@ export function CostSummaryCard({
                                     <Pencil size={12} className="text-muted-foreground" />
                                 </button>
                             ),
-                            totals.transportTotaal
+                            calculateInclAmount(totals.transportTotaal, !isMaterialsOnlyVatMode)
                         )}
                     </div>
                 </div>
@@ -425,7 +431,9 @@ export function CostSummaryCard({
                         <span className="text-muted-foreground">Totaal excl. BTW</span>
                         {renderAmountColumns(
                             <span>{formatCurrency(totaalExclZonderMarge)}</span>,
-                            totaalExclZonderMarge
+                            isMaterialsOnlyVatMode
+                                ? totaalExclZonderMarge + ((Math.max(0, totals.materialenTotaal) * vatRate) / 100)
+                                : calculateInclAmount(totaalExclZonderMarge, true)
                         )}
                     </div>
                     <div className="flex justify-between text-sm">
@@ -488,7 +496,7 @@ export function CostSummaryCard({
                                     <Pencil size={12} className="text-muted-foreground" />
                                 </button>
                             ),
-                            winstMargeExclBtw
+                            calculateInclAmount(winstMargeExclBtw, !isMaterialsOnlyVatMode)
                         )}
                     </div>
                     <div className="border-t border-border pt-1.5 flex justify-between text-sm">

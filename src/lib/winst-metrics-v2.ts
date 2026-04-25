@@ -262,6 +262,10 @@ function normalizeWinstBasis(value: unknown): 'totaal' | 'arbeid' | 'materiaal' 
   return 'totaal';
 }
 
+function normalizeQuoteBtwMode(value: unknown): 'normaal' | 'materiaal_only' {
+  return safeString(value).trim().toLowerCase() === 'materiaal_only' ? 'materiaal_only' : 'normaal';
+}
+
 function mapSettingsForTotals(input: unknown): QuoteCalculationSettings {
   const normalized = normalizeDataJson(input);
   const rawInst = (normalized?.instellingen || {}) as Record<string, unknown>;
@@ -274,6 +278,7 @@ function mapSettingsForTotals(input: unknown): QuoteCalculationSettings {
 
   return {
     btwTarief: safeNumber(rawInst.btwTarief) || 21,
+    btwMode: normalizeQuoteBtwMode(rawInst.btwMode),
     uurTariefExclBtw: safeNumber(rawInst.uurTariefExclBtw) || safeNumber(rawInst.uurTarief) || 50,
     schattingUren: Boolean(rawInst.schattingUren ?? false),
     extras: {
