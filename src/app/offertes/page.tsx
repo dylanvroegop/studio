@@ -1189,14 +1189,14 @@ export default function OffertesPage() {
                     className={cn(
                       'h-9 rounded-full px-4 transition-all duration-200 active:scale-[0.98]',
                       filter === option.value
-                        ? 'bg-cyan-500/90 text-black hover:bg-cyan-400'
+                        ? 'bg-cyan-500/90 text-white hover:bg-cyan-400'
                         : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
                     )}
                   >
                     <span>{option.label}</span>
                     <span className={cn(
                       'ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold',
-                      filter === option.value ? 'bg-black/20 text-black' : 'bg-muted/50 text-foreground/80'
+                      filter === option.value ? 'bg-black/20 text-white' : 'bg-muted/50 text-foreground/80'
                     )}>
                       {option.count}
                     </span>
@@ -1335,14 +1335,14 @@ export default function OffertesPage() {
                     className={cn(
                       'h-9 rounded-full px-4 transition-all duration-200 active:scale-[0.98]',
                       filter === option.value
-                        ? 'bg-cyan-500/90 text-black hover:bg-cyan-400'
+                        ? 'bg-cyan-500/90 text-white hover:bg-cyan-400'
                         : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
                     )}
                   >
                     <span>{option.label}</span>
                     <span className={cn(
                       'ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold',
-                      filter === option.value ? 'bg-black/20 text-black' : 'bg-muted/50 text-foreground/80'
+                      filter === option.value ? 'bg-black/20 text-white' : 'bg-muted/50 text-foreground/80'
                     )}>
                       {option.count}
                     </span>

@@ -33,6 +33,8 @@ type KPIItemTone = 'neutral' | 'positive' | 'negative' | 'warning' | 'unknown';
 type ProjectRowData = WinstMetricsResponse['projectPerformances'][number] & {
   actualProjectProfit: number | null;
   actualProjectMargin: number | null;
+  realizedProfitPerDay: number | null;
+  expectedProfitPerDay: number | null;
 };
 
 type TimeEntryRow = {
@@ -204,14 +206,22 @@ function ProjectRow(props: {
       : project.actualProjectMargin < 0
         ? 'text-red-300'
         : 'text-emerald-300';
-  const realizedDayText = project.actualDays > 0 ? formatCurrency(project.realizedEuroPerDay) : 'Onbekend';
-  const expectedDayText = project.quotedDays > 0 ? formatCurrency(project.expectedEuroPerDay) : 'Onbekend';
+  const realizedDayText = project.realizedProfitPerDay !== null ? formatCurrency(project.realizedProfitPerDay) : 'Onbekend';
   const dayTextClass =
-    project.actualDays <= 0
+    project.realizedProfitPerDay === null
       ? 'text-muted-foreground'
-      : project.realizedEuroPerDay >= project.expectedEuroPerDay
-        ? 'text-emerald-300'
-        : 'text-red-300';
+      : project.expectedProfitPerDay !== null && project.realizedProfitPerDay < project.expectedProfitPerDay
+        ? 'text-red-300'
+        : 'text-emerald-300';
+
+  const goalDayTextClass =
+    project.expectedProfitPerDay === null
+      ? 'text-muted-foreground'
+      : 'text-foreground';
+
+  const goalDayValue = project.expectedProfitPerDay === null
+    ? 'Onbekend'
+    : formatCurrency(project.expectedProfitPerDay);
 
   return (
     <div className={cn('relative overflow-hidden rounded-xl border px-4 py-3 transition-all duration-200 hover:shadow-[0_14px_30px_-24px_rgba(16,185,129,0.45)]', status.cardClassName)}>
@@ -317,7 +327,7 @@ function ProjectRow(props: {
               <Pencil className="h-3.5 w-3.5" />
             </Button>
             <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Doel €/dag</p>
-            <p className="mt-0.5 text-sm font-semibold text-foreground">{expectedDayText}</p>
+            <p className={cn('mt-0.5 text-sm font-semibold', goalDayTextClass)}>{goalDayValue}</p>
           </div>
         </div>
       </div>
@@ -619,13 +629,23 @@ export default function WinstPage() {
   const derived = useMemo(() => {
     const projects = metrics?.projectPerformances ?? [];
     const withActual = projects.filter((project) => project.hasActualData);
+    const materialCostKeys = new Set<WinstCostCategoryKey>(['materialenGroot', 'materialenVerbruik']);
 
     const sumQuotedRevenue = projects.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
     const sumQuotedCost = projects.reduce(
       (sum, project) => sum + project.costBreakdown.reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
       0
     );
+    const sumQuotedMaterialCost = projects.reduce(
+      (sum, project) =>
+        sum +
+        project.costBreakdown
+          .filter((row) => materialCostKeys.has(row.key))
+          .reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
+      0
+    );
     const estimatedProfit = sumQuotedRevenue - sumQuotedCost;
+    const projectedProfitFromMaterials = sumQuotedRevenue - sumQuotedMaterialCost;
 
     const sumActualCostKnown = withActual.reduce((sum, project) => sum + project.actualCostExcl, 0);
     const sumActualRevenueScope = withActual.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
@@ -740,24 +760,44 @@ export default function WinstPage() {
         actualProjectProfit !== null && project.quotedRevenueIncl > 0
           ? actualProjectProfit / project.quotedRevenueIncl
           : null;
+      const quotedCostExcl = project.costBreakdown.reduce((sum, row) => sum + row.quotedExcl, 0);
+      const expectedProjectProfit = project.quotedRevenueIncl - quotedCostExcl;
+      const realizedProfitPerDay =
+        actualProjectProfit !== null && project.actualDays > 0
+          ? actualProjectProfit / project.actualDays
+          : null;
+      const expectedProfitPerDay =
+        project.quotedDays > 0
+          ? expectedProjectProfit / project.quotedDays
+          : null;
       return {
         ...project,
         actualProjectProfit,
         actualProjectMargin,
+        realizedProfitPerDay,
+        expectedProfitPerDay,
       };
     });
+
+    const totalActualDaysAllProjects = projects.reduce((sum, project) => sum + project.actualDays, 0);
+    const realizedProfitPerDayOverall =
+      actualProfitKnown !== null && totalActualDaysAllProjects > 0
+        ? actualProfitKnown / totalActualDaysAllProjects
+        : null;
 
     return {
       projects,
       withActual,
       sumQuotedRevenue,
       estimatedProfit,
+      projectedProfitFromMaterials,
       sumActualCostKnown,
       actualProfitKnown,
       actualMarginKnown,
       deviations,
       recommendationItems,
       projectRows,
+      realizedProfitPerDayOverall,
     };
   }, [metrics]);
 
@@ -866,10 +906,21 @@ export default function WinstPage() {
           ) : null}
 
           <section className="overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500/[0.10] via-background/95 to-cyan-500/[0.06]">
-            <div className="overflow-x-auto">
-              <div className="flex min-w-[920px] divide-x divide-white/10">
-                <KPIItem label="Geoffreerde omzet" value={formatCurrency(derived.sumQuotedRevenue)} tone="warning" />
+            <div className="flex flex-wrap">
                 <KPIItem
+                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
+                  label="Geoffreerde omzet"
+                  value={formatCurrency(derived.sumQuotedRevenue)}
+                  tone="warning"
+                />
+                <KPIItem
+                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
+                  label="Geprojecteerde winst"
+                  value={formatCurrency(derived.projectedProfitFromMaterials)}
+                  tone={derived.projectedProfitFromMaterials >= 0 ? 'positive' : 'negative'}
+                />
+                <KPIItem
+                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
                   label="Werkelijke winst"
                   value={derived.actualProfitKnown === null ? 'Onbekend' : formatCurrency(derived.actualProfitKnown)}
                   tone={
@@ -880,21 +931,27 @@ export default function WinstPage() {
                         : 'negative'
                   }
                 />
-                <KPIItem label="Ontvangen cash" value={formatCurrency(metrics.totals.receivedCashIncl)} tone="positive" />
                 <KPIItem
+                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
+                  label="Ontvangen cash"
+                  value={formatCurrency(metrics.totals.receivedCashIncl)}
+                  tone="positive"
+                />
+                <KPIItem
+                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
                   label={`Omzetbelasting (${metrics.vatSummary.periodLabel})`}
                   value={formatCurrency(metrics.vatSummary.netVatPayable)}
                   tone={metrics.vatSummary.netVatPayable >= 0 ? 'warning' : 'positive'}
                 />
                 <KPIItem
+                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
                   label="Verdiensten per dag"
-                  value={metrics.timeTracking.actualDays > 0 ? formatCurrency(metrics.timeTracking.realizedEuroPerDay) : 'Onbekend'}
-                  tone={metrics.timeTracking.actualDays > 0 ? 'neutral' : 'unknown'}
+                  value={derived.realizedProfitPerDayOverall === null ? 'Onbekend' : formatCurrency(derived.realizedProfitPerDayOverall)}
+                  tone={derived.realizedProfitPerDayOverall === null ? 'unknown' : 'neutral'}
                 />
-              </div>
             </div>
             <div className="border-t border-white/10 px-5 py-3 sm:px-6">
-              <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+              <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
                 <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
                   <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Werkelijke kosten</p>
                   <p className="mt-0.5 text-sm font-semibold text-foreground">{formatCurrency(derived.sumActualCostKnown)}</p>
@@ -912,16 +969,6 @@ export default function WinstPage() {
                 <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
                   <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Werkelijke dagen</p>
                   <p className="mt-0.5 text-sm font-semibold text-foreground">{metrics.timeTracking.actualDays.toFixed(1)}</p>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Geoffreerde dagen</p>
-                  <p className="mt-0.5 text-sm font-semibold text-foreground">{metrics.timeTracking.quotedDays.toFixed(1)}</p>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Verschil dagen</p>
-                  <p className={cn('mt-0.5 text-sm font-semibold', metrics.timeTracking.daysDiff > 0 ? 'text-red-300' : metrics.timeTracking.daysDiff < 0 ? 'text-emerald-300' : 'text-foreground')}>
-                    {metrics.timeTracking.daysDiff > 0 ? '+' : ''}{metrics.timeTracking.daysDiff.toFixed(1)}
-                  </p>
                 </div>
               </div>
             </div>

@@ -134,6 +134,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'source is ongeldig' }, { status: 400 });
     }
     const quotedHours = quotedHoursRaw > 0 ? quotedHoursRaw : null;
+    if (quotedHours !== null && (!Number.isFinite(quotedHours) || quotedHours < 0 || quotedHours > 24)) {
+      return NextResponse.json({ ok: false, message: 'quotedHours is ongeldig' }, { status: 400 });
+    }
 
     const entryPayload = {
       quote_id: quoteId,
@@ -242,12 +245,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Kon niet opslaan' }, { status: 500 });
     }
 
-    if (promptKey) {
-      await supabaseAdmin
+    if (promptKey && isPromptSave) {
+      const projectPromptKey = `project:${quoteId}`;
+      const promptStatePayload = [
+        {
+          user_id: uid,
+          prompt_key: promptKey,
+          quote_id: quoteId,
+          work_date: workDate,
+          action: 'not_worked',
+          snooze_until: null,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          user_id: uid,
+          prompt_key: projectPromptKey,
+          quote_id: quoteId,
+          work_date: workDate,
+          action: 'not_worked',
+          snooze_until: null,
+          updated_at: new Date().toISOString(),
+        },
+      ];
+
+      const { error: promptStateError } = await supabaseAdmin
         .from('time_entry_prompt_state')
-        .delete()
-        .eq('user_id', uid)
-        .eq('prompt_key', promptKey);
+        .upsert(promptStatePayload, { onConflict: 'user_id,prompt_key' });
+
+      if (promptStateError && isMissingRelationError(promptStateError.message)) {
+        return NextResponse.json(
+          { ok: false, message: 'Database tabel voor urenprompt status ontbreekt. Voer de uren-migratie uit.' },
+          { status: 409 }
+        );
+      }
+      if (promptStateError) {
+        return NextResponse.json({ ok: false, message: promptStateError.message }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ ok: true, data });

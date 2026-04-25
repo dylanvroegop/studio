@@ -5,7 +5,6 @@ import {
   mapAccountView,
   mapConnectionView,
   mapTransactionView,
-  summarizeThisMonth,
 } from '@/lib/bank-overzicht';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
@@ -13,6 +12,18 @@ import { normalizeBunqProfile } from '@/lib/bunq/client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+function currentMonthBounds(): { start: string; nextStart: string } {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const start = new Date(year, month, 1);
+  const nextStart = new Date(year, month + 1, 1);
+  return {
+    start: start.toISOString().slice(0, 10),
+    nextStart: nextStart.toISOString().slice(0, 10),
+  };
+}
 
 function latestBalanceMap(rows: unknown[]): Map<string, { amount: number | null; referenceDate: string | null }> {
   const byAccount = new Map<string, { amount: number | null; referenceDate: string | null }>();
@@ -172,7 +183,7 @@ export async function GET(request: Request) {
         .in('bank_account_id', accountIds)
         .order('booking_date', { ascending: false })
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(200);
       if (txResult.error) {
         return NextResponse.json(
           { ok: false, message: `Kon transacties niet laden: ${txResult.error.message}` },
@@ -185,7 +196,34 @@ export async function GET(request: Request) {
     const transactions = transactionsRaw
       .map((row) => mapTransactionView(row, accountNameById))
       .filter((row): row is NonNullable<typeof row> => row !== null);
-    const summary = summarizeThisMonth(transactions);
+
+    let summaryTransactionsRaw: unknown[] = [];
+    if (accountIds.length > 0) {
+      const bounds = currentMonthBounds();
+      const summaryTxResult = await supabaseAdmin
+        .from('bank_transactions')
+        .select('*')
+        .in('bank_account_id', accountIds)
+        .gte('booking_date', bounds.start)
+        .lt('booking_date', bounds.nextStart)
+        .order('booking_date', { ascending: false });
+
+      if (summaryTxResult.error) {
+        return NextResponse.json(
+          { ok: false, message: `Kon maandtotalen niet laden: ${summaryTxResult.error.message}` },
+          { status: 500, headers: noStoreHeaders() }
+        );
+      }
+      summaryTransactionsRaw = Array.isArray(summaryTxResult.data) ? summaryTxResult.data : [];
+    }
+
+    const summaryTransactions = summaryTransactionsRaw
+      .map((row) => mapTransactionView(row, accountNameById))
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+    const summary = {
+      incomeThisMonth: summaryTransactions.filter((tx) => tx.amount >= 0).reduce((sum, tx) => sum + tx.amount, 0),
+      expensesThisMonth: summaryTransactions.filter((tx) => tx.amount < 0).reduce((sum, tx) => sum + tx.amount, 0),
+    };
 
     return NextResponse.json(
       {

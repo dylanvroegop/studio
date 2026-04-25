@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { PriceImportRequestForm } from '@/components/PriceImportRequestForm';
 import { cn } from '@/lib/utils';
 import { reportOperationalError } from '@/lib/report-operational-error';
+import { useToast } from '@/hooks/use-toast';
 
 type InlineDialogContextValue = {
   onOpenChange?: (open: boolean) => void;
@@ -158,6 +159,26 @@ function parsePriceToNumber(raw: unknown): number | null {
 
   const num = parseFloat(value);
   return Number.isNaN(num) ? null : num;
+}
+
+function dataUrlToFile(dataUrl: string, filename: string): File | null {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
+  const parts = dataUrl.split(',');
+  if (parts.length !== 2) return null;
+  const meta = parts[0] || '';
+  const base64 = parts[1] || '';
+  const mimeMatch = meta.match(/data:([^;]+);base64/i);
+  const mime = mimeMatch?.[1] || 'image/png';
+  try {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new File([bytes], filename, { type: mime });
+  } catch {
+    return null;
+  }
 }
 
 function mergeSafetyAnswerIntoNaam(naam: string, antwoord: string): string {
@@ -560,6 +581,28 @@ function InputMetSuffix(props: {
 
 const EENHEDEN: string[] = ['m1', 'm2', 'p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set', 'koker', 'zak'];
 const FAVORITE_SUBCATEGORY_FILTER = '__favorites__';
+const EXTENSION_IMPORT_EVENT = 'calvora:material-import';
+const EXTENSION_IMPORT_STORAGE_KEY = 'calvora_pending_material_import';
+
+type ExtensionMaterialImportPayload = {
+  naam: string;
+  eenheid: string;
+  prijs_incl_btw: number | null;
+  prijs_excl_btw: number | null;
+  leverancier: string;
+  categorie: string;
+  subsectie: string;
+  lengte: string;
+  breedte: string;
+  hoogte: string;
+  dikte: string;
+  url: string;
+  imageDataUrl?: string;
+  sourceUrl?: string;
+  sourceTitle?: string;
+  sourceHost?: string;
+  mode?: 'visual' | 'structured';
+};
 
 
 export type ExistingMaterial = {
@@ -622,6 +665,7 @@ export function MaterialSelectionModal({
   onCategoryFilterChange,
   nameContainsFilter
 }: MaterialSelectionModalProps) {
+  const { toast } = useToast();
   const normalizeMaterialIdentifier = (value: unknown): string => String(value ?? '').trim();
   const isSelectedMaterial = useCallback((material: ExistingMaterial): boolean => {
     const selectedId = normalizeMaterialIdentifier(selectedMaterialId);
@@ -690,6 +734,8 @@ export function MaterialSelectionModal({
   const [showAllCategorieOptions, setShowAllCategorieOptions] = useState(false);
   const [showAllSubsectieOptions, setShowAllSubsectieOptions] = useState(false);
   const [showAllLeverancierOptions, setShowAllLeverancierOptions] = useState(false);
+  const pendingExtensionImportRef = useRef<ExtensionMaterialImportPayload | null>(null);
+  const pendingVisualImportRef = useRef<ExtensionMaterialImportPayload | null>(null);
 
   const subCategoryPreferenceScope = useMemo(() => {
     const scopeRaw = categoryTitle || (Array.isArray(defaultCategory) ? defaultCategory.join(',') : defaultCategory) || 'default';
@@ -1073,6 +1119,179 @@ export function MaterialSelectionModal({
     const lower = customLeverancier.toLowerCase();
     return uniqueLeveranciers.filter(lev => lev.toLowerCase().includes(lower));
   }, [uniqueLeveranciers, customLeverancier, showAllLeverancierOptions]);
+
+  const parseExtensionImportPayload = useCallback((raw: unknown): ExtensionMaterialImportPayload | null => {
+    if (!raw || typeof raw !== 'object') return null;
+    const source = raw as Record<string, unknown>;
+    const imageDataUrl = String(source.imageDataUrl ?? '').trim();
+    const naam = String(source.naam ?? source.materiaalnaam ?? '').trim();
+    if (!naam && !imageDataUrl) return null;
+
+    const eenheid = String(source.eenheid ?? 'stuk').trim();
+    const prijsIncl = parsePriceToNumber(source.prijs_incl_btw ?? source.prijsIncl ?? source.prijs);
+    const prijsExcl = parsePriceToNumber(source.prijs_excl_btw ?? source.prijsExcl);
+
+    return {
+      naam,
+      eenheid,
+      prijs_incl_btw: prijsIncl,
+      prijs_excl_btw: prijsExcl,
+      leverancier: String(source.leverancier ?? '').trim(),
+      categorie: String(source.categorie ?? '').trim(),
+      subsectie: String(source.subsectie ?? '').trim(),
+      lengte: String(source.lengte ?? source.lengte_cm ?? '').trim(),
+      breedte: String(source.breedte ?? source.breedte_cm ?? '').trim(),
+      hoogte: String(source.hoogte ?? '').trim(),
+      dikte: String(source.dikte ?? '').trim(),
+      url: String(source.url ?? '').trim(),
+      imageDataUrl,
+      sourceUrl: String(source.sourceUrl ?? '').trim(),
+      sourceTitle: String(source.sourceTitle ?? '').trim(),
+      sourceHost: String(source.sourceHost ?? '').trim(),
+      mode: String(source.mode ?? '').trim().toLowerCase() === 'visual' ? 'visual' : 'structured',
+    };
+  }, []);
+
+  const applyExtensionImportPayload = useCallback((payload: ExtensionMaterialImportPayload): void => {
+    if ((payload.mode === 'visual' || payload.imageDataUrl) && payload.imageDataUrl) {
+      const hintedSupplier = resolveSupplierForExtractedMaterial({
+        rawSupplier: payload.leverancier || payload.sourceHost || '',
+        materialName: `${payload.sourceTitle || ''} ${payload.sourceUrl || ''}`.trim(),
+        supplierOptions: uniqueLeveranciers,
+      });
+
+      setEditingMaterialId(null);
+      setStep('form');
+      setError(null);
+      setAiExtractionSummary('Screenshot ontvangen. AI analyse start...');
+      toast({
+        title: 'Screenshot ontvangen',
+        description: 'AI analyse gestart.',
+      });
+      if (hintedSupplier) setCustomLeverancier(hintedSupplier);
+      pendingVisualImportRef.current = payload;
+      return;
+    }
+
+    const nextNaam = payload.naam.trim();
+    if (!nextNaam) return;
+
+    const normalizedUnit = normalizeExtractedUnit(payload.eenheid || 'stuk');
+    const resolvedUnit = EENHEDEN.includes(normalizedUnit) ? normalizedUnit : 'stuk';
+
+    const resolvedIncl = payload.prijs_incl_btw != null
+      ? Number(payload.prijs_incl_btw.toFixed(2))
+      : payload.prijs_excl_btw != null
+        ? Number((payload.prijs_excl_btw * 1.21).toFixed(2))
+        : null;
+
+    const resolvedExcl = payload.prijs_excl_btw != null
+      ? Number(payload.prijs_excl_btw.toFixed(2))
+      : payload.prijs_incl_btw != null
+        ? Number((payload.prijs_incl_btw / 1.21).toFixed(2))
+        : null;
+
+    const matchedCategory = pickBestMatchingOptionFromHints(
+      formCategoryOptions,
+      payload.categorie,
+      customCategorie.trim(),
+      selectedCategoryForNewMaterial,
+    );
+
+    const matchedSubsection = resolveSubsectionForExtractedMaterial({
+      rawSubsection: payload.subsectie,
+      materialName: nextNaam,
+      category: matchedCategory || customCategorie.trim() || selectedCategoryForNewMaterial || '',
+      subsectionOptions: formSubsectionOptions,
+      categorySubsections: formCategorySubsectionMap,
+    });
+
+    const matchedSupplier = resolveSupplierForExtractedMaterial({
+      rawSupplier: payload.leverancier,
+      materialName: `${nextNaam} ${payload.url}`.trim(),
+      supplierOptions: uniqueLeveranciers,
+    });
+
+    setEditingMaterialId(null);
+    setStep('form');
+    setError(null);
+    setAiExtractionSummary('Web-import ingevuld. Controleer en sla op.');
+    setCustomNaam(nextNaam.charAt(0).toUpperCase() + nextNaam.slice(1));
+    setCustomEenheid(resolvedUnit);
+    setCustomPrijs(formatPriceInput(resolvedIncl));
+    setCustomPrijsExclBtw(formatPriceInput(resolvedExcl));
+    setCustomCategorie(matchedCategory || payload.categorie || '');
+    setCustomSubsectie(matchedSubsection || payload.subsectie || '');
+    setCustomLeverancier(matchedSupplier || payload.leverancier || '');
+    setCustomLengte(payload.lengte);
+    setCustomBreedte(payload.breedte);
+    setCustomHoogte(payload.hoogte);
+    setCustomDikte(payload.dikte);
+    setCategorieDropdownOpen(false);
+    setSubsectieDropdownOpen(false);
+    setLeverancierDropdownOpen(false);
+    setShowAllCategorieOptions(false);
+    setShowAllSubsectieOptions(false);
+    setShowAllLeverancierOptions(false);
+  }, [
+    formCategoryOptions,
+    customCategorie,
+    selectedCategoryForNewMaterial,
+    formSubsectionOptions,
+    formCategorySubsectionMap,
+    uniqueLeveranciers,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleImportEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<unknown>;
+      const parsed = parseExtensionImportPayload(customEvent.detail);
+      if (!parsed) return;
+
+      if (open) {
+        applyExtensionImportPayload(parsed);
+        return;
+      }
+
+      pendingExtensionImportRef.current = parsed;
+      onOpenChange(true);
+    };
+
+    window.addEventListener(EXTENSION_IMPORT_EVENT, handleImportEvent as EventListener);
+    return () => {
+      window.removeEventListener(EXTENSION_IMPORT_EVENT, handleImportEvent as EventListener);
+    };
+  }, [applyExtensionImportPayload, onOpenChange, open, parseExtensionImportPayload]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (typeof window !== 'undefined' && !pendingExtensionImportRef.current) {
+      const rawStored = window.localStorage.getItem(EXTENSION_IMPORT_STORAGE_KEY);
+      if (rawStored) {
+        try {
+          const parsedJson = JSON.parse(rawStored);
+          const parsedFromStorage = parseExtensionImportPayload(parsedJson?.materiaal ?? parsedJson);
+          if (parsedFromStorage) {
+            pendingExtensionImportRef.current = parsedFromStorage;
+          }
+        } catch {
+          // ignore invalid storage payload
+        }
+      }
+    }
+
+    if (!pendingExtensionImportRef.current) return;
+    const pending = pendingExtensionImportRef.current;
+    pendingExtensionImportRef.current = null;
+    applyExtensionImportPayload(pending);
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(EXTENSION_IMPORT_STORAGE_KEY);
+    }
+  }, [applyExtensionImportPayload, open, parseExtensionImportPayload]);
 
   const applyCategoryFilter = useCallback((
     nextCategoryFilter: string | string[],
@@ -1648,6 +1867,33 @@ export function MaterialSelectionModal({
       void handleGenerateMaterialFromImage(file);
     }
   };
+
+  useEffect(() => {
+    if (!open) return;
+    const pendingVisual = pendingVisualImportRef.current;
+    if (!pendingVisual?.imageDataUrl) return;
+
+    pendingVisualImportRef.current = null;
+
+    const file = dataUrlToFile(
+      pendingVisual.imageDataUrl,
+      `extension-import-${Date.now()}.png`
+    );
+
+    if (!file) {
+      setError('Kon screenshot van extensie niet verwerken.');
+      setAiExtractionSummary(null);
+      toast({
+        title: 'Import mislukt',
+        description: 'Screenshot kon niet worden verwerkt.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setAiSourceImage(file);
+    void handleGenerateMaterialFromImage(file);
+  }, [open, handleGenerateMaterialFromImage]);
 
   // --- SAVE ACTION ---
   const saveCustomMaterial = async (

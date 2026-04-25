@@ -70,3 +70,6 @@ In a sense overwriting their originalGipsplaat ak4 2400x1200x12,5mm making that 
 - [DONE] Wand toevoegen must drop the page down to that, so it shouldn’t stay on wand 1 but move down to wand 2 to prevent scrolling.
 - [DONE] Custom “add job” button on the job type page fill in form that they want and I’ll call them
 - Make sure they are able to choose to send pdf quote and drawing and werkneschrijving separately.
+- Make sure the drawings have shapes correctly
+- Set price Klein materiaal on 0
+- Add warning

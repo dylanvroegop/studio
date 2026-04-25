@@ -352,15 +352,27 @@ export async function GET(request: Request) {
         .in('prompt_key', dayPromptKeys),
     ]);
 
-    if (existingEntriesError && !isMissingRelationError(existingEntriesError.message)) {
+    if (existingEntriesError && isMissingRelationError(existingEntriesError.message)) {
+      return NextResponse.json(
+        { ok: false, message: 'Database tabel voor uren ontbreekt. Voer de uren-migratie uit.' },
+        { status: 409 }
+      );
+    }
+    if (existingEntriesError) {
       return NextResponse.json({ ok: false, message: existingEntriesError.message }, { status: 500 });
     }
-    if (promptStatesError && !isMissingRelationError(promptStatesError.message)) {
+    if (promptStatesError && isMissingRelationError(promptStatesError.message)) {
+      return NextResponse.json(
+        { ok: false, message: 'Database tabel voor uren ontbreekt. Voer de uren-migratie uit.' },
+        { status: 409 }
+      );
+    }
+    if (promptStatesError) {
       return NextResponse.json({ ok: false, message: promptStatesError.message }, { status: 500 });
     }
 
     const existingPromptKeys = new Set(
-      ((existingEntriesError && isMissingRelationError(existingEntriesError.message)) ? [] : (existingEntries || []))
+      (existingEntries || [])
         .map((row) => {
           const record = row as Record<string, unknown>;
           const quoteId = safeString(record.quote_id);
@@ -372,7 +384,7 @@ export async function GET(request: Request) {
     );
 
     const loggedHoursByQuote = new Map<string, number>();
-    (((existingEntriesError && isMissingRelationError(existingEntriesError.message)) ? [] : (existingEntries || []))).forEach((row) => {
+    (existingEntries || []).forEach((row) => {
       const record = row as Record<string, unknown>;
       const quoteId = safeString(record.quote_id);
       if (!quoteId) return;
@@ -382,7 +394,7 @@ export async function GET(request: Request) {
     });
 
     const dayPromptStateByKey = new Map<string, { action: string; snoozeUntil: string }>();
-    (((promptStatesError && isMissingRelationError(promptStatesError.message)) ? [] : (promptStates || []))).forEach((row) => {
+    (promptStates || []).forEach((row) => {
       const record = row as Record<string, unknown>;
       const key = safeString(record.prompt_key);
       if (!key) return;
@@ -451,7 +463,7 @@ export async function GET(request: Request) {
     const projectPromptKeys = Array.from(projectAggregation.keys());
     const { data: projectStates, error: projectStatesError } = await supabaseAdmin
       .from('time_entry_prompt_state')
-      .select('prompt_key, action')
+      .select('prompt_key, action, snooze_until')
       .eq('user_id', uid)
       .in('prompt_key', projectPromptKeys);
 
@@ -459,12 +471,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, message: projectStatesError.message }, { status: 500 });
     }
 
-    const projectStateByKey = new Map<string, string>();
+    const projectStateByKey = new Map<string, { action: string; snoozeUntil: string }>();
     (projectStates || []).forEach((row) => {
       const record = row as Record<string, unknown>;
       const key = safeString(record.prompt_key);
       if (!key) return;
-      projectStateByKey.set(key, safeString(record.action));
+      projectStateByKey.set(key, {
+        action: safeString(record.action),
+        snoozeUntil: safeString(record.snooze_until),
+      });
     });
 
     const items = Array.from(projectAggregation.values())
@@ -506,9 +521,12 @@ export async function GET(request: Request) {
       })
       .filter((item) => item.suggestedHours > 0)
       .filter((item) => {
-        const action = projectStateByKey.get(item.promptKey);
-        if (!action) return true;
-        if (action === 'not_worked') return false;
+        const state = projectStateByKey.get(item.promptKey);
+        if (!state) return true;
+        if (state.action === 'not_worked') return false;
+        if (state.action === 'later' && state.snoozeUntil && state.snoozeUntil > new Date().toISOString()) {
+          return false;
+        }
         return true;
       })
       .sort((left, right) => {

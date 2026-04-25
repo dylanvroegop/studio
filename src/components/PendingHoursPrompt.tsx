@@ -19,6 +19,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
+const AUTO_OPEN_PATH_PREFIXES = ['/dashboard', '/urenregistratie'];
+
+function canAutoOpenForPath(pathname: string): boolean {
+  return AUTO_OPEN_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
 function formatHours(hours: number): string {
   const rounded = Math.round(hours * 100) / 100;
   const normalized = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/\.?0+$/, '');
@@ -74,6 +80,10 @@ function parseDecimalInput(value: string): number {
 
 function nearlyEqual(a: number, b: number, epsilon = 0.001): boolean {
   return Math.abs(a - b) <= epsilon;
+}
+
+function getDefaultSnoozeUntil(hours = 8): string {
+  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
 }
 
 function getDefaultWorkedDays(item: PendingHourPrompt): number {
@@ -154,6 +164,7 @@ export function PendingHoursPrompt() {
   useEffect(() => {
     if (isUserLoading || !user || dismissedForSession) return;
     if (!pathname || pathname.startsWith('/login')) return;
+    if (!canAutoOpenForPath(pathname)) return;
     void loadPending();
   }, [dismissedForSession, isUserLoading, loadPending, pathname, user]);
 
@@ -205,10 +216,6 @@ export function PendingHoursPrompt() {
 
   const submitPromptAction = async (action: 'later' | 'not_worked') => {
     if (!currentItem || submitLockRef.current) return;
-    if (action === 'later') {
-      closeForSession();
-      return;
-    }
     submitLockRef.current = true;
     setIsSubmitting(true);
     try {
@@ -224,6 +231,7 @@ export function PendingHoursPrompt() {
             quoteId: currentItem.quoteId,
             workDate: currentItem.endWorkDate || currentItem.workDate,
             action,
+            snoozeUntil: action === 'later' ? getDefaultSnoozeUntil(8) : null,
           }),
         });
         const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
@@ -235,6 +243,12 @@ export function PendingHoursPrompt() {
       getDayPromptKeys(currentItem).forEach((key) => resolvedPromptKeysRef.current.add(key));
       removeCurrentItem();
       await loadPending();
+      if (action === 'later') {
+        toast({
+          title: 'Later herinneren ingeschakeld',
+          description: 'Deze urenprompt verschijnt later opnieuw.',
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Onbekende fout';
       toast({
@@ -286,6 +300,30 @@ export function PendingHoursPrompt() {
     const quotedDistribution = parsedQuoted === null
       ? null
       : distributeBySuggestedHours(parsedQuoted, pendingDates.map((segment) => ({ suggestedHours: segment.suggestedHours })));
+    const invalidWorkedDayIndex = workedDistribution.findIndex((value) => !Number.isFinite(value) || value <= 0 || value > 24);
+    if (invalidWorkedDayIndex >= 0) {
+      const failingDate = pendingDates[invalidWorkedDayIndex]?.workDate || 'onbekende dag';
+      toast({
+        title: 'Werkelijke uren zijn ongeldig',
+        description: `Voor ${failingDate} moet het aantal uren tussen 0 en 24 liggen.`,
+        variant: 'destructive',
+      });
+      submitLockRef.current = false;
+      return;
+    }
+    if (quotedDistribution) {
+      const invalidQuotedDayIndex = quotedDistribution.findIndex((value) => !Number.isFinite(value) || value < 0 || value > 24);
+      if (invalidQuotedDayIndex >= 0) {
+        const failingDate = pendingDates[invalidQuotedDayIndex]?.workDate || 'onbekende dag';
+        toast({
+          title: 'Geoffreerde uren zijn ongeldig',
+          description: `Voor ${failingDate} moet geoffreerd tussen 0 en 24 uur liggen.`,
+          variant: 'destructive',
+        });
+        submitLockRef.current = false;
+        return;
+      }
+    }
 
     setIsSubmitting(true);
     try {
@@ -362,7 +400,13 @@ export function PendingHoursPrompt() {
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
-        if (!open) closeForSession();
+        if (!open) {
+          if (currentItem) {
+            void submitPromptAction('later');
+            return;
+          }
+          closeForSession();
+        }
       }}
     >
       <DialogContent>

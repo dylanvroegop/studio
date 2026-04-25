@@ -191,7 +191,7 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                 </div>
                 <Button
                     asChild
-                    className="mt-3 h-10 w-full justify-start rounded-lg bg-emerald-500 text-black hover:bg-emerald-400"
+                    className="mt-3 h-10 w-full justify-start rounded-lg bg-emerald-500 text-white hover:bg-emerald-400"
                 >
                     <Link href="/offertes/nieuw" onClick={onNavigate}>
                         <Plus className="mr-2 h-4 w-4" />

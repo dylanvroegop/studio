@@ -122,4 +122,18 @@ export function runWinstMetricsUnitTests(): void {
   const top = metrics.materialAnalysis.topCostItems[0];
   assert.ok(top);
   assert.equal(top.name, 'Gipsplaten');
+
+  const conceptInvoiceInput = baseInput();
+  conceptInvoiceInput.invoices = [
+    {
+      ...conceptInvoiceInput.invoices[0],
+      status: 'concept',
+      paidAmount: 5000,
+      openAmount: 0,
+    },
+  ];
+  conceptInvoiceInput.payments = [];
+
+  const conceptMetrics = buildWinstMetrics(conceptInvoiceInput);
+  assert.equal(conceptMetrics.totals.receivedCashIncl, 0);
 }

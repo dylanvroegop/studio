@@ -21,6 +21,12 @@ function isValidDateOnly(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function isValidIsoTimestamp(value: string): boolean {
+  if (!value) return false;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed);
+}
+
 function isMissingRelationError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
@@ -54,6 +60,7 @@ export async function POST(request: Request) {
     const quoteId = safeString(body?.quoteId);
     const workDate = safeString(body?.workDate);
     const action = safeString(body?.action);
+    const snoozeUntilInput = safeString(body?.snoozeUntil);
 
     if (!promptKey) return NextResponse.json({ ok: false, message: 'promptKey is verplicht' }, { status: 400 });
     if (!quoteId) return NextResponse.json({ ok: false, message: 'quoteId is verplicht' }, { status: 400 });
@@ -62,8 +69,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'action moet later of not_worked zijn' }, { status: 400 });
     }
 
+    if (action === 'later' && snoozeUntilInput && !isValidIsoTimestamp(snoozeUntilInput)) {
+      return NextResponse.json({ ok: false, message: 'snoozeUntil is ongeldig' }, { status: 400 });
+    }
+
     const snoozeUntil = action === 'later'
-      ? null
+      ? (snoozeUntilInput || new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString())
       : null;
 
     const { error } = await supabaseAdmin
@@ -82,8 +93,10 @@ export async function POST(request: Request) {
       );
 
     if (error && isMissingRelationError(error.message)) {
-      // Degrade gracefully in dev when migration is not applied yet.
-      return NextResponse.json({ ok: true });
+      return NextResponse.json(
+        { ok: false, message: 'Database tabel voor uren ontbreekt. Voer de uren-migratie uit.' },
+        { status: 409 }
+      );
     }
     if (error) {
       return NextResponse.json({ ok: false, message: error.message }, { status: 500 });

@@ -716,6 +716,11 @@ function isInvoiceSettled(invoice: WinstInvoiceSource): boolean {
   return open <= 0.01 || paid >= total - 0.01;
 }
 
+function invoiceStatusImpliesReceivedCash(status: unknown): boolean {
+  const normalized = String(status || '').trim().toLowerCase();
+  return normalized === 'betaald' || normalized === 'gedeeltelijk_betaald';
+}
+
 function buildFinalInvoiceStateByQuoteId(
   quotes: WinstQuoteSource[],
   invoices: WinstInvoiceSource[],
@@ -946,7 +951,9 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
   const paymentByInvoice = new Map<string, number>();
   input.payments
     .filter((payment) => {
-      if (!invoiceById.has(payment.invoiceId)) return false;
+      const invoice = invoiceById.get(payment.invoiceId);
+      if (!invoice) return false;
+      if (!invoiceStatusImpliesReceivedCash(invoice.status)) return false;
       return isDateWithinRange(payment.date, range);
     })
     .forEach((payment) => {
@@ -955,6 +962,8 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
 
   const quotePaymentsInPeriod = new Map<string, number>();
   relevantInvoices.forEach((invoice) => {
+    if (!invoiceStatusImpliesReceivedCash(invoice.status)) return;
+
     let paid = paymentByInvoice.get(invoice.id) || 0;
     const invoiceCreatedInRange = isDateWithinRange(invoice.createdAt, range);
     if (paid <= 0 && invoiceCreatedInRange) {

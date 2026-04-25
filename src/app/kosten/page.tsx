@@ -1481,7 +1481,7 @@ function KostenPageContent() {
                     className={cn(
                       'h-9 rounded-full px-4 transition-all duration-200',
                       filter === option.value
-                        ? 'bg-emerald-500 text-black hover:bg-emerald-400'
+                        ? 'bg-emerald-500 text-white hover:bg-emerald-400'
                         : 'border border-border/70 bg-transparent text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-200'
                     )}
                   >

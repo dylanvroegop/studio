@@ -72,7 +72,7 @@
     --popover-foreground: 0 0% 98%;
 
     --primary: 158 93% 40%;
-    --primary-foreground: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
 
     --secondary: 240 5% 15%;
     --secondary-foreground: 0 0% 98%;
@@ -87,7 +87,7 @@
     --destructive-foreground: 0 0% 98%;
 
     --success: 158 93% 40%;
-    --success-foreground: 0 0% 9%;
+    --success-foreground: 0 0% 98%;
 
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
@@ -227,17 +227,6 @@ html[data-theme='light'] .hover\:bg-zinc-800\/50:hover,
 html[data-theme='light'] .hover\:bg-zinc-800:hover,
 html[data-theme='light'] .hover\:bg-black\/20:hover {
   background-color: hsl(var(--muted)) !important;
-}
-
-/* In dark mode, green buttons should always use dark text for contrast consistency. */
-.dark button[class*='bg-emerald-'],
-.dark button[class*='bg-success'] {
-  color: hsl(0 0% 9%) !important;
-}
-
-.dark button[class*='bg-emerald-']:is(:hover, :focus-visible, :active),
-.dark button[class*='bg-success']:is(:hover, :focus-visible, :active) {
-  color: hsl(0 0% 9%) !important;
 }
 
 @layer utilities {
