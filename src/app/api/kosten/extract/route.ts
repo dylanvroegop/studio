@@ -25,6 +25,23 @@ function extractBearerToken(authHeader: string | null): string | null {
   return token || null;
 }
 
+function resolveAutomationUid(
+  request: Request,
+  formData: FormData
+): string | null {
+  const expectedSecret = safeString(process.env.N8N_HEADER_SECRET);
+  if (!expectedSecret) return null;
+
+  const providedSecret = safeString(request.headers.get('x-offertehulp-secret'));
+  if (!providedSecret || providedSecret !== expectedSecret) return null;
+
+  const uidFromForm = safeString(formData.get('user_id'));
+  if (uidFromForm) return uidFromForm;
+
+  const uidFromHeader = safeString(request.headers.get('x-offertehulp-user-id'));
+  return uidFromHeader || null;
+}
+
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -637,13 +654,16 @@ async function callOpenAiExtraction(params: {
 export async function POST(request: Request) {
   try {
     const token = extractBearerToken(request.headers.get('authorization'));
-    if (!token) {
-      return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
+    const formData = await request.formData();
+    let uid = '';
+    if (token) {
+      const { auth } = initFirebaseAdmin();
+      const decoded = await auth.verifyIdToken(token);
+      uid = decoded?.uid || '';
+    } else {
+      uid = resolveAutomationUid(request, formData) || '';
     }
 
-    const { auth } = initFirebaseAdmin();
-    const decoded = await auth.verifyIdToken(token);
-    const uid = decoded?.uid || '';
     if (!uid) {
       return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
     }
@@ -656,7 +676,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'OPENAI_API_KEY ontbreekt op de server.' }, { status: 500 });
     }
 
-    const formData = await request.formData();
     const sourceFile = formData.get('file');
     if (!(sourceFile instanceof File)) {
       return NextResponse.json({ ok: false, message: 'Bestand ontbreekt.' }, { status: 400 });

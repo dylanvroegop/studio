@@ -42,7 +42,10 @@ export default function QuoteClientPage({ params }: { params: { id: string } }) 
     const searchParams = useSearchParams();
     const { user, isUserLoading } = useUser();
     const rawSuccessRedirect = searchParams.get('successRedirect');
-    const successHref = rawSuccessRedirect && rawSuccessRedirect.startsWith('/offertes/')
+    const successHref = rawSuccessRedirect && (
+      rawSuccessRedirect.startsWith('/offertes/')
+      || rawSuccessRedirect.startsWith('/planning')
+    )
       ? rawSuccessRedirect
       : undefined;
     const resolvedBackLink = successHref || `/offertes/${params.id}`;

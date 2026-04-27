@@ -21,6 +21,23 @@ function extractBearerToken(authHeader: string | null): string | null {
   return token || null;
 }
 
+function resolveAutomationUid(
+  request: Request,
+  input: Record<string, unknown>
+): string | null {
+  const expectedSecret = safeString(process.env.N8N_HEADER_SECRET);
+  if (!expectedSecret) return null;
+
+  const providedSecret = safeString(request.headers.get('x-offertehulp-secret'));
+  if (!providedSecret || providedSecret !== expectedSecret) return null;
+
+  const uidFromBody = safeString(input.user_id);
+  if (uidFromBody) return uidFromBody;
+
+  const uidFromHeader = safeString(request.headers.get('x-offertehulp-user-id'));
+  return uidFromHeader || null;
+}
+
 function safeNumber(value: unknown): number {
   const numeric = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
@@ -171,6 +188,44 @@ async function validateQuoteOwnership(params: {
   }
 }
 
+async function resolveOfferteIdFromReference(params: {
+  reference: string;
+  uid: string;
+}): Promise<string | null> {
+  const normalizedReference = safeString(params.reference);
+  if (!normalizedReference) return null;
+
+  const { firestore } = initFirebaseAdmin();
+
+  const directSnap = await firestore.collection('quotes').doc(normalizedReference).get();
+  if (directSnap.exists) {
+    const data = directSnap.data() || {};
+    const ownerId = safeString((data as { userId?: unknown }).userId);
+    if (ownerId === params.uid) return directSnap.id;
+  }
+
+  const extractedNumber = normalizedReference.toLowerCase().match(/\d{2,}/)?.[0] || '';
+  if (!extractedNumber) return null;
+
+  const parsedNumber = Number(extractedNumber);
+  if (!Number.isFinite(parsedNumber)) return null;
+
+  const numericCandidates = [parsedNumber, String(parsedNumber)];
+  for (const candidate of numericCandidates) {
+    const snap = await firestore
+      .collection('quotes')
+      .where('userId', '==', params.uid)
+      .where('offerteNummer', '==', candidate)
+      .limit(1)
+      .get();
+    if (!snap.empty) {
+      return snap.docs[0].id;
+    }
+  }
+
+  return null;
+}
+
 async function upsertProfitOverview(params: {
   uid: string;
   offerteId: string;
@@ -259,27 +314,28 @@ async function upsertProfitOverview(params: {
 
 export async function POST(request: Request) {
   try {
-    const token = extractBearerToken(request.headers.get('authorization'));
-    if (!token) {
-      return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { auth } = initFirebaseAdmin();
-    const decoded = await auth.verifyIdToken(token);
-    const uid = decoded?.uid || '';
-    if (!uid) {
-      return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
-    if (trialBlockedResponse) return trialBlockedResponse;
-
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object') {
       return NextResponse.json({ ok: false, message: 'Ongeldige payload.' }, { status: 400 });
     }
 
     const input = body as Record<string, unknown>;
+    const token = extractBearerToken(request.headers.get('authorization'));
+    let uid = '';
+    if (token) {
+      const { auth } = initFirebaseAdmin();
+      const decoded = await auth.verifyIdToken(token);
+      uid = decoded?.uid || '';
+    } else {
+      uid = resolveAutomationUid(request, input) || '';
+    }
+
+    if (!uid) {
+      return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
+    if (trialBlockedResponse) return trialBlockedResponse;
 
     const supplierName = safeString(input.supplier_name);
     if (!supplierName) {
@@ -288,7 +344,13 @@ export async function POST(request: Request) {
 
     const category = normalizeProjectCostCategory(input.category);
     const description = safeString(input.description) || supplierName;
-    const offerteId = safeString(input.offerte_id) || null;
+    const offerteId =
+      safeString(input.offerte_id)
+      || (await resolveOfferteIdFromReference({
+        reference: safeString(input.offerte_reference),
+        uid,
+      }))
+      || null;
     if (offerteId) {
       await validateQuoteOwnership({ offerteId, uid });
     }

@@ -50,8 +50,12 @@ function normalizePhoneForWhatsApp(raw: string): string {
 function buildWhatsAppUrl(phone: string, message: string): string {
   const normalizedPhone = normalizePhoneForWhatsApp(phone);
   const encodedMessage = encodeURIComponent(message);
-  return `https://wa.me/${normalizedPhone}?text=${encodedMessage}`;
+  return `https://web.whatsapp.com/send?phone=${normalizedPhone}&text=${encodedMessage}`;
 }
+
+const FIRST_NAME_TOKEN = '{{voornaam}}';
+const QUOTE_URL_TOKEN = '{{offerte_link}}';
+const WHATSAPP_PRESET_STORAGE_KEY = 'whatsapp_message_preset_v1';
 
 export function SendQuoteWhatsAppModal({
   isOpen,
@@ -64,8 +68,10 @@ export function SendQuoteWhatsAppModal({
 }: SendQuoteWhatsAppModalProps) {
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState(''); // editable after prefill
+  const [manualFirstName, setManualFirstName] = useState('');
   const [quoteUrl, setQuoteUrl] = useState('');
   const [isOpening, setIsOpening] = useState(false);
+  const messageTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasInitializedForOpenRef = useRef(false);
   const isLaunchingWhatsAppRef = useRef(false);
 
@@ -87,9 +93,45 @@ export function SendQuoteWhatsAppModal({
     const resolvedQuoteUrl = trimmedProvidedUrl || fallbackUrl;
     setQuoteUrl(resolvedQuoteUrl);
 
-    const displayName = (clientName || `${klantInfo.voornaam || ''} ${klantInfo.achternaam || ''}`.trim() || klantInfo.bedrijfsnaam || 'klant').trim();
-    setMessage(`Hallo ${displayName}, hier is je offerte: ${resolvedQuoteUrl}`);
+    const guessedFirstName = String(
+      klantInfo.voornaam || clientName.split(' ').filter(Boolean)[0] || 'klant'
+    ).trim();
+    setManualFirstName(guessedFirstName);
+
+    try {
+      const savedPreset = localStorage.getItem(WHATSAPP_PRESET_STORAGE_KEY) || '';
+      setMessage(savedPreset);
+    } catch {
+      setMessage('');
+    }
   }, [isOpen, klantInfo, clientName, quotePdfUrl, quoteId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      localStorage.setItem(WHATSAPP_PRESET_STORAGE_KEY, message);
+    } catch {
+      // Ignore storage failures and keep editing behavior intact.
+    }
+  }, [isOpen, message]);
+
+  const insertFirstNameTokenAtCursor = () => {
+    const textarea = messageTextareaRef.current;
+    if (!textarea) {
+      setMessage((prev) => `${prev}${prev ? ' ' : ''}${FIRST_NAME_TOKEN}`);
+      return;
+    }
+
+    const start = textarea.selectionStart ?? message.length;
+    const end = textarea.selectionEnd ?? message.length;
+    const next = `${message.slice(0, start)}${FIRST_NAME_TOKEN}${message.slice(end)}`;
+    setMessage(next);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const caret = start + FIRST_NAME_TOKEN.length;
+      textarea.setSelectionRange(caret, caret);
+    });
+  };
 
   const handleSendViaWhatsApp = async () => {
     if (isOpening || isLaunchingWhatsAppRef.current) return;
@@ -122,8 +164,20 @@ export function SendQuoteWhatsAppModal({
     setIsOpening(true);
     const popup = window.open('about:blank', '_blank');
     try {
-      const fallbackName = (clientName || 'klant').trim();
-      const outgoingMessage = message.trim() || `Hallo ${fallbackName}, hier is je offerte: ${trimmedQuoteUrl}`;
+      const template = message.trim();
+      if (!template) {
+        toast({
+          title: 'Geen bericht ingevuld',
+          description: 'Vul eerst je eigen berichtpreset in.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const nameValue = manualFirstName.trim() || 'klant';
+      const outgoingMessage = template
+        .replaceAll(FIRST_NAME_TOKEN, nameValue)
+        .replaceAll(QUOTE_URL_TOKEN, trimmedQuoteUrl);
 
       if (onDownloadOfficialPdf) {
         await Promise.resolve(onDownloadOfficialPdf());
@@ -183,23 +237,72 @@ export function SendQuoteWhatsAppModal({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-zinc-400">Quote URL (quote.pdf_url)</Label>
+            <Label htmlFor="whatsapp-first-name" className="text-zinc-400">Voornaam in bericht</Label>
             <Input
-              value={quoteUrl}
-              onChange={(event) => setQuoteUrl(event.target.value)}
-              placeholder="https://app.calvora.nl/view/..."
+              id="whatsapp-first-name"
+              value={manualFirstName}
+              onChange={(event) => setManualFirstName(event.target.value)}
+              placeholder="Bijv. Sjoerd"
               className="bg-zinc-800 border-zinc-700 text-zinc-200"
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-zinc-400">WhatsApp bericht</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-zinc-400">WhatsApp bericht</Label>
+              <div
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.setData('text/plain', FIRST_NAME_TOKEN);
+                  event.dataTransfer.effectAllowed = 'copy';
+                }}
+                className="cursor-grab rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 active:cursor-grabbing"
+                title="Sleep {{voornaam}} naar het bericht"
+              >
+                Sleep token: {FIRST_NAME_TOKEN}
+              </div>
+              <div
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.setData('text/plain', QUOTE_URL_TOKEN);
+                  event.dataTransfer.effectAllowed = 'copy';
+                }}
+                className="cursor-grab rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 active:cursor-grabbing"
+                title="Sleep {{offerte_link}} naar het bericht"
+              >
+                Sleep token: {QUOTE_URL_TOKEN}
+              </div>
+            </div>
             <Textarea
+              ref={messageTextareaRef}
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              placeholder="Typ het bericht dat in WhatsApp wordt voorgevuld"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                const dropped = event.dataTransfer.getData('text/plain');
+                if (dropped !== FIRST_NAME_TOKEN && dropped !== QUOTE_URL_TOKEN) return;
+                const textarea = messageTextareaRef.current;
+                if (!textarea) {
+                  setMessage((prev) => `${prev}${prev ? ' ' : ''}${dropped}`);
+                  return;
+                }
+                const start = textarea.selectionStart ?? message.length;
+                const end = textarea.selectionEnd ?? message.length;
+                const next = `${message.slice(0, start)}${dropped}${message.slice(end)}`;
+                setMessage(next);
+                requestAnimationFrame(() => {
+                  textarea.focus();
+                  const caret = start + dropped.length;
+                  textarea.setSelectionRange(caret, caret);
+                });
+              }}
+              placeholder="Typ je eigen berichtpreset. Dit wordt automatisch bewaard."
               className="min-h-[120px] bg-zinc-800 border-zinc-700 text-zinc-200"
             />
+            <p className="text-xs text-zinc-500">
+              Dit bericht is jouw preset en wordt automatisch opgeslagen. Gebruik tokens om naam/link overal te plaatsen.
+            </p>
           </div>
         </div>
 

@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { normalizeDataJson } from '@/lib/quote-calculations';
@@ -84,6 +85,9 @@ interface ScheduleModalProps {
     preselectedDate?: Date;
     preselectedEmployee?: string;
     preselectedPlanningType?: PlanningEntryType;
+    preselectedStartTime?: string;
+    preselectedQuoteId?: string;
+    preselectedTotalHours?: number;
 }
 
 export function ScheduleModal({
@@ -98,7 +102,11 @@ export function ScheduleModal({
     preselectedDate,
     preselectedEmployee,
     preselectedPlanningType = 'job',
+    preselectedStartTime,
+    preselectedQuoteId,
+    preselectedTotalHours,
 }: ScheduleModalProps) {
+    const router = useRouter();
     const { user } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
@@ -111,7 +119,7 @@ export function ScheduleModal({
     const [pendingSave, setPendingSave] = useState(false);
     const [quoteMetricsById, setQuoteMetricsById] = useState<Record<string, { totalHours: number; totalEarnings: number }>>({});
 
-    const [selectedQuoteId, setSelectedQuoteId] = useState<string>('');
+    const [selectedQuoteId, setSelectedQuoteId] = useState<string>(preselectedQuoteId || preselectedQuote?.id || '');
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(preselectedEmployee || '');
     const [startDate, setStartDate] = useState<string>(
         preselectedDate
@@ -126,6 +134,7 @@ export function ScheduleModal({
     const [manualProjectAddress, setManualProjectAddress] = useState<string>('');
     const [hasManualProjectAddressOverride, setHasManualProjectAddressOverride] = useState(false);
     const initializedForOpenRef = useRef(false);
+    const timeInputRef = useRef<HTMLInputElement | null>(null);
 
     const addOneHourToTime = (timeValue: string) => {
         if (!timeValue) return '';
@@ -177,22 +186,33 @@ export function ScheduleModal({
         if (!isOpen) {
             // Reset to defaults when modal closes
             setConfirmDeleteOpen(false);
-            setSelectedQuoteId('');
+            setSelectedQuoteId(preselectedQuoteId || preselectedQuote?.id || '');
             setSelectedEmployeeId(preselectedEmployee || '');
             setStartDate(
                 preselectedDate
                     ? format(preselectedDate, 'yyyy-MM-dd')
                     : format(new Date(), 'yyyy-MM-dd')
             );
-            setStartTime(planningSettings.defaultStartTime);
+            setStartTime(preselectedStartTime || planningSettings.defaultStartTime);
             setEndTime(planningSettings.defaultEndTime);
-            setTotalHours(0);
+            setTotalHours(preselectedTotalHours || preselectedHours || 0);
             setUseAutoSplit(true);
             setSelectedPlanningType(preselectedPlanningType);
             setManualProjectAddress('');
             setHasManualProjectAddressOverride(false);
         }
-    }, [isOpen, preselectedDate, preselectedEmployee, planningSettings, preselectedPlanningType]);
+    }, [
+        isOpen,
+        preselectedDate,
+        preselectedEmployee,
+        planningSettings,
+        preselectedPlanningType,
+        preselectedQuoteId,
+        preselectedQuote,
+        preselectedStartTime,
+        preselectedTotalHours,
+        preselectedHours,
+    ]);
 
     // Initialize form once per open cycle
     useEffect(() => {
@@ -220,7 +240,7 @@ export function ScheduleModal({
             setManualProjectAddress(cachedProjectAddress);
             setHasManualProjectAddressOverride(Boolean(cachedProjectAddress));
         } else {
-            setSelectedQuoteId(preselectedQuote?.id || '');
+            setSelectedQuoteId(preselectedQuoteId || preselectedQuote?.id || '');
 
             if (preselectedEmployee) {
                 setSelectedEmployeeId(preselectedEmployee);
@@ -236,9 +256,9 @@ export function ScheduleModal({
                 setStartDate(format(new Date(), 'yyyy-MM-dd'));
             }
 
-            setStartTime(planningSettings.defaultStartTime);
+            setStartTime(preselectedStartTime || planningSettings.defaultStartTime);
             setEndTime(planningSettings.defaultEndTime);
-            setTotalHours(preselectedHours || 0);
+            setTotalHours(preselectedTotalHours || preselectedHours || 0);
             setUseAutoSplit(planningSettings.allowAutoSplit);
             setSelectedPlanningType(preselectedPlanningType);
             setManualProjectAddress(preselectedQuote ? resolveQuoteProjectAddress(preselectedQuote) : '');
@@ -256,6 +276,34 @@ export function ScheduleModal({
         planningSettings.defaultEndTime,
         planningSettings.allowAutoSplit,
         preselectedPlanningType,
+        preselectedStartTime,
+        preselectedQuoteId,
+        preselectedTotalHours,
+    ]);
+
+    const handleCreateNewClientAndQuote = useCallback(() => {
+        const params = new URLSearchParams({
+            returnTo: 'planningSchedule',
+            scheduleType: selectedPlanningType,
+            view: view || 'week',
+            prefillDate: startDate || format(new Date(), 'yyyy-MM-dd'),
+            prefillTime: (startTime || planningSettings.defaultStartTime || '08:00').trim(),
+            prefillEmployeeId: selectedEmployeeId || '',
+            prefillHours: String(selectedPlanningType === 'werkbespreking' ? 1 : (totalHours || preselectedHours || 0)),
+            openScheduleModal: '1',
+        });
+
+        router.push(`/offertes/nieuw?${params.toString()}`);
+    }, [
+        planningSettings.defaultStartTime,
+        preselectedHours,
+        router,
+        selectedEmployeeId,
+        selectedPlanningType,
+        startDate,
+        startTime,
+        totalHours,
+        view,
     ]);
 
     useEffect(() => {
@@ -264,6 +312,22 @@ export function ScheduleModal({
             setEndTime(addOneHourToTime(startTime || planningSettings.defaultStartTime));
         }
     }, [selectedPlanningType, startTime, planningSettings.defaultStartTime]);
+
+    useEffect(() => {
+        if (!isOpen || selectedPlanningType !== 'werkbespreking') return;
+
+        const shouldFocusTimeInput = Boolean(preselectedStartTime);
+        if (!shouldFocusTimeInput) return;
+
+        const timer = window.setTimeout(() => {
+            const input = timeInputRef.current;
+            if (!input) return;
+            input.focus();
+            input.select();
+        }, 20);
+
+        return () => window.clearTimeout(timer);
+    }, [isOpen, selectedPlanningType, preselectedStartTime]);
 
     const syncHoursFromTimes = (nextStart: string, nextEnd: string, baseDate: string) => {
         if (view !== 'day') return;
@@ -785,6 +849,15 @@ export function ScheduleModal({
                                 </SelectContent>
                             </Select>
                         )}
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={handleCreateNewClientAndQuote}
+                            disabled={isSaving}
+                        >
+                            Nieuwe klant + offerte toevoegen
+                        </Button>
                     </div>
 
                     {selectedQuote && (
@@ -908,6 +981,7 @@ export function ScheduleModal({
                                     {selectedPlanningType === 'werkbespreking' ? 'Tijdstip' : 'Starttijd'}
                                 </Label>
                                 <Input
+                                    ref={timeInputRef}
                                     type="time"
                                     value={startTime}
                                     onChange={(e) => {
