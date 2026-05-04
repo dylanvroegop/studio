@@ -100,6 +100,16 @@ function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeSearchText(value: unknown): string {
+  return safeString(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('nl-NL', {
     style: 'currency',
@@ -193,6 +203,32 @@ function getQuoteTitle(rawQuote: Record<string, unknown>): string {
     || safeString(rawQuote.werkomschrijving)
     || 'Project'
   );
+}
+
+function getQuoteSearchable(rawQuote: Record<string, unknown>, docId: string, label: string, clientName: string, title: string, offerteNummer: number | null): string {
+  const klantInfo = (rawQuote.klantinformatie || {}) as Record<string, unknown>;
+  const candidateParts = [
+    label,
+    clientName,
+    title,
+    docId,
+    typeof offerteNummer === 'number' ? String(offerteNummer) : '',
+    safeString(rawQuote.offerteNummer),
+    safeString(rawQuote.title),
+    safeString(rawQuote.titel),
+    safeString(rawQuote.werkomschrijving),
+    safeString(rawQuote.projectNaam),
+    safeString(rawQuote.klantNaam),
+    safeString(rawQuote.klantnaam),
+    safeString(rawQuote.klant),
+    safeString(rawQuote.clientName),
+    safeString(klantInfo.bedrijfsnaam),
+    safeString(klantInfo.voornaam),
+    safeString(klantInfo.achternaam),
+    safeString(klantInfo.naam),
+  ].filter(Boolean);
+
+  return normalizeSearchText(candidateParts.join(' '));
 }
 
 function createDefaultFormState(): KostenFormState {
@@ -431,7 +467,7 @@ function KostenPageContent() {
           clientName,
           title,
           label,
-          searchable: `${label} ${docSnap.id}`.toLowerCase(),
+          searchable: getQuoteSearchable(raw, docSnap.id, label, clientName, title, offerteNummer),
           updatedAtDate: toDate(raw.updatedAt) || toDate(raw.createdAt),
         };
       })
@@ -544,7 +580,7 @@ function KostenPageContent() {
   }, [costs, filter, quoteById, search]);
 
   const filteredQuotesForPicker = useMemo(() => {
-    const term = quoteSearch.trim().toLowerCase();
+    const term = normalizeSearchText(quoteSearch);
     if (!term) return quotes.slice(0, 40);
     return quotes.filter((quote) => quote.searchable.includes(term)).slice(0, 40);
   }, [quoteSearch, quotes]);
