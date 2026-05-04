@@ -55,6 +55,44 @@ async function validateQuoteOwnership(params: {
   }
 }
 
+async function resolveOfferteIdFromReference(params: {
+  reference: string;
+  uid: string;
+}): Promise<string | null> {
+  const normalizedReference = safeString(params.reference);
+  if (!normalizedReference) return null;
+
+  const { firestore } = initFirebaseAdmin();
+
+  const directSnap = await firestore.collection('quotes').doc(normalizedReference).get();
+  if (directSnap.exists) {
+    const data = directSnap.data() || {};
+    const ownerId = safeString((data as { userId?: unknown }).userId);
+    if (ownerId === params.uid) return directSnap.id;
+  }
+
+  const extractedNumber = normalizedReference.toLowerCase().match(/\d{2,}/)?.[0] || '';
+  if (!extractedNumber) return null;
+
+  const parsedNumber = Number(extractedNumber);
+  if (!Number.isFinite(parsedNumber)) return null;
+
+  const numericCandidates = [parsedNumber, String(parsedNumber)];
+  for (const candidate of numericCandidates) {
+    const snap = await firestore
+      .collection('quotes')
+      .where('userId', '==', params.uid)
+      .where('offerteNummer', '==', candidate)
+      .limit(1)
+      .get();
+    if (!snap.empty) {
+      return snap.docs[0].id;
+    }
+  }
+
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
     const token = extractBearerToken(request.headers.get('authorization'));
@@ -111,9 +149,17 @@ export async function POST(request: Request) {
 
     const category = normalizeProjectCostCategory(input.category);
     const description = safeString(input.description) || supplierName;
-    const offerteId = safeString(input.offerte_id) || null;
-    if (offerteId) {
-      await validateQuoteOwnership({ offerteId, uid });
+    const rawOfferteReference = safeString(input.offerte_id);
+    let offerteId: string | null = null;
+    if (rawOfferteReference) {
+      const resolvedOfferteId = await resolveOfferteIdFromReference({
+        reference: rawOfferteReference,
+        uid,
+      });
+      offerteId = resolvedOfferteId;
+      if (offerteId) {
+        await validateQuoteOwnership({ offerteId, uid });
+      }
     }
 
     const lineItems = normalizeProjectCostLineItems(input.line_items);
@@ -174,4 +220,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message }, { status: 500 });
   }
 }
-
