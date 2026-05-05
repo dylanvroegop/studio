@@ -38,6 +38,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
     const syncEntryToGoogleCalendar = useCallback(async (payload: {
         action: 'upsert' | 'delete';
         entryId: string;
+        googleCalendarEventId?: string | null;
         quoteId?: string;
         planningType?: PlanningEntryType;
         startDate?: Date;
@@ -60,6 +61,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             body: JSON.stringify({
                 action: payload.action,
                 entryId: payload.entryId,
+                googleCalendarEventId: payload.googleCalendarEventId,
                 quoteId: payload.quoteId,
                 planningType: payload.planningType,
                 startDate: payload.startDate?.toISOString(),
@@ -313,10 +315,16 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
     const deleteEntry = useCallback(async (entryId: string) => {
         if (!user || !firestore) throw new Error('Not authenticated');
 
+        const currentEntry = entries.find((entry) => entry.id === entryId) as (PlanningEntry & { googleCalendarEventId?: string | null }) | undefined;
+        await syncEntryToGoogleCalendar({
+            action: 'delete',
+            entryId,
+            googleCalendarEventId: currentEntry?.googleCalendarEventId || null,
+        });
+
         const docRef = doc(firestore, 'planning_entries', entryId);
         await deleteDoc(docRef);
-        await syncEntryToGoogleCalendar({ action: 'delete', entryId });
-    }, [user, firestore, syncEntryToGoogleCalendar]);
+    }, [user, firestore, entries, syncEntryToGoogleCalendar]);
 
     const deleteEntriesForQuote = useCallback(async (quoteId: string) => {
         if (!user || !firestore) throw new Error('Not authenticated');
@@ -328,11 +336,17 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         const batch = writeBatch(firestore);
         snapshot.docs.forEach((planningDoc) => batch.delete(planningDoc.ref));
 
+        const syncPayloads = snapshot.docs.map((planningDoc) => {
+            const data = planningDoc.data() as { googleCalendarEventId?: string | null };
+            return {
+                action: 'delete' as const,
+                entryId: planningDoc.id,
+                googleCalendarEventId: data.googleCalendarEventId || null,
+            };
+        });
+
         await batch.commit();
-        await Promise.all(snapshot.docs.map((planningDoc) => syncEntryToGoogleCalendar({
-            action: 'delete',
-            entryId: planningDoc.id,
-        })));
+        await Promise.all(syncPayloads.map((payload) => syncEntryToGoogleCalendar(payload)));
     }, [user, firestore, syncEntryToGoogleCalendar]);
 
     const shiftQuoteEntries = useCallback(async (

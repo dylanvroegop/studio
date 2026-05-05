@@ -12,6 +12,7 @@ type SyncAction = 'upsert' | 'delete';
 interface SyncBody {
   action: SyncAction;
   entryId: string;
+  googleCalendarEventId?: string | null;
   quoteId?: string;
   startDate?: string;
   endDate?: string;
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
     const entryRef = firestore.collection('planning_entries').doc(body.entryId);
     const entrySnap = await entryRef.get();
     const entryData = entrySnap.exists ? entrySnap.data() as { googleCalendarEventId?: string } : {};
-    const calendarEventId = entryData.googleCalendarEventId;
+    const calendarEventId = body.googleCalendarEventId || entryData.googleCalendarEventId;
 
     if (body.action === 'delete') {
       if (calendarEventId) {
@@ -91,8 +92,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'startDate/endDate vereist voor upsert' }, { status: 400 });
     }
 
-    const titlePrefix = body.planningType === 'werkbespreking' ? 'Werkbespreking' : 'Klus';
-    const title = `${titlePrefix}: ${body.cache?.projectTitle || 'Planning'}`;
+    const isWerkbespreking = body.planningType === 'werkbespreking';
+    const titlePrefix = isWerkbespreking ? 'Werkbespreking' : 'Klus';
+    const primaryLabel = body.cache?.clientName || body.cache?.projectTitle || 'Planning';
+    const title = `${titlePrefix}: ${primaryLabel}`;
     const description = [
       body.cache?.clientName ? `Klant: ${body.cache.clientName}` : '',
       body.cache?.projectAddress ? `Adres: ${body.cache.projectAddress}` : '',
@@ -103,6 +106,7 @@ export async function POST(request: Request) {
     const payload = {
       summary: title,
       description,
+      colorId: isWerkbespreking ? '9' : '2',
       start: { dateTime: body.startDate },
       end: { dateTime: body.endDate },
       reminders: {
