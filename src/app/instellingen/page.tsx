@@ -30,7 +30,7 @@ import {
 import { useEmployees } from '@/hooks/useEmployees';
 import { EMPLOYEE_COLORS } from '@/lib/types-planning';
 import { LogoUpload } from '@/components/settings/LogoUpload';
-import { PlanningNotificationsCard } from '@/components/settings/PlanningNotificationsCard';
+import { GoogleCalendarSettingsCard } from '@/components/settings/GoogleCalendarSettingsCard';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -1524,7 +1524,7 @@ function InstellingenPageContent() {
 
                     {/* --- PLANNING --- */}
                     <TabsContent value="planning" className="space-y-4">
-                        <PlanningNotificationsCard />
+                        <GoogleCalendarSettingsCard />
                         <Card>
                             <CardHeader>
                                 <CardTitle>Werkdag Instellingen</CardTitle>

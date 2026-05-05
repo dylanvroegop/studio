@@ -15,9 +15,9 @@ import {
     serverTimestamp,
     Timestamp,
     writeBatch,
-    getDocs,
-    setDoc
+    getDocs
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { PlanningEntry, PlanningEntryType, PlanningStatus } from '@/lib/types-planning';
 
 interface UsePlanningDataOptions {
@@ -35,33 +35,40 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
 
-    const upsertReminderForEntry = useCallback(async (entryId: string, data: {
-        quoteId: string;
-        startDate: Date;
+    const syncEntryToGoogleCalendar = useCallback(async (payload: {
+        action: 'upsert' | 'delete';
+        entryId: string;
+        quoteId?: string;
         planningType?: PlanningEntryType;
-        cache: {
+        startDate?: Date;
+        endDate?: Date;
+        notes?: string;
+        cache?: {
             clientName: string;
             projectTitle: string;
+            projectAddress: string;
         };
     }) => {
-        if (!user || !firestore) return;
-        const title = data.planningType === 'werkbespreking'
-            ? 'Werkbespreking reminder'
-            : 'Klus reminder';
-        const body = `${data.cache.projectTitle || 'Klus'} voor ${data.cache.clientName || 'klant'} start binnenkort.`;
-
-        await setDoc(doc(firestore, 'planning_reminders', entryId), {
-            userId: user.uid,
-            planningEntryId: entryId,
-            quoteId: data.quoteId,
-            remindAt: Timestamp.fromDate(data.startDate),
-            title,
-            body,
-            status: 'pending',
-            updatedAt: serverTimestamp(),
-            createdAt: serverTimestamp(),
-        }, { merge: true });
-    }, [firestore, user]);
+        const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
+        if (!idToken) return;
+        await fetch('/api/google-calendar/sync-entry', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({
+                action: payload.action,
+                entryId: payload.entryId,
+                quoteId: payload.quoteId,
+                planningType: payload.planningType,
+                startDate: payload.startDate?.toISOString(),
+                endDate: payload.endDate?.toISOString(),
+                notes: payload.notes,
+                cache: payload.cache,
+            }),
+        }).catch(() => null);
+    }, []);
 
     useEffect(() => {
         if (!user || !firestore) {
@@ -165,17 +172,18 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         };
 
         const docRef = await addDoc(collection(firestore, 'planning_entries'), entryData);
-        await upsertReminderForEntry(docRef.id, {
+        await syncEntryToGoogleCalendar({
+            action: 'upsert',
+            entryId: docRef.id,
             quoteId: data.quoteId,
-            startDate: data.startDate,
             planningType: data.planningType,
-            cache: {
-                clientName: data.cache.clientName,
-                projectTitle: data.cache.projectTitle,
-            }
+            startDate: data.startDate,
+            endDate: data.endDate,
+            notes: data.notes,
+            cache: data.cache,
         });
         return docRef.id;
-    }, [user, firestore, upsertReminderForEntry]);
+    }, [user, firestore, syncEntryToGoogleCalendar]);
 
     const addMultipleEntries = useCallback(async (entries: Array<{
         quoteId: string;
@@ -222,17 +230,18 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         }
 
         await batch.commit();
-        await Promise.all(entries.map((entry, index) => upsertReminderForEntry(ids[index], {
+        await Promise.all(entries.map((entry, index) => syncEntryToGoogleCalendar({
+            action: 'upsert',
+            entryId: ids[index],
             quoteId: entry.quoteId,
-            startDate: entry.startDate,
             planningType: entry.planningType,
-            cache: {
-                clientName: entry.cache.clientName,
-                projectTitle: entry.cache.projectTitle,
-            }
+            startDate: entry.startDate,
+            endDate: entry.endDate,
+            notes: entry.notes,
+            cache: entry.cache,
         })));
         return ids;
-    }, [user, firestore, upsertReminderForEntry]);
+    }, [user, firestore, syncEntryToGoogleCalendar]);
 
     const updateEntry = useCallback(async (
         entryId: string,
@@ -272,34 +281,42 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         if (data.cache !== undefined) updateData.cache = data.cache;
 
         await updateDoc(docRef, updateData);
-        if (data.startDate !== undefined || data.cache !== undefined || data.planningType !== undefined) {
+        if (data.startDate !== undefined || data.endDate !== undefined || data.cache !== undefined || data.planningType !== undefined || data.notes !== undefined) {
             const currentEntry = entries.find((entry) => entry.id === entryId);
             const effectiveStartDate = data.startDate
                 || (currentEntry?.startDate instanceof Timestamp ? currentEntry.startDate.toDate() : undefined);
+            const effectiveEndDate = data.endDate
+                || (currentEntry?.endDate instanceof Timestamp ? currentEntry.endDate.toDate() : undefined);
             const effectiveQuoteId = currentEntry?.quoteId;
             const effectiveCache = data.cache || currentEntry?.cache;
             const effectiveType = data.planningType || currentEntry?.planningType;
-            if (effectiveStartDate && effectiveQuoteId && effectiveCache) {
-                await upsertReminderForEntry(entryId, {
+            const effectiveNotes = data.notes ?? currentEntry?.notes;
+            if (effectiveStartDate && effectiveEndDate && effectiveQuoteId && effectiveCache) {
+                await syncEntryToGoogleCalendar({
+                    action: 'upsert',
+                    entryId,
                     quoteId: effectiveQuoteId,
-                    startDate: effectiveStartDate,
                     planningType: effectiveType,
+                    startDate: effectiveStartDate,
+                    endDate: effectiveEndDate,
+                    notes: effectiveNotes,
                     cache: {
                         clientName: effectiveCache.clientName,
                         projectTitle: effectiveCache.projectTitle,
+                        projectAddress: effectiveCache.projectAddress,
                     }
                 });
             }
         }
-    }, [user, firestore, entries, upsertReminderForEntry]);
+    }, [user, firestore, entries, syncEntryToGoogleCalendar]);
 
     const deleteEntry = useCallback(async (entryId: string) => {
         if (!user || !firestore) throw new Error('Not authenticated');
 
         const docRef = doc(firestore, 'planning_entries', entryId);
         await deleteDoc(docRef);
-        await deleteDoc(doc(firestore, 'planning_reminders', entryId)).catch(() => null);
-    }, [user, firestore]);
+        await syncEntryToGoogleCalendar({ action: 'delete', entryId });
+    }, [user, firestore, syncEntryToGoogleCalendar]);
 
     const deleteEntriesForQuote = useCallback(async (quoteId: string) => {
         if (!user || !firestore) throw new Error('Not authenticated');
@@ -309,13 +326,14 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             where('quoteId', '==', quoteId)
         ));
         const batch = writeBatch(firestore);
-        snapshot.docs.forEach((planningDoc) => {
-            batch.delete(planningDoc.ref);
-            batch.delete(doc(firestore, 'planning_reminders', planningDoc.id));
-        });
+        snapshot.docs.forEach((planningDoc) => batch.delete(planningDoc.ref));
 
         await batch.commit();
-    }, [user, firestore]);
+        await Promise.all(snapshot.docs.map((planningDoc) => syncEntryToGoogleCalendar({
+            action: 'delete',
+            entryId: planningDoc.id,
+        })));
+    }, [user, firestore, syncEntryToGoogleCalendar]);
 
     const shiftQuoteEntries = useCallback(async (
         quoteId: string,
