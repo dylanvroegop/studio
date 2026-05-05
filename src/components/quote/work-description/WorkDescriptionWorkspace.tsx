@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { WorkDescriptionStructured, type WorkDescriptionJob, normalizeWerkbeschrijving } from '@/lib/quote-calculations';
 import { Loader2, Sparkles } from 'lucide-react';
 import { WorkDescriptionSectionEditor } from './WorkDescriptionSectionEditor';
@@ -36,12 +37,33 @@ function normalizeEditableRows(rows: unknown): string[] {
   return normalizeWerkbeschrijving(rows || []);
 }
 
+const WASTE_REMOVAL_STEP = 'Vrijgekomen afval afvoeren en afvoeren conform afspraak.';
+
+function isWasteRemovalRow(value: string): boolean {
+  const normalized = String(value || '').toLowerCase();
+  return (
+    normalized.includes('afval')
+    && (normalized.includes('afvoer') || normalized.includes('meenem') || normalized.includes('take away'))
+  );
+}
+
+function detectWasteRemovalFromJob(job: WorkDescriptionJob | undefined): boolean {
+  if (!job) return false;
+  if (typeof job.afvalAfvoeren === 'boolean') return job.afvalAfvoeren;
+  return [
+    ...(job.sections?.voorbereiding || []),
+    ...(job.sections?.uitvoering || []),
+    ...(job.sections?.afwerking || []),
+  ].some(isWasteRemovalRow);
+}
+
 function normalizeJobs(value: WorkDescriptionStructured): WorkDescriptionJob[] {
   if (Array.isArray(value.jobs) && value.jobs.length > 0) {
     return value.jobs.map((job) => ({
       ...job,
       title: String(job?.title || ''),
       context: String(job?.context || ''),
+      afvalAfvoeren: detectWasteRemovalFromJob(job),
       sections: {
         voorbereiding: normalizeEditableRows(job?.sections?.voorbereiding),
         uitvoering: normalizeEditableRows(job?.sections?.uitvoering),
@@ -53,6 +75,11 @@ function normalizeJobs(value: WorkDescriptionStructured): WorkDescriptionJob[] {
   return [{
     title: value.title || '',
     context: value.context || '',
+    afvalAfvoeren: [
+      ...(normalizeEditableRows(value.sections?.voorbereiding)),
+      ...(normalizeEditableRows(value.sections?.uitvoering)),
+      ...(normalizeEditableRows(value.sections?.afwerking)),
+    ].some(isWasteRemovalRow),
     sections: {
       voorbereiding: normalizeEditableRows(value.sections?.voorbereiding),
       uitvoering: normalizeEditableRows(value.sections?.uitvoering),
@@ -116,6 +143,22 @@ export function WorkDescriptionWorkspace({
   useEffect(() => {
     if (mode === 'preview') onModeChange('edit');
   }, [mode, onModeChange]);
+
+  useEffect(() => {
+    const isEnabled = Boolean(activeJob?.afvalAfvoeren);
+    if (!isEnabled) return;
+    const afwerkingRows = activeJob?.sections?.afwerking || [];
+    const hasWasteRow = afwerkingRows.some(isWasteRemovalRow);
+    if (hasWasteRow) return;
+
+    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
+      ...job,
+      sections: {
+        ...job.sections,
+        afwerking: ensureRows([...(job.sections?.afwerking || []), WASTE_REMOVAL_STEP]),
+      },
+    })));
+  }, [activeJob?.afvalAfvoeren, activeJob?.sections?.afwerking, activeJobIndex, onChange, value]);
 
   const setActiveJobIndex = (nextIndex: number) => {
     const clamped = clampIndex(nextIndex, jobs.length);
@@ -199,6 +242,22 @@ export function WorkDescriptionWorkspace({
     })));
   };
 
+  const setWasteRemoval = (enabled: boolean) => {
+    onChange(applyJobUpdate(value, activeJobIndex, (job) => {
+      const afwerkingRows = [...(job.sections?.afwerking || [])];
+      const withoutWasteRows = afwerkingRows.filter((row) => !isWasteRemovalRow(row));
+      const nextAfwerking = enabled ? [...withoutWasteRows, WASTE_REMOVAL_STEP] : withoutWasteRows;
+      return {
+        ...job,
+        afvalAfvoeren: enabled,
+        sections: {
+          ...job.sections,
+          afwerking: ensureRows(nextAfwerking),
+        },
+      };
+    }));
+  };
+
   return (
     <div className="space-y-4">
       {showJobTabs ? (
@@ -250,6 +309,22 @@ export function WorkDescriptionWorkspace({
                 onChange={(e) => onChange(applyJobUpdate(value, activeJobIndex, (job) => ({ ...job, context: e.target.value })))}
                 placeholder="Bijv. renovatie zolderverdieping"
                 className="h-9"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="afval-afvoeren-toggle" className="text-sm font-medium text-foreground">
+                  Afval afvoeren
+                </Label>
+                <p className="text-xs text-muted-foreground">Bij Ja wordt automatisch een afvoer-stap toegevoegd in Afwerking.</p>
+              </div>
+              <Switch
+                id="afval-afvoeren-toggle"
+                checked={detectWasteRemovalFromJob(activeJob)}
+                onCheckedChange={setWasteRemoval}
               />
             </div>
           </div>

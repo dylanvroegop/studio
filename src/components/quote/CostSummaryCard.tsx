@@ -143,8 +143,6 @@ export function CostSummaryCard({
     const vatRate = Math.max(0, Number(settings?.btwTarief) || 0);
     const vatMultiplier = 1 + vatRate / 100;
     const isMaterialsOnlyVatMode = settings?.btwMode === 'materiaal_only';
-    const materiaalKostenInclBtw = (totals?.materialenTotaal ?? 0) * vatMultiplier;
-    const geschatteWinstInclBtw = (totals?.totaalInclBtw ?? 0) - materiaalKostenInclBtw;
     const amountGridClass = 'grid w-[190px] sm:w-[260px] grid-cols-2 gap-3 sm:gap-4 text-right';
     const winstMargeBasisLabel =
         settings?.extras?.winstMarge?.basis === 'materiaal'
@@ -172,6 +170,7 @@ export function CostSummaryCard({
             </div>
         );
     }
+    const winstProjectie = totals.winstProjectie;
 
     return (
         <div className="bg-card rounded-lg border border-border p-4">
@@ -516,12 +515,12 @@ export function CostSummaryCard({
                 </div>
                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2.5 flex justify-between items-start gap-4">
                     <div className="space-y-0.5">
-                        <span className="font-medium text-foreground">GESCHATTE WINST (incl. btw)</span>
+                        <span className="font-medium text-foreground">GEPROJECTEERDE WINST (excl. btw)</span>
                         <p className="text-xs text-muted-foreground">
-                            {formatCurrency(totals.totaalInclBtw)} - {formatCurrency(materiaalKostenInclBtw)}
+                            {formatCurrency(winstProjectie.omzetExclBtw)} - {formatCurrency(winstProjectie.kostenExclBtw)} ({winstProjectie.margePercentageOpOmzet.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% marge)
                         </p>
                     </div>
-                    <span className="font-semibold text-emerald-500">{formatCurrency(geschatteWinstInclBtw)}</span>
+                    <span className="font-semibold text-emerald-500">{formatCurrency(winstProjectie.winstExclBtw)}</span>
                 </div>
             </div>
         </div>

@@ -144,6 +144,11 @@ export function NewQuoteForm({
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastDraftSnapshotRef = useRef<string>('');
   const isFlushingDraftRef = useRef(false);
+  const cleanupBodyModalLocks = useCallback(() => {
+    if (typeof document === 'undefined') return;
+    document.body.style.overflow = '';
+    document.body.style.pointerEvents = '';
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -208,6 +213,7 @@ export function NewQuoteForm({
     setShowProjectAddress(!!client.afwijkendProjectadres);
     setFormKey((prev) => prev + 1);
     setIsClientModalOpen(false);
+    requestAnimationFrame(() => cleanupBodyModalLocks());
 
     if (quoteId && firestore) {
       try {
@@ -362,8 +368,15 @@ export function NewQuoteForm({
   useEffect(() => {
     return () => {
       if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+      cleanupBodyModalLocks();
     };
-  }, []);
+  }, [cleanupBodyModalLocks]);
+
+  useEffect(() => {
+    if (isClientModalOpen || isAiDialogOpen) return;
+    const timer = window.setTimeout(() => cleanupBodyModalLocks(), 0);
+    return () => window.clearTimeout(timer);
+  }, [cleanupBodyModalLocks, isAiDialogOpen, isClientModalOpen]);
 
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -578,7 +591,13 @@ export function NewQuoteForm({
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Dialog open={isAiDialogOpen} onOpenChange={setIsAiDialogOpen}>
+              <Dialog
+                open={isAiDialogOpen}
+                onOpenChange={(open) => {
+                  setIsAiDialogOpen(open);
+                  if (!open) requestAnimationFrame(() => cleanupBodyModalLocks());
+                }}
+              >
                 <DialogTrigger asChild>
                   <Button variant="secondary" size="sm" className="gap-2">
                     <Sparkles className="h-4 w-4" />
@@ -639,7 +658,13 @@ export function NewQuoteForm({
                 </DialogContent>
               </Dialog>
 
-              <Dialog open={isClientModalOpen} onOpenChange={setIsClientModalOpen}>
+              <Dialog
+                open={isClientModalOpen}
+                onOpenChange={(open) => {
+                  setIsClientModalOpen(open);
+                  if (!open) requestAnimationFrame(() => cleanupBodyModalLocks());
+                }}
+              >
                 <DialogTrigger asChild>
                   <Button variant="secondary" size="sm" className="gap-2">
                     <BookUser className="h-4 w-4" />

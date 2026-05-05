@@ -172,7 +172,7 @@ async function fetchProjectCosts(uid: string, quoteIds: string[]): Promise<Winst
   for (const chunk of chunks) {
     const { data, error } = await supabaseAdmin
       .from('project_costs')
-      .select('offerte_id, category, amount_excl_btw')
+      .select('offerte_id, category, amount_excl_btw, amount_incl_btw')
       .eq('user_id', uid)
       .in('offerte_id', chunk);
 
@@ -196,6 +196,7 @@ async function fetchProjectCosts(uid: string, quoteIds: string[]): Promise<Winst
         quoteId,
         category: normalizeProjectCostCategory(mapped.category),
         amountExcl: safeNumber(mapped.amount_excl_btw),
+        amountIncl: safeNumber(mapped.amount_incl_btw),
       });
     });
   }

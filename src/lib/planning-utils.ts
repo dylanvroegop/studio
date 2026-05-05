@@ -27,6 +27,47 @@ export interface AutoSplitEntry {
     hours: number;
 }
 
+export interface DutchHoliday {
+    dateKey: string;
+    name: string;
+}
+
+function easterSunday(year: number): Date {
+    // Meeus/Jones/Butcher algorithm (Gregorian calendar)
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month - 1, day);
+}
+
+export function getDutchHolidaysForYear(year: number): DutchHoliday[] {
+    const pasen = easterSunday(year);
+    const holidays: DutchHoliday[] = [
+        { dateKey: format(new Date(year, 0, 1), 'yyyy-MM-dd'), name: 'Nieuwjaarsdag' },
+        { dateKey: format(addDays(pasen, -2), 'yyyy-MM-dd'), name: 'Goede Vrijdag' },
+        { dateKey: format(pasen, 'yyyy-MM-dd'), name: 'Eerste Paasdag' },
+        { dateKey: format(addDays(pasen, 1), 'yyyy-MM-dd'), name: 'Tweede Paasdag' },
+        { dateKey: format(new Date(year, 3, 27), 'yyyy-MM-dd'), name: 'Koningsdag' },
+        { dateKey: format(addDays(pasen, 39), 'yyyy-MM-dd'), name: 'Hemelvaartsdag' },
+        { dateKey: format(addDays(pasen, 49), 'yyyy-MM-dd'), name: 'Eerste Pinksterdag' },
+        { dateKey: format(addDays(pasen, 50), 'yyyy-MM-dd'), name: 'Tweede Pinksterdag' },
+        { dateKey: format(new Date(year, 11, 25), 'yyyy-MM-dd'), name: 'Eerste Kerstdag' },
+        { dateKey: format(new Date(year, 11, 26), 'yyyy-MM-dd'), name: 'Tweede Kerstdag' },
+    ];
+    return holidays;
+}
+
 export function autoSplitJob(
     totalHours: number,
     startDate: Date,

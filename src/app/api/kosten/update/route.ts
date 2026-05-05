@@ -6,6 +6,7 @@ import {
   mapProjectCostRow,
   normalizeProjectCostCategory,
   normalizeProjectCostLineItems,
+  normalizeProjectCostReceiptFiles,
   roundEuro,
   sumProjectCostLineItems,
 } from '@/lib/project-costs';
@@ -37,6 +38,14 @@ function dateOnly(value: unknown): string {
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function isMissingColumnError(message: string, table: string, column: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes(`could not find the '${column.toLowerCase()}' column`)
+    || (lower.includes(table.toLowerCase()) && lower.includes(column.toLowerCase()) && lower.includes('does not exist'))
+  );
 }
 
 async function validateQuoteOwnership(params: {
@@ -126,7 +135,7 @@ export async function POST(request: Request) {
 
     const existing = await supabaseAdmin
       .from('project_costs')
-      .select('id,user_id')
+      .select('id,user_id,offerte_id')
       .eq('id', costId)
       .maybeSingle();
 
@@ -141,6 +150,7 @@ export async function POST(request: Request) {
     if (!rowUserId || rowUserId !== uid) {
       return NextResponse.json({ ok: false, message: 'Geen toegang tot deze kost.' }, { status: 403 });
     }
+    const existingOfferteId = safeString((existing.data as Record<string, unknown>).offerte_id) || null;
 
     const supplierName = safeString(input.supplier_name);
     if (!supplierName) {
@@ -156,10 +166,16 @@ export async function POST(request: Request) {
         reference: rawOfferteReference,
         uid,
       });
-      offerteId = resolvedOfferteId;
-      if (offerteId) {
+      if (resolvedOfferteId) {
+        offerteId = resolvedOfferteId;
         await validateQuoteOwnership({ offerteId, uid });
+      } else {
+        // Legacy referenties (bijv. oud offertenummer-formaat) blijven behouden.
+        offerteId = rawOfferteReference;
       }
+    } else if (existingOfferteId) {
+      // In omgevingen waar offerte_id NOT NULL is, behouden we de bestaande koppeling.
+      offerteId = existingOfferteId;
     }
 
     const lineItems = normalizeProjectCostLineItems(input.line_items);
@@ -181,6 +197,7 @@ export async function POST(request: Request) {
     const amountIncl = roundEuro(amountExcl + btwAmount);
     const date = dateOnly(input.date);
     const receiptUrl = safeString(input.receipt_url) || null;
+    const receiptFiles = normalizeProjectCostReceiptFiles(input.receipt_files, receiptUrl);
     const status = safeString(input.status) || 'confirmed';
 
     const updatePayload: Record<string, unknown> = {
@@ -195,17 +212,30 @@ export async function POST(request: Request) {
       amount_incl_btw: amountIncl,
       date,
       receipt_url: receiptUrl,
+      receipt_files: receiptFiles,
       status,
       updated_at: new Date().toISOString(),
     };
 
-    const updated = await supabaseAdmin
+    let updated = await supabaseAdmin
       .from('project_costs')
       .update(updatePayload)
       .eq('id', costId)
       .eq('user_id', uid)
       .select('*')
       .single();
+
+    if (updated.error && isMissingColumnError(updated.error.message, 'project_costs', 'receipt_files')) {
+      const fallbackPayload = { ...updatePayload };
+      delete fallbackPayload.receipt_files;
+      updated = await supabaseAdmin
+        .from('project_costs')
+        .update(fallbackPayload)
+        .eq('id', costId)
+        .eq('user_id', uid)
+        .select('*')
+        .single();
+    }
 
     if (updated.error) {
       return NextResponse.json({ ok: false, message: updated.error.message }, { status: 500 });

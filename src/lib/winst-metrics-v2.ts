@@ -86,6 +86,7 @@ export interface WinstProjectCostSource {
   quoteId: string;
   category: 'materiaal' | 'brandstof' | 'gereedschap' | 'overig';
   amountExcl: number;
+  amountIncl?: number;
 }
 
 export interface WinstLaborCostSource {
@@ -837,7 +838,8 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
       gereedschap: 0,
       overig: 0,
     };
-    current[row.category] = safeNumber(current[row.category]) + safeNumber(row.amountExcl);
+    const resolvedAmount = safeNumber(row.amountIncl) > 0 ? safeNumber(row.amountIncl) : safeNumber(row.amountExcl);
+    current[row.category] = safeNumber(current[row.category]) + resolvedAmount;
     projectCostsByQuoteId.set(row.quoteId, current);
   });
 

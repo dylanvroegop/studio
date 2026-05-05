@@ -16,6 +16,7 @@ import {
 } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { getDutchHolidaysForYear } from '@/lib/planning-utils';
 import { Timestamp } from 'firebase/firestore';
 
 interface MobileMonthCalendarProps {
@@ -92,6 +93,14 @@ export function MobileMonthCalendar({
         return byDay;
     }, [entries]);
 
+    const holidaysByDay = useMemo(() => {
+        const holidayMap = new Map<string, string>();
+        getDutchHolidaysForYear(currentDate.getFullYear()).forEach((holiday) => {
+            holidayMap.set(holiday.dateKey, holiday.name);
+        });
+        return holidayMap;
+    }, [currentDate]);
+
     const calendarDays = useMemo(() => {
         const days: Date[] = [];
         let cursor = calendarStart;
@@ -119,6 +128,7 @@ export function MobileMonthCalendar({
                     const isCurrentMonth = day.getMonth() === currentDate.getMonth();
                     const isSelected = isSameDay(day, selectedDate);
                     const isTodayDate = isToday(day);
+                    const holidayName = holidaysByDay.get(dayKey);
 
                     return (
                         <button
@@ -154,6 +164,11 @@ export function MobileMonthCalendar({
                                     <span className="text-[10px] text-muted-foreground">+{dayEntries.length - 2}</span>
                                 ) : null}
                             </div>
+                            {holidayName ? (
+                                <div className="mb-1 truncate rounded bg-rose-500/20 px-1 py-0.5 text-[10px] font-medium text-rose-200" title={holidayName}>
+                                    Feestdag: {holidayName}
+                                </div>
+                            ) : null}
 
                             <div className="space-y-1">
                                 {dayEntries.slice(0, 2).map((entry) => {

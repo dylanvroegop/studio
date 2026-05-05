@@ -954,6 +954,16 @@ export async function POST(request: Request) {
         offerte_reference: offerteReference,
         suggested_category: suggestedCategory,
         receipt_url: receiptUrl,
+        receipt_files: [
+          {
+            url: receiptUrl,
+            path: storagePath,
+            filename,
+            content_type: contentType,
+            size_bytes: bytes.byteLength,
+            uploaded_at: new Date().toISOString(),
+          },
+        ],
       },
     });
   } catch (error) {

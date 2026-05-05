@@ -723,7 +723,8 @@ function PlanningPageContent() {
                     entry.quoteId,
                     entry.startDate.toDate(),
                     newStart,
-                    effectiveEmployeeId !== entry.employeeId ? effectiveEmployeeId : undefined
+                    effectiveEmployeeId !== entry.employeeId ? effectiveEmployeeId : undefined,
+                    planningSettings.workDays
                 );
             }
             return;

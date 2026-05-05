@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { TimelineView, PlanningEntry, Employee } from '@/lib/types-planning';
-import { getDaysInRange, getHoursInDay, isWorkDay } from '@/lib/planning-utils';
+import { getDaysInRange, getDutchHolidaysForYear, getHoursInDay, isWorkDay } from '@/lib/planning-utils';
 import { useDragResize } from './useDragResize';
 import { ScheduleBlock } from './ScheduleBlock';
 import { format, isSameDay, isToday, startOfMonth, addMonths, isSameMonth } from 'date-fns';
@@ -40,6 +40,16 @@ export function PlanningGrid({
     const days = useMemo(() => getDaysInRange(dateRange.start, dateRange.end), [dateRange]);
     const hours = useMemo(() => getHoursInDay(6, 20), []);
     const employeeMap = useMemo(() => new Map(employees.map(employee => [employee.id, employee])), [employees]);
+    const holidayNameByDateKey = useMemo(() => {
+        const years = new Set(days.map((day) => day.getFullYear()));
+        const map = new Map<string, string>();
+        years.forEach((year) => {
+            getDutchHolidaysForYear(year).forEach((holiday) => {
+                map.set(holiday.dateKey, holiday.name);
+            });
+        });
+        return map;
+    }, [days]);
 
     const { onDragStart, isDragging, suppressClick } = useDragResize({
         entries,
@@ -145,6 +155,11 @@ export function PlanningGrid({
                                             )}>
                                                 {format(day, 'EEE d MMM', { locale: nl })}
                                             </span>
+                                            {holidayNameByDateKey.get(format(day, 'yyyy-MM-dd')) ? (
+                                                <span className="text-[10px] font-medium text-rose-300">
+                                                    {holidayNameByDateKey.get(format(day, 'yyyy-MM-dd'))}
+                                                </span>
+                                            ) : null}
                                         </div>
 
                                         {/* Timeline Track */}
@@ -245,6 +260,7 @@ export function PlanningGrid({
                                     const isValidDay = date.getMonth() === monthDate.getMonth();
                                     const dayEntries = isValidDay ? getEntriesForDay(date) : [];
                                     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                                    const holidayName = isValidDay ? holidayNameByDateKey.get(format(date, 'yyyy-MM-dd')) : undefined;
 
                                     return (
                                         <div
@@ -253,6 +269,7 @@ export function PlanningGrid({
                                                 "relative min-h-[60px] border-r border-border last:border-r-0 p-0",
                                                 isValidDay ? "" : "bg-muted/30",
                                                 isValidDay && isWeekend && "bg-muted/20",
+                                                isValidDay && holidayName && "bg-rose-500/10",
                                                 schedulingMode && isValidDay && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
                                                 !schedulingMode && "cursor-default"
                                             )}
@@ -261,6 +278,11 @@ export function PlanningGrid({
                                             data-employee-id=""
                                             data-role={isValidDay ? "month-slot" : undefined}
                                         >
+                                            {holidayName ? (
+                                                <div className="px-1 pt-1 text-[10px] font-medium text-rose-300">
+                                                    Feestdag: {holidayName}
+                                                </div>
+                                            ) : null}
                                             <div className="flex flex-col items-stretch gap-1 px-1 py-1">
                                                 {dayEntries.map((entry, idx) => {
                                                     const employee = employeeMap.get(entry.employeeId);
@@ -314,12 +336,14 @@ export function PlanningGrid({
                     >
                         {headerDays.map(day => {
                             const dayIsToday = isToday(day);
+                            const holidayName = holidayNameByDateKey.get(format(day, 'yyyy-MM-dd'));
                             return (
                                 <div
                                     key={format(day, 'EEE')}
                                     className={cn(
                                         "min-w-0 p-2 text-center border-r border-zinc-700/50 last:border-r-0",
-                                        dayIsToday && "bg-emerald-500/12"
+                                        dayIsToday && "bg-emerald-500/12",
+                                        holidayName && "bg-rose-500/10"
                                     )}
                                 >
                                     <span className={cn(
@@ -328,6 +352,9 @@ export function PlanningGrid({
                                     )}>
                                         {format(day, 'EEEE', { locale: nl })}
                                     </span>
+                                    {holidayName ? (
+                                        <div className="mt-0.5 truncate text-[10px] font-medium text-rose-300">{holidayName}</div>
+                                    ) : null}
                                 </div>
                             );
                         })}
@@ -347,6 +374,7 @@ export function PlanningGrid({
                                             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                                             const isCurrentMonth = isSameMonth(day, currentDate);
                                             const dayIsToday = isToday(day);
+                                            const holidayName = holidayNameByDateKey.get(format(day, 'yyyy-MM-dd'));
                                             return (
                                                 <div
                                                     key={day.toISOString()}
@@ -354,6 +382,7 @@ export function PlanningGrid({
                                                         "relative min-h-[108px] min-w-0 overflow-hidden border-r border-zinc-700/50 border-b border-zinc-700/50 px-1 pt-1",
                                                         "last:border-r-0",
                                                         isWeekend && "bg-muted/20",
+                                                        holidayName && "bg-rose-500/10",
                                                         dayIsToday && "bg-emerald-500/10 ring-1 ring-inset ring-emerald-400/50",
                                                         schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
                                                         !schedulingMode && "cursor-default hover:bg-zinc-900/12 transition-colors"
@@ -382,6 +411,11 @@ export function PlanningGrid({
                                                     </div>
 
                                                     <div className="relative z-0 mt-5 flex min-w-0 flex-col gap-1">
+                                                        {holidayName ? (
+                                                            <div className="truncate rounded bg-rose-500/20 px-1 py-0.5 text-[10px] font-medium text-rose-200">
+                                                                Feestdag: {holidayName}
+                                                            </div>
+                                                        ) : null}
                                                         {dayEntries.map((entry, idx) => (
                                                             <div key={entry.id} className="min-w-0">
                                                                 <ScheduleBlock
@@ -423,12 +457,15 @@ export function PlanningGrid({
                     <div className="p-3 border-r border-border">
                         <span className="text-sm font-medium text-muted-foreground"></span>
                     </div>
-                    {days.map(day => (
+                    {days.map(day => {
+                        const holidayName = holidayNameByDateKey.get(format(day, 'yyyy-MM-dd'));
+                        return (
                         <div
                             key={day.toISOString()}
                             className={cn(
                                 "p-2 text-center border-r border-border last:border-r-0",
-                                isToday(day) && "bg-emerald-500/10"
+                                isToday(day) && "bg-emerald-500/10",
+                                holidayName && "bg-rose-500/10"
                             )}
                         >
                             <div className="text-xs text-muted-foreground">
@@ -440,8 +477,12 @@ export function PlanningGrid({
                             )}>
                                 {format(day, 'd', { locale: nl })}
                             </div>
+                            {holidayName ? (
+                                <div className="truncate text-[10px] font-medium text-rose-300">{holidayName}</div>
+                            ) : null}
                         </div>
-                    ))}
+                    );
+                    })}
                 </div>
 
                 {/* Employee Rows */}

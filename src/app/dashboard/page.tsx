@@ -242,6 +242,7 @@ function ProjectRow(props: {
         <div className="rounded-lg border border-white/10 bg-background/25 px-3 py-2.5">
           <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Winst</p>
           <p className={cn('mt-1 text-2xl font-semibold leading-none', winstTextClass)}>{winstText}</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">Basis: omzet incl. btw - kosten incl. btw</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
@@ -256,7 +257,7 @@ function ProjectRow(props: {
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Omzet</p>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Omzet incl. btw</p>
             <p className="mt-0.5 text-sm font-semibold text-foreground">{formatCurrency(project.quotedRevenueIncl)}</p>
           </div>
           <div className="relative rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
@@ -270,7 +271,7 @@ function ProjectRow(props: {
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Kosten</p>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Kosten incl. btw</p>
             <p className="mt-0.5 text-sm font-semibold text-foreground">{project.hasActualData ? formatCurrency(project.actualCostExcl) : '—'}</p>
           </div>
           <div className="relative rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
@@ -1024,11 +1025,11 @@ export default function WinstPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
                       <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Omzet</p>
+                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Omzet incl. btw</p>
                         <p className="mt-0.5 text-sm font-semibold text-foreground">{formatCurrency(projectTotals.totalOmzet)}</p>
                       </div>
                       <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Kosten</p>
+                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Kosten incl. btw</p>
                         <p className="mt-0.5 text-sm font-semibold text-foreground">
                           {projectTotals.hasActualCostData ? formatCurrency(projectTotals.totalKosten) : '—'}
                         </p>

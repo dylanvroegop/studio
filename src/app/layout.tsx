@@ -5,10 +5,12 @@ import { FirebaseClientProvider } from '@/firebase';
 import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
 import { ThemeModeProvider } from '@/context/ThemeModeContext';
 import { DeferredAuthGuards } from '@/components/DeferredAuthGuards';
+import { PushBootstrap } from '@/components/PushBootstrap';
 
 export const metadata: Metadata = {
   title: 'Calvora',
   description: 'Maak snel en eenvoudig offertes voor timmerwerk.',
+  manifest: '/manifest.webmanifest',
   icons: {
     icon: [
       { url: '/favicon-16.png', sizes: '16x16', type: 'image/png' },
@@ -53,6 +55,7 @@ export default function RootLayout({
           <ThemeModeProvider>
             <MeasurementUnitProvider>
               <DeferredAuthGuards />
+              <PushBootstrap />
               {children}
               <Toaster />
             </MeasurementUnitProvider>

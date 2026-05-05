@@ -23,6 +23,7 @@ import {
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
+import { KostenGalleryTab } from '@/components/kosten/KostenGalleryTab';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -63,12 +64,14 @@ import {
   roundEuro,
   type ProjectCostCategory,
   type ProjectCostLineItem,
+  type ProjectCostReceiptFile,
   type ProjectCostRow,
 } from '@/lib/project-costs';
 import { cn } from '@/lib/utils';
 
 type CostFilterMode = 'alle' | ProjectCostCategory;
 type EntryMode = 'manual' | 'upload';
+type KostenViewMode = 'lijst' | 'galerij';
 
 type QuoteOption = {
   id: string;
@@ -89,6 +92,7 @@ type KostenFormState = {
   amountExcl: number;
   manualOverride: boolean;
   receiptUrl: string;
+  receiptFiles: ProjectCostReceiptFile[];
 };
 
 function safeNumber(value: unknown): number {
@@ -242,6 +246,7 @@ function createDefaultFormState(): KostenFormState {
     amountExcl: 0,
     manualOverride: false,
     receiptUrl: '',
+    receiptFiles: [],
   };
 }
 
@@ -405,6 +410,7 @@ function KostenPageContent() {
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CostFilterMode>('alle');
+  const [viewMode, setViewMode] = useState<KostenViewMode>('lijst');
 
   const [createOpen, setCreateOpen] = useState(false);
   const [entryMode, setEntryMode] = useState<EntryMode>('upload');
@@ -579,6 +585,39 @@ function KostenPageContent() {
       });
   }, [costs, filter, quoteById, search]);
 
+  const tabTotals = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const costsMatchingSearch = costs.filter((cost) => {
+      if (!term) return true;
+      const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
+      const offerteNummer = quote?.offerteNummer ? String(quote.offerteNummer) : '';
+      const target = `${cost.supplier_name} ${cost.description} ${offerteNummer} ${quote?.label || ''}`.toLowerCase();
+      return target.includes(term);
+    });
+
+    const totals = {
+      alle: 0,
+      materiaal: 0,
+      brandstof: 0,
+      gereedschap: 0,
+      overig: 0,
+    } satisfies Record<CostFilterMode, number>;
+
+    for (const cost of costsMatchingSearch) {
+      const amountIncl = roundEuro(safeNumber(cost.amount_incl_btw));
+      totals.alle += amountIncl;
+      totals[cost.category] += amountIncl;
+    }
+
+    return {
+      alle: roundEuro(totals.alle),
+      materiaal: roundEuro(totals.materiaal),
+      brandstof: roundEuro(totals.brandstof),
+      gereedschap: roundEuro(totals.gereedschap),
+      overig: roundEuro(totals.overig),
+    } satisfies Record<CostFilterMode, number>;
+  }, [costs, quoteById, search]);
+
   const filteredQuotesForPicker = useMemo(() => {
     const term = normalizeSearchText(quoteSearch);
     if (!term) return quotes.slice(0, 40);
@@ -704,6 +743,19 @@ function KostenPageContent() {
     const payloadLineItems = normalizedLineItems.filter(
       (item) => item.description || item.total_price > 0
     );
+    const normalizedReceiptUrl = safeString(form.receiptUrl) || null;
+    const payloadReceiptFiles = Array.isArray(form.receiptFiles) && form.receiptFiles.length > 0
+      ? form.receiptFiles
+      : (normalizedReceiptUrl
+        ? [{
+          url: normalizedReceiptUrl,
+          path: null,
+          filename: normalizedReceiptUrl.split('/').pop() || 'bon',
+          content_type: '',
+          size_bytes: 0,
+          uploaded_at: new Date().toISOString(),
+        }]
+        : []);
 
     setSaving(true);
     try {
@@ -725,7 +777,8 @@ function KostenPageContent() {
           manual_amount_override: form.manualOverride,
           btw_percentage: form.btwPercentage,
           date: form.date,
-          receipt_url: form.receiptUrl || null,
+          receipt_url: normalizedReceiptUrl,
+          receipt_files: payloadReceiptFiles,
           status: 'confirmed',
         }),
       });
@@ -803,6 +856,7 @@ function KostenPageContent() {
           offerte_reference?: string | null;
           suggested_category?: ProjectCostCategory;
           receipt_url?: string;
+          receipt_files?: ProjectCostReceiptFile[];
         };
       } | null;
 
@@ -860,6 +914,7 @@ function KostenPageContent() {
         amountExcl: extractedAmountExcl,
         manualOverride: shouldEnableManualOverride,
         receiptUrl: safeString(extracted.receipt_url) || prev.receiptUrl,
+        receiptFiles: Array.isArray(extracted.receipt_files) ? extracted.receipt_files : prev.receiptFiles,
       }));
       setEntryMode('manual');
 
@@ -920,6 +975,7 @@ function KostenPageContent() {
       amountExcl: amountExclForCost,
       manualOverride: useManualOverride,
       receiptUrl: safeString(cost.receipt_url),
+      receiptFiles: Array.isArray(cost.receipt_files) ? cost.receipt_files : [],
     });
     setQuoteSearch('');
     setSelectedFile(null);
@@ -1508,6 +1564,32 @@ function KostenPageContent() {
               </div>
 
               <div className="flex flex-wrap gap-2.5">
+                <Button
+                  type="button"
+                  variant={viewMode === 'lijst' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('lijst')}
+                  className={cn(
+                    'h-9 rounded-full px-4 transition-all duration-200',
+                    viewMode === 'lijst'
+                      ? 'bg-emerald-500 text-white hover:bg-emerald-400'
+                      : 'border border-border/70 bg-transparent text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-200'
+                  )}
+                >
+                  Lijst
+                </Button>
+                <Button
+                  type="button"
+                  variant={viewMode === 'galerij' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('galerij')}
+                  className={cn(
+                    'h-9 rounded-full px-4 transition-all duration-200',
+                    viewMode === 'galerij'
+                      ? 'bg-emerald-500 text-white hover:bg-emerald-400'
+                      : 'border border-border/70 bg-transparent text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-200'
+                  )}
+                >
+                  Galerij
+                </Button>
                 {filterOptions.map((option) => (
                   <Button
                     key={option.value}
@@ -1521,14 +1603,26 @@ function KostenPageContent() {
                         : 'border border-border/70 bg-transparent text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-200'
                     )}
                   >
-                    {option.label}
+                    <span className="flex flex-col items-center leading-tight">
+                      <span>{option.label}</span>
+                      <span
+                        className={cn(
+                          'mt-0.5 text-[10px] font-medium tabular-nums',
+                          filter === option.value ? 'text-white/85' : 'text-muted-foreground'
+                        )}
+                      >
+                        {formatCurrency(tabTotals[option.value])}
+                      </span>
+                    </span>
                   </Button>
                 ))}
               </div>
             </CardContent>
           </Card>
 
-          {filteredCosts.length === 0 ? (
+          {viewMode === 'galerij' ? (
+            <KostenGalleryTab costs={filteredCosts} quoteById={quoteById} onOpenCost={handleOpenCost} />
+          ) : filteredCosts.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center space-y-3">
                 <div className="font-semibold">Geen kosten gevonden</div>
@@ -1593,17 +1687,11 @@ function KostenPageContent() {
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
                             Geplaatst: {formatDateLabel(cost.created_at)}
                           </span>
-                          {cost.receipt_url ? (
-                            <a
-                              href={cost.receipt_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-emerald-300 hover:text-emerald-200"
-                              onClick={(event) => event.stopPropagation()}
-                            >
+                          {(Array.isArray(cost.receipt_files) && cost.receipt_files.length > 0) || cost.receipt_url ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-300">
                               <Receipt className="h-3.5 w-3.5" />
-                              Bon
-                            </a>
+                              Bon gekoppeld
+                            </span>
                           ) : null}
                         </div>
                       </div>

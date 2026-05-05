@@ -44,6 +44,7 @@ export type WorkDescriptionSectionKey = 'voorbereiding' | 'uitvoering' | 'afwerk
 export type WorkDescriptionJob = {
     title: string;
     context: string;
+    afvalAfvoeren?: boolean;
     sections: {
         voorbereiding: string[];
         uitvoering: string[];
@@ -126,6 +127,14 @@ export type QuoteTotals = {
     transportDurationTotaalText: string;
     subtotaalExclBtw: number;
     winstMarge: number;
+    winstProjectie: {
+        omzetExclBtw: number;
+        kostenExclBtw: number;
+        winstExclBtw: number;
+        omzetInclBtw: number;
+        btwBedrag: number;
+        margePercentageOpOmzet: number;
+    };
     totaalExclBtw: number;
     btw: number;
     totaalInclBtw: number;
@@ -143,6 +152,7 @@ type AnyObject = Record<string, any>;
 const EMPTY_WORK_DESCRIPTION_JOB: WorkDescriptionJob = {
     title: '',
     context: '',
+    afvalAfvoeren: false,
     sections: {
         voorbereiding: [],
         uitvoering: [],
@@ -170,6 +180,17 @@ function isObject(v: any): v is AnyObject {
 
 function normalizeWorkDescriptionText(value: unknown): string {
     return typeof value === 'string' ? value.trim() : '';
+}
+
+function hasWasteRemovalText(rows: string[]): boolean {
+    return rows.some((line) => {
+        const normalized = String(line || '').toLowerCase();
+        return (
+            (normalized.includes('afval') && (normalized.includes('afvoer') || normalized.includes('meenem') || normalized.includes('take away')))
+            || normalized.includes('puin afvoer')
+            || normalized.includes('werkplek schoon')
+        );
+    });
 }
 
 function normalizeWorkDescriptionItems(value: unknown): string[] {
@@ -267,6 +288,7 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
             ? value.jobs.map((job) => ({
                 title: normalizeWorkDescriptionText(job?.title),
                 context: normalizeWorkDescriptionText(job?.context),
+                afvalAfvoeren: Boolean(job?.afvalAfvoeren),
                 sections: {
                     voorbereiding: normalizeEditableWorkDescriptionItems(job?.sections?.voorbereiding),
                     uitvoering: normalizeEditableWorkDescriptionItems(job?.sections?.uitvoering),
@@ -311,10 +333,17 @@ function normalizeWorkDescriptionJob(input: unknown): WorkDescriptionJob {
         ?? row.items
     );
     const afwerking = normalizeEditableWorkDescriptionItems(sectionsValue.afwerking ?? row.afwerking);
+    const inferredAfvalAfvoeren = hasWasteRemovalText([
+        ...voorbereiding,
+        ...uitvoering,
+        ...afwerking,
+        ...fallbackRows,
+    ]);
 
     return {
         title: normalizeWorkDescriptionText(row.korteTitel ?? row.korte_titel ?? row.title),
         context: normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving ?? row.context ?? row.samenvatting),
+        afvalAfvoeren: typeof row.afvalAfvoeren === 'boolean' ? row.afvalAfvoeren : inferredAfvalAfvoeren,
         sections: {
             voorbereiding,
             uitvoering: uitvoering.length > 0 ? uitvoering : fallbackRows,
@@ -475,6 +504,11 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
         base.jobs = [{
             title: base.title,
             context: base.context,
+            afvalAfvoeren: hasWasteRemovalText([
+                ...base.sections.voorbereiding,
+                ...base.sections.uitvoering,
+                ...base.sections.afwerking,
+            ]),
             sections: {
                 voorbereiding: [...base.sections.voorbereiding],
                 uitvoering: [...base.sections.uitvoering],
@@ -492,6 +526,7 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
     base.jobs = [{
         title: base.title,
         context: base.context,
+        afvalAfvoeren: hasWasteRemovalText(lines),
         sections: {
             voorbereiding: [...base.sections.voorbereiding],
             uitvoering: [...base.sections.uitvoering],
@@ -1110,6 +1145,12 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
     const btwGrondslag = btwMode === "materiaal_only" ? materiaalSubtotalExclBtw : totaalExclBtw;
     const btwBedrag = roundCurrency((btwTarief / 100) * btwGrondslag);
     const totaalInclBtw = roundCurrency(totaalExclBtw + btwBedrag);
+    const winstProjectieOmzetExclBtw = totaalExclBtw;
+    const winstProjectieKostenExclBtw = subtotaalExclBtw;
+    const winstProjectieWinstExclBtw = roundCurrency(winstProjectieOmzetExclBtw - winstProjectieKostenExclBtw);
+    const winstProjectieMargePct = winstProjectieOmzetExclBtw > 0
+        ? roundCurrency((winstProjectieWinstExclBtw / winstProjectieOmzetExclBtw) * 100)
+        : 0;
 
     return {
         materialenGroot: grootSubtotalExclBtw,
@@ -1129,6 +1170,14 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
         transportDurationTotaalText: formatMinutesShort(totaalReistijdMinutes),
         subtotaalExclBtw: subtotaalExclBtw,
         winstMarge: winstMargeExclBtw,
+        winstProjectie: {
+            omzetExclBtw: winstProjectieOmzetExclBtw,
+            kostenExclBtw: winstProjectieKostenExclBtw,
+            winstExclBtw: winstProjectieWinstExclBtw,
+            omzetInclBtw: totaalInclBtw,
+            btwBedrag,
+            margePercentageOpOmzet: winstProjectieMargePct,
+        },
         totaalExclBtw: totaalExclBtw,
         btw: btwBedrag,
         totaalInclBtw: totaalInclBtw,

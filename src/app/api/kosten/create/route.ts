@@ -7,6 +7,7 @@ import {
   mapProjectCostRow,
   normalizeProjectCostCategory,
   normalizeProjectCostLineItems,
+  normalizeProjectCostReceiptFiles,
   roundEuro,
   sumProjectCostLineItems,
 } from '@/lib/project-costs';
@@ -45,6 +46,20 @@ function safeNumber(value: unknown): number {
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function normalizeCreateInput(body: Record<string, unknown>): Record<string, unknown> {
+  const nestedData = asRecord(body.data);
+  if (!nestedData) return body;
+  return {
+    ...nestedData,
+    ...body,
+  };
 }
 
 function dateOnly(value: unknown): string {
@@ -136,6 +151,14 @@ function isMissingRelationError(message: string): boolean {
 function isProjectCostsSchemaMismatchError(message: string): boolean {
   const lower = message.toLowerCase();
   return lower.includes('project_costs.') && lower.includes('does not exist');
+}
+
+function isMissingColumnError(message: string, table: string, column: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes(`could not find the '${column.toLowerCase()}' column`)
+    || (lower.includes(table.toLowerCase()) && lower.includes(column.toLowerCase()) && lower.includes('does not exist'))
+  );
 }
 
 function getProjectCostsNotNullColumn(message: string): string | null {
@@ -319,7 +342,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Ongeldige payload.' }, { status: 400 });
     }
 
-    const input = body as Record<string, unknown>;
+    const input = normalizeCreateInput(body as Record<string, unknown>);
     const token = extractBearerToken(request.headers.get('authorization'));
     let uid = '';
     if (token) {
@@ -361,6 +384,7 @@ export async function POST(request: Request) {
     const btwPercentage = roundEuro(safeNumber(input.btw_percentage) || 21);
     const date = dateOnly(input.date);
     const receiptUrl = safeString(input.receipt_url) || null;
+    const receiptFiles = normalizeProjectCostReceiptFiles(input.receipt_files, receiptUrl);
     const status = safeString(input.status) || 'confirmed';
 
     const routedLineItems = lineItems.map((item) => {
@@ -424,6 +448,18 @@ export async function POST(request: Request) {
           data = retry.data;
           error = retry.error;
           attempts += 1;
+        }
+
+        if (error && isMissingColumnError(error.message, 'project_costs', 'receipt_files')) {
+          const retryPayloadWithoutReceiptFiles: Record<string, unknown> = { ...retryPayload };
+          delete retryPayloadWithoutReceiptFiles.receipt_files;
+          const retryWithoutReceiptFiles = await supabaseAdmin
+            .from('project_costs')
+            .insert(retryPayloadWithoutReceiptFiles)
+            .select('*')
+            .single();
+          data = retryWithoutReceiptFiles.data;
+          error = retryWithoutReceiptFiles.error;
         }
       }
 
@@ -507,6 +543,7 @@ export async function POST(request: Request) {
         amount_incl_btw: amountIncl,
         date,
         receipt_url: receiptUrl,
+        receipt_files: receiptFiles,
         status,
       };
 

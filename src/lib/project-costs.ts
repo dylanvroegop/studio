@@ -17,6 +17,15 @@ export interface ProjectCostLineItem {
   offerte_id?: string | null;
 }
 
+export interface ProjectCostReceiptFile {
+  url: string;
+  path: string | null;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  uploaded_at: string;
+}
+
 export interface ProjectCostRow {
   id: string;
   user_id: string;
@@ -31,6 +40,7 @@ export interface ProjectCostRow {
   amount_incl_btw: number;
   date: string;
   receipt_url: string | null;
+  receipt_files: ProjectCostReceiptFile[];
   status: string;
   created_at: string;
   updated_at: string;
@@ -92,6 +102,48 @@ export function normalizeProjectCostLineItems(input: unknown): ProjectCostLineIt
   return input
     .map((item) => normalizeProjectCostLineItem(item))
     .filter((item) => item.description || item.total_price > 0 || item.quantity > 0);
+}
+
+function fallbackReceiptFileFromUrl(receiptUrl: string | null): ProjectCostReceiptFile[] {
+  const url = safeString(receiptUrl);
+  if (!url) return [];
+  const filename = url.split('/').pop() || 'bon';
+  return [
+    {
+      url,
+      path: null,
+      filename,
+      content_type: '',
+      size_bytes: 0,
+      uploaded_at: '',
+    },
+  ];
+}
+
+export function normalizeProjectCostReceiptFiles(input: unknown, fallbackUrl?: string | null): ProjectCostReceiptFile[] {
+  if (!Array.isArray(input)) {
+    return fallbackReceiptFileFromUrl(fallbackUrl || null);
+  }
+
+  const files = input
+    .map((raw): ProjectCostReceiptFile | null => {
+      const item = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+      const url = safeString(item.url);
+      if (!url) return null;
+      const filename = safeString(item.filename) || url.split('/').pop() || 'bon';
+      return {
+        url,
+        path: safeString(item.path) || null,
+        filename,
+        content_type: safeString(item.content_type),
+        size_bytes: Math.max(0, Math.round(safeNumber(item.size_bytes))),
+        uploaded_at: safeString(item.uploaded_at),
+      };
+    })
+    .filter((item): item is ProjectCostReceiptFile => Boolean(item));
+
+  if (files.length > 0) return files;
+  return fallbackReceiptFileFromUrl(fallbackUrl || null);
 }
 
 export function sumProjectCostLineItems(items: ProjectCostLineItem[]): number {
@@ -195,6 +247,8 @@ export function mapProjectCostRow(input: unknown): ProjectCostRow {
   const btwPercentage = roundEuro(safeNumber(row.btw_percentage) || 21);
   const btwAmount = roundEuro(safeNumber(row.btw_amount));
   const amountIncl = roundEuro(safeNumber(row.amount_incl_btw));
+  const receiptUrl = safeString(row.receipt_url) || null;
+  const receiptFiles = normalizeProjectCostReceiptFiles(row.receipt_files, receiptUrl);
 
   return {
     id: safeString(row.id),
@@ -209,7 +263,8 @@ export function mapProjectCostRow(input: unknown): ProjectCostRow {
     btw_amount: btwAmount,
     amount_incl_btw: amountIncl,
     date: safeString(row.date),
-    receipt_url: safeString(row.receipt_url) || null,
+    receipt_url: receiptUrl,
+    receipt_files: receiptFiles,
     status: safeString(row.status) || 'confirmed',
     created_at: safeString(row.created_at),
     updated_at: safeString(row.updated_at),

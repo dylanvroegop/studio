@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { differenceInBusinessDays, addBusinessDays } from 'date-fns';
+import { addDays } from 'date-fns';
 import { useUser, useFirestore } from '@/firebase';
 import {
     collection,
@@ -15,7 +15,8 @@ import {
     serverTimestamp,
     Timestamp,
     writeBatch,
-    getDocs
+    getDocs,
+    setDoc
 } from 'firebase/firestore';
 import { PlanningEntry, PlanningEntryType, PlanningStatus } from '@/lib/types-planning';
 
@@ -33,6 +34,34 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
     const [entries, setEntries] = useState<PlanningEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
+
+    const upsertReminderForEntry = useCallback(async (entryId: string, data: {
+        quoteId: string;
+        startDate: Date;
+        planningType?: PlanningEntryType;
+        cache: {
+            clientName: string;
+            projectTitle: string;
+        };
+    }) => {
+        if (!user || !firestore) return;
+        const title = data.planningType === 'werkbespreking'
+            ? 'Werkbespreking reminder'
+            : 'Klus reminder';
+        const body = `${data.cache.projectTitle || 'Klus'} voor ${data.cache.clientName || 'klant'} start binnenkort.`;
+
+        await setDoc(doc(firestore, 'planning_reminders', entryId), {
+            userId: user.uid,
+            planningEntryId: entryId,
+            quoteId: data.quoteId,
+            remindAt: Timestamp.fromDate(data.startDate),
+            title,
+            body,
+            status: 'pending',
+            updatedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+        }, { merge: true });
+    }, [firestore, user]);
 
     useEffect(() => {
         if (!user || !firestore) {
@@ -136,8 +165,17 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         };
 
         const docRef = await addDoc(collection(firestore, 'planning_entries'), entryData);
+        await upsertReminderForEntry(docRef.id, {
+            quoteId: data.quoteId,
+            startDate: data.startDate,
+            planningType: data.planningType,
+            cache: {
+                clientName: data.cache.clientName,
+                projectTitle: data.cache.projectTitle,
+            }
+        });
         return docRef.id;
-    }, [user, firestore]);
+    }, [user, firestore, upsertReminderForEntry]);
 
     const addMultipleEntries = useCallback(async (entries: Array<{
         quoteId: string;
@@ -184,8 +222,17 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         }
 
         await batch.commit();
+        await Promise.all(entries.map((entry, index) => upsertReminderForEntry(ids[index], {
+            quoteId: entry.quoteId,
+            startDate: entry.startDate,
+            planningType: entry.planningType,
+            cache: {
+                clientName: entry.cache.clientName,
+                projectTitle: entry.cache.projectTitle,
+            }
+        })));
         return ids;
-    }, [user, firestore]);
+    }, [user, firestore, upsertReminderForEntry]);
 
     const updateEntry = useCallback(async (
         entryId: string,
@@ -225,13 +272,33 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         if (data.cache !== undefined) updateData.cache = data.cache;
 
         await updateDoc(docRef, updateData);
-    }, [user, firestore]);
+        if (data.startDate !== undefined || data.cache !== undefined || data.planningType !== undefined) {
+            const currentEntry = entries.find((entry) => entry.id === entryId);
+            const effectiveStartDate = data.startDate
+                || (currentEntry?.startDate instanceof Timestamp ? currentEntry.startDate.toDate() : undefined);
+            const effectiveQuoteId = currentEntry?.quoteId;
+            const effectiveCache = data.cache || currentEntry?.cache;
+            const effectiveType = data.planningType || currentEntry?.planningType;
+            if (effectiveStartDate && effectiveQuoteId && effectiveCache) {
+                await upsertReminderForEntry(entryId, {
+                    quoteId: effectiveQuoteId,
+                    startDate: effectiveStartDate,
+                    planningType: effectiveType,
+                    cache: {
+                        clientName: effectiveCache.clientName,
+                        projectTitle: effectiveCache.projectTitle,
+                    }
+                });
+            }
+        }
+    }, [user, firestore, entries, upsertReminderForEntry]);
 
     const deleteEntry = useCallback(async (entryId: string) => {
         if (!user || !firestore) throw new Error('Not authenticated');
 
         const docRef = doc(firestore, 'planning_entries', entryId);
         await deleteDoc(docRef);
+        await deleteDoc(doc(firestore, 'planning_reminders', entryId)).catch(() => null);
     }, [user, firestore]);
 
     const deleteEntriesForQuote = useCallback(async (quoteId: string) => {
@@ -242,12 +309,21 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             where('quoteId', '==', quoteId)
         ));
         const batch = writeBatch(firestore);
-        snapshot.docs.forEach((planningDoc) => batch.delete(planningDoc.ref));
+        snapshot.docs.forEach((planningDoc) => {
+            batch.delete(planningDoc.ref);
+            batch.delete(doc(firestore, 'planning_reminders', planningDoc.id));
+        });
 
         await batch.commit();
     }, [user, firestore]);
 
-    const shiftQuoteEntries = useCallback(async (quoteId: string, referenceDate: Date, newStartDate: Date, newEmployeeId?: string) => {
+    const shiftQuoteEntries = useCallback(async (
+        quoteId: string,
+        referenceDate: Date,
+        newStartDate: Date,
+        newEmployeeId?: string,
+        workDays: number[] = [1, 2, 3, 4, 5]
+    ) => {
         if (!user || !firestore) throw new Error('Not authenticated');
 
         // Helper to normalize dates to start of day for comparison
@@ -259,6 +335,53 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
 
         const oldRef = normalize(referenceDate);
         const newRef = normalize(newStartDate);
+        const normalizedWorkDays = Array.from(new Set(
+            workDays
+                .map(Number)
+                .filter((day) => Number.isFinite(day) && day >= 1 && day <= 7)
+        )).sort((a, b) => a - b);
+        const activeWorkDays = normalizedWorkDays.length > 0 ? normalizedWorkDays : [1, 2, 3, 4, 5];
+
+        const getIsoDay = (date: Date): number => {
+            const jsDay = date.getDay();
+            return jsDay === 0 ? 7 : jsDay;
+        };
+
+        const isConfiguredWorkDay = (date: Date): boolean => activeWorkDays.includes(getIsoDay(date));
+
+        const countWorkDayDistance = (from: Date, to: Date): number => {
+            if (from.getTime() === to.getTime()) return 0;
+
+            let distance = 0;
+            const step = from < to ? 1 : -1;
+            let cursor = new Date(from);
+
+            while (cursor.getTime() !== to.getTime()) {
+                cursor = addDays(cursor, step);
+                if (isConfiguredWorkDay(cursor)) {
+                    distance += step;
+                }
+            }
+
+            return distance;
+        };
+
+        const addConfiguredWorkDays = (base: Date, amount: number): Date => {
+            if (amount === 0) return new Date(base);
+
+            const step = amount > 0 ? 1 : -1;
+            let remaining = Math.abs(amount);
+            let cursor = new Date(base);
+
+            while (remaining > 0) {
+                cursor = addDays(cursor, step);
+                if (isConfiguredWorkDay(cursor)) {
+                    remaining -= 1;
+                }
+            }
+
+            return cursor;
+        };
 
         if (oldRef.getTime() === newRef.getTime() && !newEmployeeId) return;
 
@@ -279,10 +402,11 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             const duration = currentEnd.getTime() - currentStart.getTime();
 
             const entryDate = normalize(currentStart);
-            const dist = differenceInBusinessDays(entryDate, oldRef);
+            const dist = countWorkDayDistance(oldRef, entryDate);
 
-            // Preserve business-day spacing, but allow the dragged day to land on a weekend.
-            let newStart = dist === 0 ? new Date(newRef) : addBusinessDays(newRef, dist);
+            // Preserve configured work-day spacing (e.g. includes Saturday if enabled),
+            // while still allowing the dragged entry itself to land on any day.
+            const newStart = dist === 0 ? new Date(newRef) : addConfiguredWorkDays(newRef, dist);
 
             // Preserve original time-of-day.
             newStart.setHours(currentStart.getHours(), currentStart.getMinutes(), 0, 0);
