@@ -3,6 +3,8 @@ import { createHmac } from 'crypto';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { getGoogleOAuthClient } from '@/lib/integrations/google-calendar';
 
+export const dynamic = 'force-dynamic';
+
 function parseState(state: string): string | null {
   try {
     const decoded = Buffer.from(state, 'base64url').toString('utf8');

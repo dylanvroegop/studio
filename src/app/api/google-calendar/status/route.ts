@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 
+export const dynamic = 'force-dynamic';
+
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
   return authHeader.slice('Bearer '.length).trim();
