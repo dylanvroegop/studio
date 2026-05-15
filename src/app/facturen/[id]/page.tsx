@@ -863,6 +863,37 @@ export default function FactuurDetailPage() {
             <TabsContent value="overzicht" className="space-y-4">
               <Card>
                 <CardHeader>
+                  <CardTitle>Betalingstermijn</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>Dagen</Label>
+                    {isVoorschotInvoice ? (
+                      <Input type="text" value="Direct" disabled readOnly />
+                    ) : (
+                      <Input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={invoicePdfSettings?.paymentTermDays ?? 14}
+                        onChange={(event) =>
+                          setInvoicePdfSettings((prev) => prev
+                            ? ({ ...prev, paymentTermDays: clampPaymentTermDays(Number(event.target.value)) })
+                            : prev)
+                        }
+                      />
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {isVoorschotInvoice
+                      ? 'Voorschotfacturen hebben altijd directe betaling.'
+                      : `Vervaldatum: ${effectiveDueDate.toLocaleDateString('nl-NL')}`}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
                   <CardTitle>Bedragen</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
