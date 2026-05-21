@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
-import { initFirebaseAdmin } from '@/firebase/admin';
-import { getDemoTrialState } from '@/lib/demo-trial';
 
 const PRICING_URL = 'https://calvora.nl/prijzen';
-const TRIAL_DURATION_DAYS = 7;
 
 export function demoTrialExpiredResponse(expiresAt?: Date | null) {
   return NextResponse.json(
@@ -31,83 +28,12 @@ export function subscriptionInactiveResponse(subscriptionStatus?: string | null)
   );
 }
 
-function plusDays(base: Date, days: number): Date {
-  return new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+// Private-use mode: demo/subscription trial enforcement is disabled.
+export async function ensureDemoTrialInitializedByUid(_uid: string): Promise<void> {
+  return;
 }
 
-function datesEqual(left?: Date | null, right?: Date | null): boolean {
-  if (!left && !right) return true;
-  if (!left || !right) return false;
-  return left.getTime() === right.getTime();
-}
-
-export async function ensureDemoTrialInitializedByUid(uid: string): Promise<void> {
-  const { firestore } = initFirebaseAdmin();
-  const businessRef = firestore.collection('businesses').doc(uid);
-  const businessSnap = await businessRef.get();
-  const businessData = businessSnap.exists ? businessSnap.data() : {};
-  const trialState = getDemoTrialState(businessData || {});
-
-  const hasExplicitIsDemo = typeof businessData?.isDemo === 'boolean';
-  const hasExpiresAt = trialState.expiresAt !== null;
-
-  const patch: Record<string, unknown> = {};
-
-  // Paid subscribers should never be initialized as demo.
-  if (trialState.hasPaidAccess) {
-    if (businessData?.isDemo === true) {
-      patch.isDemo = false;
-    }
-  } else {
-    // Default for newly created/manual accounts: start demo automatically.
-    if (!hasExplicitIsDemo && !hasExpiresAt && !trialState.hasSubscriptionRecord) {
-      const now = new Date();
-      patch.isDemo = true;
-      patch.demoStartAt = now;
-      patch.demoExpiresAt = plusDays(now, TRIAL_DURATION_DAYS);
-    }
-
-    // If expiry exists but isDemo missing, assume demo account.
-    if (!hasExplicitIsDemo && hasExpiresAt) {
-      patch.isDemo = true;
-    }
-
-    // If marked as demo but no expiry exists, recover window from start or now.
-    if ((businessData?.isDemo === true || patch.isDemo === true) && !hasExpiresAt) {
-      const startAt = trialState.startAt || new Date();
-      patch.demoStartAt = startAt;
-      patch.demoExpiresAt = plusDays(startAt, TRIAL_DURATION_DAYS);
-    }
-
-    // Enforce the current demo window duration for existing demo accounts.
-    const effectiveIsDemo = businessData?.isDemo === true || patch.isDemo === true;
-    if (effectiveIsDemo && trialState.startAt && trialState.expiresAt) {
-      const expectedExpiresAt = plusDays(trialState.startAt, TRIAL_DURATION_DAYS);
-      if (!datesEqual(trialState.expiresAt, expectedExpiresAt)) {
-        patch.demoExpiresAt = expectedExpiresAt;
-      }
-    }
-  }
-
-  if (Object.keys(patch).length > 0) {
-    await businessRef.set(patch, { merge: true });
-  }
-}
-
-export async function ensureDemoTrialActiveByUid(uid: string): Promise<NextResponse | null> {
-  const { firestore } = initFirebaseAdmin();
-  await ensureDemoTrialInitializedByUid(uid);
-
-  const businessSnap = await firestore.collection('businesses').doc(uid).get();
-  const businessData = businessSnap.exists ? businessSnap.data() : null;
-  const trialState = getDemoTrialState(businessData || {});
-
-  if (trialState.isExpired) {
-    if (trialState.reason === 'subscription_inactive') {
-      return subscriptionInactiveResponse(trialState.subscriptionStatus);
-    }
-    return demoTrialExpiredResponse(trialState.expiresAt);
-  }
-
+// Private-use mode: always allow access.
+export async function ensureDemoTrialActiveByUid(_uid: string): Promise<NextResponse | null> {
   return null;
 }

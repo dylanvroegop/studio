@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { isBusinessProfileComplete } from '@/lib/business-profile-completion';
-import { getDemoTrialState } from '@/lib/demo-trial';
 
 const ONBOARDING_BYPASS_PATH_PREFIXES = ['/instellingen', '/login', '/register', '/view', '/support', '/trial-verlopen', '/admin'];
 const CACHE_KEY = 'calvora.business_profile_gate.v1';
@@ -18,7 +17,6 @@ function isOnboardingBypassPath(pathname: string): boolean {
 interface GateCheckCache {
   uid: string;
   checkedAt: number;
-  isTrialExpired: boolean;
   isProfileComplete: boolean;
 }
 
@@ -68,26 +66,6 @@ export function BusinessProfileGate() {
     let cancelled = false;
     (async () => {
       try {
-        // Ensure demo trial state is initialized even if user has not touched any protected API yet.
-        try {
-          const token = await user.getIdToken();
-          const trialInitResponse = await fetch('/api/onboarding/demo-trial/init', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            cache: 'no-store',
-          });
-          if (trialInitResponse.status === 402) {
-            if (!pathname.startsWith('/trial-verlopen')) {
-              router.replace('/trial-verlopen');
-            }
-            return;
-          }
-        } catch (error) {
-          console.warn('BusinessProfileGate demo init failed:', error);
-        }
-
         const [userSnap, businessSnap] = await Promise.all([
           getDoc(doc(firestore, 'users', user.uid)),
           getDoc(doc(firestore, 'businesses', user.uid)),
@@ -97,12 +75,9 @@ export function BusinessProfileGate() {
 
         const settings = userSnap.exists() ? (userSnap.data()?.settings ?? {}) : {};
         const business = businessSnap.exists() ? businessSnap.data() : {};
-
-        const trialState = getDemoTrialState(business || {});
         const nextCache: GateCheckCache = {
           uid: user.uid,
           checkedAt: Date.now(),
-          isTrialExpired: trialState.isExpired,
           isProfileComplete: isBusinessProfileComplete(settings, business),
         };
         saveGateCache(nextCache);
@@ -124,11 +99,6 @@ export function BusinessProfileGate() {
   useEffect(() => {
     if (!pathname || !cachedState || !user) return;
     if (cachedState.uid !== user.uid) return;
-
-    if (cachedState.isTrialExpired && !pathname.startsWith('/trial-verlopen')) {
-      router.replace('/trial-verlopen');
-      return;
-    }
 
     if (!cachedState.isProfileComplete && !isOnboardingBypassPath(pathname)) {
       router.replace('/instellingen?onboarding=1');
