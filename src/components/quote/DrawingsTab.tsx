@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { prepareDrawingImageForPdf } from '@/lib/pdf-drawing-image';
 
 interface DrawingsTabProps {
     quote: Quote;
@@ -206,8 +207,9 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
             let exportedCount = 0;
 
             for (const entry of snapshotEntries) {
-                const imageData = await convertUrlToBase64(entry.url);
-                if (!imageData) continue;
+                const rawImageData = await convertUrlToBase64(entry.url);
+                if (!rawImageData) continue;
+                const imageData = await prepareDrawingImageForPdf(rawImageData);
 
                 if (exportedCount > 0) {
                     doc.addPage();

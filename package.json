@@ -17,7 +17,8 @@
     "test:winst": "ts-node --transpile-only --compiler-options '{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' src/scripts/run-winst-metrics-tests.ts",
     "materials:convert": "python3 scripts/convert_easy_scraper_materials.py",
     "set-dev-claim": "ts-node --transpile-only src/scripts/set-dev-claim.ts",
-    "set-admin-claim": "ts-node --transpile-only src/scripts/set-admin-claim.ts"
+    "set-admin-claim": "ts-node --transpile-only src/scripts/set-admin-claim.ts",
+    "autoclick": "swift scripts/autoclicker.swift"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "1.2.3",

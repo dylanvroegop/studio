@@ -10,6 +10,8 @@ import {
     sanitizeQuotePdfTextSettings,
     type QuotePdfTextSettings,
 } from './quote-pdf-text-settings';
+import type { MaterialPresentation } from './types';
+import { sanitizeMaterialPresentations } from './material-presentations';
 
 export interface PDFQuoteData {
     offerteNummer: string;
@@ -78,6 +80,7 @@ export interface PDFQuoteData {
     };
     settings: QuotePDFSettings;
     drawingImages?: string[];
+    materialPresentations?: MaterialPresentation[];
     onderVoorbehoud?: boolean;
     tekstInstellingen?: QuotePdfTextSettings;
     algemeneVoorwaardenTekst?: string;
@@ -820,6 +823,192 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         }
     }
 
+    const materialPresentations = sanitizeMaterialPresentations(data.materialPresentations, '')
+        .filter((item) => item.showInQuote)
+        .filter((item) =>
+            item.title
+            || item.application
+            || item.clientDescription
+            || item.whyChosen
+            || item.keyProperties.length > 0
+            || item.visibleSpecifications.length > 0
+            || (item.showProductImage && item.productImageUrl)
+        );
+
+    if (materialPresentations.length > 0) {
+        doc.addPage();
+        y = margin;
+
+        drawSectionPageHeader('KWALITEITSGARANTIE & TOEGEPASTE MATERIALEN');
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(70, 70, 70);
+        const introLines = doc.splitTextToSize(
+            'In deze offerte zijn de belangrijkste zichtbare en kwaliteitsbepalende materialen opgenomen. Dit geeft inzicht in de gekozen materiaalrichting, afwerking en kwaliteit, zonder onnodige technische of leveranciersspecifieke details.',
+            pageWidth - (margin * 2),
+        );
+        doc.text(introLines, margin, y);
+        y += introLines.length * 4.5 + 8;
+
+        const imageCache = new Map<string, string | null>();
+        const getPresentationImage = async (url: string): Promise<string | null> => {
+            if (!url) return null;
+            if (imageCache.has(url)) return imageCache.get(url) || null;
+            try {
+                const base64 = await urlToBase64(url);
+                imageCache.set(url, base64);
+                return base64;
+            } catch (error) {
+                console.error('Error loading material presentation image:', error);
+                imageCache.set(url, null);
+                return null;
+            }
+        };
+
+        for (const item of materialPresentations) {
+            const imageData = item.showProductImage && item.productImageUrl
+                ? await getPresentationImage(item.productImageUrl)
+                : null;
+            const hasSpecs = item.showTechnicalDetails && item.visibleSpecifications.length > 0;
+            const hasProperties = item.keyProperties.length > 0;
+            const cardTop = y;
+            const cardWidth = pageWidth - (margin * 2);
+            const imageWidth = imageData ? 42 : 0;
+            const textWidth = cardWidth - 10 - (imageData ? imageWidth + 8 : 0);
+
+            const titleLines = doc.splitTextToSize(item.title || 'Toegepast materiaal', textWidth);
+            const applicationLines = item.application ? doc.splitTextToSize(item.application, textWidth) : [];
+            const descriptionLines = item.clientDescription ? doc.splitTextToSize(item.clientDescription, textWidth) : [];
+            const whyLines = item.whyChosen ? doc.splitTextToSize(item.whyChosen, textWidth) : [];
+            const specHeight = hasSpecs ? 7 + (item.visibleSpecifications.length * 6) : 0;
+            const propertiesHeight = hasProperties ? 6 + (item.keyProperties.length * 4.6) : 0;
+            const alternativeHeight = item.allowEquivalentAlternative ? 10 : 0;
+            const textHeight =
+                8
+                + titleLines.length * 5.2
+                + (applicationLines.length ? applicationLines.length * 4.2 + 3 : 0)
+                + (descriptionLines.length ? descriptionLines.length * 4.4 + 5 : 0)
+                + (whyLines.length ? whyLines.length * 4.4 + 7 : 0)
+                + propertiesHeight
+                + specHeight
+                + alternativeHeight
+                + 7;
+            const cardHeight = Math.max(textHeight, imageData ? 44 : 0);
+
+            checkPageBreak(cardHeight + 8);
+            const actualCardTop = y;
+            doc.setDrawColor(220, 225, 230);
+            doc.setFillColor(250, 250, 249);
+            doc.roundedRect(margin, actualCardTop, cardWidth, cardHeight, 2.5, 2.5, 'FD');
+
+            let textY = actualCardTop + 7;
+            const textX = margin + 5;
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.setTextColor(30, 30, 30);
+            doc.text(titleLines, textX, textY);
+            textY += titleLines.length * 5.2;
+
+            if (applicationLines.length > 0) {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8.5);
+                doc.setTextColor(90, 90, 90);
+                doc.text(applicationLines, textX, textY);
+                textY += applicationLines.length * 4.2 + 3;
+            }
+
+            if (imageData) {
+                try {
+                    doc.addImage(
+                        imageData,
+                        getImageFormatFromDataUrl(imageData),
+                        margin + cardWidth - imageWidth - 5,
+                        actualCardTop + 6,
+                        imageWidth,
+                        32,
+                    );
+                } catch (error) {
+                    console.error('Error adding material presentation image:', error);
+                }
+            }
+
+            if (descriptionLines.length > 0) {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8.8);
+                doc.setTextColor(55, 55, 55);
+                doc.text(descriptionLines, textX, textY);
+                textY += descriptionLines.length * 4.4 + 5;
+            }
+
+            if (whyLines.length > 0) {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8.8);
+                doc.setTextColor(45, 45, 45);
+                doc.text('Waarom gekozen?', textX, textY);
+                textY += 4.7;
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(55, 55, 55);
+                doc.text(whyLines, textX, textY);
+                textY += whyLines.length * 4.4 + 4;
+            }
+
+            if (hasProperties) {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8.8);
+                doc.setTextColor(45, 45, 45);
+                doc.text('Belangrijke eigenschappen', textX, textY);
+                textY += 5;
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(60, 60, 60);
+                item.keyProperties.forEach((property) => {
+                    doc.text('•', textX, textY);
+                    doc.text(doc.splitTextToSize(property, textWidth - 5), textX + 4, textY);
+                    textY += 4.6;
+                });
+                textY += 2;
+            }
+
+            if (hasSpecs) {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8.8);
+                doc.setTextColor(45, 45, 45);
+                doc.text('Zichtbare specificaties', textX, textY);
+                textY += 5;
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8);
+                item.visibleSpecifications.forEach((spec, specIndex) => {
+                    const rowY = textY - 3;
+                    doc.setFillColor(specIndex % 2 === 0 ? 244 : 250, specIndex % 2 === 0 ? 246 : 250, specIndex % 2 === 0 ? 248 : 250);
+                    doc.rect(textX, rowY, textWidth, 5.4, 'F');
+                    doc.setTextColor(85, 85, 85);
+                    doc.text(spec.label, textX + 2, textY + 0.8);
+                    doc.setTextColor(45, 45, 45);
+                    doc.text(doc.splitTextToSize(spec.value, textWidth * 0.48), textX + (textWidth * 0.45), textY + 0.8);
+                    textY += 6;
+                });
+                textY += 2;
+            }
+
+            if (item.allowEquivalentAlternative) {
+                doc.setFont('helvetica', 'italic');
+                doc.setFontSize(7.8);
+                doc.setTextColor(100, 100, 100);
+                const noteLines = doc.splitTextToSize(
+                    'Indien een materiaal tijdelijk niet leverbaar is, wordt uitsluitend een gelijkwaardig of beter alternatief toegepast na overleg met opdrachtgever.',
+                    textWidth,
+                );
+                doc.text(noteLines, textX, textY);
+            }
+
+            y = actualCardTop + cardHeight + 6;
+            if (cardTop !== actualCardTop) {
+                y = actualCardTop + cardHeight + 6;
+            }
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // PAGE 3: MATERIALS (if enabled)
     // ═══════════════════════════════════════════════════════════════
@@ -1238,6 +1427,9 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                 }
 
                 doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
+                doc.setDrawColor(226, 232, 240);
+                doc.setLineWidth(0.25);
+                doc.rect(margin, y, imgWidth, imgHeight);
             } catch (err) {
                 console.error("Error adding image to PDF:", err);
                 doc.setFontSize(10);

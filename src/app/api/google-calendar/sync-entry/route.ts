@@ -93,9 +93,16 @@ export async function POST(request: Request) {
     }
 
     const isWerkbespreking = body.planningType === 'werkbespreking';
-    const titlePrefix = isWerkbespreking ? 'Werkbespreking' : 'Klus';
     const primaryLabel = body.cache?.clientName || body.cache?.projectTitle || 'Planning';
-    const title = `${titlePrefix}: ${primaryLabel}`;
+    const startDate = new Date(body.startDate);
+    const timeLabel = startDate.toLocaleTimeString('nl-NL', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const title = isWerkbespreking
+      ? `${timeLabel} Werkbespreking`
+      : primaryLabel;
     const description = [
       body.cache?.clientName ? `Klant: ${body.cache.clientName}` : '',
       body.cache?.projectAddress ? `Adres: ${body.cache.projectAddress}` : '',
@@ -111,7 +118,12 @@ export async function POST(request: Request) {
       end: { dateTime: body.endDate },
       reminders: {
         useDefault: false,
-        overrides: [{ method: 'popup', minutes: 30 }],
+        overrides: isWerkbespreking
+          ? [
+              { method: 'popup', minutes: 24 * 60 },
+              { method: 'popup', minutes: 60 },
+            ]
+          : [{ method: 'popup', minutes: 24 * 60 }],
       },
     };
 

@@ -52,6 +52,7 @@ import { SendQuoteModal, type QuoteAttachmentOptions } from '@/components/quote/
 import { SendQuoteWhatsAppModal } from '@/components/quote/SendQuoteWhatsAppModal';
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialListExportDialog } from '@/components/quote/MaterialListExportDialog';
+import { MaterialPresentationTab } from '@/components/quote/MaterialPresentationTab';
 import { WorkDescriptionWorkspace } from '@/components/quote/work-description/WorkDescriptionWorkspace';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
@@ -70,11 +71,16 @@ import {
 } from '@/lib/quote-pdf-text-settings';
 import { cloneTemplateSections, findWorkDescriptionTemplate } from '@/lib/work-description/templates';
 
-import { Quote, ReceiptAttachment, QuotePhotoAttachment } from "@/lib/types";
+import { Quote, ReceiptAttachment, QuotePhotoAttachment, type MaterialPresentation } from "@/lib/types";
 import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
 import type { LeverancierContact } from '@/lib/types-settings';
 import { normalizeLeverancierContactList, pickDefaultLeverancierId } from '@/lib/types-settings';
 import { buildReceiptDownloadFileName } from '@/lib/receipt-file-naming';
+import {
+    createMaterialPresentation,
+    sanitizeMaterialPresentations,
+    redactMaterialPresentationPayload,
+} from '@/lib/material-presentations';
 
 interface GrootCompareQuoteColumn {
     quoteId: string;
@@ -582,6 +588,8 @@ export default function QuotePage() {
     const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
     const [photoActionId, setPhotoActionId] = useState<string | null>(null);
     const [selectedPhoto, setSelectedPhoto] = useState<QuotePhotoAttachment | null>(null);
+    const [materialPresentationUploadKey, setMaterialPresentationUploadKey] = useState<string | null>(null);
+    const [analyzingMaterialPresentationId, setAnalyzingMaterialPresentationId] = useState<string | null>(null);
     const hasEditedPdfTextSettingsRef = useRef(false);
     const facturatieSyncInitializedRef = useRef(false);
     const facturatieHydratingRef = useRef(false);
@@ -2908,6 +2916,7 @@ export default function QuotePage() {
             },
             settings: pdfSettings,
             drawingImages: capturedDrawings, // Include captured drawings for preview
+            materialPresentations,
             onderVoorbehoud,
             tekstInstellingen: pdfTextSettings,
             algemeneVoorwaardenTekst,
@@ -2957,6 +2966,208 @@ export default function QuotePage() {
         if (!Array.isArray(raw)) return [];
         return raw as QuotePhotoAttachment[];
     }, [quote]);
+
+    const materialPresentations = useMemo<MaterialPresentation[]>(() => {
+        return sanitizeMaterialPresentations((quote as any)?.materialPresentations, id);
+    }, [quote, id]);
+
+    const saveMaterialPresentations = useCallback(async (nextItems: MaterialPresentation[]): Promise<void> => {
+        if (!firestore || !id) return;
+        const normalizedItems = sanitizeMaterialPresentations(nextItems, id).map((item, index) => ({
+            ...item,
+            sortOrder: index,
+            updatedAt: new Date().toISOString(),
+        }));
+        const quoteRef = doc(firestore, 'quotes', id);
+        await updateDoc(quoteRef, {
+            materialPresentations: normalizedItems,
+            updatedAt: serverTimestamp(),
+        } as any);
+        setQuote((prev) => (prev ? ({ ...prev, materialPresentations: normalizedItems } as Quote) : prev));
+    }, [firestore, id]);
+
+    const handleAddMaterialPresentation = useCallback(() => {
+        const nextItems = [
+            ...materialPresentations,
+            createMaterialPresentation(id, materialPresentations.length),
+        ];
+        void saveMaterialPresentations(nextItems);
+    }, [id, materialPresentations, saveMaterialPresentations]);
+
+    const handleChangeMaterialPresentation = useCallback((itemId: string, patch: Partial<MaterialPresentation>) => {
+        const nextItems = materialPresentations.map((item) => (
+            item.id === itemId
+                ? { ...item, ...patch, updatedAt: new Date().toISOString() }
+                : item
+        ));
+        void saveMaterialPresentations(nextItems);
+    }, [materialPresentations, saveMaterialPresentations]);
+
+    const handleMoveMaterialPresentation = useCallback((itemId: string, direction: 'up' | 'down') => {
+        const currentIndex = materialPresentations.findIndex((item) => item.id === itemId);
+        if (currentIndex < 0) return;
+        const nextIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+        if (nextIndex < 0 || nextIndex >= materialPresentations.length) return;
+        const nextItems = [...materialPresentations];
+        const [moved] = nextItems.splice(currentIndex, 1);
+        nextItems.splice(nextIndex, 0, moved);
+        void saveMaterialPresentations(nextItems);
+    }, [materialPresentations, saveMaterialPresentations]);
+
+    const handleDeleteMaterialPresentation = useCallback((itemId: string) => {
+        const target = materialPresentations.find((item) => item.id === itemId);
+        const nextItems = materialPresentations.filter((item) => item.id !== itemId);
+        void saveMaterialPresentations(nextItems);
+
+        if (target?.productImageStoragePath || target?.specsImageStoragePath) {
+            const storage = getStorage();
+            [target.productImageStoragePath, target.specsImageStoragePath]
+                .filter(Boolean)
+                .forEach((path) => {
+                    void deleteObject(storageRef(storage, path as string)).catch((error) => {
+                        console.error('Error deleting material presentation image:', error);
+                    });
+                });
+        }
+    }, [materialPresentations, saveMaterialPresentations]);
+
+    const handleUploadMaterialPresentationImage = useCallback(async (
+        itemId: string,
+        field: 'product' | 'specs',
+        file: File,
+    ): Promise<void> => {
+        if (!user || !firestore || !id || !quote) return;
+
+        if (!isAllowedPhotoMimeType(file.type)) {
+            toast({
+                variant: 'destructive',
+                title: 'Ongeldig bestandstype',
+                description: 'Upload een afbeelding (JPG, PNG, WEBP of HEIC).',
+            });
+            return;
+        }
+
+        const maxBytes = 15 * 1024 * 1024;
+        if (file.size > maxBytes) {
+            toast({
+                variant: 'destructive',
+                title: 'Bestand te groot',
+                description: 'Maximale bestandsgrootte is 15 MB.',
+            });
+            return;
+        }
+
+        const uploadKey = `${itemId}:${field}`;
+        setMaterialPresentationUploadKey(uploadKey);
+        try {
+            const storage = getStorage();
+            const extension = String(file.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+            const storagePath = `users/${user.uid}/quotes/${id}/material-presentations/${itemId}/${field}.${extension}`;
+            const fileRef = storageRef(storage, storagePath);
+            await uploadBytes(fileRef, file, { contentType: file.type || 'image/jpeg' });
+            const downloadUrl = await getDownloadURL(fileRef);
+
+            const target = materialPresentations.find((item) => item.id === itemId);
+            const oldPath = field === 'product' ? target?.productImageStoragePath : target?.specsImageStoragePath;
+            const patch = field === 'product'
+                ? { productImageUrl: downloadUrl, productImageStoragePath: storagePath }
+                : { specsImageUrl: downloadUrl, specsImageStoragePath: storagePath };
+
+            await saveMaterialPresentations(materialPresentations.map((item) => (
+                item.id === itemId
+                    ? { ...item, ...patch, updatedAt: new Date().toISOString() }
+                    : item
+            )));
+
+            if (oldPath && oldPath !== storagePath) {
+                void deleteObject(storageRef(storage, oldPath)).catch((error) => {
+                    console.error('Error deleting replaced material presentation image:', error);
+                });
+            }
+
+            toast({
+                title: field === 'product' ? 'Productafbeelding opgeslagen' : 'Specificatiebeeld opgeslagen',
+                description: file.name,
+            });
+        } catch (error) {
+            console.error('Error uploading material presentation image:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Upload mislukt',
+                description: 'Kon afbeelding niet uploaden. Probeer het opnieuw.',
+            });
+        } finally {
+            setMaterialPresentationUploadKey(null);
+        }
+    }, [user, firestore, id, quote, materialPresentations, saveMaterialPresentations, toast]);
+
+    const handleAnalyzeMaterialPresentation = useCallback(async (itemId: string): Promise<void> => {
+        if (!user) return;
+        const target = materialPresentations.find((item) => item.id === itemId);
+        if (!target || (!target.productImageUrl && !target.specsImageUrl)) {
+            toast({
+                variant: 'destructive',
+                title: 'Geen afbeelding',
+                description: 'Upload eerst een product- of specificatieafbeelding.',
+            });
+            return;
+        }
+
+        setAnalyzingMaterialPresentationId(itemId);
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/material-presentations/analyze', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    productImageUrl: target.productImageUrl,
+                    specsImageUrl: target.specsImageUrl,
+                }),
+            });
+            const payload = await response.json().catch(() => null) as {
+                ok?: boolean;
+                message?: string;
+                presentation?: Partial<MaterialPresentation>;
+            } | null;
+            if (!response.ok || !payload?.ok || !payload.presentation) {
+                throw new Error(payload?.message || 'AI analyse mislukt.');
+            }
+
+            const sanitized = redactMaterialPresentationPayload(payload.presentation);
+            const nextItems = materialPresentations.map((item) => {
+                if (item.id !== itemId) return item;
+                return {
+                    ...item,
+                    title: sanitized.title || item.title,
+                    application: sanitized.application || item.application,
+                    clientDescription: sanitized.clientDescription || item.clientDescription,
+                    whyChosen: sanitized.whyChosen || item.whyChosen,
+                    keyProperties: sanitized.keyProperties.length > 0 ? sanitized.keyProperties : item.keyProperties,
+                    visibleSpecifications: sanitized.visibleSpecifications.length > 0
+                        ? sanitized.visibleSpecifications
+                        : item.visibleSpecifications,
+                    updatedAt: new Date().toISOString(),
+                };
+            });
+            await saveMaterialPresentations(nextItems);
+            toast({
+                title: 'AI analyse afgerond',
+                description: 'De materiaaltekst is ingevuld en blijft handmatig aanpasbaar.',
+            });
+        } catch (error) {
+            console.error('Error analyzing material presentation:', error);
+            toast({
+                variant: 'destructive',
+                title: 'AI analyse mislukt',
+                description: error instanceof Error ? error.message : 'Probeer het opnieuw.',
+            });
+        } finally {
+            setAnalyzingMaterialPresentationId(null);
+        }
+    }, [user, materialPresentations, saveMaterialPresentations, toast]);
 
     const handleUploadReceipt = async (file: File): Promise<void> => {
         if (!user || !firestore || !id || !quote) return;
@@ -3785,6 +3996,7 @@ export default function QuotePage() {
                 margeBasis: quoteSettings?.extras?.winstMarge?.basis || 'totaal',
             },
             settings: pdfSettings,
+            materialPresentations,
             onderVoorbehoud,
             tekstInstellingen: pdfTextSettings,
             algemeneVoorwaardenTekst,
@@ -5142,6 +5354,14 @@ export default function QuotePage() {
                                         <Camera size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
+                                        value="materiaalpresentatie"
+                                        className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
+                                        aria-label="Materiaalpresentatie"
+                                        title="Materiaalpresentatie"
+                                    >
+                                        <Sparkles size={16} />
+                                    </TabsTrigger>
+                                    <TabsTrigger
                                         value="notities"
                                         className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
                                         aria-label="Notities"
@@ -5198,6 +5418,10 @@ export default function QuotePage() {
                                 <TabsTrigger value="fotos" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <ImageIcon size={16} />
                                     Foto&apos;s
+                                </TabsTrigger>
+                                <TabsTrigger value="materiaalpresentatie" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <Sparkles size={16} />
+                                    Materiaalpresentatie
                                 </TabsTrigger>
                                 <TabsTrigger
                                     value="werkbeschrijving"
@@ -6504,6 +6728,24 @@ export default function QuotePage() {
                                         </div>
                                     )}
                                 </div>
+                            )}
+                        </TabsContent>
+
+                        <TabsContent value="materiaalpresentatie" className="mt-6">
+                            {loading ? (
+                                <LoadingPanel />
+                            ) : (
+                                <MaterialPresentationTab
+                                    items={materialPresentations}
+                                    onAdd={handleAddMaterialPresentation}
+                                    onChange={handleChangeMaterialPresentation}
+                                    onDelete={handleDeleteMaterialPresentation}
+                                    onMove={handleMoveMaterialPresentation}
+                                    onUploadImage={handleUploadMaterialPresentationImage}
+                                    onAnalyze={handleAnalyzeMaterialPresentation}
+                                    uploadingKey={materialPresentationUploadKey}
+                                    analyzingId={analyzingMaterialPresentationId}
+                                />
                             )}
                         </TabsContent>
 

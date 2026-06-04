@@ -98,6 +98,7 @@ export type Quote = {
 
   bonnetjes?: ReceiptAttachment[];
   fotos?: QuotePhotoAttachment[];
+  materialPresentations?: MaterialPresentation[];
 };
 
 export interface ReceiptAttachment {
@@ -122,6 +123,33 @@ export interface QuotePhotoAttachment {
   downloadUrl: string;
   createdAt: Timestamp | Date | string;
   uploadedBy: string;
+}
+
+export interface MaterialPresentationVisibleSpecification {
+  label: string;
+  value: string;
+}
+
+export interface MaterialPresentation {
+  id: string;
+  quoteId: string;
+  title: string;
+  application: string;
+  productImageUrl: string;
+  productImageStoragePath?: string;
+  specsImageUrl: string;
+  specsImageStoragePath?: string;
+  clientDescription: string;
+  whyChosen: string;
+  keyProperties: string[];
+  visibleSpecifications: MaterialPresentationVisibleSpecification[];
+  showInQuote: boolean;
+  showProductImage: boolean;
+  showTechnicalDetails: boolean;
+  allowEquivalentAlternative: boolean;
+  sortOrder: number;
+  createdAt: Timestamp | Date | string;
+  updatedAt: Timestamp | Date | string;
 }
 
 export type QuoteSettings = {

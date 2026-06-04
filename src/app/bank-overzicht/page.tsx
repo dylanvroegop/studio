@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { exportSpendingAnalysisPdf, type SpendingAnalysisReport } from '@/lib/export-spending-analysis-pdf';
 import type { BankAccountView, BankConnectionView, BankOverviewSummary, BankTransactionView } from '@/lib/bank-overzicht';
 
 type ApiSyncResponse = {
@@ -19,6 +20,24 @@ type ApiSyncResponse = {
   newCount?: number;
   accountsSynced?: number;
   error?: string;
+};
+
+type ClarificationAnswer = {
+  transactionId: string;
+  answer: string;
+};
+
+type SpendingAnalysisResponse = {
+  ok: boolean;
+  message?: string;
+  analysis?: SpendingAnalysisReport & {
+    unclearTransactions?: Array<{
+      transactionId: string;
+      question: string;
+      guessedCategory: string;
+      guessedType: 'business' | 'personal' | 'mixed';
+    }>;
+  };
 };
 
 const PAGE_SIZE = 10;
@@ -64,6 +83,17 @@ export default function BankOverzichtPage() {
   const [transactions, setTransactions] = useState<BankTransactionView[]>([]);
   const [activeTabId, setActiveTabId] = useState<string>(OVERVIEW_TAB_ID);
   const [currentPage, setCurrentPage] = useState(1);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisReport, setAnalysisReport] = useState<(SpendingAnalysisReport & {
+    unclearTransactions?: Array<{
+      transactionId: string;
+      question: string;
+      guessedCategory: string;
+      guessedType: 'business' | 'personal' | 'mixed';
+    }>;
+  }) | null>(null);
+  const [clarificationDraft, setClarificationDraft] = useState<Record<string, string>>({});
 
   const hasSyncedOnMount = useRef(false);
 
@@ -160,6 +190,54 @@ export default function BankOverzichtPage() {
   const totalPages = Math.max(1, Math.ceil(accountTransactions.length / PAGE_SIZE));
 
   const totalBalance = accounts.reduce((sum, a) => sum + (a.latestBalanceAmount ?? 0), 0);
+  const runSpendingAnalysis = useCallback(async (answers: ClarificationAnswer[] = []) => {
+    if (!user) return;
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/bank/spending-analysis', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ period: 'this_month', profile: 'personal', answers }),
+      });
+      const data = (await response.json().catch(() => null)) as SpendingAnalysisResponse | null;
+      if (!response.ok || !data?.ok || !data.analysis) {
+        throw new Error(data?.message || 'Analyse kon niet worden uitgevoerd.');
+      }
+      setAnalysisReport(data.analysis);
+      const nextDraft: Record<string, string> = {};
+      (data.analysis.unclearTransactions || []).forEach((item) => {
+        nextDraft[item.transactionId] = '';
+      });
+      setClarificationDraft(nextDraft);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Analyse kon niet worden uitgevoerd.';
+      setAnalysisError(message);
+      toast({ title: 'Analyse mislukt', description: message, variant: 'destructive' });
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }, [toast, user]);
+
+  const handleClarificationSubmit = useCallback(async () => {
+    const answers: ClarificationAnswer[] = Object.entries(clarificationDraft)
+      .map(([transactionId, answer]) => ({ transactionId, answer: answer.trim() }))
+      .filter((item) => item.answer.length > 0);
+    if (answers.length === 0) {
+      setAnalysisError('Vul minimaal 1 antwoord in voor een onzekere transactie.');
+      return;
+    }
+    await runSpendingAnalysis(answers);
+  }, [clarificationDraft, runSpendingAnalysis]);
+
+  const handleDownloadSpendingPdf = useCallback(async () => {
+    if (!analysisReport) return;
+    await exportSpendingAnalysisPdf(`Uitgavenanalyse-${new Date().toISOString().slice(0, 10)}.pdf`, analysisReport);
+  }, [analysisReport]);
 
   if (isUserLoading || loading) {
     return (
@@ -226,6 +304,10 @@ export default function BankOverzichtPage() {
                         {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                         {syncing ? 'Synchroniseren...' : 'Synchroniseer nu'}
                       </Button>
+                      <Button type="button" variant="outline" className="gap-2" onClick={() => void runSpendingAnalysis()} disabled={analysisLoading}>
+                        {analysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        {analysisLoading ? 'Analyse draait...' : 'AI analyse op uitgaven (alle rekeningen)'}
+                      </Button>
                     </div>
                   </div>
 
@@ -260,7 +342,95 @@ export default function BankOverzichtPage() {
                   {infoMessage && (
                     <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{infoMessage}</div>
                   )}
+                  {analysisError && (
+                    <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">{analysisError}</div>
+                  )}
                 </CardHeader>
+                {analysisReport && (
+                  <CardContent className="space-y-4 pt-0">
+                    <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-base font-semibold">Uitgavenanalyse</h3>
+                        <Button type="button" variant="secondary" onClick={() => void handleDownloadSpendingPdf()}>
+                          Open/download PDF
+                        </Button>
+                      </div>
+                      <div className="mt-3 text-sm text-muted-foreground">{analysisReport.periodSummary.shortConclusion}</div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-3">
+                        <div className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm">
+                          <div className="text-xs text-muted-foreground">Totale uitgaven</div>
+                          <div className="mt-1 text-lg font-semibold text-rose-300">{formatCurrency(analysisReport.periodSummary.totalOutgoing)}</div>
+                        </div>
+                        <div className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm">
+                          <div className="text-xs text-muted-foreground">Business</div>
+                          <div className="mt-1 text-lg font-semibold text-emerald-300">{formatCurrency(analysisReport.businessPersonalSummary.businessAmount)}</div>
+                        </div>
+                        <div className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm">
+                          <div className="text-xs text-muted-foreground">Personal</div>
+                          <div className="mt-1 text-lg font-semibold text-amber-300">{formatCurrency(analysisReport.businessPersonalSummary.personalAmount)}</div>
+                        </div>
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        {analysisReport.categoryBreakdown.slice(0, 8).map((item) => (
+                          <div key={item.category} className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="font-medium">{item.category}</div>
+                              <div className="text-rose-300">{formatCurrency(item.totalAmount)}</div>
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">{item.explanation}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {(analysisReport.unclearTransactions || []).length > 0 && (
+                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                        <h4 className="text-sm font-semibold">Nog onduidelijk: beantwoord deze vragen</h4>
+                        <div className="mt-3 space-y-3">
+                          {(analysisReport.unclearTransactions || []).map((item) => (
+                            <div key={item.transactionId} className="rounded-lg border border-border/60 bg-background/40 p-3">
+                              <div className="text-sm">{item.question}</div>
+                              <input
+                                value={clarificationDraft[item.transactionId] || ''}
+                                onChange={(event) => {
+                                  const next = event.target.value;
+                                  setClarificationDraft((prev) => ({ ...prev, [item.transactionId]: next }));
+                                }}
+                                placeholder="Typ hier je uitleg over deze transactie..."
+                                className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3">
+                          <Button type="button" onClick={() => void handleClarificationSubmit()} disabled={analysisLoading} className="gap-2">
+                            {analysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                            Heranalyseer met mijn antwoorden
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                        <div className="text-sm font-semibold">Wat was waarschijnlijk nodig?</div>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                          {analysisReport.neededVsAvoidable.likelyNeeded.map((item, index) => (
+                            <li key={`${index}-${item}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="rounded-xl border border-border/70 bg-card/55 p-4">
+                        <div className="text-sm font-semibold">Wat had je mogelijk niet hoeven uitgeven?</div>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                          {analysisReport.neededVsAvoidable.possiblyAvoidable.map((item, index) => (
+                            <li key={`${index}-${item}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                )}
               </Card>
             </TabsContent>
 

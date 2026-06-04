@@ -427,8 +427,36 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         const snapshot = await getDocs(q);
         const batch = writeBatch(firestore);
 
+        const syncPayloads: Array<{
+            action: 'upsert';
+            entryId: string;
+            googleCalendarEventId?: string | null;
+            quoteId: string;
+            planningType?: PlanningEntryType;
+            startDate: Date;
+            endDate: Date;
+            notes?: string;
+            cache?: {
+                clientName: string;
+                projectTitle: string;
+                projectAddress: string;
+            };
+        }> = [];
+
         snapshot.docs.forEach((doc) => {
-            const data = doc.data();
+            const data = doc.data() as {
+                quoteId: string;
+                planningType?: PlanningEntryType;
+                notes?: string;
+                googleCalendarEventId?: string | null;
+                cache?: {
+                    clientName: string;
+                    projectTitle: string;
+                    projectAddress: string;
+                };
+                startDate: Timestamp;
+                endDate: Timestamp;
+            };
             const currentStart = data.startDate.toDate();
             const currentEnd = data.endDate.toDate(); // Keep duration
             const duration = currentEnd.getTime() - currentStart.getTime();
@@ -457,10 +485,23 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             }
 
             batch.update(doc.ref, update);
+
+            syncPayloads.push({
+                action: 'upsert',
+                entryId: doc.id,
+                googleCalendarEventId: data.googleCalendarEventId || null,
+                quoteId: data.quoteId,
+                planningType: data.planningType,
+                startDate: newStart,
+                endDate: newEnd,
+                notes: data.notes,
+                cache: data.cache,
+            });
         });
 
         await batch.commit();
-    }, [user, firestore]);
+        await Promise.all(syncPayloads.map((payload) => syncEntryToGoogleCalendar(payload)));
+    }, [user, firestore, syncEntryToGoogleCalendar]);
 
     return {
         entries,

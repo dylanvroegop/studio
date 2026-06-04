@@ -48,6 +48,83 @@ function isMissingColumnError(message: string, table: string, column: string): b
   );
 }
 
+function isImageReceiptFile(file: { url?: string; filename?: string; content_type?: string }): boolean {
+  const contentType = safeString(file.content_type).toLowerCase();
+  if (contentType.startsWith('image/')) return true;
+
+  const filename = safeString(file.filename).toLowerCase();
+  return /\.(png|jpe?g|webp|heic|heif|gif|bmp|tiff?)$/i.test(filename);
+}
+
+async function syncCostReceiptImagesToQuoteBonnetjes(params: {
+  uid: string;
+  offerteId: string;
+  costId: string;
+  receiptFiles: Array<{
+    url: string;
+    path: string | null;
+    filename: string;
+    content_type: string;
+    size_bytes: number;
+    uploaded_at: string;
+  }>;
+}): Promise<void> {
+  const imageFiles = params.receiptFiles.filter((file) => isImageReceiptFile(file));
+  if (imageFiles.length === 0) return;
+
+  const { firestore } = initFirebaseAdmin();
+  const quoteRef = firestore.collection('quotes').doc(params.offerteId);
+  const quoteSnap = await quoteRef.get();
+  if (!quoteSnap.exists) return;
+
+  const quoteData = quoteSnap.data() || {};
+  const ownerId = safeString((quoteData as { userId?: unknown }).userId);
+  if (!ownerId || ownerId !== params.uid) return;
+
+  const existing = Array.isArray((quoteData as { bonnetjes?: unknown }).bonnetjes)
+    ? ((quoteData as { bonnetjes: Array<Record<string, unknown>> }).bonnetjes)
+    : [];
+
+  const dedupeKeys = new Set(
+    existing.map((item) => `${safeString(item.downloadUrl)}|${safeString(item.originalName)}`).filter(Boolean)
+  );
+
+  const nowIso = new Date().toISOString();
+  const additions: Array<Record<string, unknown>> = [];
+  imageFiles.forEach((file, index) => {
+    const fileUrl = safeString(file.url);
+    if (!fileUrl) return;
+
+    const originalName = safeString(file.filename) || `kost-bonnetje-${Date.now()}-${index + 1}.jpg`;
+    const dedupeKey = `${fileUrl}|${originalName}`;
+    if (dedupeKeys.has(dedupeKey)) return;
+
+    dedupeKeys.add(dedupeKey);
+    additions.push({
+      id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      quoteId: params.offerteId,
+      originalName,
+      mimeType: safeString(file.content_type) || 'image/jpeg',
+      sizeBytes: Math.max(0, safeNumber(file.size_bytes)),
+      storagePath: safeString(file.path),
+      downloadUrl: fileUrl,
+      createdAt: safeString(file.uploaded_at) || nowIso,
+      uploadedBy: params.uid,
+      source: 'kosten_tab',
+      sourceCostId: params.costId,
+    });
+  });
+
+  if (additions.length === 0) return;
+
+  await quoteRef.update({
+    bonnetjes: [...existing, ...additions],
+    updatedAt: new Date(),
+  });
+}
+
 async function validateQuoteOwnership(params: {
   offerteId: string;
   uid: string;
@@ -150,8 +227,6 @@ export async function POST(request: Request) {
     if (!rowUserId || rowUserId !== uid) {
       return NextResponse.json({ ok: false, message: 'Geen toegang tot deze kost.' }, { status: 403 });
     }
-    const existingOfferteId = safeString((existing.data as Record<string, unknown>).offerte_id) || null;
-
     const supplierName = safeString(input.supplier_name);
     if (!supplierName) {
       return NextResponse.json({ ok: false, message: 'Leverancier is verplicht.' }, { status: 400 });
@@ -173,9 +248,6 @@ export async function POST(request: Request) {
         // Legacy referenties (bijv. oud offertenummer-formaat) blijven behouden.
         offerteId = rawOfferteReference;
       }
-    } else if (existingOfferteId) {
-      // In omgevingen waar offerte_id NOT NULL is, behouden we de bestaande koppeling.
-      offerteId = existingOfferteId;
     }
 
     const lineItems = normalizeProjectCostLineItems(input.line_items);
@@ -239,6 +311,19 @@ export async function POST(request: Request) {
 
     if (updated.error) {
       return NextResponse.json({ ok: false, message: updated.error.message }, { status: 500 });
+    }
+
+    if (offerteId) {
+      try {
+        await syncCostReceiptImagesToQuoteBonnetjes({
+          uid,
+          offerteId,
+          costId,
+          receiptFiles,
+        });
+      } catch (syncError) {
+        console.warn('[kosten/update] Kon bonnetjes sync niet uitvoeren:', syncError);
+      }
     }
 
     return NextResponse.json({

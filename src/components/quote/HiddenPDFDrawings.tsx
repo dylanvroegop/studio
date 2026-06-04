@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Quote, Job } from '@/lib/types';
 import { useFirestore } from '@/firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { prepareDrawingImageForPdf } from '@/lib/pdf-drawing-image';
 
 interface HiddenPDFDrawingsProps {
     quote: Quote;
@@ -114,7 +115,9 @@ export function HiddenPDFDrawings({ quote, onReady }: HiddenPDFDrawingsProps) {
             for (const url of snapshotUrls) {
                 if (cancelled) return;
                 const base64 = await urlToBase64(url);
-                if (base64) images.push(base64);
+                if (base64) {
+                    images.push(await prepareDrawingImageForPdf(base64));
+                }
             }
 
             if (!cancelled) {
