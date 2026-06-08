@@ -81,6 +81,7 @@ import {
     sanitizeMaterialPresentations,
     redactMaterialPresentationPayload,
 } from '@/lib/material-presentations';
+import { createMaterialList, MATERIAL_LIST_STATUS_LABELS, type MaterialList } from '@/lib/material-lists';
 
 interface GrootCompareQuoteColumn {
     quoteId: string;
@@ -275,7 +276,7 @@ function withRodeVoorwaardenByMode(
 
 const CALCULATION_ESTIMATE_SECONDS = 300;
 const CALCULATION_STUCK_SECONDS = 20 * 60;
-const WORK_DESCRIPTION_AUTOSAVE_DEBOUNCE_MS = 3500;
+const WORK_DESCRIPTION_AUTOSAVE_DEBOUNCE_MS = 500;
 const WORK_DESCRIPTION_SAVING_INDICATOR_DELAY_MS = 900;
 
 function truncatePromptText(value: string, maxLength: number): string {
@@ -295,6 +296,13 @@ interface QuoteNoteSection {
         title: string;
         url: string;
     }>;
+    maatwerkLines: Array<{
+        id: string;
+        title: string;
+        length: string;
+        width: string;
+        thickness: string;
+    }>;
     notes: string;
 }
 
@@ -305,14 +313,62 @@ function createQuoteNoteSectionId(): string {
     return `quote-note-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function createQuoteNoteMaatwerkLine(overrides?: Partial<QuoteNoteSection['maatwerkLines'][number]>): QuoteNoteSection['maatwerkLines'][number] {
+    return {
+        id: overrides?.id || createQuoteNoteSectionId(),
+        title: overrides?.title ?? '',
+        length: overrides?.length ?? '',
+        width: overrides?.width ?? '',
+        thickness: overrides?.thickness ?? '',
+    };
+}
+
+function normalizeMaatwerkDimension(value: string): string {
+    return value.replace(/\bmm\b/gi, '').trim();
+}
+
 function createQuoteNoteSection(index: number, overrides?: Partial<QuoteNoteSection>): QuoteNoteSection {
     return {
         id: overrides?.id || createQuoteNoteSectionId(),
         title: overrides?.title ?? '',
         linksTitle: overrides?.linksTitle ?? '',
         links: Array.isArray(overrides?.links) ? overrides.links : [],
+        maatwerkLines: Array.isArray(overrides?.maatwerkLines) && overrides.maatwerkLines.length > 0
+            ? overrides.maatwerkLines
+            : [createQuoteNoteMaatwerkLine()],
         notes: overrides?.notes ?? '',
     };
+}
+
+function parseQuoteNoteMaatwerkLine(line: string): QuoteNoteSection['maatwerkLines'][number] | null {
+    const cleaned = line.replace(/^-+\s*/, '').trim();
+    if (!cleaned) return null;
+
+    const titleMatch = cleaned.match(/^(.*?)\s*=\s*(.+)$/);
+    const title = titleMatch ? titleMatch[1].trim() : '';
+    const dimensionText = titleMatch ? titleMatch[2].trim() : cleaned;
+
+    const labelledMatch = dimensionText.match(/lengte\s*:?\s*([^|,;x]+)(?:mm)?\s*[|,;]\s*breedte\s*:?\s*([^|,;x]+)(?:mm)?\s*[|,;]\s*dikte\s*:?\s*([^|,;x]+)(?:mm)?/i);
+    if (labelledMatch) {
+        return createQuoteNoteMaatwerkLine({
+            title,
+            length: normalizeMaatwerkDimension(labelledMatch[1]),
+            width: normalizeMaatwerkDimension(labelledMatch[2]),
+            thickness: normalizeMaatwerkDimension(labelledMatch[3]),
+        });
+    }
+
+    const dimensionMatch = dimensionText.match(/^([^x×]+)\s*[x×]\s*([^x×]+)\s*[x×]\s*([^x×]+)$/i);
+    if (dimensionMatch) {
+        return createQuoteNoteMaatwerkLine({
+            title,
+            length: normalizeMaatwerkDimension(dimensionMatch[1]),
+            width: normalizeMaatwerkDimension(dimensionMatch[2]),
+            thickness: normalizeMaatwerkDimension(dimensionMatch[3]),
+        });
+    }
+
+    return null;
 }
 
 function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
@@ -326,34 +382,46 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
         title: string;
         linksTitle: string;
         links: Array<{ title: string; url: string }>;
+        maatwerkLines: QuoteNoteSection['maatwerkLines'];
         notesLines: string[];
     }> = [];
     let activeSection: {
         title: string;
         linksTitle: string;
         links: Array<{ title: string; url: string }>;
+        maatwerkLines: QuoteNoteSection['maatwerkLines'];
         notesLines: string[];
     } | null = null;
     let inLinksSection = false;
+    let inMaatwerkSection = false;
 
     for (const line of lines) {
         const titleMatch = line.match(/^###\s*(.*)$/);
         if (titleMatch) {
             const title = titleMatch[1].trim();
-            activeSection = { title, linksTitle: '', links: [], notesLines: [] };
+            activeSection = { title, linksTitle: '', links: [], maatwerkLines: [], notesLines: [] };
             sections.push(activeSection);
             inLinksSection = false;
+            inMaatwerkSection = false;
             continue;
         }
 
         if (!activeSection) {
-            activeSection = { title: '', linksTitle: '', links: [], notesLines: [] };
+            activeSection = { title: '', linksTitle: '', links: [], maatwerkLines: [], notesLines: [] };
             sections.push(activeSection);
+        }
+
+        const maatwerkHeaderMatch = line.match(/^####\s*maatwerk\b\s*:?\s*$/i);
+        if (maatwerkHeaderMatch) {
+            inMaatwerkSection = true;
+            inLinksSection = false;
+            continue;
         }
 
         const linksHeaderMatch = line.match(/^####\s*links\b\s*:?\s*(.*)$/i);
         if (linksHeaderMatch) {
             inLinksSection = true;
+            inMaatwerkSection = false;
             const headerTitle = linksHeaderMatch[1]?.trim();
             if (headerTitle) {
                 activeSection.linksTitle = headerTitle;
@@ -368,6 +436,20 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
                 activeSection.links.push({ title: '', url: legacyUrl });
             }
             continue;
+        }
+
+        if (inMaatwerkSection) {
+            const parsedMaatwerkLine = parseQuoteNoteMaatwerkLine(line);
+            if (parsedMaatwerkLine) {
+                activeSection.maatwerkLines.push(parsedMaatwerkLine);
+                continue;
+            }
+
+            if (!line.trim()) {
+                continue;
+            }
+
+            inMaatwerkSection = false;
         }
 
         if (inLinksSection) {
@@ -423,6 +505,7 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
                 title: link.title,
                 url: link.url,
             })),
+            maatwerkLines: section.maatwerkLines.map((maatwerkLine) => createQuoteNoteMaatwerkLine(maatwerkLine)),
             notes: section.notesLines.join('\n').trim(),
         }),
     );
@@ -441,9 +524,17 @@ function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
                     url: link.url.trim(),
                 }))
                 .filter((link) => link.title.length > 0 || link.url.length > 0),
+            maatwerkLines: section.maatwerkLines
+                .map((maatwerkLine) => ({
+                    title: maatwerkLine.title.trim(),
+                    length: normalizeMaatwerkDimension(maatwerkLine.length),
+                    width: normalizeMaatwerkDimension(maatwerkLine.width),
+                    thickness: normalizeMaatwerkDimension(maatwerkLine.thickness),
+                }))
+                .filter((maatwerkLine) => maatwerkLine.title.length > 0 || maatwerkLine.length.length > 0 || maatwerkLine.width.length > 0 || maatwerkLine.thickness.length > 0),
             notes: section.notes.trim(),
         }))
-        .filter((section) => section.title.length > 0 || section.linksTitle.length > 0 || section.links.length > 0 || section.notes.length > 0);
+        .filter((section) => section.title.length > 0 || section.linksTitle.length > 0 || section.links.length > 0 || section.maatwerkLines.length > 0 || section.notes.length > 0);
 
     if (cleanedSections.length === 0) return '';
 
@@ -457,6 +548,14 @@ function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
 
             if (section.notes.length > 0) {
                 blockLines.push(section.notes);
+            }
+
+            if (section.maatwerkLines.length > 0) {
+                blockLines.push('#### Maatwerk');
+                for (const maatwerkLine of section.maatwerkLines) {
+                    const prefix = maatwerkLine.title ? `${maatwerkLine.title} = ` : '';
+                    blockLines.push(`- ${prefix}Lengte: ${maatwerkLine.length} mm | Breedte: ${maatwerkLine.width} mm | Dikte: ${maatwerkLine.thickness} mm`);
+                }
             }
 
             if (section.linksTitle.length > 0 || section.links.length > 0) {
@@ -485,8 +584,16 @@ function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): strin
         .map((section) => ({
             title: section.title.trim(),
             notes: section.notes.trim(),
+            maatwerkLines: section.maatwerkLines
+                .map((maatwerkLine) => ({
+                    title: maatwerkLine.title.trim(),
+                    length: normalizeMaatwerkDimension(maatwerkLine.length),
+                    width: normalizeMaatwerkDimension(maatwerkLine.width),
+                    thickness: normalizeMaatwerkDimension(maatwerkLine.thickness),
+                }))
+                .filter((maatwerkLine) => maatwerkLine.title.length > 0 || maatwerkLine.length.length > 0 || maatwerkLine.width.length > 0 || maatwerkLine.thickness.length > 0),
         }))
-        .filter((section) => section.title.length > 0 || section.notes.length > 0);
+        .filter((section) => section.title.length > 0 || section.notes.length > 0 || section.maatwerkLines.length > 0);
 
     if (cleanedSections.length === 0) return '';
 
@@ -495,6 +602,13 @@ function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): strin
             const lines: string[] = [];
             if (section.title.length > 0) lines.push(`### ${section.title}`);
             if (section.notes.length > 0) lines.push(section.notes);
+            if (section.maatwerkLines.length > 0) {
+                lines.push('Maatwerk:');
+                for (const maatwerkLine of section.maatwerkLines) {
+                    const prefix = maatwerkLine.title ? `${maatwerkLine.title}: ` : '';
+                    lines.push(`- ${prefix}lengte ${maatwerkLine.length} mm, breedte ${maatwerkLine.width} mm, dikte ${maatwerkLine.thickness} mm`);
+                }
+            }
             return lines.join('\n');
         })
         .join('\n\n');
@@ -616,8 +730,10 @@ export default function QuotePage() {
     const pdfSettingsShownOnceRef = useRef(false);
     const [quoteNotes, setQuoteNotes] = useState('');
     const [quoteNoteSections, setQuoteNoteSections] = useState<QuoteNoteSection[]>(() => [createQuoteNoteSection(0)]);
-    const [isAutoSavingQuoteNotes, setIsAutoSavingQuoteNotes] = useState(false);
-    const [quoteNotesSavedAt, setQuoteNotesSavedAt] = useState<Date | null>(null);
+    const [openQuoteNoteLinkSections, setOpenQuoteNoteLinkSections] = useState<Set<string>>(() => new Set());
+    const [closedQuoteNoteLinkSections, setClosedQuoteNoteLinkSections] = useState<Set<string>>(() => new Set());
+    const [, setIsAutoSavingQuoteNotes] = useState(false);
+    const [, setQuoteNotesSavedAt] = useState<Date | null>(null);
     const quoteNotesSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSyncedQuoteNotesRef = useRef('');
     const lastSerializedQuoteNoteSectionsRef = useRef('');
@@ -690,6 +806,8 @@ export default function QuotePage() {
     const [materialPackageName, setMaterialPackageName] = useState('');
     const [confirmResetToNieuwOpen, setConfirmResetToNieuwOpen] = useState(false);
     const [isMaterialExportOpen, setIsMaterialExportOpen] = useState(false);
+    const [linkedMaterialLists, setLinkedMaterialLists] = useState<MaterialList[]>([]);
+    const [isCreatingLinkedMaterialList, setIsCreatingLinkedMaterialList] = useState(false);
     const [materialSuppliers, setMaterialSuppliers] = useState<LeverancierContact[]>([]);
     const [defaultMaterialSupplierId, setDefaultMaterialSupplierId] = useState('');
     const [materialEmailTemplate, setMaterialEmailTemplate] = useState('');
@@ -703,6 +821,35 @@ export default function QuotePage() {
     const [voorschotPercentage, setVoorschotPercentage] = useState<number>(50);
     const [onderVoorbehoud, setOnderVoorbehoud] = useState(false);
     const [existingVoorschotInvoiceId, setExistingVoorschotInvoiceId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!user || !firestore || !id) {
+            setLinkedMaterialLists([]);
+            return;
+        }
+
+        const ref = collection(firestore, 'material_lists');
+        const q = query(ref, where('userId', '==', user.uid));
+        const unsub = onSnapshot(
+            q,
+            (snapshot) => {
+                const rows = snapshot.docs
+                    .map((docSnap) => ({ ...(docSnap.data() as MaterialList), id: docSnap.id }))
+                    .filter((materialList) => materialList.quote_id === id);
+                rows.sort((a, b) => {
+                    const aTime = (a.updated_at as any)?.toMillis?.() ?? (a.created_at as any)?.toMillis?.() ?? 0;
+                    const bTime = (b.updated_at as any)?.toMillis?.() ?? (b.created_at as any)?.toMillis?.() ?? 0;
+                    return bTime - aTime;
+                });
+                setLinkedMaterialLists(rows);
+            },
+            () => {
+                setLinkedMaterialLists([]);
+            }
+        );
+
+        return () => unsub();
+    }, [firestore, id, user]);
 
     // PDF Generation State
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -1163,57 +1310,63 @@ export default function QuotePage() {
                 const quoteExtras = (quote?.extras ?? {}) as any;
 
                 const mappedSettings: QuoteCalculationSettings = {
-                    btwTarief: rawInst?.btwTarief ?? quoteInst?.btwTarief ?? 21,
-                    btwMode: rawInst?.btwMode ?? quoteInst?.btwMode ?? 'normaal',
-                    uurTariefExclBtw: rawInst?.uurTariefExclBtw ?? rawInst?.uurTarief ?? quoteInst?.uurTariefExclBtw ?? quoteInst?.uurTarief ?? 50,
-                    schattingUren: rawInst?.schattingUren ?? quoteInst?.schattingUren ?? false,
+                    btwTarief: quoteInst?.btwTarief ?? rawInst?.btwTarief ?? 21,
+                    btwMode: quoteInst?.btwMode ?? rawInst?.btwMode ?? 'normaal',
+                    uurTariefExclBtw: quoteInst?.uurTariefExclBtw ?? quoteInst?.uurTarief ?? rawInst?.uurTariefExclBtw ?? rawInst?.uurTarief ?? 50,
+                    schattingUren: quoteInst?.schattingUren ?? rawInst?.schattingUren ?? false,
                     extras: {
                         transport: {
                             prijsPerKm:
-                                rawExtras?.transport?.prijsPerKm
-                                ?? rawInst?.extras?.transport?.prijsPerKm
-                                ?? rawInst?.transportPrijsPerKm
-                                ?? quoteExtras?.transport?.prijsPerKm
+                                quoteExtras?.transport?.prijsPerKm
                                 ?? quoteInst?.extras?.transport?.prijsPerKm
-                                ?? quoteInst?.reiskosten_prijs_per_km,
+                                ?? quoteInst?.reiskosten_prijs_per_km
+                                ?? rawExtras?.transport?.prijsPerKm
+                                ?? rawInst?.extras?.transport?.prijsPerKm
+                                ?? rawInst?.transportPrijsPerKm,
                             vasteTransportkosten:
-                                rawExtras?.transport?.vasteTransportkosten
-                                ?? rawInst?.extras?.transport?.vasteTransportkosten
-                                ?? quoteExtras?.transport?.vasteTransportkosten
-                                ?? quoteInst?.extras?.transport?.vasteTransportkosten,
+                                quoteExtras?.transport?.vasteTransportkosten
+                                ?? quoteInst?.extras?.transport?.vasteTransportkosten
+                                ?? rawExtras?.transport?.vasteTransportkosten
+                                ?? rawInst?.extras?.transport?.vasteTransportkosten,
                             tunnelkosten:
-                                rawExtras?.transport?.tunnelkosten
-                                ?? rawInst?.extras?.transport?.tunnelkosten
-                                ?? quoteExtras?.transport?.tunnelkosten
-                                ?? quoteInst?.extras?.transport?.tunnelkosten,
+                                quoteExtras?.transport?.tunnelkosten
+                                ?? quoteInst?.extras?.transport?.tunnelkosten
+                                ?? rawExtras?.transport?.tunnelkosten
+                                ?? rawInst?.extras?.transport?.tunnelkosten,
                             mode:
-                                rawExtras?.transport?.mode
-                                ?? rawInst?.extras?.transport?.mode
-                                ?? quoteExtras?.transport?.mode
+                                quoteExtras?.transport?.mode
                                 ?? (quoteInst?.reiskosten_type === 'vast'
                                     ? 'vast'
                                     : quoteInst?.reiskosten_type === 'perKm'
                                         ? 'perKm'
-                                        : quoteInst?.extras?.transport?.mode),
+                                        : quoteInst?.extras?.transport?.mode)
+                                ?? rawExtras?.transport?.mode
+                                ?? rawInst?.extras?.transport?.mode,
                         },
                         winstMarge: {
                             percentage:
-                                rawExtras?.winstMarge?.percentage
-                                ?? rawInst?.extras?.winstMarge?.percentage
-                                ?? quoteExtras?.winstMarge?.percentage
+                                quoteExtras?.winstMarge?.percentage
                                 ?? quoteInst?.extras?.winstMarge?.percentage
+                                ?? rawExtras?.winstMarge?.percentage
+                                ?? rawInst?.extras?.winstMarge?.percentage
                                 ?? 10,
                             fixedAmount:
-                                rawExtras?.winstMarge?.fixedAmount
-                                ?? quoteExtras?.winstMarge?.fixedAmount
+                                quoteExtras?.winstMarge?.fixedAmount
+                                ?? quoteInst?.extras?.winstMarge?.fixedAmount
+                                ?? rawExtras?.winstMarge?.fixedAmount
+                                ?? rawInst?.extras?.winstMarge?.fixedAmount
                                 ?? 0,
                             mode:
-                                rawExtras?.winstMarge?.mode
-                                ?? quoteExtras?.winstMarge?.mode
+                                quoteExtras?.winstMarge?.mode
+                                ?? quoteInst?.extras?.winstMarge?.mode
+                                ?? rawExtras?.winstMarge?.mode
+                                ?? rawInst?.extras?.winstMarge?.mode
                                 ?? 'percentage',
                             basis:
-                                rawExtras?.winstMarge?.basis
-                                ?? quoteExtras?.winstMarge?.basis
+                                quoteExtras?.winstMarge?.basis
+                                ?? quoteInst?.extras?.winstMarge?.basis
+                                ?? rawExtras?.winstMarge?.basis
+                                ?? rawInst?.extras?.winstMarge?.basis
                                 ?? 'totaal',
                         }
                     }
@@ -1296,27 +1449,29 @@ export default function QuotePage() {
                 setQuoteSettings(prev => {
                     if (prev) return prev;
                     const inst = quoteData.instellingen || {};
+                    const quoteExtras = quoteData.extras || {};
+                    const instExtras = inst.extras || {};
                     return {
                         btwTarief: inst.btwTarief || 21,
                         btwMode: inst.btwMode === 'materiaal_only' ? 'materiaal_only' : 'normaal',
-                        uurTariefExclBtw: inst.uurTarief || 50,
+                        uurTariefExclBtw: inst.uurTariefExclBtw || inst.uurTarief || 50,
                         schattingUren: inst.schattingUren ?? false,
                         extras: {
                             transport: {
-                                prijsPerKm: inst.reiskosten_prijs_per_km ?? inst?.extras?.transport?.prijsPerKm,
-                                vasteTransportkosten: inst?.extras?.transport?.vasteTransportkosten,
-                                tunnelkosten: inst?.extras?.transport?.tunnelkosten,
+                                prijsPerKm: quoteExtras?.transport?.prijsPerKm ?? inst.reiskosten_prijs_per_km ?? instExtras?.transport?.prijsPerKm,
+                                vasteTransportkosten: quoteExtras?.transport?.vasteTransportkosten ?? instExtras?.transport?.vasteTransportkosten,
+                                tunnelkosten: quoteExtras?.transport?.tunnelkosten ?? instExtras?.transport?.tunnelkosten,
                                 mode: inst.reiskosten_type === 'vast'
                                     ? 'vast'
                                     : inst.reiskosten_type === 'perKm'
                                         ? 'perKm'
-                                        : inst?.extras?.transport?.mode
+                                        : quoteExtras?.transport?.mode ?? instExtras?.transport?.mode
                             },
                             winstMarge: {
-                                percentage: inst.winstmarge_percentage || 10,
-                                fixedAmount: 0,
-                                mode: 'percentage',
-                                basis: 'totaal'
+                                percentage: quoteExtras?.winstMarge?.percentage ?? instExtras?.winstMarge?.percentage ?? inst.winstmarge_percentage ?? 10,
+                                fixedAmount: quoteExtras?.winstMarge?.fixedAmount ?? instExtras?.winstMarge?.fixedAmount ?? 0,
+                                mode: quoteExtras?.winstMarge?.mode ?? instExtras?.winstMarge?.mode ?? 'percentage',
+                                basis: quoteExtras?.winstMarge?.basis ?? instExtras?.winstMarge?.basis ?? 'totaal'
                             }
                         }
                     };
@@ -1377,6 +1532,71 @@ export default function QuotePage() {
         syncQuoteNoteSectionsToQuoteNotes(nextSections);
     }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
 
+    const handleQuoteNoteMaatwerkLineChange = useCallback((
+        sectionId: string,
+        lineId: string,
+        field: 'length' | 'width' | 'thickness',
+        value: string,
+    ) => {
+        const nextSections = quoteNoteSections.map((section) => {
+            if (section.id !== sectionId) return section;
+            return {
+                ...section,
+                maatwerkLines: section.maatwerkLines.map((maatwerkLine) => (
+                    maatwerkLine.id === lineId
+                        ? { ...maatwerkLine, [field]: value }
+                        : maatwerkLine
+                )),
+            };
+        });
+        syncQuoteNoteSectionsToQuoteNotes(nextSections);
+    }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
+
+    const handleQuoteNoteMaatwerkTitleChange = useCallback((
+        sectionId: string,
+        lineId: string,
+        value: string,
+    ) => {
+        const nextSections = quoteNoteSections.map((section) => {
+            if (section.id !== sectionId) return section;
+            return {
+                ...section,
+                maatwerkLines: section.maatwerkLines.map((maatwerkLine) => (
+                    maatwerkLine.id === lineId
+                        ? { ...maatwerkLine, title: value }
+                        : maatwerkLine
+                )),
+            };
+        });
+        syncQuoteNoteSectionsToQuoteNotes(nextSections);
+    }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
+
+    const handleAddQuoteNoteMaatwerkLine = useCallback((sectionId: string) => {
+        const nextSections = quoteNoteSections.map((section) => {
+            if (section.id !== sectionId) return section;
+            return {
+                ...section,
+                maatwerkLines: [
+                    ...section.maatwerkLines,
+                    createQuoteNoteMaatwerkLine(),
+                ],
+            };
+        });
+        syncQuoteNoteSectionsToQuoteNotes(nextSections);
+    }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
+
+    const handleRemoveQuoteNoteMaatwerkLine = useCallback((sectionId: string, lineId: string) => {
+        const nextSections = quoteNoteSections.map((section) => {
+            if (section.id !== sectionId) return section;
+            const nextMaatwerkLines = section.maatwerkLines.filter((maatwerkLine) => maatwerkLine.id !== lineId);
+            return {
+                ...section,
+                maatwerkLines: nextMaatwerkLines.length > 0 ? nextMaatwerkLines : [createQuoteNoteMaatwerkLine()],
+            };
+        });
+        syncQuoteNoteSectionsToQuoteNotes(nextSections);
+    }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
+
     const handleAddQuoteNoteLink = useCallback((sectionId: string) => {
         const nextSections = quoteNoteSections.map((section) => {
             if (section.id !== sectionId) return section;
@@ -1418,6 +1638,7 @@ export default function QuotePage() {
                 title: '',
                 linksTitle: '',
                 links: [],
+                maatwerkLines: [createQuoteNoteMaatwerkLine()],
                 notes: '',
             };
             syncQuoteNoteSectionsToQuoteNotes([resetSection]);
@@ -1435,6 +1656,27 @@ export default function QuotePage() {
         setQuoteNoteSections(parsedSections);
         lastSerializedQuoteNoteSectionsRef.current = quoteNotes;
     }, [quoteNotes]);
+
+    const handleSetQuoteNoteLinksSectionOpen = useCallback((sectionId: string, isOpen: boolean) => {
+        setOpenQuoteNoteLinkSections((current) => {
+            const next = new Set(current);
+            if (isOpen) {
+                next.add(sectionId);
+            } else {
+                next.delete(sectionId);
+            }
+            return next;
+        });
+        setClosedQuoteNoteLinkSections((current) => {
+            const next = new Set(current);
+            if (isOpen) {
+                next.delete(sectionId);
+            } else {
+                next.add(sectionId);
+            }
+            return next;
+        });
+    }, []);
 
     useEffect(() => {
         if (!quote) return;
@@ -2697,6 +2939,38 @@ export default function QuotePage() {
                     ...newSettings.extras,
                 },
             });
+        }
+        if (firestore && id) {
+            try {
+                const nextInstellingen = {
+                    ...((quote?.instellingen ?? {}) as any),
+                    btwTarief: newSettings.btwTarief,
+                    btwMode: newSettings.btwMode,
+                    uurTariefExclBtw: newSettings.uurTariefExclBtw,
+                    uurTarief: newSettings.uurTariefExclBtw,
+                    schattingUren: newSettings.schattingUren,
+                    extras: newSettings.extras,
+                };
+                await updateDoc(doc(firestore, 'quotes', id), {
+                    instellingen: nextInstellingen,
+                    extras: newSettings.extras,
+                    updatedAt: serverTimestamp(),
+                } as any);
+                setQuote((prev) => prev
+                    ? ({
+                        ...prev,
+                        instellingen: nextInstellingen,
+                        extras: newSettings.extras,
+                    } as any)
+                    : prev);
+            } catch (error) {
+                console.error('Failed to sync quote settings to Firestore:', error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Instellingen opslaan mislukt',
+                    description: 'De calculatie is bijgewerkt, maar de offerte-instellingen konden niet worden opgeslagen.',
+                });
+            }
         }
     };
 
@@ -5053,6 +5327,38 @@ export default function QuotePage() {
         const redirect = encodeURIComponent(`/offertes/${id}`);
         router.push(`/offertes/${id}/klant?successRedirect=${redirect}`);
     }, [id, router]);
+    const handleCreateLinkedMaterialList = useCallback(async () => {
+        if (!user || !firestore || !quote || isCreatingLinkedMaterialList) return;
+        setIsCreatingLinkedMaterialList(true);
+        try {
+            const clientName = `${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`.trim()
+                || klantInfo?.bedrijfsnaam
+                || 'klant';
+            const quoteNumber = (quote as Quote & { offerteNummer?: number | string | null }).offerteNummer ?? null;
+            const materialListId = await createMaterialList(firestore, {
+                userId: user.uid,
+                title: linkedMaterialLists.length === 0 ? `Materiaallijst ${clientName}` : `Materiaallijst ${linkedMaterialLists.length + 1}`,
+                quote: {
+                    id,
+                    quote_number: quoteNumber,
+                    quote_client_name: clientName,
+                },
+                status: 'draft',
+            });
+            router.push(`/materiaallijsten/${materialListId}`);
+        } catch (err: unknown) {
+            const message = err && typeof err === 'object' && 'message' in err && typeof err.message === 'string'
+                ? err.message
+                : 'Probeer het opnieuw.';
+            toast({
+                variant: 'destructive',
+                title: 'Materiaallijst maken mislukt',
+                description: message,
+            });
+        } finally {
+            setIsCreatingLinkedMaterialList(false);
+        }
+    }, [firestore, id, isCreatingLinkedMaterialList, klantInfo, linkedMaterialLists.length, quote, router, toast, user]);
 
     return (
         <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
@@ -5362,6 +5668,14 @@ export default function QuotePage() {
                                         <Sparkles size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
+                                        value="materiaallijst"
+                                        className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
+                                        aria-label="Materiaallijst"
+                                        title="Materiaallijst"
+                                    >
+                                        <ClipboardList size={16} />
+                                    </TabsTrigger>
+                                    <TabsTrigger
                                         value="notities"
                                         className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
                                         aria-label="Notities"
@@ -5422,6 +5736,10 @@ export default function QuotePage() {
                                 <TabsTrigger value="materiaalpresentatie" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <Sparkles size={16} />
                                     Materiaalpresentatie
+                                </TabsTrigger>
+                                <TabsTrigger value="materiaallijst" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <ClipboardList size={16} />
+                                    Materiaallijst
                                 </TabsTrigger>
                                 <TabsTrigger
                                     value="werkbeschrijving"
@@ -6058,6 +6376,7 @@ export default function QuotePage() {
                                         totals={totals}
                                         settings={quoteSettings}
                                         totalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
+                                        urenPerDag={laborHoursPerDay}
                                         extraKostenExcl={extraKostenExcl}
                                         onUpdateHourlyRate={(newRate) => {
                                             if (!quoteSettings) return;
@@ -6749,6 +7068,63 @@ export default function QuotePage() {
                             )}
                         </TabsContent>
 
+                        <TabsContent value="materiaallijst" className="mt-6">
+                            {loading ? (
+                                <LoadingPanel />
+                            ) : (
+                                <div className="space-y-4 rounded-lg border border-border bg-card p-4 sm:p-6">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                                                <ClipboardList className="h-5 w-5 text-emerald-400" />
+                                                Praktische materiaallijsten
+                                            </h3>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                Losse inkoop- en voorbereidingslijsten voor leverancierbezoeken. Deze staan los van de calculatiematerialen.
+                                            </p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            className="h-11 gap-2"
+                                            onClick={() => void handleCreateLinkedMaterialList()}
+                                            disabled={isCreatingLinkedMaterialList}
+                                        >
+                                            {isCreatingLinkedMaterialList ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                                            Maak materiaallijst
+                                        </Button>
+                                    </div>
+
+                                    {linkedMaterialLists.length === 0 ? (
+                                        <div className="rounded-lg border border-dashed border-border bg-muted/20 p-6 text-center">
+                                            <p className="font-medium text-foreground">Nog geen materiaallijst voor deze offerte</p>
+                                            <p className="mt-1 text-sm text-muted-foreground">Maak bijvoorbeeld “Ruwbouw materialen”, “Afwerking” of “Meerwerk materialen”.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid gap-3">
+                                            {linkedMaterialLists.map((materialList) => (
+                                                <div key={materialList.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+                                                    <div className="min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <p className="truncate font-semibold text-foreground">{materialList.title}</p>
+                                                            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-200">
+                                                                {MATERIAL_LIST_STATUS_LABELS[materialList.status]}
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-1 text-sm text-muted-foreground">
+                                                            {materialList.item_count || 0} regels
+                                                        </p>
+                                                    </div>
+                                                    <Button asChild variant="outline" className="h-11 shrink-0">
+                                                        <Link href={`/materiaallijsten/${materialList.id}`}>Open materiaallijst</Link>
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </TabsContent>
+
                         <TabsContent value="notities" className="mt-6">
                             {loading ? (
                                 <LoadingPanel />
@@ -6758,16 +7134,15 @@ export default function QuotePage() {
                                         <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                             <MessageSquare className="w-4 h-4" /> Notities bij deze offerte
                                         </h3>
-                                        <div className="text-xs text-muted-foreground">
-                                            {isAutoSavingQuoteNotes
-                                                ? 'Automatisch opslaan...'
-                                                : quoteNotesSavedAt
-                                                    ? `Opgeslagen ${formatDistanceToNow(quoteNotesSavedAt, { addSuffix: true, locale: nl })}`
-                                                    : 'Wordt automatisch opgeslagen'}
-                                        </div>
                                     </div>
                                     <div className="space-y-3">
-                                        {quoteNoteSections.map((section, index) => (
+                                        {quoteNoteSections.map((section, index) => {
+                                            const hasLinkContent = section.linksTitle.trim().length > 0
+                                                || section.links.some((link) => link.title.trim().length > 0 || link.url.trim().length > 0);
+                                            const isLinksSectionOpen = openQuoteNoteLinkSections.has(section.id)
+                                                || (hasLinkContent && !closedQuoteNoteLinkSections.has(section.id));
+
+                                            return (
                                             <div key={section.id} className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
                                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                                     <Input
@@ -6794,55 +7169,145 @@ export default function QuotePage() {
                                                     className="min-h-[180px] w-full rounded-xl border border-border/60 bg-background p-4 text-sm text-foreground outline-none ring-0 placeholder:text-muted-foreground focus:border-border"
                                                 />
                                                 <div className="space-y-3 rounded-xl border border-border/60 bg-background/60 p-3">
-                                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                                        Links
-                                                    </p>
-                                                    <Input
-                                                        value={section.linksTitle}
-                                                        onChange={(e) => handleQuoteNoteSectionChange(section.id, 'linksTitle', e.target.value)}
-                                                        placeholder="Titel links-sectie (bijv. Product links)"
-                                                        className="h-9"
-                                                    />
-                                                    <div className="space-y-2">
-                                                        {section.links.map((link) => (
-                                                            <div key={link.id} className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
-                                                                <Input
-                                                                    value={link.title}
-                                                                    onChange={(e) => handleQuoteNoteLinkChange(section.id, link.id, 'title', e.target.value)}
-                                                                    placeholder="Link titel"
-                                                                    className="h-9"
-                                                                />
-                                                                <Input
-                                                                    value={link.url}
-                                                                    onChange={(e) => handleQuoteNoteLinkChange(section.id, link.id, 'url', e.target.value)}
-                                                                    placeholder="https://..."
-                                                                    className="h-9"
-                                                                />
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    onClick={() => handleRemoveQuoteNoteLink(section.id, link.id)}
-                                                                    aria-label="Verwijder link"
-                                                                >
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </div>
-                                                        ))}
+                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                            <Box className="h-3.5 w-3.5" />
+                                                            Maatwerk
+                                                        </p>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-8 gap-2 self-start sm:self-auto"
+                                                            onClick={() => handleAddQuoteNoteMaatwerkLine(section.id)}
+                                                        >
+                                                            <Plus className="h-4 w-4" />
+                                                            Lijn toevoegen
+                                                        </Button>
                                                     </div>
+                                                    {section.maatwerkLines.length > 0 && (
+                                                        <div className="space-y-2">
+                                                            {section.maatwerkLines.map((maatwerkLine) => (
+                                                                <div key={maatwerkLine.id} className="grid gap-2 sm:grid-cols-[1.2fr_1fr_1fr_1fr_auto]">
+                                                                    <div className="space-y-1">
+                                                                        <Label className="text-[11px] text-muted-foreground">Titel</Label>
+                                                                        <Input
+                                                                            value={maatwerkLine.title}
+                                                                            onChange={(e) => handleQuoteNoteMaatwerkTitleChange(section.id, maatwerkLine.id, e.target.value)}
+                                                                            placeholder="bijv. Lood"
+                                                                            className="h-9"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1">
+                                                                        <Label className="text-[11px] text-muted-foreground">Lengte</Label>
+                                                                        <Input
+                                                                            value={maatwerkLine.length}
+                                                                            onChange={(e) => handleQuoteNoteMaatwerkLineChange(section.id, maatwerkLine.id, 'length', e.target.value)}
+                                                                            placeholder="mm"
+                                                                            inputMode="decimal"
+                                                                            className="h-9"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1">
+                                                                        <Label className="text-[11px] text-muted-foreground">Breedte</Label>
+                                                                        <Input
+                                                                            value={maatwerkLine.width}
+                                                                            onChange={(e) => handleQuoteNoteMaatwerkLineChange(section.id, maatwerkLine.id, 'width', e.target.value)}
+                                                                            placeholder="mm"
+                                                                            inputMode="decimal"
+                                                                            className="h-9"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1">
+                                                                        <Label className="text-[11px] text-muted-foreground">Dikte</Label>
+                                                                        <Input
+                                                                            value={maatwerkLine.thickness}
+                                                                            onChange={(e) => handleQuoteNoteMaatwerkLineChange(section.id, maatwerkLine.id, 'thickness', e.target.value)}
+                                                                            placeholder="mm"
+                                                                            inputMode="decimal"
+                                                                            className="h-9"
+                                                                        />
+                                                                    </div>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="mt-5 h-9 w-9 sm:self-end"
+                                                                        onClick={() => handleRemoveQuoteNoteMaatwerkLine(section.id, maatwerkLine.id)}
+                                                                        aria-label="Verwijder maatwerkregel"
+                                                                        title="Verwijder maatwerkregel"
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {isLinksSectionOpen && (
+                                                    <div className="space-y-3 rounded-xl border border-border/60 bg-background/60 p-3">
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                            Links
+                                                        </p>
+                                                        <Input
+                                                            value={section.linksTitle}
+                                                            onChange={(e) => handleQuoteNoteSectionChange(section.id, 'linksTitle', e.target.value)}
+                                                            placeholder="Titel links-sectie (bijv. Product links)"
+                                                            className="h-9"
+                                                        />
+                                                        <div className="space-y-2">
+                                                            {section.links.map((link) => (
+                                                                <div key={link.id} className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
+                                                                    <Input
+                                                                        value={link.title}
+                                                                        onChange={(e) => handleQuoteNoteLinkChange(section.id, link.id, 'title', e.target.value)}
+                                                                        placeholder="Link titel"
+                                                                        className="h-9"
+                                                                    />
+                                                                    <Input
+                                                                        value={link.url}
+                                                                        onChange={(e) => handleQuoteNoteLinkChange(section.id, link.id, 'url', e.target.value)}
+                                                                        placeholder="https://..."
+                                                                        className="h-9"
+                                                                    />
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        onClick={() => handleRemoveQuoteNoteLink(section.id, link.id)}
+                                                                        aria-label="Verwijder link"
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="gap-2"
+                                                            onClick={() => handleAddQuoteNoteLink(section.id)}
+                                                        >
+                                                            <Plus className="h-4 w-4" />
+                                                            Meer links toevoegen
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                                <div className="flex flex-wrap gap-2">
                                                     <Button
                                                         type="button"
                                                         variant="outline"
-                                                        size="sm"
                                                         className="gap-2"
-                                                        onClick={() => handleAddQuoteNoteLink(section.id)}
+                                                        onClick={() => handleSetQuoteNoteLinksSectionOpen(section.id, !isLinksSectionOpen)}
                                                     >
-                                                        <Plus className="h-4 w-4" />
-                                                        Meer links toevoegen
+                                                        {isLinksSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                                        Links
                                                     </Button>
                                                 </div>
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                     <Button
                                         type="button"

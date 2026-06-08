@@ -55,6 +55,32 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
+
+    // Practical material lists for purchasing and job preparation
+    match /material_lists/{materialListId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.company_id == request.auth.uid
+                    && request.resource.data.created_by == request.auth.uid;
+      allow update: if isSignedIn()
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.company_id == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /material_list_items/{itemId} {
+      allow read: if isSignedIn()
+        && get(/databases/$(database)/documents/material_lists/$(resource.data.material_list_id)).data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && get(/databases/$(database)/documents/material_lists/$(request.resource.data.material_list_id)).data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+        && get(/databases/$(database)/documents/material_lists/$(resource.data.material_list_id)).data.userId == request.auth.uid
+        && request.resource.data.material_list_id == resource.data.material_list_id;
+      allow delete: if isSignedIn()
+        && get(/databases/$(database)/documents/material_lists/$(resource.data.material_list_id)).data.userId == request.auth.uid;
+    }
     
     // Rules for the 'notes' (Personal Notes) collection
     match /notes/{noteId} {

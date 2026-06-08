@@ -318,11 +318,11 @@ function createGevelbekledingRuleSet(config: {
 }): Record<string, Record<string, any>> {
   const bekledingFormula =
     config.sectionKeyBekleding === 'gevelbekleding_kunststof'
-      ? "if material.werkende_breedte_mm exists then if maatwerk_item.latten_orientation == 'vertical' then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else banen = ceil(gevel_lengte_mm / material.werkende_breedte_mm); if maatwerk_item.keralit_panelen_afval_volgende_baan == true then totaal_banen_mm = banen * gevel_hoogte_mm; stuks = ceil(totaal_banen_mm / material.lengte_mm); else segmenten_per_baan = ceil(gevel_hoogte_mm / material.lengte_mm); stuks = banen * segmenten_per_baan; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)"
+      ? "if material.werkende_breedte_mm exists then if maatwerk_item.keralit_panelen_orientation == 'vertical' then banen = ceil(gevel_lengte_mm / material.werkende_breedte_mm); if maatwerk_item.keralit_panelen_afval_volgende_baan == true then totaal_banen_mm = banen * gevel_hoogte_mm; stuks = ceil(totaal_banen_mm / material.lengte_mm); else segmenten_per_baan = ceil(gevel_hoogte_mm / material.lengte_mm); stuks = banen * segmenten_per_baan; else rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)"
       : 'if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)';
   const bekledingLogic =
     config.sectionKeyBekleding === 'gevelbekleding_kunststof'
-      ? 'kunststof panelen tegengesteld aan regelwerk-richting (horizontaal regelwerk = verticale panelen, verticaal regelwerk = horizontale panelen); bij verticale panelen stuurt keralit_panelen_afval_volgende_baan doorlopende restlengtes tussen banen'
+      ? 'kunststof panelen op aparte paneelrichting; standaard tegengesteld aan regelwerk-richting maar handmatig overschrijfbaar; bij verticale panelen stuurt keralit_panelen_afval_volgende_baan doorlopende restlengtes tussen banen'
       : 'gevelbekleding op netto oppervlak met optionele werkende-breedte logica';
 
   return {

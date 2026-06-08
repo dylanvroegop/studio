@@ -8,6 +8,7 @@ import {
   CalendarDays,
   ChevronDown,
   Clock3,
+  ClipboardList,
   FileText,
   LayoutDashboard,
   Landmark,
@@ -229,6 +230,12 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
       return {
         icon: Boxes,
         iconClassName: 'text-orange-400',
+      };
+    }
+    if (pathname.startsWith('/materiaallijsten')) {
+      return {
+        icon: ClipboardList,
+        iconClassName: 'text-emerald-400',
       };
     }
     if (pathname.startsWith('/klanten')) {

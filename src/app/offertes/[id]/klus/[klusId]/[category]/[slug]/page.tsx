@@ -946,6 +946,18 @@ export default function GenericMeasurementPage() {
     return { mode: 'both', links, rechts };
   };
 
+  const deriveKeralitPanelenOrientationFromLatten = (lattenOrientation: any): 'horizontal' | 'vertical' => (
+    lattenOrientation === 'horizontal' ? 'vertical' : 'horizontal'
+  );
+
+  const resolveKeralitPanelenOrientation = (rawItem: any): 'horizontal' | 'vertical' => {
+    const normalized = String(rawItem?.keralit_panelen_orientation ?? '').trim().toLowerCase();
+    if (normalized === 'horizontal' || normalized === 'vertical') return normalized;
+
+    const fallbackLattenOrientation = hasGevelTengelMaterialFromPreviousPage ? 'horizontal' : 'vertical';
+    return deriveKeralitPanelenOrientationFromLatten(rawItem?.latten_orientation ?? fallbackLattenOrientation);
+  };
+
   const applyGevelProfielStateToItem = (item: any, state: GevelProfielState) => ({
     ...item,
     gevel_profiel_mode: state.mode,
@@ -1836,6 +1848,7 @@ export default function GenericMeasurementPage() {
       }
 
       item.keralit_panelen_afval_volgende_baan = Boolean(item.keralit_panelen_afval_volgende_baan);
+      item.keralit_panelen_orientation = resolveKeralitPanelenOrientation(item);
 
       if (hasGevelDaktrimMaterialFromPreviousPage) {
         const daktrimLengte = toPositiveNumber(item.lengte ?? item.breedte);
@@ -1856,6 +1869,8 @@ export default function GenericMeasurementPage() {
       delete item.gevel_profiel_rechts;
       delete item.daktrim_lengte;
       delete item.keralit_panelen_afval_volgende_baan;
+      delete item.keralit_panelen_orientation;
+      delete item.keralit_panelen_orientation_manual;
     }
 
     delete item.epdm_orientatie_startpositie;
@@ -2047,6 +2062,9 @@ export default function GenericMeasurementPage() {
     if (isEmptyValue(next.latten_orientation)) {
       next.latten_orientation = hasTengelMaterial ? 'horizontal' : 'vertical';
     }
+    if (isGevelbekledingKeralit && isEmptyValue(next.keralit_panelen_orientation)) {
+      next.keralit_panelen_orientation = deriveKeralitPanelenOrientationFromLatten(next.latten_orientation);
+    }
     if (hasTengelMaterial) {
       if (isEmptyValue(next.tengelafstand)) {
         next.tengelafstand = 700;
@@ -2077,6 +2095,8 @@ export default function GenericMeasurementPage() {
     } else {
       delete next.daktrim_lengte;
       delete next.keralit_panelen_afval_volgende_baan;
+      delete next.keralit_panelen_orientation;
+      delete next.keralit_panelen_orientation_manual;
     }
     return next;
   };
@@ -2813,6 +2833,9 @@ export default function GenericMeasurementPage() {
         } else if (key === 'breedte') {
           newItem.lengte = value;
         }
+        if (key === 'latten_orientation' && !newItem.keralit_panelen_orientation_manual) {
+          newItem.keralit_panelen_orientation = deriveKeralitPanelenOrientationFromLatten(value);
+        }
       }
 
       if (isEpdmDak && isEpdmEdgeField(key)) {
@@ -2943,6 +2966,21 @@ export default function GenericMeasurementPage() {
         : { mode: 'both', links: opposite, rechts: value };
       return applyGevelProfielStateToItem(item, state);
     }));
+  };
+
+  const updateKeralitPanelenOrientation = (
+    index: number,
+    orientation: 'horizontal' | 'vertical'
+  ) => {
+    setItems((prev) => prev.map((item, i) => (
+      i === index
+        ? {
+          ...item,
+          keralit_panelen_orientation: orientation,
+          keralit_panelen_orientation_manual: true,
+        }
+        : item
+    )));
   };
 
   const updateStucwerkGevelProfielSide = (
@@ -3148,9 +3186,11 @@ export default function GenericMeasurementPage() {
     const isCollapsed = collapsedSections[sectionKey] !== false;
     const isReady = hasGevelProfielDimensionsReady(item);
     const gebruikAfvalVolgendeBaan = Boolean(item.keralit_panelen_afval_volgende_baan);
+    const panelenOrientation = resolveKeralitPanelenOrientation(item);
+    const panelenOrientationLabel = panelenOrientation === 'horizontal' ? 'Panelen horizontaal' : 'Panelen verticaal';
     const summary = gebruikAfvalVolgendeBaan
-      ? 'Afval volgende baan: Aan'
-      : 'Naadloos per baan: Aan';
+      ? `${panelenOrientationLabel} · Afval: Aan`
+      : `${panelenOrientationLabel} · Naadloos`;
 
     return (
       <div className={cn("mt-4 rounded-xl border border-white/5 bg-white/5 overflow-hidden", !isReady && "opacity-80")}>
@@ -3188,6 +3228,38 @@ export default function GenericMeasurementPage() {
         {isReady && !isCollapsed && (
           <div className="px-4 pb-4 pt-0 space-y-4 animate-in slide-in-from-top-2">
             <div className="pt-2 border-t border-white/5 space-y-3">
+              <div className="space-y-3 rounded-lg border border-white/10 bg-black/20 px-3 py-3">
+                <Label className="text-xs">Paneelrichting</Label>
+                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => updateKeralitPanelenOrientation(index, 'horizontal')}
+                    className={cn(
+                      "flex-1 text-xs py-1.5 rounded transition-colors",
+                      panelenOrientation === 'horizontal'
+                        ? "bg-emerald-500/20 text-emerald-400"
+                        : "text-zinc-500 hover:text-zinc-300"
+                    )}
+                    disabled={disabledAll}
+                  >
+                    Panelen horizontaal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateKeralitPanelenOrientation(index, 'vertical')}
+                    className={cn(
+                      "flex-1 text-xs py-1.5 rounded transition-colors",
+                      panelenOrientation === 'vertical'
+                        ? "bg-emerald-500/20 text-emerald-400"
+                        : "text-zinc-500 hover:text-zinc-300"
+                    )}
+                    disabled={disabledAll}
+                  >
+                    Panelen verticaal
+                  </button>
+                </div>
+              </div>
+
               <div className="flex items-start justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
                 <div className="space-y-0.5">
                   <p className="text-xs font-medium text-zinc-200">Afval gebruiken volgende baan</p>
@@ -3610,6 +3682,7 @@ export default function GenericMeasurementPage() {
       if (i !== index) return item;
       const newItem: Record<string, any> = { ...item };
       newItem.shape = newShape;
+      newItem.variant = 'top';
 
       const dimensionsToReset = [
         'lengte', 'hoogte', 'breedte',
@@ -3620,6 +3693,27 @@ export default function GenericMeasurementPage() {
       ];
       dimensionsToReset.forEach(key => newItem[key] = '');
       return newItem;
+    }));
+  };
+
+  const handleToggleShapeVariant = (index: number) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      const currentVariant = item.variant === 'bottom' ? 'bottom' : 'top';
+      return { ...item, variant: currentVariant === 'bottom' ? 'top' : 'bottom' };
+    }));
+  };
+
+  const handleMirrorSlope = (index: number) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      return {
+        ...item,
+        hoogteLinks: item.hoogteRechts ?? '',
+        hoogteRechts: item.hoogteLinks ?? '',
+        gevel_profiel_links: item.gevel_profiel_rechts,
+        gevel_profiel_rechts: item.gevel_profiel_links,
+      };
     }));
   };
 
@@ -4526,6 +4620,34 @@ export default function GenericMeasurementPage() {
                             );
                           })}
                         </div>
+                        {['l-shape', 'u-shape'].includes(item.shape || '') && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full justify-center gap-2"
+                            onClick={() => handleToggleShapeVariant(index)}
+                            disabled={disabledAll}
+                            title="Vorm omdraaien"
+                          >
+                            <ArrowDownUp className="h-4 w-4" />
+                            Omdraaien
+                          </Button>
+                        )}
+                        {item.shape === 'slope' && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full justify-center gap-2"
+                            onClick={() => handleMirrorSlope(index)}
+                            disabled={disabledAll}
+                            title="Schuine vorm spiegelen"
+                          >
+                            <ArrowDownUp className="h-4 w-4 rotate-90" />
+                            Spiegel
+                          </Button>
+                        )}
                       </div>
                     </div>
 

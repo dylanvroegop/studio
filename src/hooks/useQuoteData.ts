@@ -229,7 +229,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
             setError(message.includes('auth/network-request-failed')
                 ? 'Geen verbinding met authenticatie. Controleer je internet en probeer opnieuw.'
                 : message);
-            return;
+            throw err;
         } finally {
             inFlightDataJsonSignatureRef.current = null;
         }

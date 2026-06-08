@@ -57,7 +57,7 @@ import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-sta
 import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-type FilterMode = 'alle' | 'concept' | 'verzonden' | 'geaccepteerd' | 'berekend' | 'archief';
+type FilterMode = 'alle' | 'concept' | 'in_afwachting' | 'verzonden' | 'geaccepteerd' | 'berekend' | 'archief';
 const OFFERTES_FILTER_STORAGE_KEY = 'offertes:last-filter';
 type DefaultFilterMode = 'concept' | 'geaccepteerd';
 const OFFERTES_DEFAULT_FILTER_STORAGE_KEY = 'offertes:default-filter';
@@ -104,6 +104,7 @@ function isFilterMode(value: unknown): value is FilterMode {
   return (
     value === 'alle' ||
     value === 'concept' ||
+    value === 'in_afwachting' ||
     value === 'verzonden' ||
     value === 'geaccepteerd' ||
     value === 'berekend' ||
@@ -217,6 +218,15 @@ function getOfferteStatusStyles(
       badgeClass: 'bg-blue-500/10 text-blue-300/90 border-blue-500/25',
       sideBorderClass: 'border-l-blue-400/70',
       rowTintClass: 'bg-blue-500/[0.07]',
+    };
+  }
+
+  if (status === 'in_afwachting') {
+    return {
+      label: 'In afwachting',
+      badgeClass: 'bg-cyan-500/10 text-cyan-200/90 border-cyan-500/25',
+      sideBorderClass: 'border-l-cyan-400/70',
+      rowTintClass: 'bg-cyan-500/[0.07]',
     };
   }
 
@@ -390,6 +400,7 @@ export default function OffertesPage() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('alle');
   const [defaultFilter, setDefaultFilter] = useState<DefaultFilterMode>('concept');
+  const [filterPreferencesHydrated, setFilterPreferencesHydrated] = useState(false);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -413,11 +424,16 @@ export default function OffertesPage() {
   }, [isUserLoading, router, user]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') {
+      setFilterPreferencesHydrated(true);
+      return;
+    }
+
     const storedDefaultFilter = window.localStorage.getItem(OFFERTES_DEFAULT_FILTER_STORAGE_KEY);
     if (isDefaultFilterMode(storedDefaultFilter)) {
       setDefaultFilter(storedDefaultFilter);
       setFilter(storedDefaultFilter);
+      setFilterPreferencesHydrated(true);
       return;
     }
 
@@ -425,17 +441,21 @@ export default function OffertesPage() {
     if (isFilterMode(storedFilter)) {
       setFilter(storedFilter);
     }
+
+    setFilterPreferencesHydrated(true);
   }, []);
 
   useEffect(() => {
+    if (!filterPreferencesHydrated) return;
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(OFFERTES_FILTER_STORAGE_KEY, filter);
-  }, [filter]);
+  }, [filter, filterPreferencesHydrated]);
 
   useEffect(() => {
+    if (!filterPreferencesHydrated) return;
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(OFFERTES_DEFAULT_FILTER_STORAGE_KEY, defaultFilter);
-  }, [defaultFilter]);
+  }, [defaultFilter, filterPreferencesHydrated]);
 
   useEffect(() => {
     if (!user || !firestore) return;
@@ -849,6 +869,9 @@ export default function OffertesPage() {
       if (mode === 'concept') {
         return nonArchived.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'concept').length;
       }
+      if (mode === 'in_afwachting') {
+        return nonArchived.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'in_afwachting').length;
+      }
       if (mode === 'verzonden') {
         return nonArchived.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden').length;
       }
@@ -864,6 +887,7 @@ export default function OffertesPage() {
     return {
       alle: countFor('alle'),
       concept: countFor('concept'),
+      in_afwachting: countFor('in_afwachting'),
       verzonden: countFor('verzonden'),
       geaccepteerd: countFor('geaccepteerd'),
       berekend: countFor('berekend'),
@@ -880,6 +904,7 @@ export default function OffertesPage() {
     } else {
       result = result.filter((q) => !q.archived);
       if (filter === 'concept') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'concept');
+      if (filter === 'in_afwachting') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'in_afwachting');
       if (filter === 'verzonden') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden');
       if (filter === 'geaccepteerd') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'geaccepteerd');
       if (filter === 'berekend') result = result.filter((q) => q.status === 'in_behandeling' && hasCalculatedAmount(quoteTotalsById[q.id] ?? 0));
@@ -988,7 +1013,7 @@ export default function OffertesPage() {
 
   async function setQuoteDecisionStatus(
     quote: QuoteRow,
-    nextStatus: 'geaccepteerd' | 'afgewezen' | 'concept' | 'verzonden'
+    nextStatus: 'geaccepteerd' | 'afgewezen' | 'concept' | 'in_afwachting' | 'verzonden'
   ): Promise<void> {
     if (!firestore) return;
     setUpdatingAcceptanceQuoteId(quote.id);
@@ -1097,9 +1122,10 @@ export default function OffertesPage() {
 
   const filterOptions: Array<{ value: FilterMode; label: string; count: number }> = [
     { value: 'alle', label: 'Alle', count: filterCountsByMode.alle },
-    { value: 'concept', label: 'Concept', count: filterCountsByMode.concept },
-    { value: 'verzonden', label: 'Verzonden', count: filterCountsByMode.verzonden },
     { value: 'geaccepteerd', label: 'Geaccepteerd', count: filterCountsByMode.geaccepteerd },
+    { value: 'concept', label: 'Concept', count: filterCountsByMode.concept },
+    { value: 'in_afwachting', label: 'In afwachting', count: filterCountsByMode.in_afwachting },
+    { value: 'verzonden', label: 'Verzonden', count: filterCountsByMode.verzonden },
     { value: 'berekend', label: 'Berekend', count: filterCountsByMode.berekend },
     { value: 'archief', label: 'Archief', count: filterCountsByMode.archief },
   ];
@@ -1107,6 +1133,10 @@ export default function OffertesPage() {
   const defaultFilterLabel = defaultFilter === 'geaccepteerd' ? 'Geaccepteerd' : 'Concept';
 
   function handleDefaultFilterSelect(nextDefaultFilter: DefaultFilterMode): void {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(OFFERTES_DEFAULT_FILTER_STORAGE_KEY, nextDefaultFilter);
+      window.localStorage.setItem(OFFERTES_FILTER_STORAGE_KEY, nextDefaultFilter);
+    }
     setDefaultFilter(nextDefaultFilter);
     setFilter(nextDefaultFilter);
   }
@@ -1505,6 +1535,15 @@ export default function OffertesPage() {
                                 disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
                                 onSelect={() => {
                                   if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                  void setQuoteDecisionStatus(q, 'in_afwachting');
+                                }}
+                              >
+                                Status: In afwachting
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                                onSelect={() => {
+                                  if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
                                   void setQuoteDecisionStatus(q, 'concept');
                                 }}
                               >
@@ -1685,6 +1724,15 @@ export default function OffertesPage() {
                               }}
                             >
                               Status: Verstuurd
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
+                              onSelect={() => {
+                                if (isArchived || acceptedByInvoice || isUpdatingAcceptance) return;
+                                void setQuoteDecisionStatus(q, 'in_afwachting');
+                              }}
+                            >
+                              Status: In afwachting
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}

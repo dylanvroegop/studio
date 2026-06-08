@@ -132,6 +132,10 @@ export type QuoteTotals = {
         kostenExclBtw: number;
         winstExclBtw: number;
         omzetInclBtw: number;
+        kostenInclBtw: number;
+        winstInclBtw: number;
+        btwArbeidEnMarge: number;
+        winstNaBtwArbeidEnMarge: number;
         btwBedrag: number;
         margePercentageOpOmzet: number;
     };
@@ -1146,8 +1150,20 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
     const btwBedrag = roundCurrency((btwTarief / 100) * btwGrondslag);
     const totaalInclBtw = roundCurrency(totaalExclBtw + btwBedrag);
     const winstProjectieOmzetExclBtw = totaalExclBtw;
-    const winstProjectieKostenExclBtw = subtotaalExclBtw;
+    const winstProjectieKostenExclBtw = roundCurrency(materiaalSubtotalExclBtw + transportExclBtw);
     const winstProjectieWinstExclBtw = roundCurrency(winstProjectieOmzetExclBtw - winstProjectieKostenExclBtw);
+    const winstProjectieKostenInclBtw = roundCurrency(
+        btwMode === "materiaal_only"
+            ? materiaalSubtotalExclBtw + ((btwTarief / 100) * materiaalSubtotalExclBtw) + transportExclBtw
+            : winstProjectieKostenExclBtw + ((btwTarief / 100) * winstProjectieKostenExclBtw)
+    );
+    const winstProjectieWinstInclBtw = roundCurrency(totaalInclBtw - winstProjectieKostenInclBtw);
+    const btwArbeidEnMarge = roundCurrency(
+        btwMode === "materiaal_only"
+            ? 0
+            : ((btwTarief / 100) * roundCurrency(arbeidSubtotalExclBtw + winstMargeExclBtw))
+    );
+    const winstNaBtwArbeidEnMarge = roundCurrency(winstProjectieWinstInclBtw - btwArbeidEnMarge);
     const winstProjectieMargePct = winstProjectieOmzetExclBtw > 0
         ? roundCurrency((winstProjectieWinstExclBtw / winstProjectieOmzetExclBtw) * 100)
         : 0;
@@ -1175,6 +1191,10 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
             kostenExclBtw: winstProjectieKostenExclBtw,
             winstExclBtw: winstProjectieWinstExclBtw,
             omzetInclBtw: totaalInclBtw,
+            kostenInclBtw: winstProjectieKostenInclBtw,
+            winstInclBtw: winstProjectieWinstInclBtw,
+            btwArbeidEnMarge,
+            winstNaBtwArbeidEnMarge,
             btwBedrag,
             margePercentageOpOmzet: winstProjectieMargePct,
         },

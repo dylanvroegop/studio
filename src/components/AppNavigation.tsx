@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { getIdTokenResult } from 'firebase/auth';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote, Sparkles, Landmark, Wallet } from 'lucide-react';
+import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote, Landmark, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -80,6 +80,13 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
         iconColorClassActive: 'text-orange-300',
     },
     {
+        href: '/materiaallijsten',
+        label: 'Materiaallijsten',
+        icon: ClipboardList,
+        iconColorClass: 'text-emerald-400',
+        iconColorClassActive: 'text-emerald-300',
+    },
+    {
         href: '/klanten',
         label: 'Klanten',
         icon: Users,
@@ -99,13 +106,6 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
         icon: StickyNote,
         iconColorClass: 'text-rose-400',
         iconColorClassActive: 'text-rose-300',
-    },
-    {
-        href: '/preparation-agent',
-        label: 'Preparation Agent',
-        icon: Sparkles,
-        iconColorClass: 'text-fuchsia-400',
-        iconColorClassActive: 'text-fuchsia-300',
     },
     {
         href: '/instellingen',
@@ -151,19 +151,7 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
         };
     }, [isUserLoading, user]);
 
-    const navItems: NavigationItem[] = isDeveloperAccess
-        ? [
-            ...BASE_NAV_ITEMS.slice(0, BASE_NAV_ITEMS.length - 1),
-            {
-                href: '/instellingen/persoonlijke-financien',
-                label: 'Persoonlijke Financiën',
-                icon: Wallet,
-                iconColorClass: 'text-emerald-400',
-                iconColorClassActive: 'text-emerald-300',
-            },
-            BASE_NAV_ITEMS[BASE_NAV_ITEMS.length - 1],
-        ]
-        : BASE_NAV_ITEMS;
+    const navItems: NavigationItem[] = BASE_NAV_ITEMS;
 
     return (
         <div className="flex h-full flex-col border-r border-border bg-card/95 backdrop-blur-sm">

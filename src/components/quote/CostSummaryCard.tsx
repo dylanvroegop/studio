@@ -7,6 +7,7 @@ interface CostSummaryCardProps {
     totals: CalculationResult | null;
     settings: QuoteSettings | null;
     totalUren: number;
+    urenPerDag?: number;
     extraKostenExcl?: number;
     onUpdateHourlyRate?: (rate: number) => void;
     onUpdateTotalHours?: (hours: number) => void;
@@ -27,6 +28,7 @@ export function CostSummaryCard({
     totals,
     settings,
     totalUren,
+    urenPerDag = 8,
     extraKostenExcl = 0,
     onUpdateHourlyRate,
     onUpdateTotalHours,
@@ -171,6 +173,15 @@ export function CostSummaryCard({
         );
     }
     const winstProjectie = totals.winstProjectie;
+    const winstInclBtw = winstProjectie.winstInclBtw ?? (winstProjectie.omzetInclBtw - (winstProjectie.kostenInclBtw ?? 0));
+    const winstNaBtwArbeidEnMarge = winstProjectie.winstNaBtwArbeidEnMarge ?? winstInclBtw;
+    const btwArbeidEnMarge = winstProjectie.btwArbeidEnMarge ?? 0;
+    const brutowinstPercentageInclBtw = winstProjectie.omzetInclBtw > 0
+        ? (winstInclBtw / winstProjectie.omzetInclBtw) * 100
+        : 0;
+    const safeUrenPerDag = Number.isFinite(urenPerDag) && urenPerDag > 0 ? urenPerDag : 8;
+    const aantalWerkdagen = totalUren > 0 ? Math.max(1, Math.ceil(totalUren / safeUrenPerDag)) : 0;
+    const winstPerWerkdag = aantalWerkdagen > 0 ? winstNaBtwArbeidEnMarge / aantalWerkdagen : 0;
 
     return (
         <div className="bg-card rounded-lg border border-border p-4">
@@ -513,14 +524,45 @@ export function CostSummaryCard({
                         {formatCurrency(totals.totaalInclBtw)}
                     </span>
                 </div>
-                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2.5 flex justify-between items-start gap-4">
-                    <div className="space-y-0.5">
-                        <span className="font-medium text-foreground">GEPROJECTEERDE WINST (excl. btw)</span>
-                        <p className="text-xs text-muted-foreground">
-                            {formatCurrency(winstProjectie.omzetExclBtw)} - {formatCurrency(winstProjectie.kostenExclBtw)} ({winstProjectie.margePercentageOpOmzet.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% marge)
-                        </p>
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-4">
+                        <span className="font-medium text-foreground">GEPROJECTEERDE WINST (incl. btw)</span>
+                        <span className="font-semibold text-emerald-500">{formatCurrency(winstInclBtw)}</span>
                     </div>
-                    <span className="font-semibold text-emerald-500">{formatCurrency(winstProjectie.winstExclBtw)}</span>
+                    <div className="space-y-1.5 text-sm">
+                        <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Omzet incl. btw</span>
+                            <span className="text-foreground">{formatCurrency(winstProjectie.omzetInclBtw)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Werkelijke kosten incl. btw</span>
+                            <span className="text-foreground">{formatCurrency(winstProjectie.kostenInclBtw ?? 0)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4 border-t border-emerald-500/20 pt-1.5">
+                            <span className="text-muted-foreground">Winst met arbeid + marge incl. btw</span>
+                            <span className="font-medium text-emerald-500">{formatCurrency(winstInclBtw)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Btw arbeid + marge afdracht</span>
+                            <span className="text-foreground">{formatCurrency(btwArbeidEnMarge)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4 border-t border-emerald-500/20 pt-1.5">
+                            <span className="text-muted-foreground">Winst na btw arbeid + marge</span>
+                            <span className="font-medium text-emerald-500">{formatCurrency(winstNaBtwArbeidEnMarge)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Brutowinstpercentage</span>
+                            <span className="font-medium text-emerald-500">
+                                {brutowinstPercentageInclBtw.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                            </span>
+                        </div>
+                        <div className="flex justify-between gap-4 border-t border-emerald-500/20 pt-1.5">
+                            <span className="text-muted-foreground">
+                                Winst per werkdag ({aantalWerkdagen} {aantalWerkdagen === 1 ? 'dag' : 'dagen'} x {safeUrenPerDag.toLocaleString('nl-NL', { maximumFractionDigits: 1 })} uur)
+                            </span>
+                            <span className="font-medium text-emerald-500">{formatCurrency(winstPerWerkdag)}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

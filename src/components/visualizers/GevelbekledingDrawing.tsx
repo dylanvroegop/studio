@@ -112,6 +112,7 @@ export function GevelbekledingDrawing({
     daktrimPosition = 'top',
     onDataGenerated
 }: GevelbekledingDrawingProps) {
+    const clipPathId = React.useId().replace(/:/g, '');
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const balkafstandNum = typeof balkafstand === 'number' ? balkafstand : parseFloat(String(balkafstand)) || 0;
     const tengelafstandNum = typeof tengelafstand === 'number' ? tengelafstand : parseFloat(String(tengelafstand)) || 0;
@@ -168,7 +169,11 @@ export function GevelbekledingDrawing({
     }
 
     // Determine MAX Height for canvas scaling
-    const heights = [hStd, hLeft, hRight, hPeak, h1, h2, h3];
+    const heights = (() => {
+        if (shape === 'l-shape' || shape === 'u-shape') return [h1, h2, h3];
+        if (shape === 'slope') return [hLeft, hRight, hPeak].filter((height) => height > 0);
+        return [hStd, hLeft, hRight, hPeak];
+    })();
     const maxH = Math.max(...heights);
 
     // STABLE CALLBACK REF
@@ -187,7 +192,7 @@ export function GevelbekledingDrawing({
 
     // Helper: Get Wall Top Y (mm) at given X 
     const getWallTopMm = useCallback((xMm: number) => {
-        const ratio = xMm / lengteNum;
+        const ratio = xMm / (effectiveLength || 1);
         if (variant === 'bottom' && (shape === 'slope' || shape === 'l-shape' || shape === 'u-shape')) return maxH;
         if (shape === 'slope') return hLeft + (hRight - hLeft) * ratio;
         if (shape === 'gable') return ratio <= 0.5 ? hLeft + (hPeak - hLeft) * (ratio / 0.5) : hPeak + (hRight - hPeak) * ((ratio - 0.5) / 0.5);
@@ -198,11 +203,11 @@ export function GevelbekledingDrawing({
             return h3;
         }
         return hLeft;
-    }, [lengteNum, variant, shape, maxH, hLeft, hRight, hPeak, l1, l2, h1, h2, h3]);
+    }, [effectiveLength, variant, shape, maxH, hLeft, hRight, hPeak, l1, l2, h1, h2, h3]);
 
     const getWallBottomMm = useCallback((xMm: number) => {
         if (variant !== 'bottom') return 0;
-        const ratio = xMm / lengteNum;
+        const ratio = xMm / (effectiveLength || 1);
         if (shape === 'slope') return (maxH - hLeft) + ((maxH - hRight) - (maxH - hLeft)) * ratio;
         if (shape === 'l-shape') return xMm <= l1 ? (maxH - h1) : (maxH - h2);
         if (shape === 'u-shape') {
@@ -211,7 +216,7 @@ export function GevelbekledingDrawing({
             return maxH - h3;
         }
         return 0;
-    }, [variant, lengteNum, shape, maxH, hLeft, hRight, l1, l2, h1, h2, h3]);
+    }, [variant, effectiveLength, shape, maxH, hLeft, hRight, l1, l2, h1, h2, h3]);
 
     const STUD_W = 50;
     const HALF_STUD = 25;
@@ -391,7 +396,7 @@ export function GevelbekledingDrawing({
         });
 
         return { beams: b, gaps: g };
-    }, [lengteNum, balkafstandNum, shape, doubleEndBeams, doubleTopPlate, doubleBottomPlate, openings, getWallTopMm, getWallBottomMm, l1, l2, startFromRight]);
+    }, [lengteNum, balkafstandNum, shape, doubleEndBeams, doubleTopPlate, doubleBottomPlate, openings, getWallTopMm, getWallBottomMm, l1, l2, h1, h2, h3, maxH, effectiveLength, variant, startFromRight]);
 
     // Area Calculation
     const areaStats = useMemo(() => {
@@ -436,7 +441,7 @@ export function GevelbekledingDrawing({
             lastEmittedRef.current = json;
             onDataGeneratedRef.current?.(data);
         }
-    }, [structure, lengteNum, maxH, shape, openings, doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand, latafstand, dagkanten, vensterbanken]);
+    }, [structure, lengteNum, maxH, shape, openings, doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand, latafstand, dagkanten, vensterbanken, onDataGenerated]);
 
 
     // Internal Drag State
@@ -571,8 +576,8 @@ export function GevelbekledingDrawing({
             fitContainer={fitContainer}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            widthLabel={lengteNum > 0 ? `${lengteNum}` : '---'}
-            heightLabel={hStd > 0 ? `${hStd}` : '---'}
+            widthLabel={effectiveLength > 0 ? `${effectiveLength}` : '---'}
+            heightLabel={maxH > 0 ? `${maxH}` : '---'}
             primarySpacing={undefined}
             gridLabel={undefined}
             suppressTotalDimensions={true}
@@ -606,6 +611,35 @@ export function GevelbekledingDrawing({
                     type: b.type
                 }));
 
+                const uShapeInnerReturnBattens = shape === 'u-shape'
+                    ? [
+                        {
+                            key: 'u-left-inner-return',
+                            xMm: l1 - STUD_W,
+                            yMm: variant === 'bottom' ? maxH - h1 : 0,
+                            hMm: h1,
+                        },
+                        {
+                            key: 'u-left-inner-return-extra',
+                            xMm: l1 - (STUD_W * 2),
+                            yMm: variant === 'bottom' ? maxH - h1 : 0,
+                            hMm: h1,
+                        },
+                        {
+                            key: 'u-right-inner-return',
+                            xMm: l1 + l2,
+                            yMm: variant === 'bottom' ? maxH - h3 : 0,
+                            hMm: h3,
+                        },
+                        {
+                            key: 'u-right-inner-return-extra',
+                            xMm: l1 + l2 + STUD_W,
+                            yMm: variant === 'bottom' ? maxH - h3 : 0,
+                            hMm: h3,
+                        },
+                    ].filter((batten) => batten.xMm >= 0 && batten.xMm + STUD_W <= effectiveLength && batten.hMm > 0)
+                    : [];
+
                 const renderGaps = structure.gaps.map(g => ({
                     value: g.value,
                     c1: WALL_X + g.startMm * pxPerMm,
@@ -614,8 +648,8 @@ export function GevelbekledingDrawing({
 
 
                 // --- LATTEN + TENGEL CALCULATION ---
-                let lattenElements: React.ReactNode[] = [];
-                let tengelElements: React.ReactNode[] = [];
+                const lattenElements: React.ReactNode[] = [];
+                const tengelElements: React.ReactNode[] = [];
                 let lattenGaps: { value: number; c1: number; c2: number }[] = [];
                 let tengelGaps: { value: number; c1: number; c2: number }[] = [];
 
@@ -813,25 +847,70 @@ export function GevelbekledingDrawing({
                 const showStructure = balkafstandNum > 0;
 
                 // Plate Paths Generation
-                const generateTopPlatePath = (offsetLevel: number) => {
+                const makePlateRect = (x1Mm: number, x2Mm: number, topMm: number, offsetLevel: number) => {
+                    const extraY = offsetLevel * PLATE_HEIGHT;
+                    const x1 = WALL_X + x1Mm * pxPerMm;
+                    const x2 = WALL_X + x2Mm * pxPerMm;
+                    const y1 = getY(topMm) + extraY;
+                    const y2 = y1 + PLATE_HEIGHT;
+                    return `${x1},${y1} ${x2},${y1} ${x2},${y2} ${x1},${y2}`;
+                };
+
+                const makeBottomPlateRect = (x1Mm: number, x2Mm: number, bottomMm: number, offsetLevel: number) => {
+                    const extraY = offsetLevel * PLATE_HEIGHT;
+                    const x1 = WALL_X + x1Mm * pxPerMm;
+                    const x2 = WALL_X + x2Mm * pxPerMm;
+                    const yBottom = getY(bottomMm) - extraY;
+                    const yTop = yBottom - PLATE_HEIGHT;
+                    return `${x1},${yTop} ${x2},${yTop} ${x2},${yBottom} ${x1},${yBottom}`;
+                };
+
+                const shapeSegments = (() => {
+                    if (shape === 'l-shape') {
+                        return [
+                            { start: 0, end: l1, height: h1 },
+                            { start: l1, end: effectiveLength, height: h2 },
+                        ].filter((segment) => segment.end > segment.start && segment.height > 0);
+                    }
+                    if (shape === 'u-shape') {
+                        return [
+                            { start: 0, end: l1, height: h1 },
+                            { start: l1, end: l1 + l2, height: h2 },
+                            { start: l1 + l2, end: effectiveLength, height: h3 },
+                        ].filter((segment) => segment.end > segment.start && segment.height > 0);
+                    }
+                    return [];
+                })();
+
+                const generateTopPlatePaths = (offsetLevel: number) => {
+                    if ((shape === 'l-shape' || shape === 'u-shape') && variant !== 'bottom') {
+                        return shapeSegments.map((segment) => makePlateRect(segment.start, segment.end, segment.height, offsetLevel));
+                    }
+
                     const extraY = offsetLevel * PLATE_HEIGHT;
                     if (shape === 'slope') {
-                        return `${WALL_X},${getY(hLeft) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT + extraY} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT + extraY}`;
+                        return [`${WALL_X},${getY(hLeft) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT + extraY} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT + extraY}`];
                     } else if (shape === 'gable') {
                         const midX = WALL_X + WALL_WIDTH / 2;
                         const peakY = getY(hPeak);
-                        return `${WALL_X},${getY(hLeft) + extraY} ${midX},${peakY + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT + extraY} ${midX},${peakY + PLATE_HEIGHT + extraY} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT + extraY}`;
-                    } else {
-                        return `${WALL_X},${getY(hLeft) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT + extraY} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT + extraY}`;
+                        return [`${WALL_X},${getY(hLeft) + extraY} ${midX},${peakY + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT + extraY} ${midX},${peakY + PLATE_HEIGHT + extraY} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT + extraY}`];
                     }
+
+                    return [makePlateRect(0, effectiveLength, variant === 'bottom' ? maxH : hLeft, offsetLevel)];
                 };
 
-                const topPlatePath = showStructure ? generateTopPlatePath(0) : null;
-                const topPlate2Path = showStructure && doubleTopPlate ? generateTopPlatePath(1) : null;
+                const generateBottomPlatePaths = (offsetLevel: number) => {
+                    if ((shape === 'l-shape' || shape === 'u-shape') && variant === 'bottom') {
+                        return shapeSegments.map((segment) => makeBottomPlateRect(segment.start, segment.end, maxH - segment.height, offsetLevel));
+                    }
 
-                const yBot = getY(0);
-                const bottomPlatePath = showStructure ? `${WALL_X},${yBot - PLATE_HEIGHT} ${WALL_X + WALL_WIDTH},${yBot - PLATE_HEIGHT} ${WALL_X + WALL_WIDTH},${yBot} ${WALL_X},${yBot}` : null;
-                const bottomPlate2Path = showStructure && doubleBottomPlate ? `${WALL_X},${yBot - (PLATE_HEIGHT * 2)} ${WALL_X + WALL_WIDTH},${yBot - (PLATE_HEIGHT * 2)} ${WALL_X + WALL_WIDTH},${yBot - PLATE_HEIGHT} ${WALL_X},${yBot - PLATE_HEIGHT}` : null;
+                    return [makeBottomPlateRect(0, effectiveLength, 0, offsetLevel)];
+                };
+
+                const topPlatePaths = showStructure ? generateTopPlatePaths(0) : [];
+                const topPlate2Paths = showStructure && doubleTopPlate ? generateTopPlatePaths(1) : [];
+                const bottomPlatePaths = showStructure ? generateBottomPlatePaths(0) : [];
+                const bottomPlate2Paths = showStructure && doubleBottomPlate ? generateBottomPlatePaths(1) : [];
 
                 const segments: { len: number }[] = [];
                 if (shape === 'l-shape') { segments.push({ len: l1 }); segments.push({ len: l2 }); }
@@ -840,32 +919,54 @@ export function GevelbekledingDrawing({
                 const outlinePointsMm = (() => {
                     if (shape === 'slope') {
                         return [
-                            { x: 0, y: 0 },
-                            { x: 0, y: hLeft },
-                            { x: lengteNum, y: hRight },
-                            { x: lengteNum, y: 0 },
+                            { x: 0, y: getWallBottomMm(0) },
+                            { x: 0, y: getWallTopMm(0) },
+                            { x: effectiveLength, y: getWallTopMm(effectiveLength) },
+                            { x: effectiveLength, y: getWallBottomMm(effectiveLength) },
                         ];
                     }
                     if (shape === 'gable') {
                         return [
                             { x: 0, y: 0 },
                             { x: 0, y: hLeft },
-                            { x: lengteNum / 2, y: hPeak },
-                            { x: lengteNum, y: hRight },
-                            { x: lengteNum, y: 0 },
+                            { x: effectiveLength / 2, y: hPeak },
+                            { x: effectiveLength, y: hRight },
+                            { x: effectiveLength, y: 0 },
                         ];
                     }
                     if (shape === 'l-shape') {
+                        if (variant === 'bottom') {
+                            return [
+                                { x: 0, y: maxH - h1 },
+                                { x: 0, y: maxH },
+                                { x: effectiveLength, y: maxH },
+                                { x: effectiveLength, y: maxH - h2 },
+                                { x: l1, y: maxH - h2 },
+                                { x: l1, y: maxH - h1 },
+                            ];
+                        }
                         return [
                             { x: 0, y: 0 },
                             { x: 0, y: h1 },
                             { x: l1, y: h1 },
                             { x: l1, y: h2 },
-                            { x: lengteNum, y: h2 },
-                            { x: lengteNum, y: 0 },
+                            { x: effectiveLength, y: h2 },
+                            { x: effectiveLength, y: 0 },
                         ];
                     }
                     if (shape === 'u-shape') {
+                        if (variant === 'bottom') {
+                            return [
+                                { x: 0, y: maxH - h1 },
+                                { x: 0, y: maxH },
+                                { x: effectiveLength, y: maxH },
+                                { x: effectiveLength, y: maxH - h3 },
+                                { x: l1 + l2, y: maxH - h3 },
+                                { x: l1 + l2, y: maxH - h2 },
+                                { x: l1, y: maxH - h2 },
+                                { x: l1, y: maxH - h1 },
+                            ];
+                        }
                         return [
                             { x: 0, y: 0 },
                             { x: 0, y: h1 },
@@ -873,15 +974,15 @@ export function GevelbekledingDrawing({
                             { x: l1, y: h2 },
                             { x: l1 + l2, y: h2 },
                             { x: l1 + l2, y: h3 },
-                            { x: lengteNum, y: h3 },
-                            { x: lengteNum, y: 0 },
+                            { x: effectiveLength, y: h3 },
+                            { x: effectiveLength, y: 0 },
                         ];
                     }
                     return [
                         { x: 0, y: 0 },
                         { x: 0, y: hLeft },
-                        { x: lengteNum, y: hRight },
-                        { x: lengteNum, y: 0 },
+                        { x: effectiveLength, y: hRight },
+                        { x: effectiveLength, y: 0 },
                     ];
                 })();
 
@@ -891,42 +992,68 @@ export function GevelbekledingDrawing({
 
                 return (
                     <>
-                        {!showStructure && (
-                            <polygon
-                                points={outlinePoints}
-                                fill="none"
-                                stroke="rgb(55, 60, 70)"
-                                strokeWidth="1"
-                            />
-                        )}
-                        {topPlatePath && <polygon points={topPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
-                        {topPlate2Path && <polygon points={topPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
+                        <defs>
+                            <clipPath id={clipPathId} clipPathUnits="userSpaceOnUse">
+                                <polygon points={outlinePoints} />
+                            </clipPath>
+                        </defs>
+                        <g clipPath={`url(#${clipPathId})`}>
+                        <polygon
+                            points={outlinePoints}
+                            fill="#09090b"
+                            stroke="none"
+                        />
+                        {topPlatePaths.map((path, index) => (
+                            <polygon key={`top-plate-${index}`} points={path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                        ))}
+                        {topPlate2Paths.map((path, index) => (
+                            <polygon key={`top-plate-2-${index}`} points={path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                        ))}
 
-                        {bottomPlatePath && <polygon points={bottomPlatePath} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
-                        {bottomPlate2Path && <polygon points={bottomPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
-                        {bottomPlate2Path && <polygon points={bottomPlate2Path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />}
+                        {bottomPlatePaths.map((path, index) => (
+                            <polygon key={`bottom-plate-${index}`} points={path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                        ))}
+                        {bottomPlate2Paths.map((path, index) => (
+                            <polygon key={`bottom-plate-2-${index}`} points={path} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />
+                        ))}
                         {showStructure && beams.map((b, i: number) => <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill="rgb(70, 75, 85)" stroke="rgb(55, 60, 70)" strokeWidth="0.5" />)}
+                        {showStructure && uShapeInnerReturnBattens.map((batten) => (
+                            <rect
+                                key={batten.key}
+                                x={WALL_X + batten.xMm * pxPerMm}
+                                y={getY(batten.yMm + batten.hMm)}
+                                width={Math.max(timberW, STUD_W * pxPerMm)}
+                                height={batten.hMm * pxPerMm}
+                                fill="rgb(82, 88, 100)"
+                                stroke="rgb(55, 60, 70)"
+                                strokeWidth="0.5"
+                            />
+                        ))}
                         {/* Latten + Tengel Rendering */}
                         {lattenElements}
                         {tengelElements}
                         {(gevelProfielLinks || gevelProfielRechts) && (
                             <g pointerEvents="none" opacity={0.95}>
-                                <line
-                                    x1={WALL_X + profielLineInsetPx}
-                                    y1={startY}
-                                    x2={WALL_X + profielLineInsetPx}
-                                    y2={startY + rectH}
-                                    stroke={profielAccentByType[profielLinksType]}
-                                    strokeWidth={1}
-                                />
-                                <line
-                                    x1={WALL_X + WALL_WIDTH - profielLineInsetPx}
-                                    y1={startY}
-                                    x2={WALL_X + WALL_WIDTH - profielLineInsetPx}
-                                    y2={startY + rectH}
-                                    stroke={profielAccentByType[profielRechtsType]}
-                                    strokeWidth={1}
-                                />
+                                {gevelProfielLinks && (
+                                    <line
+                                        x1={WALL_X + profielLineInsetPx}
+                                        y1={startY}
+                                        x2={WALL_X + profielLineInsetPx}
+                                        y2={startY + rectH}
+                                        stroke={profielAccentByType[profielLinksType]}
+                                        strokeWidth={1}
+                                    />
+                                )}
+                                {gevelProfielRechts && (
+                                    <line
+                                        x1={WALL_X + WALL_WIDTH - profielLineInsetPx}
+                                        y1={startY}
+                                        x2={WALL_X + WALL_WIDTH - profielLineInsetPx}
+                                        y2={startY + rectH}
+                                        stroke={profielAccentByType[profielRechtsType]}
+                                        strokeWidth={1}
+                                    />
+                                )}
                             </g>
                         )}
                         {showDaktrim && (
@@ -978,7 +1105,6 @@ export function GevelbekledingDrawing({
                                         const opDagkant = dagkanten.find(d => d.openingId === op.id);
                                         if (!opDagkant || !opDagkant.diepte) return null;
 
-                                        const dPx = Math.min(Number(opDagkant.diepte) * 0.2, 40) * pxPerMm; // Scale down depth for visual sanity
                                         const inset = 1 * pxPerMm;
 
                                         return (
@@ -1008,7 +1134,6 @@ export function GevelbekledingDrawing({
 
                                         const uitL = (Number(opVensterbank.uitstekLinks) || 0) * pxPerMm;
                                         const uitR = (Number(opVensterbank.uitstekRechts) || 0) * pxPerMm;
-                                        const vbDiepte = (Number(opVensterbank.diepte) || 20) * pxPerMm;
                                         const vbH = 8 * pxPerMm; // Visual thickness of the sill board (2x)
                                         const vensterbankColor = "#f97316";
 
@@ -1173,14 +1298,71 @@ export function GevelbekledingDrawing({
                                 </g>
                             );
                         })}
-
-                        <OverallDimensions
-                            wallLength={lengteNum}
-                            wallHeight={maxH}
-                            svgBaseX={WALL_X}
-                            svgBaseY={Y_BOTTOM}
-                            pxPerMm={pxPerMm}
+                        </g>
+                        <polygon
+                            points={outlinePoints}
+                            fill="none"
+                            stroke="rgb(55, 60, 70)"
+                            strokeWidth="1"
                         />
+                        {shape === 'u-shape' && (
+                            <g pointerEvents="none">
+                                <rect
+                                    x={WALL_X + (l1 * pxPerMm) - timberW}
+                                    y={startY}
+                                    width={timberW}
+                                    height={rectH}
+                                    fill={lattenColor}
+                                    stroke="rgb(55, 60, 70)"
+                                    strokeWidth="0.5"
+                                />
+                                <rect
+                                    x={WALL_X + ((l1 + l2) * pxPerMm)}
+                                    y={startY}
+                                    width={timberW}
+                                    height={rectH}
+                                    fill={lattenColor}
+                                    stroke="rgb(55, 60, 70)"
+                                    strokeWidth="0.5"
+                                />
+                            </g>
+                        )}
+
+                        {shape === 'slope' ? (
+                            <g className="text-emerald-500">
+                                <DimensionLine
+                                    p1={{ x: WALL_X, y: Y_BOTTOM }}
+                                    p2={{ x: WALL_X + WALL_WIDTH, y: Y_BOTTOM }}
+                                    offset={100}
+                                    label={effectiveLength}
+                                    orientation="horizontal"
+                                />
+                                <DimensionLine
+                                    p1={{ x: WALL_X - 100, y: getY(hLeft) }}
+                                    p2={{ x: WALL_X - 100, y: Y_BOTTOM }}
+                                    label={Math.round(hLeft)}
+                                    orientation="vertical"
+                                />
+                                <line x1={WALL_X - 100} y1={Y_BOTTOM} x2={WALL_X - 5} y2={Y_BOTTOM} stroke="rgb(16, 185, 129)" strokeWidth="0.5" opacity="0.5" />
+                                <line x1={WALL_X - 100} y1={getY(hLeft)} x2={WALL_X - 5} y2={getY(hLeft)} stroke="rgb(16, 185, 129)" strokeWidth="0.5" opacity="0.5" />
+                                <DimensionLine
+                                    p1={{ x: WALL_X + WALL_WIDTH + 100, y: getY(hRight) }}
+                                    p2={{ x: WALL_X + WALL_WIDTH + 100, y: Y_BOTTOM }}
+                                    label={Math.round(hRight)}
+                                    orientation="vertical"
+                                />
+                                <line x1={WALL_X + WALL_WIDTH + 5} y1={Y_BOTTOM} x2={WALL_X + WALL_WIDTH + 100} y2={Y_BOTTOM} stroke="rgb(16, 185, 129)" strokeWidth="0.5" opacity="0.5" />
+                                <line x1={WALL_X + WALL_WIDTH + 5} y1={getY(hRight)} x2={WALL_X + WALL_WIDTH + 100} y2={getY(hRight)} stroke="rgb(16, 185, 129)" strokeWidth="0.5" opacity="0.5" />
+                            </g>
+                        ) : (
+                            <OverallDimensions
+                                wallLength={effectiveLength}
+                                wallHeight={maxH}
+                                svgBaseX={WALL_X}
+                                svgBaseY={Y_BOTTOM}
+                                pxPerMm={pxPerMm}
+                            />
+                        )}
 
                         {segments.length > 0 && (
                             <g>
@@ -1209,7 +1391,7 @@ export function GevelbekledingDrawing({
 
                         <OpeningMeasurements
                             openings={openings.map(op => ({ ...op, width: op.width, height: op.height, fromLeft: op.fromLeft, fromBottom: op.fromBottom, type: op.type, id: op.id }))}
-                            wallLength={lengteNum}
+                            wallLength={effectiveLength}
                             wallHeight={maxH}
                             svgBaseX={WALL_X}
                             svgBaseY={Y_BOTTOM}
