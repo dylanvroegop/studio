@@ -4,8 +4,10 @@ import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
   flattenStructuredWorkDescription,
+  normalizeWerkbeschrijvingJobsArray,
   sanitizeWorkDescriptionStructured,
   toStructuredWorkDescription,
+  type WerkbeschrijvingJob,
   type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
 
@@ -325,6 +327,26 @@ export async function POST(request: Request) {
         ? parsedData[0]
         : parsedData;
 
+    // Try jobs array first (new multi-job format from n8n)
+    const jobsArray = normalizeWerkbeschrijvingJobsArray(result);
+    if (jobsArray && jobsArray.length > 0) {
+      const firstJob = jobsArray[0];
+      const structured = toStructuredWorkDescription({
+        korteTitel: firstJob.korteTitel,
+        korteBeschrijving: firstJob.korteBeschrijving,
+        werkbeschrijving: firstJob.werkbeschrijving,
+      });
+      const flattened = flattenStructuredWorkDescription(structured);
+      if (quoteId) {
+        await persistWorkDescription(quoteId, userId, flattened, structured, jobsArray);
+      }
+      return NextResponse.json({
+        werkbeschrijving: flattened,
+        werkbeschrijvingStructured: structured,
+        werkbeschrijvingJobs: jobsArray,
+      });
+    }
+
     const directStructured = extractDirectStructured(result);
     if (directStructured && flattenStructuredWorkDescription(directStructured).length > 0) {
       const structured = sanitizeWorkDescriptionStructured(directStructured);
@@ -380,6 +402,7 @@ async function persistWorkDescription(
   userId: string,
   werkbeschrijving: string[],
   werkbeschrijvingStructured?: WorkDescriptionStructured,
+  werkbeschrijvingJobs?: WerkbeschrijvingJob[],
 ): Promise<void> {
   if (!quoteId || !userId || werkbeschrijving.length === 0) return;
 
@@ -404,6 +427,7 @@ async function persistWorkDescription(
       ...existingJson,
       werkbeschrijving,
       ...(werkbeschrijvingStructured ? { werkbeschrijving_structured: werkbeschrijvingStructured } : {}),
+      ...(werkbeschrijvingJobs ? { werkbeschrijving_jobs: werkbeschrijvingJobs } : {}),
     };
 
     const { error: updateError } = await supabaseAdmin
@@ -424,6 +448,7 @@ async function persistWorkDescription(
       data_json: {
         werkbeschrijving,
         ...(werkbeschrijvingStructured ? { werkbeschrijving_structured: werkbeschrijvingStructured } : {}),
+        ...(werkbeschrijvingJobs ? { werkbeschrijving_jobs: werkbeschrijvingJobs } : {}),
       },
     });
 

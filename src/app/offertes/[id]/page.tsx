@@ -14,6 +14,7 @@ import {
     unwrapRoot,
     toStructuredWorkDescription,
     flattenStructuredWorkDescription,
+    type WerkbeschrijvingJob,
     type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
 import { ClientInfoCard } from '@/components/quote/ClientInfoCard';
@@ -435,6 +436,7 @@ export default function QuotePage() {
     const [activeTab, setActiveTab] = useState('materialen');
     const [workDescriptionMode, setWorkDescriptionMode] = useState<'edit' | 'preview'>('edit');
     const [workDescriptionStructured, setWorkDescriptionStructured] = useState<WorkDescriptionStructured>(() => toStructuredWorkDescription(null));
+    const [werkbeschrijvingJobs, setWerkbeschrijvingJobs] = useState<WerkbeschrijvingJob[] | null>(null);
     const [isGeneratingWorkDescription, setIsGeneratingWorkDescription] = useState(false);
     const [isGeneratingDistanceDev, setIsGeneratingDistanceDev] = useState(false);
     const [isAutoSavingWorkDescription, setIsAutoSavingWorkDescription] = useState(false);
@@ -2523,6 +2525,7 @@ export default function QuotePage() {
             werkbeschrijving: generateWorkSummary(normalizedData?.werkbeschrijving, 800),
             werkbeschrijvingFull: normalizedData?.werkbeschrijving || [],
             werkbeschrijvingStructured: workDescriptionStructured,
+            werkbeschrijvingJobs: werkbeschrijvingJobs ?? undefined,
             grootmaterialen: materials.groot.map(m => ({
                 aantal: m.aantal,
                 product: m.product,
@@ -3344,6 +3347,7 @@ export default function QuotePage() {
             werkbeschrijving: generateWorkSummary(normalizedData?.werkbeschrijving || []),
             werkbeschrijvingFull: normalizeWerkbeschrijving(normalizedData?.werkbeschrijving || []),
             werkbeschrijvingStructured: workDescriptionStructured,
+            werkbeschrijvingJobs: werkbeschrijvingJobs ?? undefined,
             grootmaterialen: materials.groot.map(m => ({
                 aantal: m.aantal,
                 product: m.product,
@@ -3901,7 +3905,13 @@ export default function QuotePage() {
         lastSyncedWerkbeschrijvingRef.current = JSON.stringify({
             structured: next,
         });
-    }, [currentWerkbeschrijvingStructured, detectedWorkDescriptionTemplate]);
+
+        // Sync werkbeschrijving_jobs from normalizedData (only when not dirty)
+        const loadedJobs = (normalizedData as any)?.werkbeschrijving_jobs;
+        if (Array.isArray(loadedJobs) && loadedJobs.length > 0) {
+            setWerkbeschrijvingJobs(loadedJobs as WerkbeschrijvingJob[]);
+        }
+    }, [currentWerkbeschrijvingStructured, detectedWorkDescriptionTemplate, normalizedData]);
 
     useEffect(() => {
         if (!calculation?.data_json) return;
@@ -3940,6 +3950,7 @@ export default function QuotePage() {
                 korteBeschrijving: parsedStructured.context,
                 werkbeschrijving: parsedWerkbeschrijving,
                 werkbeschrijving_structured: parsedStructured,
+                ...(werkbeschrijvingJobs ? { werkbeschrijving_jobs: werkbeschrijvingJobs } : {}),
             })
                 .then(() => {
                     lastSyncedWerkbeschrijvingRef.current = serializedParsed;
@@ -3967,7 +3978,7 @@ export default function QuotePage() {
                 clearTimeout(autoSaveWerkbeschrijvingTimerRef.current);
             }
         };
-    }, [workDescriptionStructured, calculation?.data_json, updateDataJson, toast]);
+    }, [workDescriptionStructured, werkbeschrijvingJobs, calculation?.data_json, updateDataJson, toast]);
 
     const handleGenerateWorkDescription = async (action: 'full' | 'uitvoering-only' | 'improve') => {
         if (!user) return;
@@ -4036,11 +4047,31 @@ export default function QuotePage() {
             });
 
             const payload = await response.json().catch(() => null) as
-                | { werkbeschrijving?: unknown; werkbeschrijvingStructured?: unknown; error?: string }
+                | { werkbeschrijving?: unknown; werkbeschrijvingStructured?: unknown; werkbeschrijvingJobs?: unknown; error?: string }
                 | null;
 
             if (!response.ok) {
                 throw new Error(payload?.error || 'Kon werkbeschrijving niet genereren.');
+            }
+
+            // Handle multi-job response
+            if (Array.isArray(payload?.werkbeschrijvingJobs) && (payload.werkbeschrijvingJobs as WerkbeschrijvingJob[]).length > 0) {
+                const receivedJobs = payload.werkbeschrijvingJobs as WerkbeschrijvingJob[];
+                setWerkbeschrijvingJobs(receivedJobs);
+                // For single job, also apply to structured so PDF summary still works
+                if (receivedJobs.length === 1) {
+                    const inferred = toStructuredWorkDescription({
+                        werkbeschrijving: receivedJobs[0].werkbeschrijving,
+                        korteTitel: receivedJobs[0].korteTitel,
+                        korteBeschrijving: receivedJobs[0].korteBeschrijving,
+                    });
+                    applyLocalWorkDescriptionUpdate(inferred);
+                }
+                toast({
+                    title: 'Werkbeschrijving bijgewerkt',
+                    description: `${receivedJobs.length} klus${receivedJobs.length > 1 ? 'sen' : ''} ontvangen.`,
+                });
+                return;
             }
 
             const generatedStructured = payload?.werkbeschrijvingStructured
@@ -5646,6 +5677,8 @@ export default function QuotePage() {
                                     isAutoSaving={isAutoSavingWorkDescription}
                                     templateLabel={detectedWorkDescriptionTemplate?.label || null}
                                     onApplyTemplate={detectedWorkDescriptionTemplate ? handleApplyWorkDescriptionTemplate : undefined}
+                                    jobs={werkbeschrijvingJobs}
+                                    onJobsChange={setWerkbeschrijvingJobs}
                                 />
                             )}
                         </TabsContent>

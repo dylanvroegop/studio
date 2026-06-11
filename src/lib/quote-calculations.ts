@@ -26,6 +26,7 @@ export type DataJson = {
     uren_specificatie?: UrenItem[];
     werkbeschrijving?: string[] | any;
     werkbeschrijving_structured?: WorkDescriptionStructured | any;
+    werkbeschrijving_jobs?: WerkbeschrijvingJob[];
     transport_berekening?: {
         ratePerKm?: number;
         distanceKm?: number;
@@ -49,6 +50,12 @@ export type WorkDescriptionStructured = {
         afwerking: string[];
     };
     legacyNotes?: string[];
+};
+
+export type WerkbeschrijvingJob = {
+    korteTitel: string;
+    korteBeschrijving: string;
+    werkbeschrijving: string[];
 };
 
 export type KlantInformatie = {
@@ -279,6 +286,41 @@ export function flattenStructuredWorkDescription(input: unknown): string[] {
     ]
         .map((line) => String(line || '').trim())
         .filter(Boolean);
+}
+
+function normalizeJobSteps(input: unknown): string[] {
+    if (!Array.isArray(input)) return [];
+    return input
+        .map((entry) => {
+            if (typeof entry === 'string') return entry.trim();
+            if (!entry || typeof entry !== 'object') return '';
+            const row = entry as Record<string, unknown>;
+            return (
+                (typeof row.stap === 'string' ? row.stap.trim() : '') ||
+                (typeof row.step === 'string' ? row.step.trim() : '') ||
+                (typeof row.description === 'string' ? row.description.trim() : '') ||
+                (typeof row.text === 'string' ? row.text.trim() : '')
+            );
+        })
+        .filter(Boolean);
+}
+
+export function normalizeWerkbeschrijvingJobsArray(input: unknown): WerkbeschrijvingJob[] | null {
+    if (!input || typeof input !== 'object') return null;
+    const row = input as Record<string, unknown>;
+    if (!Array.isArray(row.jobs) || row.jobs.length === 0) return null;
+    const jobs: WerkbeschrijvingJob[] = [];
+    for (const job of row.jobs) {
+        if (!job || typeof job !== 'object') continue;
+        const j = job as Record<string, unknown>;
+        const korteTitel = typeof j.korteTitel === 'string' ? j.korteTitel.trim() : '';
+        const korteBeschrijving = typeof j.korteBeschrijving === 'string' ? j.korteBeschrijving.trim() : '';
+        const werkbeschrijving = normalizeJobSteps(j.werkbeschrijving);
+        if (korteTitel || werkbeschrijving.length > 0) {
+            jobs.push({ korteTitel, korteBeschrijving, werkbeschrijving });
+        }
+    }
+    return jobs.length > 0 ? jobs : null;
 }
 
 function toNumber(value: any, fallback = 0): number {
@@ -524,14 +566,45 @@ export function normalizeDataJson(input: any): DataJson {
     const rawInst = findProp(base, 'instellingen');
     const rawExtras = findProp(base, 'extras');
     const rawWerk = findProp(base, 'werkbeschrijving');
+
+    // Detect legacy case where werkbeschrijving was stored as a JSON string containing {jobs:[...]}
+    // (happened when n8n started returning the new format before the API route was updated)
+    const rawWerkJobsCandidate = (() => {
+        let str: string | null = null;
+        if (typeof rawWerk === 'string') {
+            str = rawWerk;
+        } else if (Array.isArray(rawWerk) && rawWerk.length === 1 && typeof rawWerk[0] === 'string') {
+            str = rawWerk[0];
+        }
+        if (!str) return null;
+        try {
+            const parsed = JSON.parse(str);
+            return normalizeWerkbeschrijvingJobsArray(parsed);
+        } catch {
+            return null;
+        }
+    })();
+
     const rawWerkStructured =
         findProp(base, 'werkbeschrijving_structured') ||
         findProp(base, 'werkbeschrijvingStructured');
+
+    // If rawWerk is a stale JSON-encoded jobs blob, resolve werkbeschrijving from there
+    const effectiveRawWerk = rawWerkJobsCandidate
+        ? rawWerkJobsCandidate.flatMap((j) => j.werkbeschrijving)
+        : rawWerk;
+    const effectiveKorteTitel = rawWerkJobsCandidate
+        ? (rawWerkJobsCandidate[0]?.korteTitel ?? findProp(base, 'korteTitel') ?? findProp(base, 'korte_titel'))
+        : (findProp(base, 'korteTitel') || findProp(base, 'korte_titel'));
+    const effectiveKorteBeschrijving = rawWerkJobsCandidate
+        ? (rawWerkJobsCandidate[0]?.korteBeschrijving ?? findProp(base, 'korteBeschrijving') ?? findProp(base, 'korte_beschrijving'))
+        : (findProp(base, 'korteBeschrijving') || findProp(base, 'korte_beschrijving'));
+
     const structuredWerkbeschrijving = toStructuredWorkDescription({
-        werkbeschrijving: rawWerk,
+        werkbeschrijving: effectiveRawWerk,
         werkbeschrijving_structured: rawWerkStructured,
-        korteTitel: findProp(base, 'korteTitel') || findProp(base, 'korte_titel'),
-        korteBeschrijving: findProp(base, 'korteBeschrijving') || findProp(base, 'korte_beschrijving'),
+        korteTitel: effectiveKorteTitel,
+        korteBeschrijving: effectiveKorteBeschrijving,
     });
     const flattenedWerkbeschrijving = flattenStructuredWorkDescription(structuredWerkbeschrijving);
     const looksLikeTravelCalc = (value: any): boolean => {
@@ -619,6 +692,20 @@ export function normalizeDataJson(input: any): DataJson {
         ? totaalUrenCandidate
         : urenSpecificatie.reduce((sum: number, it: any) => sum + toNumber(it.uren, 0), 0);
 
+    // Extract werkbeschrijving_jobs: prefer stored array, else backwards-compat wrap
+    const rawWerkbeschrijvingJobs = findProp(base, 'werkbeschrijving_jobs');
+    let resolvedWerkbeschrijvingJobs: WerkbeschrijvingJob[] | undefined;
+    if (Array.isArray(rawWerkbeschrijvingJobs) && rawWerkbeschrijvingJobs.length > 0) {
+        resolvedWerkbeschrijvingJobs = rawWerkbeschrijvingJobs as WerkbeschrijvingJob[];
+    } else if (resolvedKorteTitel || flattenedWerkbeschrijving.length > 0) {
+        // backwards compat: wrap old flat structure as single-job array
+        resolvedWerkbeschrijvingJobs = [{
+            korteTitel: resolvedKorteTitel || '',
+            korteBeschrijving: resolvedKorteBeschrijving || '',
+            werkbeschrijving: flattenedWerkbeschrijving,
+        }];
+    }
+
     return {
         ...base,
         grootmaterialen: normalizeMaterialen((base as any).grootmaterialen),
@@ -633,6 +720,7 @@ export function normalizeDataJson(input: any): DataJson {
         uren_specificatie: urenSpecificatie,
         werkbeschrijving: flattenedWerkbeschrijving,
         werkbeschrijving_structured: structuredWerkbeschrijving,
+        ...(resolvedWerkbeschrijvingJobs ? { werkbeschrijving_jobs: resolvedWerkbeschrijvingJobs } : {}),
     };
 }
 
