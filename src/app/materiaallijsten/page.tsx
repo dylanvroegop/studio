@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Timestamp, collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -68,7 +68,7 @@ function statusClass(status: MaterialListStatus): string {
   return map[status];
 }
 
-export default function MateriaallijstenPage() {
+function MateriaallijstenPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isUserLoading } = useUser();
@@ -330,5 +330,19 @@ export default function MateriaallijstenPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function MateriaallijstenPage() {
+  return (
+    <Suspense
+      fallback={(
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      )}
+    >
+      <MateriaallijstenPageContent />
+    </Suspense>
   );
 }
