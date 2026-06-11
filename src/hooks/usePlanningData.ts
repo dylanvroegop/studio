@@ -52,7 +52,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
     }) => {
         const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
         if (!idToken) return;
-        await fetch('/api/google-calendar/sync-entry', {
+        const response = await fetch('/api/google-calendar/sync-entry', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -69,7 +69,11 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
                 notes: payload.notes,
                 cache: payload.cache,
             }),
-        }).catch(() => null);
+        });
+        if (!response.ok) {
+            const result = await response.json().catch(() => null) as { error?: string } | null;
+            throw new Error(result?.error || 'Google Calendar synchronisatie mislukt.');
+        }
     }, []);
 
     useEffect(() => {

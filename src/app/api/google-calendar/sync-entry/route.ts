@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
-import { getCalendarClient } from '@/lib/integrations/google-calendar';
+import { getCalendarClient, isGoogleInvalidGrantError } from '@/lib/integrations/google-calendar';
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -149,6 +149,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, action: 'create', eventId: newEventId || null });
   } catch (error) {
     console.error('google calendar sync-entry error', error);
+    if (isGoogleInvalidGrantError(error)) {
+      const token = extractBearerToken(request.headers.get('authorization'));
+      if (token) {
+        const { auth, firestore } = initFirebaseAdmin();
+        const decoded = await auth.verifyIdToken(token).catch(() => null);
+        if (decoded?.uid) {
+          await firestore.collection('users').doc(decoded.uid).set({
+            integrations: {
+              googleCalendar: {
+                connected: false,
+                reconnectRequired: true,
+                accessToken: null,
+                expiryDate: null,
+                updatedAt: new Date(),
+              },
+            },
+          }, { merge: true }).catch(() => null);
+        }
+      }
+      return NextResponse.json(
+        { error: 'Google Calendar moet opnieuw gekoppeld worden.', code: 'google_calendar_reconnect_required' },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

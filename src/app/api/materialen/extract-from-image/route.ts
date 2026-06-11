@@ -7,7 +7,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const OPENAI_MODEL = 'gpt-5.2';
+const FALLBACK_OPENAI_MODEL = process.env.OPENAI_MATERIAL_IMAGE_FALLBACK_MODEL || 'gpt-5.1';
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const OPENAI_EXTRACTION_TIMEOUT_MS = 60_000;
+const SUPPLIER_FALLBACK_TIMEOUT_MS = 15_000;
 
 type OptionSets = {
   categories: string[];
@@ -105,7 +108,7 @@ function parseOptionSets(formData: FormData): OptionSets {
   };
 }
 
-function buildExtractionPrompt(options: OptionSets): string {
+function buildExtractionPrompt(options: OptionSets, extraRules = ''): string {
   const categoriesText = options.categories.length > 0 ? options.categories.join(', ') : '(geen lijst meegegeven)';
   const subsectionsText = options.subsections.length > 0 ? options.subsections.join(', ') : '(geen lijst meegegeven)';
   const suppliersText = options.suppliers.length > 0 ? options.suppliers.join(', ') : '(geen lijst meegegeven)';
@@ -151,8 +154,9 @@ Regels:
   - Vul "lengte", "breedte", "hoogte", "dikte" als string met zichtbare maat + eenheid (bijv. "6.00 m", "3.66 m", "1.14 mm").
   - Als niet zichtbaar of niet betrouwbaar leesbaar: lege string "".
   - Zet geen afmetingen om naar andere eenheden; neem exact over zoals zichtbaar.
-- Leverancier: detecteer merk/winkel als duidelijk (bijv. Bouwmaat), anders leeg.
-- Leverancier: kies ALLEEN uit onderstaande leverancierslijst. Gebruik zichtbare URL/tabtitel/logo/merknaam als primaire hint (bijv. bouwmaat.nl => Bouwmaat).
+- Leverancier: detecteer merk/winkel als duidelijk (bijv. Bouwmaat).
+- Leverancier: kies bij voorkeur uit onderstaande leverancierslijst. Gebruik zichtbare URL/tabtitel/logo/merknaam als primaire hint (bijv. bouwmaat.nl => Bouwmaat).
+- Leverancier: als de webshop niet in de leverancierslijst staat maar de URL zichtbaar is, gebruik alleen de basis-URL t/m de domeinextensie (bijv. https://www.kunststofbouwmateriaal.nl/) en laat productpad/query weg.
 - Categorie/subsectie: kies ALLEEN uit onderstaande lijsten als een duidelijke match bestaat, anders leeg.
 - Als "Actieve categorie" is meegegeven, gebruik die categorie als standaardkeuze.
 - Subsectie MOET passen binnen de categorie->subsectie mapping als die beschikbaar is.
@@ -171,6 +175,7 @@ ${subsectionsText}
 
 Beschikbare leveranciers:
 ${suppliersText}
+${extraRules ? `\nExtra correctieregels:\n${extraRules}\n` : ''}
 `;
 }
 
@@ -274,6 +279,61 @@ function normalizeConfidence(raw: unknown): number {
   return Number(raw.toFixed(2));
 }
 
+function isUrlLike(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (/^https?:\/\//i.test(trimmed)) return true;
+  if (/^www\./i.test(trimmed)) return true;
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/|\?|#|$)/i.test(trimmed);
+}
+
+function normalizeSupplierUrlOrigin(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed.replace(/^\/+/, '')}`;
+
+  try {
+    const url = new URL(withProtocol);
+    if (!url.hostname.includes('.')) return '';
+    return `${url.protocol}//${url.hostname}/`;
+  } catch {
+    const match = withProtocol.match(/^(https?:\/\/)?([^/\s?#]+\.[a-z]{2,})(?:[/?#]|$)/i);
+    if (!match) return '';
+    return `https://${match[2].replace(/^www\./i, 'www.')}/`;
+  }
+}
+
+function deriveSupplierNameFromUrl(value: string): string {
+  const origin = normalizeSupplierUrlOrigin(value);
+  if (!origin) return '';
+
+  try {
+    const url = new URL(origin);
+    const label = url.hostname
+      .replace(/^www\./i, '')
+      .replace(/\.[a-z]{2,}$/i, '')
+      .replace(/[-_]+/g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .trim();
+
+    return label
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  } catch {
+    return '';
+  }
+}
+
+function isCleanSupplierName(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 80) return false;
+  if (isUrlLike(trimmed)) return false;
+  if (/[/?#@]/.test(trimmed)) return false;
+  return /[a-z0-9]/i.test(trimmed);
+}
+
 function normalizeLooseMatchText(value: string): string {
   return value
     .toLowerCase()
@@ -307,7 +367,9 @@ function pickBestMatchingOption(raw: string, options: string[]): string {
 }
 
 function resolveSupplier(rawSupplier: string, materialName: string, options: string[]): string {
-  if (options.length === 0) return '';
+  if (options.length === 0 && !isUrlLike(rawSupplier)) {
+    return isCleanSupplierName(rawSupplier) ? rawSupplier : '';
+  }
   const hintText = `${rawSupplier} ${materialName}`.toLowerCase();
   const aliases = [
     { variants: ['bouwmaat', 'bouwmaat.nl'], canonical: 'bouwmaat' },
@@ -323,7 +385,20 @@ function resolveSupplier(rawSupplier: string, materialName: string, options: str
     const canonical = pickBestMatchingOption(aliasMatch.canonical, options);
     if (canonical) return canonical;
   }
-  return pickBestMatchingOption(rawSupplier, options) || pickBestMatchingOption(materialName, options);
+  if (isUrlLike(rawSupplier)) {
+    const origin = normalizeSupplierUrlOrigin(rawSupplier);
+    const derivedName = deriveSupplierNameFromUrl(rawSupplier);
+    return (
+      pickBestMatchingOption(rawSupplier.replace(/^https?:\/\//i, '').replace(/^www\./i, ''), options)
+      || pickBestMatchingOption(derivedName, options)
+      || origin
+    );
+  }
+  return (
+    pickBestMatchingOption(rawSupplier, options)
+    || pickBestMatchingOption(materialName, options)
+    || (isCleanSupplierName(rawSupplier) ? rawSupplier : '')
+  );
 }
 
 function resolveSubsection(params: {
@@ -390,30 +465,49 @@ async function callOpenAiExtraction(params: {
   apiKey: string;
   imageDataUrl: string;
   options: OptionSets;
+  model?: string;
+  extraRules?: string;
+  timeoutMs?: number;
 }): Promise<Record<string, unknown>> {
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      temperature: 0,
-      input: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'input_text',
-              text: buildExtractionPrompt(params.options),
-            },
-            { type: 'input_image', image_url: params.imageDataUrl },
-          ],
-        },
-      ],
-    }),
-  });
+  const model = params.model || OPENAI_MODEL;
+  const timeoutMs = params.timeoutMs ?? OPENAI_EXTRACTION_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
+
+  try {
+    response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${params.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0,
+        input: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'input_text',
+                text: buildExtractionPrompt(params.options, params.extraRules),
+              },
+              { type: 'input_image', image_url: params.imageDataUrl },
+            ],
+          },
+        ],
+      }),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`OpenAI analyse duurde te lang (${Math.round(timeoutMs / 1000)}s).`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -427,6 +521,71 @@ async function callOpenAiExtraction(params: {
   }
 
   return parseExtractionJson(outputText);
+}
+
+async function maybeRunSupplierUrlFallback(params: {
+  apiKey: string;
+  imageDataUrl: string;
+  options: OptionSets;
+  extracted: Record<string, unknown>;
+}): Promise<{ extracted: Record<string, unknown>; fallbackModel: string | null }> {
+  const rawSupplier = safeString(params.extracted.leverancier);
+  const shouldRunFallback = !rawSupplier || isUrlLike(rawSupplier);
+  if (!shouldRunFallback) {
+    return { extracted: params.extracted, fallbackModel: null };
+  }
+
+  const extraRules = [
+    rawSupplier
+      ? `De vorige analyse zette "${rawSupplier}" in "leverancier". Dat is fout als dit een volledige product-URL is.`
+      : 'De vorige analyse liet "leverancier" leeg. Controleer nu expliciet de zichtbare browser-URL, tabtitel, logo en shopnaam.',
+    'Gebruik de URL alleen als hint om de winkel/leveranciernaam te bepalen.',
+    'Voorbeelden: bouwmaat.nl => Bouwmaat, kunststofbouwmateriaal.nl => Kunststof Bouwmateriaal.',
+    'Als de shopnaam niet betrouwbaar uit logo, tabtitel, domein of zichtbare tekst te halen is, gebruik alleen de basis-URL t/m de domeinextensie, bijvoorbeeld https://www.kunststofbouwmateriaal.nl/.',
+    'Als de zichtbare URL lang is, negeer alles na de domeinextensie zoals .nl, .com, .be of .de.',
+    'Retourneer opnieuw het volledige JSON-object met dezelfde velden.',
+  ].join('\n- ');
+
+  try {
+    const fallbackExtraction = await callOpenAiExtraction({
+      apiKey: params.apiKey,
+      imageDataUrl: params.imageDataUrl,
+      options: params.options,
+      model: FALLBACK_OPENAI_MODEL,
+      extraRules: `- ${extraRules}`,
+      timeoutMs: SUPPLIER_FALLBACK_TIMEOUT_MS,
+    });
+
+    const fallbackSupplier = safeString(fallbackExtraction.leverancier);
+    if (isUrlLike(fallbackSupplier)) {
+      const fallbackOrigin = normalizeSupplierUrlOrigin(fallbackSupplier);
+      if (fallbackOrigin) {
+        return {
+          extracted: {
+            ...fallbackExtraction,
+            leverancier: fallbackOrigin,
+          },
+          fallbackModel: FALLBACK_OPENAI_MODEL,
+        };
+      }
+    }
+
+    if (fallbackSupplier) {
+      return { extracted: fallbackExtraction, fallbackModel: FALLBACK_OPENAI_MODEL };
+    }
+  } catch (error) {
+    console.warn('Materiaal screenshot supplier fallback faalde:', error);
+  }
+
+  const origin = normalizeSupplierUrlOrigin(rawSupplier);
+
+  return {
+    extracted: {
+      ...params.extracted,
+      leverancier: origin,
+    },
+    fallbackModel: null,
+  };
 }
 
 export async function POST(request: Request) {
@@ -476,11 +635,21 @@ export async function POST(request: Request) {
       options,
     });
 
-    const material = enforceOptions(normalizeMaterialPayload(extracted), options);
+    const fallbackResult = await maybeRunSupplierUrlFallback({
+      apiKey,
+      imageDataUrl,
+      options,
+      extracted,
+    });
+
+    const material = enforceOptions(normalizeMaterialPayload(fallbackResult.extracted), options);
 
     return NextResponse.json({
       ok: true,
-      model: OPENAI_MODEL,
+      model: fallbackResult.fallbackModel
+        ? `${OPENAI_MODEL} + ${fallbackResult.fallbackModel}`
+        : OPENAI_MODEL,
+      fallbackModel: fallbackResult.fallbackModel,
       material,
     });
   } catch (error) {

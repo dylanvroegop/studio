@@ -15,6 +15,11 @@ export const dynamic = 'force-dynamic';
 const DEFAULT_N8N_WORK_DESCRIPTION_WEBHOOK =
   'https://n8n.dylan8n.org/webhook/38942fcb-1194-4f6b-8032-0c970425af7c';
 const N8N_TIMEOUT_MS = 60_000;
+const WASTE_REMOVAL_DISABLED_RULE = [
+  'HARDE REGEL: GEEN AFVAL AFVOEREN.',
+  'Neem geen stap op over afval, puin of restmateriaal afvoeren, meenemen, storten of in een container plaatsen.',
+  'Afval afvoeren mag uitsluitend worden genoemd wanneer afvalAfvoeren expliciet op true staat.',
+].join(' ');
 
 type RequestBody = {
   prompt?: unknown;
@@ -46,6 +51,69 @@ function extractBearerToken(authHeader: string | null): string | null {
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function isWasteRemovalRow(value: string): boolean {
+  const normalized = safeString(value).toLowerCase();
+  if (!normalized) return false;
+  return (
+    (normalized.includes('afval') || normalized.includes('puin') || normalized.includes('restmateriaal'))
+    && (
+      normalized.includes('afvoer')
+      || normalized.includes('meenem')
+      || normalized.includes('stort')
+      || normalized.includes('container')
+      || normalized.includes('verwijder')
+    )
+  );
+}
+
+function getWasteRemovalPreferences(input: unknown): { jobs: boolean[]; active: boolean } {
+  const structured = sanitizeWorkDescriptionStructured(input);
+  const jobs = structured.jobs.map((job) => job.afvalAfvoeren === true);
+  const activeIndex = Math.max(0, Math.min(structured.activeJobIndex || 0, Math.max(0, jobs.length - 1)));
+  return {
+    jobs,
+    active: jobs[activeIndex] === true,
+  };
+}
+
+function enforceWasteRemovalPreferences(
+  generated: WorkDescriptionStructured,
+  structuredInput: unknown,
+): WorkDescriptionStructured {
+  const preferences = getWasteRemovalPreferences(structuredInput);
+  const filterRows = (rows: string[], enabled: boolean) => (
+    enabled ? rows : rows.filter((row) => !isWasteRemovalRow(row))
+  );
+  const jobs = generated.jobs.map((job, index) => {
+    const enabled = preferences.jobs[index] ?? preferences.active;
+    return {
+      ...job,
+      afvalAfvoeren: enabled,
+      sections: {
+        voorbereiding: filterRows(job.sections.voorbereiding, enabled),
+        uitvoering: filterRows(job.sections.uitvoering, enabled),
+        afwerking: filterRows(job.sections.afwerking, enabled),
+      },
+      legacyNotes: filterRows(job.legacyNotes || [], enabled),
+    };
+  });
+  const activeIndex = Math.max(0, Math.min(generated.activeJobIndex || 0, Math.max(0, jobs.length - 1)));
+  const activeJob = jobs[activeIndex];
+  const rootEnabled = activeJob ? activeJob.afvalAfvoeren === true : preferences.active;
+
+  return {
+    ...generated,
+    sections: activeJob?.sections || {
+      voorbereiding: filterRows(generated.sections.voorbereiding, rootEnabled),
+      uitvoering: filterRows(generated.sections.uitvoering, rootEnabled),
+      afwerking: filterRows(generated.sections.afwerking, rootEnabled),
+    },
+    legacyNotes: activeJob?.legacyNotes || filterRows(generated.legacyNotes || [], rootEnabled),
+    jobs,
+    activeJobIndex: activeIndex,
+  };
 }
 
 function pickFirstString(
@@ -407,7 +475,11 @@ function parseWorkDescription(output: string): string[] {
 
 function buildPromptFromBody(body: RequestBody): string {
   const directPrompt = safeString(body.prompt);
-  if (directPrompt) return directPrompt;
+  const preferences = getWasteRemovalPreferences(body.structuredInput);
+  const wasteRemovalRule = preferences.active
+    ? 'Afval afvoeren staat expliciet AAN. Neem hiervoor een duidelijke stap op onder Afwerking.'
+    : WASTE_REMOVAL_DISABLED_RULE;
+  if (directPrompt) return `${directPrompt}\n\n${wasteRemovalRule}`;
 
   const parts = [
     safeString(body.title) ? `Titel: ${safeString(body.title)}` : '',
@@ -417,7 +489,7 @@ function buildPromptFromBody(body: RequestBody): string {
     safeString(body.measurementsContext) ? `Maatvoering: ${safeString(body.measurementsContext)}` : '',
   ].filter(Boolean);
 
-  return parts.join('\n');
+  return [...parts, wasteRemovalRule].join('\n');
 }
 
 export async function POST(request: Request) {
@@ -502,7 +574,10 @@ export async function POST(request: Request) {
 
     const directStructured = extractDirectStructured(result);
     if (directStructured && flattenStructuredWorkDescription(directStructured).length > 0) {
-      const structured = sanitizeWorkDescriptionStructured(directStructured);
+      const structured = enforceWasteRemovalPreferences(
+        sanitizeWorkDescriptionStructured(directStructured),
+        rawBody?.structuredInput,
+      );
       const flattened = flattenStructuredWorkDescription(structured);
       if (quoteId) {
         await persistWorkDescription(quoteId, userId, flattened, structured);
@@ -515,12 +590,16 @@ export async function POST(request: Request) {
 
     const directWerkbeschrijving = extractDirectWerkbeschrijving(result);
     if (directWerkbeschrijving.length > 0) {
-      const structured = toStructuredWorkDescription({ werkbeschrijving: directWerkbeschrijving });
+      const structured = enforceWasteRemovalPreferences(
+        toStructuredWorkDescription({ werkbeschrijving: directWerkbeschrijving }),
+        rawBody?.structuredInput,
+      );
+      const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
       if (quoteId) {
-        await persistWorkDescription(quoteId, userId, directWerkbeschrijving, structured);
+        await persistWorkDescription(quoteId, userId, filteredWerkbeschrijving, structured);
       }
       return NextResponse.json({
-        werkbeschrijving: directWerkbeschrijving,
+        werkbeschrijving: filteredWerkbeschrijving,
         werkbeschrijvingStructured: structured,
       });
     }
@@ -535,13 +614,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Lege werkbeschrijving ontvangen.' }, { status: 502 });
     }
 
-    const structured = toStructuredWorkDescription({ werkbeschrijving });
+    const structured = enforceWasteRemovalPreferences(
+      toStructuredWorkDescription({ werkbeschrijving }),
+      rawBody?.structuredInput,
+    );
+    const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
     if (quoteId) {
-      await persistWorkDescription(quoteId, userId, werkbeschrijving, structured);
+      await persistWorkDescription(quoteId, userId, filteredWerkbeschrijving, structured);
     }
 
     return NextResponse.json({
-      werkbeschrijving,
+      werkbeschrijving: filteredWerkbeschrijving,
       werkbeschrijvingStructured: structured,
     });
   } catch (error) {

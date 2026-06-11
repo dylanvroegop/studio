@@ -6,6 +6,16 @@ export interface GoogleCalendarTokens {
   expiryDate?: number;
 }
 
+export function isGoogleInvalidGrantError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const row = error as {
+    message?: unknown;
+    response?: { data?: { error?: unknown } };
+  };
+  return row.response?.data?.error === 'invalid_grant'
+    || (typeof row.message === 'string' && row.message.includes('invalid_grant'));
+}
+
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} ontbreekt`);

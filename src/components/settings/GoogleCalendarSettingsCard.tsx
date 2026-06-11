@@ -11,6 +11,7 @@ export function GoogleCalendarSettingsCard() {
   const { toast } = useToast();
   const [isBusy, setIsBusy] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [reconnectRequired, setReconnectRequired] = useState(false);
 
   const loadStatus = async () => {
     const idToken = await getAuth().currentUser?.getIdToken();
@@ -21,8 +22,9 @@ export function GoogleCalendarSettingsCard() {
     });
     if (!response.ok) return;
 
-    const data = await response.json() as { connected?: boolean };
+    const data = await response.json() as { connected?: boolean; reconnectRequired?: boolean };
     setConnected(data.connected === true);
+    setReconnectRequired(data.reconnectRequired === true);
   };
 
   useEffect(() => {
@@ -64,6 +66,7 @@ export function GoogleCalendarSettingsCard() {
       if (!response.ok) throw new Error('Ontkoppelen mislukt');
 
       setConnected(false);
+      setReconnectRequired(false);
       toast({ title: 'Google Calendar ontkoppeld' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Google Calendar ontkoppelen mislukt';
@@ -82,11 +85,18 @@ export function GoogleCalendarSettingsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">Status: {connected ? 'Gekoppeld' : 'Niet gekoppeld'}</p>
+        <p className="text-sm text-muted-foreground">
+          Status: {connected ? 'Gekoppeld' : reconnectRequired ? 'Opnieuw koppelen vereist' : 'Niet gekoppeld'}
+        </p>
+        {reconnectRequired ? (
+          <p className="text-sm text-amber-500">
+            Google heeft de eerdere toegang ingetrokken of laten verlopen. Koppel opnieuw om synchronisatie te herstellen.
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <Button type="button" onClick={connect} disabled={isBusy || connected}>
             {isBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calendar className="mr-2 h-4 w-4" />}
-            Koppelen
+            {reconnectRequired ? 'Opnieuw koppelen' : 'Koppelen'}
           </Button>
           <Button type="button" variant="outline" onClick={disconnect} disabled={isBusy || !connected}>
             <Link2Off className="mr-2 h-4 w-4" />
