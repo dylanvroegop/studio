@@ -232,7 +232,10 @@ export default function ClientViewPage() {
 
                     {/* Right Col: Description */}
                     <div className="md:col-span-2 space-y-6">
-                        <WorkDescriptionCard werkbeschrijving={normalized?.werkbeschrijving || []} />
+                        <WorkDescriptionCard
+                            werkbeschrijving={normalized?.werkbeschrijving || []}
+                            structured={normalized?.werkbeschrijving_structured}
+                        />
 
                         {/* Approval Call to Action - Placeholder */}
                         <div className="bg-emerald-950/30 border border-emerald-900/50 rounded-xl p-6 text-center">

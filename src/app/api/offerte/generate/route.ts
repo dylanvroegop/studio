@@ -4,6 +4,7 @@ import { parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { JOB_REGISTRY } from '@/lib/job-registry';
 import { getMaterialRule } from '@/lib/klus-regels-static';
+import { buildKeralitCutPlan, parseMaterialDimensionMm } from '@/lib/keralit-cut-plan';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
   commitCalculationQuotaReservation,
@@ -996,6 +997,23 @@ export async function POST(req: Request) {
         return sectionKey;
       };
 
+      const normalizeBoeiboordBasisItems = (items: any[]): any[] => {
+        if (!Array.isArray(items)) return [];
+
+        return items.map((rawItem) => {
+          if (!rawItem || typeof rawItem !== 'object') return rawItem;
+          const item = { ...rawItem } as Record<string, any>;
+
+          // Visualizer output is derived data and may contain stale/intermediate dimensions.
+          // Calculations must only use the explicit form inputs above.
+          delete item.calculatedData;
+          delete item.boeiboord_panelen;
+          delete item.boeiboord_aantallen;
+          delete item.latten_samenvatting;
+          return item;
+        });
+      };
+
       const attachRuleForSection = (
         entry: Record<string, any>,
         jobSlug: string,
@@ -1034,8 +1052,12 @@ export async function POST(req: Request) {
               leverancier: full.leverancier,
               prijs: full.prijs,
               prijs_per_stuk: full.prijs_per_stuk,
+              lengte: full.lengte ?? null,
               dikte: full.dikte ?? null,
               breedte: full.breedte ?? null,
+              werkend: full.werkend ?? null,
+              max_werkende_breedte_mm: full.max_werkende_breedte_mm ?? null,
+              min_werkende_breedte_mm: full.min_werkende_breedte_mm ?? null,
             }
           };
         }
@@ -1074,7 +1096,9 @@ export async function POST(req: Request) {
               ? normalizeGolfplaatBasisItems(convertedBasis)
               : (jobSlug.includes('epdm-dakbedekking')
                 ? enrichEpdmBasisItems(convertedBasis)
-                : convertedBasis);
+                : (jobSlug.includes('boeiboord') || jobSlug.includes('boeidelen')
+                  ? normalizeBoeiboordBasisItems(convertedBasis)
+                  : convertedBasis));
 
             // A2. Toevoegingen (components → pure geometry with semantic keys)
             const rawComponents = (maatwerkObj as any)?.toevoegingen || [];
@@ -1147,6 +1171,31 @@ export async function POST(req: Request) {
               }
 
               const finalSectionKey = normalizedSectionKey || slotKey;
+
+              if (
+                jobSlug === 'boeiboorden-keralit'
+                && (finalSectionKey === 'keralit_panelen_voorkant' || finalSectionKey === 'keralit_panelen_onderkant')
+              ) {
+                const stockLengthMm = parseMaterialDimensionMm(enriched.material?.lengte);
+                const workingWidthMm = parseMaterialDimensionMm(
+                  enriched.material?.max_werkende_breedte_mm
+                  ?? enriched.material?.werkende_breedte_mm
+                  ?? enriched.material?.werkend
+                  ?? enriched.material?.breedte
+                );
+
+                if (stockLengthMm && workingWidthMm) {
+                  enriched.keralit_cut_plan = buildKeralitCutPlan({
+                    items: normalizedBasis,
+                    sectionKey: finalSectionKey,
+                    stockLengthMm,
+                    workingWidthMm,
+                  });
+                  enriched.configuredWastePercentageIgnored = enriched.wastePercentage ?? 0;
+                  enriched.wastePercentage = 0;
+                }
+              }
+
               const sectionRuleAttachment = resolveRuleAttachmentFromSupabase(jobSlug, finalSectionKey);
               enriched = attachRuleForSection(enriched, jobSlug, finalSectionKey);
               if (
@@ -1192,8 +1241,12 @@ export async function POST(req: Request) {
                       leverancier: full.leverancier,
                       prijs: full.prijs,
                       prijs_per_stuk: full.prijs_per_stuk,
+                      lengte: full.lengte ?? null,
                       dikte: full.dikte ?? null,
                       breedte: full.breedte ?? null,
+                      werkend: full.werkend ?? null,
+                      max_werkende_breedte_mm: full.max_werkende_breedte_mm ?? null,
+                      min_werkende_breedte_mm: full.min_werkende_breedte_mm ?? null,
                     },
                     quantity: null,
                     aantal: null,

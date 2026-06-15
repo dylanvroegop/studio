@@ -205,7 +205,7 @@ export function VisualizerController({
         const toNum = (v: any, fb = 0) => (typeof v === 'number' ? v : parseFloat(String(v ?? '')) || fb);
         const vzLengte = toNum(item.lengte);
         const vzHoogte = toNum(item.hoogte);
-        const ozLengte = toNum(item.lengte_onderzijde) || vzLengte;
+        const ozLengte = toNum(item.lengte_onderzijde);
         const ozBreedte = toNum(item.breedte);
         const showBalklaag = item.show_balklaag !== false;
         const showDaktrim = Boolean(item.show_daktrim);
@@ -216,6 +216,12 @@ export function VisualizerController({
         const boeiOrientation = item.boeiboord_orientation === 'slope' ? 'slope' : 'horizontal';
         const boeiAngle = toNum(item.boeiboord_angle, 45);
         const boeiMirror = !!item.boeiboord_mirror;
+        const boeiboordShape = item.shape as 'rectangle' | 'slope' | 'gable' | undefined;
+        const isTriangleShape = boeiboordShape === 'slope' || boeiboordShape === 'gable';
+        const hasVoorzijde = vzLengte > 0 && vzHoogte > 0;
+        const hasOnderzijde = ozLengte > 0 && ozBreedte > 0;
+        const shapeMirrored = !!item.boeiboord_shape_mirrored;
+        const shapeVerticalMirrored = !!item.boeiboord_shape_vertical_mirrored;
 
         // Internal handler to merge emissions from two drawings
         const handleBoeiData = (side: 'voorzijde' | 'onderzijde', data: any) => {
@@ -233,42 +239,69 @@ export function VisualizerController({
 
         return (
             <div className="flex flex-col gap-4">
-                <BoeiboordDrawing
-                    lengte={vzLengte}
-                    hoogte={vzHoogte}
-                    balkafstand={balkNum}
-                    latafstand={latVz}
-                    surroundingBeams={showBalklaag ? item.surroundingBeams : false}
-                    lattenOrientation={item.latten_orientation}
-                    title="Voorzijde"
-                    startLattenFromBottom={item.startLattenFromBottom}
-                    startFromRight={item.startFromRight}
-                    doubleEndBattens={item.doubleEndBattens}
-                    showDaktrim={showDaktrim}
-                    daktrimPosition={daktrimPosition}
-                    boeiboordOrientation={boeiOrientation}
-                    boeiboordAngle={boeiAngle}
-                    boeiboordMirror={boeiMirror}
-                    shape={item.shape as 'rectangle' | 'slope' | 'gable' | undefined}
-                    onDataGenerated={(data) => handleBoeiData('voorzijde', data)}
-                />
-                <BoeiboordDrawing
-                    lengte={ozLengte}
-                    hoogte={ozBreedte}
-                    balkafstand={balkNum}
-                    latafstand={latOz}
-                    surroundingBeams={showBalklaag ? item.surroundingBeams : false}
-                    lattenOrientation={item.latten_orientation}
-                    title="Onderzijde"
-                    startLattenFromBottom={item.startLattenFromBottom}
-                    startFromRight={item.startFromRight}
-                    doubleEndBattens={item.doubleEndBattens}
-                    showDaktrim={showDaktrim}
-                    daktrimPosition={daktrimPosition}
-                    boeiboordMirror={boeiMirror}
-                    mirrorBadgeText={boeiMirror ? '2x calculatie' : undefined}
-                    onDataGenerated={(data) => handleBoeiData('onderzijde', data)}
-                />
+                {hasVoorzijde && (
+                    <BoeiboordDrawing
+                        lengte={vzLengte}
+                        hoogte={vzHoogte}
+                        balkafstand={balkNum}
+                        latafstand={latVz}
+                        surroundingBeams={showBalklaag ? item.surroundingBeams : false}
+                        lattenOrientation={item.latten_orientation}
+                        title={isTriangleShape && boeiMirror ? 'Zijwand 1' : 'Voorzijde'}
+                        startLattenFromBottom={item.startLattenFromBottom}
+                        startFromRight={item.startFromRight}
+                        doubleEndBattens={item.doubleEndBattens}
+                        showDaktrim={showDaktrim}
+                        daktrimPosition={daktrimPosition}
+                        boeiboordOrientation={boeiOrientation}
+                        boeiboordAngle={boeiAngle}
+                        boeiboordMirror={boeiMirror}
+                        shapeMirrored={shapeMirrored}
+                        shapeVerticalMirrored={shapeVerticalMirrored}
+                        shape={boeiboordShape}
+                        onDataGenerated={(data) => handleBoeiData('voorzijde', data)}
+                    />
+                )}
+                {hasVoorzijde && isTriangleShape && boeiMirror && (
+                    <BoeiboordDrawing
+                        lengte={vzLengte}
+                        hoogte={vzHoogte}
+                        balkafstand={balkNum}
+                        latafstand={latVz}
+                        surroundingBeams={showBalklaag ? item.surroundingBeams : false}
+                        lattenOrientation={item.latten_orientation}
+                        title="Zijwand 2 (gespiegeld)"
+                        startLattenFromBottom={item.startLattenFromBottom}
+                        startFromRight={!item.startFromRight}
+                        doubleEndBattens={item.doubleEndBattens}
+                        showDaktrim={showDaktrim}
+                        daktrimPosition={daktrimPosition}
+                        boeiboordOrientation={boeiOrientation}
+                        boeiboordAngle={boeiAngle}
+                        shapeMirrored={!shapeMirrored}
+                        shapeVerticalMirrored={shapeVerticalMirrored}
+                        shape={boeiboordShape}
+                    />
+                )}
+                {hasOnderzijde && (
+                    <BoeiboordDrawing
+                        lengte={ozLengte}
+                        hoogte={ozBreedte}
+                        balkafstand={balkNum}
+                        latafstand={latOz}
+                        surroundingBeams={showBalklaag ? item.surroundingBeams : false}
+                        lattenOrientation={item.latten_orientation}
+                        title="Onderzijde"
+                        startLattenFromBottom={item.startLattenFromBottom}
+                        startFromRight={item.startFromRight}
+                        doubleEndBattens={item.doubleEndBattens}
+                        showDaktrim={showDaktrim}
+                        daktrimPosition={daktrimPosition}
+                        boeiboordMirror={!isTriangleShape && boeiMirror}
+                        mirrorBadgeText={!isTriangleShape && boeiMirror ? '2x calculatie' : undefined}
+                        onDataGenerated={(data) => handleBoeiData('onderzijde', data)}
+                    />
+                )}
             </div>
         );
     }

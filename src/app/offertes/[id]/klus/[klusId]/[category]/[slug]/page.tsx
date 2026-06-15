@@ -3684,6 +3684,11 @@ export default function GenericMeasurementPage() {
       newItem.shape = newShape;
       newItem.variant = 'top';
 
+      if (isBoeiboord && newShape === 'gable') {
+        newItem.boeiboord_orientation = 'horizontal';
+        newItem.boeiboord_angle = '';
+      }
+
       const dimensionsToReset = [
         'lengte', 'hoogte', 'breedte',
         'lengte1', 'lengte2', 'lengte3',
@@ -3707,12 +3712,28 @@ export default function GenericMeasurementPage() {
   const handleMirrorSlope = (index: number) => {
     setItems(prev => prev.map((item, i) => {
       if (i !== index) return item;
+      if (isBoeiboord) {
+        return {
+          ...item,
+          boeiboord_shape_mirrored: !item.boeiboord_shape_mirrored,
+        };
+      }
       return {
         ...item,
         hoogteLinks: item.hoogteRechts ?? '',
         hoogteRechts: item.hoogteLinks ?? '',
         gevel_profiel_links: item.gevel_profiel_rechts,
         gevel_profiel_rechts: item.gevel_profiel_links,
+      };
+    }));
+  };
+
+  const handleFlipBoeiboordSlopeVertically = (index: number) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      return {
+        ...item,
+        boeiboord_shape_vertical_mirrored: !item.boeiboord_shape_vertical_mirrored,
       };
     }));
   };
@@ -3815,6 +3836,12 @@ export default function GenericMeasurementPage() {
     const boeiAngleRad = (boeiAngleDeg * Math.PI) / 180;
     const langeKant = Math.round((lengteVoorzijde + (hoogteVoorzijde * Math.tan(boeiAngleRad))) || 0);
     const korteKant = Math.round(lengteVoorzijde || 0);
+    const isTriangle = item.shape === 'slope' || item.shape === 'gable';
+    const oppervlakteVoorzijde = Math.round(
+      isTriangle
+        ? (lengteVoorzijde * hoogteVoorzijde) / 2
+        : lengteVoorzijde * hoogteVoorzijde
+    );
 
     const panelen: Array<{
       id: string;
@@ -3822,6 +3849,7 @@ export default function GenericMeasurementPage() {
       lengte: number;
       hoogte?: number;
       breedte?: number;
+      oppervlakte_mm2?: number;
       label: string;
       measurements?: Array<{ label: string; waarde?: number; tekst?: string }>;
     }> = [];
@@ -3833,12 +3861,18 @@ export default function GenericMeasurementPage() {
           zijde: 'voorzijde',
           lengte: lengteVoorzijde,
           hoogte: hoogteVoorzijde,
-          label: `Voorzijde ${i + 1}`,
-          measurements: [
-            ...(langeKant > 0 ? [{ label: 'Lange kant', waarde: langeKant }] : []),
-            ...(korteKant > 0 ? [{ label: 'Korte kant', waarde: korteKant }] : []),
-            ...(boeiAngleDeg > 0 ? [{ label: 'Extra info', tekst: `1 kopkant schuin ${boeiAngleDeg} graden` }] : []),
-          ],
+          oppervlakte_mm2: oppervlakteVoorzijde,
+          label: isTriangle ? `Driehoek voorzijde ${i + 1}` : `Voorzijde ${i + 1}`,
+          measurements: isTriangle
+            ? [
+              { label: 'Basis', waarde: lengteVoorzijde },
+              { label: 'Driehoekhoogte', waarde: hoogteVoorzijde },
+            ]
+            : [
+              ...(langeKant > 0 ? [{ label: 'Lange kant', waarde: langeKant }] : []),
+              ...(korteKant > 0 ? [{ label: 'Korte kant', waarde: korteKant }] : []),
+              ...(boeiAngleDeg > 0 ? [{ label: 'Extra info', tekst: `1 kopkant schuin ${boeiAngleDeg} graden` }] : []),
+            ],
         });
       }
     }
@@ -4134,21 +4168,27 @@ export default function GenericMeasurementPage() {
           const visualizerElement = visualizerRefs.current[index];
           if (!visualizerElement) continue;
 
+          const captureWidth = Math.max(1, visualizerElement.offsetWidth);
+          const captureHeight = Math.max(1, visualizerElement.offsetHeight);
+          const maxSnapshotPixels = 6_000_000;
+          const maxScaleForSize = Math.sqrt(maxSnapshotPixels / (captureWidth * captureHeight));
+          const snapshotScale = Math.max(1.5, Math.min(2, maxScaleForSize));
+
           const canvas = await withTimeout(
             html2canvas(visualizerElement, {
-              backgroundColor: '#18181b',
-              scale: 1.5,
+              backgroundColor: '#ffffff',
+              scale: snapshotScale,
               logging: false,
               useCORS: true,
               allowTaint: true,
             }),
-            10000,
+            12000,
             `html2canvas item ${index + 1}`
           );
 
           const blob = await withTimeout(
             new Promise<Blob>((resolve, reject) => {
-              canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Failed to create blob')), 'image/png', 0.9);
+              canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Failed to create blob')), 'image/png');
             }),
             8000,
             `toBlob item ${index + 1}`
@@ -4593,7 +4633,7 @@ export default function GenericMeasurementPage() {
                         <div className="grid grid-cols-5 gap-1 p-1 bg-black/20 rounded-xl border border-white/5">
                           {[
                             { id: 'rectangle', icon: Square, label: 'Recht' },
-                            { id: 'slope', icon: Slash, label: 'Schuin' },
+                            { id: 'slope', icon: Slash, label: isBoeiboord ? 'Driehoek' : 'Schuin' },
                             { id: 'gable', icon: Triangle, label: 'Punt' },
                             { id: 'l-shape', icon: null, label: 'L', customIcon: 'L' },
                             { id: 'u-shape', icon: null, label: 'U', customIcon: 'U' }
@@ -4635,18 +4675,47 @@ export default function GenericMeasurementPage() {
                           </Button>
                         )}
                         {item.shape === 'slope' && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="w-full justify-center gap-2"
-                            onClick={() => handleMirrorSlope(index)}
-                            disabled={disabledAll}
-                            title="Schuine vorm spiegelen"
-                          >
-                            <ArrowDownUp className="h-4 w-4 rotate-90" />
-                            Spiegel
-                          </Button>
+                          isBoeiboord ? (
+                            <div className="grid grid-cols-2 gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="justify-center gap-2"
+                                onClick={() => handleMirrorSlope(index)}
+                                disabled={disabledAll}
+                                title="Driehoek links/rechts spiegelen"
+                              >
+                                <ArrowDownUp className="h-4 w-4 rotate-90" />
+                                Links/rechts
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="justify-center gap-2"
+                                onClick={() => handleFlipBoeiboordSlopeVertically(index)}
+                                disabled={disabledAll}
+                                title="Driehoek boven/onder spiegelen"
+                              >
+                                <ArrowDownUp className="h-4 w-4" />
+                                Boven/onder
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="w-full justify-center gap-2"
+                              onClick={() => handleMirrorSlope(index)}
+                              disabled={disabledAll}
+                              title="Schuine vorm spiegelen"
+                            >
+                              <ArrowDownUp className="h-4 w-4 rotate-90" />
+                              Spiegel
+                            </Button>
+                          )
                         )}
                       </div>
                     </div>
@@ -4720,7 +4789,9 @@ export default function GenericMeasurementPage() {
 
                           return (
                             <div className="space-y-4">
-                              <Label className="text-xs uppercase text-white tracking-wider">Voorzijde</Label>
+                              <Label className="text-xs uppercase text-white tracking-wider">
+                                {['slope', 'gable'].includes(shape) ? 'Driehoek voorzijde' : 'Voorzijde'}
+                              </Label>
                               {fLengte && fHoogte ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
                                   <DynamicInput
@@ -4738,7 +4809,7 @@ export default function GenericMeasurementPage() {
                                     onChange={v => updateItem(index, 'hoogte', v)}
                                     onKeyDown={handleKeyDown}
                                     disabled={disabledAll}
-                                    labelOverride="Hoogte"
+                                    labelOverride={['slope', 'gable'].includes(shape) ? 'Driehoekhoogte' : 'Hoogte'}
                                     labelClassName="text-white"
                                   />
                                 </div>
@@ -4824,57 +4895,61 @@ export default function GenericMeasurementPage() {
                               {/* Boeiboord Orientation Options */}
                               <div className="pt-2 border-t border-white/5" />
                               <div className="space-y-3 pb-4 mb-4">
-                                <Label className="text-xs uppercase text-zinc-500 tracking-wider">Boeiboord Richting</Label>
-                                <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
-                                  <button
-                                    type="button"
-                                    onClick={() => updateItem(index, 'boeiboord_orientation', 'horizontal')}
-                                    className={cn(
-                                      "flex-1 text-xs py-1.5 rounded transition-colors",
-                                      item.boeiboord_orientation !== 'slope'
-                                        ? "bg-emerald-500/20 text-emerald-400"
-                                        : "text-zinc-500 hover:text-zinc-300"
-                                    )}
-                                  >
-                                    Horizontaal (standaard)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      updateItem(index, 'boeiboord_orientation', 'slope');
-                                      updateItem(index, 'boeiboord_mirror', true);
-                                      if (item.boeiboord_angle === undefined || item.boeiboord_angle === null || item.boeiboord_angle === '') {
-                                        updateItem(index, 'boeiboord_angle', 45);
-                                      }
-                                    }}
-                                    className={cn(
-                                      "flex-1 text-xs py-1.5 rounded transition-colors",
-                                      item.boeiboord_orientation === 'slope'
-                                        ? "bg-emerald-500/20 text-emerald-400"
-                                        : "text-zinc-500 hover:text-zinc-300"
-                                    )}
-                                  >
-                                    Schuin (daklijn)
-                                  </button>
-                                </div>
-
-                                {item.boeiboord_orientation === 'slope' && (
-                                  <div className="space-y-2">
-                                    <Label className="text-xs">Daklijn hoek</Label>
-                                    <div className="relative">
-                                      <Input
-                                        type="number"
-                                        className="bg-black/20 border-white/10 h-9 text-sm pr-8"
-                                        value={item.boeiboord_angle ?? 45}
-                                        placeholder="45"
-                                        onChange={(e) => {
-                                          const nextVal = e.target.value === '' ? '' : Number(e.target.value);
-                                          updateItem(index, 'boeiboord_angle', nextVal);
+                                {!['slope', 'gable'].includes(shape) && (
+                                  <>
+                                    <Label className="text-xs uppercase text-zinc-500 tracking-wider">Boeiboord Richting</Label>
+                                    <div className="flex bg-black/20 rounded-md p-1 border border-white/10">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateItem(index, 'boeiboord_orientation', 'horizontal')}
+                                        className={cn(
+                                          "flex-1 text-xs py-1.5 rounded transition-colors",
+                                          item.boeiboord_orientation !== 'slope'
+                                            ? "bg-emerald-500/20 text-emerald-400"
+                                            : "text-zinc-500 hover:text-zinc-300"
+                                        )}
+                                      >
+                                        Horizontaal (standaard)
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          updateItem(index, 'boeiboord_orientation', 'slope');
+                                          updateItem(index, 'boeiboord_mirror', true);
+                                          if (item.boeiboord_angle === undefined || item.boeiboord_angle === null || item.boeiboord_angle === '') {
+                                            updateItem(index, 'boeiboord_angle', 45);
+                                          }
                                         }}
-                                      />
-                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">°</span>
+                                        className={cn(
+                                          "flex-1 text-xs py-1.5 rounded transition-colors",
+                                          item.boeiboord_orientation === 'slope'
+                                            ? "bg-emerald-500/20 text-emerald-400"
+                                            : "text-zinc-500 hover:text-zinc-300"
+                                        )}
+                                      >
+                                        Schuin (daklijn)
+                                      </button>
                                     </div>
-                                  </div>
+
+                                    {item.boeiboord_orientation === 'slope' && (
+                                      <div className="space-y-2">
+                                        <Label className="text-xs">Daklijn hoek</Label>
+                                        <div className="relative">
+                                          <Input
+                                            type="number"
+                                            className="bg-black/20 border-white/10 h-9 text-sm pr-8"
+                                            value={item.boeiboord_angle ?? 45}
+                                            placeholder="45"
+                                            onChange={(e) => {
+                                              const nextVal = e.target.value === '' ? '' : Number(e.target.value);
+                                              updateItem(index, 'boeiboord_angle', nextVal);
+                                            }}
+                                          />
+                                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">°</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
                                 )}
 
                                 <div className="space-y-2">
@@ -4888,7 +4963,7 @@ export default function GenericMeasurementPage() {
                                         : "bg-black/20 text-zinc-500 hover:text-zinc-300"
                                     )}
                                   >
-                                    Dubbel gespiegeld (2x)
+                                    {['slope', 'gable'].includes(shape) ? 'Twee zijwangen (2x)' : 'Dubbel gespiegeld (2x)'}
                                   </button>
                                 </div>
                               </div>
@@ -6928,13 +7003,13 @@ export default function GenericMeasurementPage() {
                   {isBoeiboord ? (
                     <div
                       ref={(el) => { visualizerRefs.current[index] = el; }}
-                      className="mobile-calm-pane flex-1 w-full lg:min-w-0 sticky top-24 self-start bg-card border border-border rounded-2xl overflow-hidden shadow-sm relative lg:bg-[#09090b] lg:border-white/10 lg:shadow-2xl"
+                      className="mobile-calm-pane flex-1 w-full lg:min-w-0 sticky top-24 self-start bg-white border border-zinc-300 rounded-2xl overflow-hidden shadow-sm relative"
                     >
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="mobile-calm-subtle absolute right-3 top-3 z-20 border border-border bg-muted/90 text-foreground sm:border-white/20 sm:bg-black/70 sm:text-zinc-100 sm:hover:bg-black/80"
+                        className="absolute right-3 top-3 z-20 border border-zinc-300 bg-white/95 text-black shadow-sm hover:bg-zinc-100"
                         onClick={() => setExpandedDrawingIndex(index)}
                       >
                         <Maximize2 className="h-4 w-4 sm:mr-1.5" />
@@ -6967,12 +7042,12 @@ export default function GenericMeasurementPage() {
                       />
                     </div>
                   ) : (
-                    <div className="mobile-calm-pane flex-1 w-full lg:min-w-0 bg-card border border-border rounded-2xl overflow-hidden shadow-sm relative sticky top-24 self-start flex flex-col lg:bg-[#09090b] lg:border-white/10 lg:shadow-2xl">
+                    <div className="mobile-calm-pane flex-1 w-full lg:min-w-0 bg-white border border-zinc-300 rounded-2xl overflow-hidden shadow-sm relative sticky top-24 self-start flex flex-col">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="mobile-calm-subtle absolute right-3 top-3 z-20 border border-border bg-muted/90 text-foreground sm:border-white/20 sm:bg-black/70 sm:text-zinc-100 sm:hover:bg-black/80"
+                        className="absolute right-3 top-3 z-20 border border-zinc-300 bg-white/95 text-black shadow-sm hover:bg-zinc-100"
                         onClick={() => setExpandedDrawingIndex(index)}
                       >
                         <Maximize2 className="h-4 w-4 sm:mr-1.5" />
@@ -6982,14 +7057,14 @@ export default function GenericMeasurementPage() {
                       {/* Canvas Container */}
                       <div
                         ref={(el) => { visualizerRefs.current[index] = el; }}
-                        className="relative w-full flex-1 flex items-center justify-center bg-card lg:bg-[#09090b]"
+                        className="relative w-full flex-1 flex items-center justify-center bg-white"
                       >
                         {/* Dot Pattern Background */}
                         <div
-                          className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
+                          className="absolute inset-0 z-0 opacity-30 pointer-events-none"
                           style={{
-                            backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                            backgroundSize: '24px 24px'
+                            backgroundImage: 'radial-gradient(#d2d2d6 1px, transparent 1px)',
+                            backgroundSize: '16px 16px'
                           }}
                         />
 
@@ -7055,24 +7130,24 @@ export default function GenericMeasurementPage() {
           if (!open) setExpandedDrawingIndex(null);
         }}
       >
-        <DialogContent className="w-[96vw] max-w-[1700px] h-[92vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)] border border-white/10 bg-[#050607]/95">
-          <div className="px-5 py-4 border-b border-white/10">
-            <DialogTitle className="text-zinc-100">{expandedDrawingTitle}</DialogTitle>
+        <DialogContent className="w-[96vw] max-w-[1700px] h-[92vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)] border border-zinc-300 bg-white text-black">
+          <div className="px-5 py-4 border-b border-zinc-200">
+            <DialogTitle className="text-black">{expandedDrawingTitle}</DialogTitle>
           </div>
 
           <div className="relative min-h-0 h-full w-full overflow-hidden">
             <div
-              className="absolute inset-0 z-0 opacity-[0.12] pointer-events-none"
+              className="absolute inset-0 z-0 opacity-30 pointer-events-none"
               style={{
-                backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                backgroundSize: '24px 24px',
+                backgroundImage: 'radial-gradient(#d2d2d6 1px, transparent 1px)',
+                backgroundSize: '16px 16px',
               }}
             />
 
             <div className="relative z-10 h-full w-full flex items-center justify-center p-2 sm:p-6">
               {expandedDrawingItem ? (
                 isBoeiboord ? (
-                  <div className="mobile-calm-pane h-full w-full rounded-xl border border-border bg-card overflow-hidden lg:border-white/10 lg:bg-[#09090b]">
+                  <div className="mobile-calm-pane h-full w-full rounded-xl border border-zinc-300 bg-white overflow-hidden">
                     <VisualizerController
                       category={categorySlug}
                       slug={jobSlug}
@@ -7101,7 +7176,7 @@ export default function GenericMeasurementPage() {
                     />
                   </div>
                 ) : (
-                  <div className="mobile-calm-pane h-full w-full rounded-xl border border-border bg-card overflow-hidden lg:border-white/10 lg:bg-[#09090b]">
+                  <div className="mobile-calm-pane h-full w-full rounded-xl border border-zinc-300 bg-white overflow-hidden">
                     <VisualizerController
                       category={categorySlug}
                       slug={jobSlug}

@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { prepareDrawingImageForPdf } from '@/lib/pdf-drawing-image';
+import { prepareDrawingImageForLightTheme, prepareDrawingImageForPdf } from '@/lib/pdf-drawing-image';
 
 interface DrawingsTabProps {
     quote: Quote;
@@ -251,7 +251,7 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
 
                 const imageX = margin + ((availableWidth - imageWidth) / 2);
                 const imageFormat = getImageFormatFromDataUrl(imageData);
-                doc.addImage(imageData, imageFormat, imageX, y, imageWidth, imageHeight);
+                doc.addImage(imageData, imageFormat, imageX, y, imageWidth, imageHeight, undefined, 'NONE');
 
                 exportedCount += 1;
             }
@@ -380,6 +380,33 @@ function SnapshotDrawingSection({
     index: number;
 }) {
     const [isExpandedOpen, setIsExpandedOpen] = useState(false);
+    const [displayUrl, setDisplayUrl] = useState(visualisatieUrl);
+    const [isPreparingImage, setIsPreparingImage] = useState(true);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const prepareImage = async () => {
+            setIsPreparingImage(true);
+            try {
+                const response = await fetch(`/api/visualisatie-to-base64?url=${encodeURIComponent(visualisatieUrl)}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                if (typeof data?.dataUrl !== 'string') return;
+                const preparedUrl = await prepareDrawingImageForLightTheme(data.dataUrl);
+                if (!cancelled) setDisplayUrl(preparedUrl);
+            } catch (error) {
+                console.error('Error preparing drawing snapshot:', error);
+            } finally {
+                if (!cancelled) setIsPreparingImage(false);
+            }
+        };
+
+        void prepareImage();
+        return () => {
+            cancelled = true;
+        };
+    }, [visualisatieUrl]);
 
     const meta = getJobMeta(job);
     const categorySlug = meta.type || '';
@@ -402,20 +429,25 @@ function SnapshotDrawingSection({
                 onClick={() => setIsExpandedOpen(true)}
                 className="block w-full max-w-[620px] text-left rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70"
             >
-                <Card className="bg-black/20 border-white/5 overflow-hidden group transition-colors cursor-zoom-in hover:border-emerald-500/30">
-                    <CardContent className="p-0 relative aspect-[4/3] bg-[#09090b]">
+                <Card className="bg-white border-zinc-300 overflow-hidden group transition-colors cursor-zoom-in hover:border-zinc-400">
+                    <CardContent className="p-0 relative aspect-[4/3] bg-white">
                         <div
-                            className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
+                            className="absolute inset-0 z-0 opacity-45 pointer-events-none"
                             style={{
-                                backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                                backgroundSize: '24px 24px',
+                                backgroundImage: 'radial-gradient(#d2d2d6 1px, transparent 1px)',
+                                backgroundSize: '16px 16px',
                             }}
                         />
                         <div className="relative z-10 w-full h-full flex items-center justify-center p-6">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={visualisatieUrl} alt={title} className="max-w-full max-h-full object-contain drop-shadow-2xl" />
+                            {isPreparingImage ? (
+                                <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+                            ) : (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={displayUrl} alt={title} className="max-w-full max-h-full object-contain" />
+                            )}
                         </div>
-                        <div className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md border border-white/15 bg-black/60 px-2 py-1 text-[11px] text-zinc-200 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <div className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white/95 px-2 py-1 text-[11px] text-black shadow-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                             <Maximize2 className="h-3.5 w-3.5" />
                             Vergroot
                         </div>
@@ -424,21 +456,26 @@ function SnapshotDrawingSection({
             </button>
 
             <Dialog open={isExpandedOpen} onOpenChange={setIsExpandedOpen}>
-                <DialogContent className="w-[96vw] max-w-[1600px] h-[92vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)] border border-white/10 bg-[#050607]/95">
-                    <DialogHeader className="px-5 py-4 border-b border-white/10">
-                        <DialogTitle className="text-zinc-100">{title}</DialogTitle>
+                <DialogContent className="w-[96vw] max-w-[1600px] h-[92vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)] border border-zinc-300 bg-white text-black">
+                    <DialogHeader className="px-5 py-4 border-b border-zinc-200">
+                        <DialogTitle className="text-black">{title}</DialogTitle>
                     </DialogHeader>
                     <div className="relative min-h-0 h-full w-full overflow-hidden">
                         <div
-                            className="absolute inset-0 z-0 opacity-[0.12] pointer-events-none"
+                            className="absolute inset-0 z-0 opacity-45 pointer-events-none"
                             style={{
-                                backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                                backgroundSize: '24px 24px',
+                                backgroundImage: 'radial-gradient(#d2d2d6 1px, transparent 1px)',
+                                backgroundSize: '16px 16px',
                             }}
                         />
                         <div className="relative z-10 h-full w-full flex items-center justify-center p-2 sm:p-6">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={visualisatieUrl} alt={title} className="max-w-full max-h-full object-contain drop-shadow-2xl" />
+                            {isPreparingImage ? (
+                                <Loader2 className="h-7 w-7 animate-spin text-zinc-500" />
+                            ) : (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={displayUrl} alt={title} className="max-w-full max-h-full object-contain" />
+                            )}
                         </div>
                     </div>
                 </DialogContent>

@@ -313,7 +313,7 @@ export function BaseDrawingFrame({
 
     const renderWatermark = () => (
         <text
-            x={SVG_WIDTH / 2} y={SVG_HEIGHT / 2} textAnchor="middle" fill="white" opacity="0.3"
+            x={SVG_WIDTH / 2} y={SVG_HEIGHT / 2} textAnchor="middle" fill="black" opacity="0.3"
             style={{ fontSize: fitContainer ? '24px' : '14px', fontFamily: 'sans-serif', pointerEvents: 'none' }}
         >
             {gridLabel}
@@ -321,7 +321,7 @@ export function BaseDrawingFrame({
     );
 
     return (
-        <div className={cn("relative w-full rounded-lg overflow-hidden", className)}>
+        <div className={cn("technical-drawing relative w-full rounded-lg overflow-hidden bg-white text-black", className)}>
             <svg
                 viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
                 className={cn("w-full select-none", fitContainer ? "h-full" : "h-auto")}
@@ -414,7 +414,7 @@ export function BaseDrawingFrame({
             {/* Area Stats Overlay */}
             {areaStats && (
                 <div className="absolute bottom-0 right-0 m-1 z-20 pointer-events-none select-none">
-                    <div className="text-[10px] sm:text-xs font-mono bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg text-right">
+                    <div className="text-[10px] sm:text-xs font-mono bg-white/95 border border-zinc-300 px-3 py-1.5 rounded-lg text-right text-black shadow-sm">
                         {(() => {
                             const grossStr = (areaStats.gross / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                             const netStr = (areaStats.net / 1000000).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -422,12 +422,12 @@ export function BaseDrawingFrame({
                             if (areaStats.hasOpenings) {
                                 return (
                                     <div className="flex flex-col items-end leading-tight">
-                                        <span className="text-zinc-500">Bruto: {grossStr} m²</span>
-                                        <span className="text-emerald-400 font-bold">Netto: {netStr} m²</span>
+                                        <span className="text-zinc-600">Bruto: {grossStr} m²</span>
+                                        <span className="text-black font-bold">Netto: {netStr} m²</span>
                                     </div>
                                 );
                             }
-                            return <span className="text-zinc-300">{grossStr} m²</span>;
+                            return <span className="text-black">{grossStr} m²</span>;
                         })()}
                     </div>
                 </div>

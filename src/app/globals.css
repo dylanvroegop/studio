@@ -129,6 +129,71 @@
   min-width: 0;
 }
 
+/* Technical drawings stay print-like in every app theme. */
+.technical-drawing,
+.technical-drawing svg {
+  background-color: #fff;
+  color: #000;
+}
+
+.technical-drawing svg {
+  background-image: radial-gradient(#d2d2d6 1px, transparent 1px);
+  background-position: 0 0;
+  background-size: 16px 16px;
+}
+
+.technical-drawing svg line,
+.technical-drawing svg polyline,
+.technical-drawing svg path[stroke],
+.technical-drawing svg rect[stroke],
+.technical-drawing svg circle[stroke],
+.technical-drawing svg ellipse[stroke],
+.technical-drawing svg polygon[stroke] {
+  stroke: #000 !important;
+}
+
+.technical-drawing svg text,
+.technical-drawing svg tspan,
+.technical-drawing svg .fill-emerald-300,
+.technical-drawing svg .fill-emerald-400,
+.technical-drawing svg .fill-emerald-500,
+.technical-drawing svg .fill-teal-400,
+.technical-drawing svg .fill-teal-500 {
+  fill: #000 !important;
+}
+
+.technical-drawing svg .text-emerald-300,
+.technical-drawing svg .text-emerald-400,
+.technical-drawing svg .text-emerald-500,
+.technical-drawing svg .text-teal-400,
+.technical-drawing svg .text-teal-500 {
+  color: #000 !important;
+}
+
+.technical-drawing svg circle:not([fill='none']) {
+  fill: #000;
+}
+
+.technical-drawing svg rect[fill='#09090b'],
+.technical-drawing svg rect[fill='#18181b'],
+.technical-drawing svg rect[fill='black'],
+.technical-drawing svg path[fill='#09090b'],
+.technical-drawing svg path[fill='#18181b'],
+.technical-drawing svg path[fill='black'] {
+  fill: #fff !important;
+}
+
+.technical-drawing svg [fill='rgb(55,60,70)'],
+.technical-drawing svg [fill='rgb(55, 60, 70)'],
+.technical-drawing svg [fill='rgb(70, 75, 85)'],
+.technical-drawing svg [fill='rgb(82, 88, 100)'],
+.technical-drawing svg [fill='rgb(90, 95, 105)'],
+.technical-drawing svg [fill='#1e293b'],
+.technical-drawing svg [fill='#2D343E' i],
+.technical-drawing svg [fill='rgb(10, 10, 10)'] {
+  fill: #f4f4f5 !important;
+}
+
 @media (max-width: 640px) {
   .mobile-calm .mobile-calm-card,
   .mobile-calm .mobile-calm-pane {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DataJson } from '@/lib/quote-calculations';
 import { useUser } from '@/firebase/provider';
 
@@ -155,7 +155,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
 
 
     // Function to update the data_json (for price edits)
-    const updateDataJson = async (newDataJson: QuoteCalculation['data_json']) => {
+    const updateDataJson = useCallback(async (newDataJson: QuoteCalculation['data_json']) => {
         const currentCalculation = calculationRef.current;
         if (!currentCalculation) {
             return;
@@ -233,7 +233,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
         } finally {
             inFlightDataJsonSignatureRef.current = null;
         }
-    };
+    }, [user]);
 
     return { calculation, loading, error, updateDataJson };
 }

@@ -135,7 +135,7 @@ export function NewQuoteForm({
   const [clients, setClients] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
-  const [aiSourceImage, setAiSourceImage] = useState<File | null>(null);
+  const [aiSourceImages, setAiSourceImages] = useState<File[]>([]);
   const [isAiExtracting, setIsAiExtracting] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const resolvedBackHref = backHref ?? (quoteId ? '/offertes' : '/');
@@ -479,7 +479,7 @@ export function NewQuoteForm({
 
           const generatePayload = await generateResponse.json().catch(() => null) as { error?: string } | null;
           if (!generateResponse.ok) {
-            throw new Error(generatePayload?.error || 'Kon werkbeschrijving niet genereren.');
+            throw new Error(generatePayload?.error || 'Kon Werk & Levering niet genereren.');
           }
         }
 
@@ -500,7 +500,7 @@ export function NewQuoteForm({
     router.push(resolvedBackHref);
   };
 
-  const handleGenerateClientFromImage = async (sourceImage: File) => {
+  const handleGenerateClientFromImages = async (sourceImages: File[]) => {
     if (!user) {
       toast({ variant: 'destructive', title: 'Je moet ingelogd zijn.' });
       return;
@@ -511,11 +511,19 @@ export function NewQuoteForm({
     }
 
     setIsAiExtracting(true);
-    setAiSourceImage(sourceImage);
+    if (sourceImages.length === 0 || sourceImages.length > 2) {
+      toast({
+        variant: 'destructive',
+        title: sourceImages.length > 2 ? 'Selecteer maximaal 2 afbeeldingen.' : 'Selecteer minimaal 1 afbeelding.',
+      });
+      return;
+    }
+
+    setAiSourceImages(sourceImages);
     try {
       const token = await user.getIdToken();
       const formData = new FormData();
-      formData.append('file', sourceImage);
+      sourceImages.forEach((sourceImage) => formData.append('files', sourceImage));
 
       const response = await fetch('/api/quotes/extract-client-info', {
         method: 'POST',
@@ -559,7 +567,7 @@ export function NewQuoteForm({
       }
 
       setIsAiDialogOpen(false);
-      setAiSourceImage(null);
+      setAiSourceImages([]);
       toast({
         title: 'Klantgegevens ingevuld',
         description: `Velden zijn ingevuld met ${payload.model || 'gpt-5.2'}. Controleer alles nog even.`,
@@ -609,30 +617,39 @@ export function NewQuoteForm({
                   <DialogHeader>
                     <DialogTitle>Klantgegevens genereren</DialogTitle>
                     <DialogDescription>
-                      Upload een screenshot of foto met klantgegevens. We vullen de velden in met AI (gpt-5.2).
+                      Upload 1 of 2 screenshots of foto's met klantgegevens. Gegevens uit beide afbeeldingen worden gecombineerd met AI (gpt-5.2).
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="space-y-3">
-                      <Label htmlFor="ai-client-image">Afbeelding</Label>
+                      <Label htmlFor="ai-client-image">Afbeeldingen (maximaal 2)</Label>
                       <Input
                         id="ai-client-image"
                         type="file"
+                        multiple
                         accept=".jpg,.jpeg,.png,.webp,.heic,.heif,image/*"
                         onChange={async (event) => {
-                          const file = event.target.files?.[0] || null;
-                          setAiSourceImage(file);
-                          if (file) {
-                            await handleGenerateClientFromImage(file);
+                          const files = Array.from(event.target.files || []);
+                          if (files.length > 2) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Selecteer maximaal 2 afbeeldingen.',
+                            });
+                          } else if (files.length > 0) {
+                            await handleGenerateClientFromImages(files);
                           }
                           event.currentTarget.value = '';
                         }}
                         disabled={isAiExtracting}
                       />
-                    {aiSourceImage ? (
-                      <p className="text-xs text-muted-foreground">{aiSourceImage.name}</p>
+                    {aiSourceImages.length > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {aiSourceImages.map((image) => image.name).join(', ')}
+                      </p>
                     ) : (
-                      <p className="text-xs text-muted-foreground">Ondersteund: JPG, PNG, WEBP, HEIC/HEIF.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Selecteer bijvoorbeeld één afbeelding met contactgegevens en één met het adres. Ondersteund: JPG, PNG, WEBP, HEIC/HEIF.
+                      </p>
                     )}
                     {isAiExtracting && (
                       <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
@@ -647,7 +664,7 @@ export function NewQuoteForm({
                         variant="outline"
                         onClick={() => {
                           setIsAiDialogOpen(false);
-                          setAiSourceImage(null);
+                          setAiSourceImages([]);
                         }}
                         disabled={isAiExtracting}
                       >
@@ -984,7 +1001,7 @@ export function NewQuoteForm({
 
           {requiresWorkDescriptionPrompt && (
             <div className="space-y-3 rounded-lg border border-border p-4 bg-muted/10">
-              <h3 className="font-medium">Werkbeschrijving genereren</h3>
+              <h3 className="font-medium">Werk &amp; Levering genereren</h3>
               <Input
                 id="workDescriptionPrompt"
                 name="workDescriptionPrompt"

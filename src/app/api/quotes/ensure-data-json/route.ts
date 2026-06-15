@@ -55,32 +55,7 @@ function buildManualDataJson(quoteData: QuoteDataShape): Record<string, unknown>
   return {
     grootmaterialen: [],
     verbruiksartikelen: [],
-    uren_specificatie: [],
-    totaal_uren: 0,
-    werkbeschrijving: werkomschrijving ? [werkomschrijving] : [],
-    werkbeschrijving_structured: {
-      title: '',
-      context: '',
-      sections: {
-        voorbereiding: [],
-        uitvoering: werkomschrijving ? [werkomschrijving] : [],
-        afwerking: [],
-      },
-      jobs: [
-        {
-          title: '',
-          context: '',
-          sections: {
-            voorbereiding: [],
-            uitvoering: werkomschrijving ? [werkomschrijving] : [],
-            afwerking: [],
-          },
-          legacyNotes: [],
-        },
-      ],
-      activeJobIndex: 0,
-      legacyNotes: [],
-    },
+    ...(werkomschrijving ? { werkomschrijving } : {}),
     klantinformatie: quoteData.klantinformatie ?? null,
     instellingen: {
       btwTarief: toFiniteNumber(instellingen?.btwTarief, 21),
@@ -168,10 +143,12 @@ export async function POST(req: Request) {
       if (!existingId) {
         return NextResponse.json({ ok: false, message: 'Ongeldige bestaande calculatie-ID' }, { status: 500 });
       }
-      const existingJson =
-        existing.data_json && typeof existing.data_json === 'object'
-          ? (existing.data_json as Record<string, unknown>)
-          : {};
+      const existingRoot = Array.isArray(existing.data_json)
+        ? existing.data_json[0]
+        : existing.data_json;
+      const existingJson = existingRoot && typeof existingRoot === 'object'
+        ? (existingRoot as Record<string, unknown>)
+        : {};
       const mergedDataJson = {
         ...existingJson,
         klantinformatie: quoteData.klantinformatie ?? existingJson.klantinformatie ?? null,

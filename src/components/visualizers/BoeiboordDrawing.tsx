@@ -24,6 +24,8 @@ interface BoeiboordDrawingProps {
     boeiboordOrientation?: 'horizontal' | 'slope';
     boeiboordAngle?: number;
     boeiboordMirror?: boolean;
+    shapeMirrored?: boolean;
+    shapeVerticalMirrored?: boolean;
     mirrorBadgeText?: string;
     showDaktrim?: boolean;
     daktrimPosition?: 'top' | 'bottom';
@@ -52,6 +54,8 @@ export function BoeiboordDrawing({
     boeiboordOrientation,
     boeiboordAngle,
     boeiboordMirror,
+    shapeMirrored = false,
+    shapeVerticalMirrored = false,
     mirrorBadgeText,
     showDaktrim = false,
     daktrimPosition = 'top',
@@ -61,7 +65,6 @@ export function BoeiboordDrawing({
     onDataGenerated
 }: BoeiboordDrawingProps) {
     const clipId = React.useId().replace(/:/g, '');
-    const clipIdRight = React.useId().replace(/:/g, '');
 
     // STABLE CALLBACK REF
     const onDataGeneratedRef = useRef(onDataGenerated);
@@ -103,11 +106,14 @@ export function BoeiboordDrawing({
     }, [lengte, hoogte, balkafstand, latafstand, startLattenFromBottom, startFromRight]);
 
     useEffect(() => {
-        if (!onDataGenerated) return;
+        if (!onDataGeneratedRef.current) return;
 
         const beams: Beam[] = [];
 
-        if (surroundingBeams) {
+        const isTriangleShape = shape === 'slope' || shape === 'gable';
+        const hasRectangularFrame = surroundingBeams && !isTriangleShape;
+
+        if (hasRectangularFrame) {
             // Top plate
             beams.push({
                 type: 'plate',
@@ -131,29 +137,43 @@ export function BoeiboordDrawing({
         }
 
         // Vertical beams (studs)
-        const studHeight = surroundingBeams ? hoogte - 140 : hoogte;
-        const studY = surroundingBeams ? 70 : 0;
+        const studHeight = hasRectangularFrame ? hoogte - 140 : hoogte;
+        const studY = hasRectangularFrame ? 70 : 0;
         structure.beamCenters.forEach((cx) => {
+            const triangleHeight = isTriangleShape
+                ? shape === 'gable'
+                    ? hoogte * Math.max(0, 1 - Math.abs((2 * cx / lengte) - 1))
+                    : hoogte * Math.max(0, shapeMirrored ? cx / lengte : 1 - (cx / lengte))
+                : studHeight;
+            const triangleY = shapeVerticalMirrored ? hoogte - triangleHeight : studY;
             beams.push({
                 type: 'latten',
                 xMm: cx - 35,
-                yMm: studY,
+                yMm: triangleY,
                 wMm: 70,
-                hMm: Math.max(0, studHeight),
+                hMm: Math.max(0, triangleHeight),
                 x: cx - 35,
-                y: studY
+                y: triangleY
             });
         });
 
         // Horizontal latten
         structure.latCenters.forEach((cy) => {
+            const triangleWidth = isTriangleShape && hoogte > 0
+                ? lengte * Math.max(0, 1 - (cy / hoogte))
+                : lengte;
+            const triangleX = shape === 'slope' && shapeMirrored
+                ? lengte - triangleWidth
+                : shape === 'gable'
+                    ? (lengte - triangleWidth) / 2
+                    : 0;
             beams.push({
                 type: 'latten',
-                xMm: 0,
+                xMm: triangleX,
                 yMm: cy - 11,
-                wMm: lengte,
+                wMm: triangleWidth,
                 hMm: 22,
-                x: 0,
+                x: triangleX,
                 y: cy - 11
             });
         });
@@ -183,36 +203,36 @@ export function BoeiboordDrawing({
             lastDataRef.current = dataString;
             onDataGeneratedRef.current?.(data);
         }
-    }, [structure, lengte, hoogte, shape, surroundingBeams, lattenOrientation, startLattenFromBottom, startFromRight, doubleEndBattens, boeiboordOrientation, boeiboordAngle, boeiboordMirror, balkafstand, latafstand]);
+    }, [structure, lengte, hoogte, shape, shapeMirrored, shapeVerticalMirrored, surroundingBeams, lattenOrientation, startLattenFromBottom, startFromRight, doubleEndBattens, boeiboordOrientation, boeiboordAngle, boeiboordMirror, balkafstand, latafstand]);
 
     // Determine if we should use rotated board view
-    const useRotatedView = shape === 'slope' || shape === 'gable' || boeiboordOrientation === 'slope';
+    const useRotatedView = shape === 'rectangle' && boeiboordOrientation === 'slope';
 
     return (
-        <div className={`bg-[#09090b] rounded-2xl border border-white/10 overflow-hidden shadow-2xl relative h-[340px] ${className ?? ''}`}>
+        <div className={`technical-drawing bg-white rounded-2xl border border-zinc-300 overflow-hidden shadow-sm relative h-[340px] ${className ?? ''}`}>
             {/* Dot Pattern Background */}
             <div
-                className="absolute inset-0 z-0 opacity-[0.15] pointer-events-none"
+                className="absolute inset-0 z-0 opacity-30 pointer-events-none"
                 style={{
-                    backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)',
-                    backgroundSize: '24px 24px'
+                    backgroundImage: 'radial-gradient(#d2d2d6 1px, transparent 1px)',
+                    backgroundSize: '16px 16px'
                 }}
             />
             <div className="relative z-10 w-full h-full">
                 <BaseDrawingFrame
                     width={lengte}
                     height={hoogte}
-                    fitContainer={true}
+                    fitContainer={fitContainer ?? true}
                     svgHeight={400}
                     suppressTotalDimensions={true}
                     areaStats={{
-                        gross: lengte * hoogte,
-                        net: lengte * hoogte,
+                        gross: shape === 'slope' || shape === 'gable' ? (lengte * hoogte) / 2 : lengte * hoogte,
+                        net: shape === 'slope' || shape === 'gable' ? (lengte * hoogte) / 2 : lengte * hoogte,
                         hasOpenings: false
                     }}
                 >
                     {(ctx) => {
-                        const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT, SVG_WIDTH, drawH, drawW } = ctx;
+                        const { startX, startY, rectW, rectH, pxPerMm, SVG_HEIGHT, SVG_WIDTH, drawH } = ctx;
 
                         const structureColor = "rgb(70, 75, 85)";
                         const LAT_WIDTH_MM = 22;
@@ -263,6 +283,78 @@ export function BoeiboordDrawing({
                             strokeWidth: 1,
                             strokeDasharray: "4,4" as string,
                         };
+
+                        if (shape === 'slope' || shape === 'gable') {
+                            const apexX = shape === 'gable'
+                                ? startX + rectW / 2
+                                : shapeMirrored ? startX + rectW : startX;
+                            const bottomY = startY + rectH;
+                            const baseY = shapeVerticalMirrored ? startY : bottomY;
+                            const apexY = shapeVerticalMirrored ? bottomY : startY;
+                            const trianglePath = `M ${startX} ${baseY} L ${apexX} ${apexY} L ${startX + rectW} ${baseY} Z`;
+
+                            return (
+                                <>
+                                    <defs>
+                                        <clipPath id={clipId}>
+                                            <path d={trianglePath} />
+                                        </clipPath>
+                                    </defs>
+                                    <g clipPath={`url(#${clipId})`}>
+                                        {balkafstand > 0 && structure.beamCenters.map((cx, index) => {
+                                            const x = startX + cx * pxPerMm;
+                                            return (
+                                                <line
+                                                    key={`triangle-beam-${index}`}
+                                                    x1={x}
+                                                    y1={startY}
+                                                    x2={x}
+                                                    y2={bottomY}
+                                                    stroke={structureColor}
+                                                    strokeWidth={70 * pxPerMm}
+                                                    opacity="0.4"
+                                                />
+                                            );
+                                        })}
+                                        {latafstand > 0 && structure.latCenters.map((cy, index) => {
+                                            const y = shapeVerticalMirrored
+                                                ? startY + cy * pxPerMm
+                                                : bottomY - cy * pxPerMm;
+                                            return (
+                                                <line
+                                                    key={`triangle-lat-${index}`}
+                                                    x1={startX}
+                                                    y1={y}
+                                                    x2={startX + rectW}
+                                                    y2={y}
+                                                    {...dashProps}
+                                                />
+                                            );
+                                        })}
+                                    </g>
+                                    <path d={trianglePath} fill="none" stroke={structureColor} strokeWidth="1.5" />
+                                    <OverallDimensions
+                                        wallLength={lengte}
+                                        wallHeight={hoogte}
+                                        svgBaseX={startX}
+                                        svgBaseY={bottomY}
+                                        pxPerMm={pxPerMm}
+                                    />
+                                    {title && (
+                                        <text
+                                            x={25}
+                                            y={SVG_HEIGHT - 25}
+                                            textAnchor="start"
+                                            fill="rgb(100, 116, 139)"
+                                            fontSize="14"
+                                            style={{ fontFamily: 'monospace' }}
+                                        >
+                                            {title}
+                                        </text>
+                                    )}
+                                </>
+                            );
+                        }
 
                         // === ROTATED BOARD VIEW ===
                         if (useRotatedView) {
@@ -584,8 +676,6 @@ export function BoeiboordDrawing({
                                     x: rightBottomEnd.x + rightNormal.x * boardThickness,
                                     y: rightBottomEnd.y + rightNormal.y * boardThickness
                                 };
-                                const rightTopSeam = pointAtX(rightTopStartRaw, rightTopEnd, peakX);
-
                                 const apex = intersectLines(leftTopStart, leftTopEndRaw, rightTopStartRaw, rightTopEnd) ?? leftTopSeam;
 
                                 const leftEdges: BoardEdges = {

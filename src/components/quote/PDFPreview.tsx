@@ -89,7 +89,7 @@ export function PDFPreview({
                 <FileText size={48} className="mx-auto text-zinc-600 mb-4" />
                 <h3 className="text-lg font-medium text-zinc-300 mb-2">Geen PDF preview</h3>
                 <p className="text-zinc-500">
-                    Vul eerst de materiaalprijzen in om een PDF te kunnen genereren.
+                    De offertegegevens zijn nog niet volledig geladen.
                 </p>
             </div>
         );

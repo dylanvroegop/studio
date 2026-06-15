@@ -198,7 +198,7 @@ export function SendQuoteModal({
         if (selectedAttachmentCount === 0) {
             toast({
                 title: "Kies minimaal één PDF",
-                description: "Selecteer offerte, tekeningen en/of werkbeschrijving.",
+                description: "Selecteer offerte, tekeningen en/of Werk & Levering.",
                 variant: "destructive",
             });
             return;
@@ -297,7 +297,7 @@ export function SendQuoteModal({
                                 />
                             </label>
                             <label className="flex items-center justify-between gap-3 text-sm text-zinc-200 cursor-pointer">
-                                <span>Werkbeschrijving (aparte PDF)</span>
+                                <span>Werk &amp; Levering (aparte PDF)</span>
                                 <input
                                     type="checkbox"
                                     checked={attachments.includeWerkbeschrijving}

@@ -1,13 +1,13 @@
 export const DrawingStyles = {
     // Colors
     colors: {
-        DIM_TOTAL: '#10b981', // Emerald-500
-        DIM_GRID: '#14b8a6',  // Teal-500
-        DOT: 'rgb(255, 255, 255)',
-        BG_LABEL: '#09090b',
-        TEXT_WHITE: '#FFFFFF',
-        TIMBER_STROKE: 'rgb(55, 60, 70)',
-        OPENING_LABEL: '#10b981', // Emerald-500 - for opening type and dimension labels
+        DIM_TOTAL: '#000000',
+        DIM_GRID: '#000000',
+        DOT: 'rgb(156, 163, 175)',
+        BG_LABEL: '#FFFFFF',
+        TEXT_WHITE: '#000000',
+        TIMBER_STROKE: '#000000',
+        OPENING_LABEL: '#000000',
     },
     // Metrics
     metrics: {

@@ -61,7 +61,7 @@ import { LogoUpload } from '@/components/settings/LogoUpload';
 import { findExistingVoorschotInvoiceId } from '@/lib/invoice-actions';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { cn, parsePriceToNumber } from '@/lib/utils';
+import { cn, parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
 import { buildAddressString, buildGoogleMapsDirectionsUrl, hasMinimalAddress } from '@/lib/maps';
 import { reportOperationalError } from '@/lib/report-operational-error';
 import {
@@ -70,6 +70,7 @@ import {
     type QuotePdfTextSettings,
 } from '@/lib/quote-pdf-text-settings';
 import { cloneTemplateSections, findWorkDescriptionTemplate } from '@/lib/work-description/templates';
+import { isIgnoredWorkDeliveryMaterial, validateWorkDeliveryScope } from '@/lib/work-delivery';
 
 import { Quote, ReceiptAttachment, QuotePhotoAttachment, type MaterialPresentation } from "@/lib/types";
 import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
@@ -2707,7 +2708,7 @@ export default function QuotePage() {
     const werkbeschrijvingMaterialContext = useMemo(() => {
         const toRow = (item: MaterialItem, type: 'groot' | 'verbruik') => {
             const name = String(item?.product || '').trim();
-            if (!name) return null;
+            if (!name || isIgnoredWorkDeliveryMaterial(name)) return null;
             const quantity = Number(item?.aantal);
             const unit = String((item as any)?.eenheid || 'stuk').trim() || 'stuk';
             return {
@@ -2951,16 +2952,18 @@ export default function QuotePage() {
                     schattingUren: newSettings.schattingUren,
                     extras: newSettings.extras,
                 };
+                const cleanedInstellingen = removeEmptyFields(nextInstellingen) ?? {};
+                const cleanedExtras = removeEmptyFields(newSettings.extras) ?? {};
                 await updateDoc(doc(firestore, 'quotes', id), {
-                    instellingen: nextInstellingen,
-                    extras: newSettings.extras,
+                    instellingen: cleanedInstellingen,
+                    extras: cleanedExtras,
                     updatedAt: serverTimestamp(),
                 } as any);
                 setQuote((prev) => prev
                     ? ({
                         ...prev,
-                        instellingen: nextInstellingen,
-                        extras: newSettings.extras,
+                        instellingen: cleanedInstellingen,
+                        extras: cleanedExtras,
                     } as any)
                     : prev);
             } catch (error) {
@@ -3099,10 +3102,11 @@ export default function QuotePage() {
     };
 
     // Helper to build PDF data object
-    const buildPDFData = (): PDFQuoteData | null => {
-        if (!calculation?.data_json || !klantInfo || !quoteSettings || !totals) {
-            return null;
-        }
+    const buildPDFData = (): PDFQuoteData => {
+        const pdfBtwPercentage = quoteSettings?.btwTarief ?? 21;
+        const pdfHourlyRate = quoteSettings?.uurTariefExclBtw ?? 0;
+        const pdfMarginPercentage = quoteSettings?.extras?.winstMarge?.percentage ?? 0;
+        const pdfMarginBasis = quoteSettings?.extras?.winstMarge?.basis ?? 'totaal';
 
         return {
             offerteNummer: (quote as any)?.offerteNummer || 'CONCEPT',
@@ -3143,20 +3147,22 @@ export default function QuotePage() {
                 iban: userProfile?.settings?.iban || businessData?.iban || userProfile?.iban || '',
             },
             klant: {
-                naam: `${klantInfo.voornaam} ${klantInfo.achternaam}`,
-                adres: `${klantInfo.straat} ${klantInfo.huisnummer}`,
-                postcode: klantInfo.postcode,
-                plaats: klantInfo.plaats,
-                telefoon: klantInfo.telefoonnummer,
-                email: klantInfo.emailadres,
+                naam: klantInfo ? `${klantInfo.voornaam || ''} ${klantInfo.achternaam || ''}`.trim() : 'Klant nog niet ingevuld',
+                adres: klantInfo ? `${klantInfo.straat || ''} ${klantInfo.huisnummer || ''}`.trim() : '',
+                postcode: klantInfo?.postcode || '',
+                plaats: klantInfo?.plaats || '',
+                telefoon: klantInfo?.telefoonnummer || '',
+                email: klantInfo?.emailadres || '',
             },
-            projectLocatie: klantInfo.afwijkendProjectadres && klantInfo.projectAdres
+            projectLocatie: klantInfo?.afwijkendProjectadres && klantInfo.projectAdres
                 ? `${klantInfo.projectAdres.straat} ${klantInfo.projectAdres.huisnummer}, ${klantInfo.projectAdres.plaats}`
-                : `${klantInfo.straat} ${klantInfo.huisnummer}, ${klantInfo.plaats}`,
+                : klantInfo
+                    ? `${klantInfo.straat || ''} ${klantInfo.huisnummer || ''}, ${klantInfo.plaats || ''}`.trim().replace(/^,|,$/g, '')
+                    : '',
             korteTitel: workDescriptionStructured.title || normalizedData?.korteTitel,
-            korteBeschrijving: workDescriptionStructured.context || normalizedData?.korteBeschrijving,
-            werkbeschrijving: generateWorkSummary(normalizedData?.werkbeschrijving, 800),
-            werkbeschrijvingFull: normalizedData?.werkbeschrijving || [],
+            korteBeschrijving: workDescriptionStructured.summary || normalizedData?.korteBeschrijving,
+            werkbeschrijving: workDescriptionStructured.summary || generateWorkSummary(normalizedData?.werkbeschrijving, 800),
+            werkbeschrijvingFull: flattenStructuredWorkDescription(workDescriptionStructured),
             werkbeschrijvingStructured: workDescriptionStructured,
             grootmaterialen: materials.groot.map(m => ({
                 aantal: m.aantal,
@@ -3172,21 +3178,21 @@ export default function QuotePage() {
             })),
             urenSpecificatie: normalizedData?.uren_specificatie || [],
             totals: {
-                materialenGroot: totals.materialenGroot,
-                materialenVerbruik: totals.materialenVerbruik,
-                materialenTotaal: totals.materialenTotaal,
-                arbeidTotaal: totals.arbeidTotaal,
-                transportTotaal: totals.transportTotaal,
-                subtotaalExclBtw: totals.subtotaalExclBtw,
-                winstMarge: totals.winstMarge,
-                totaalExclBtw: totals.totaalExclBtw,
-                btw: totals.btw,
-                totaalInclBtw: totals.totaalInclBtw,
+                materialenGroot: totals?.materialenGroot ?? 0,
+                materialenVerbruik: totals?.materialenVerbruik ?? 0,
+                materialenTotaal: totals?.materialenTotaal ?? 0,
+                arbeidTotaal: totals?.arbeidTotaal ?? 0,
+                transportTotaal: totals?.transportTotaal ?? 0,
+                subtotaalExclBtw: totals?.subtotaalExclBtw ?? 0,
+                winstMarge: totals?.winstMarge ?? 0,
+                totaalExclBtw: totals?.totaalExclBtw ?? 0,
+                btw: totals?.btw ?? 0,
+                totaalInclBtw: totals?.totaalInclBtw ?? 0,
                 totaalUren: normalizedData?.totaal_uren || 0,
-                uurTarief: quoteSettings.uurTariefExclBtw,
-                btwPercentage: quoteSettings.btwTarief,
-                margePercentage: quoteSettings.extras.winstMarge.percentage,
-                margeBasis: quoteSettings.extras.winstMarge.basis,
+                uurTarief: pdfHourlyRate,
+                btwPercentage: pdfBtwPercentage,
+                margePercentage: pdfMarginPercentage,
+                margeBasis: pdfMarginBasis,
             },
             settings: pdfSettings,
             drawingImages: capturedDrawings, // Include captured drawings for preview
@@ -3784,7 +3790,7 @@ export default function QuotePage() {
             }
 
             const imageX = margin + ((availableWidth - imageWidth) / 2);
-            doc.addImage(imgData, 'PNG', imageX, y, imageWidth, imageHeight);
+            doc.addImage(imgData, 'PNG', imageX, y, imageWidth, imageHeight, undefined, 'NONE');
         });
 
         return doc.output('blob');
@@ -3816,6 +3822,16 @@ export default function QuotePage() {
             : [{
                 title: structured.title,
                 context: structured.context,
+                summary: structured.summary,
+                work_scope: structured.work_scope,
+                materials: structured.materials,
+                dimensions: structured.dimensions,
+                included: structured.included,
+                excluded: structured.excluded,
+                internal_notes: structured.internal_notes,
+                afvalAfvoeren: structured.afvalAfvoeren,
+                electricalScope: structured.electricalScope,
+                finishLevel: structured.finishLevel,
                 sections: structured.sections,
                 legacyNotes: structured.legacyNotes || [],
             }];
@@ -3825,7 +3841,7 @@ export default function QuotePage() {
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(16);
             doc.setTextColor(25, 25, 25);
-            doc.text('WERKBESCHRIJVING', margin, y);
+            doc.text('WERK & LEVERING', margin, y);
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(9);
             doc.setTextColor(100, 100, 100);
@@ -3853,7 +3869,7 @@ export default function QuotePage() {
                 }
                 drawHeader(job.title || `Klus ${jobIndex + 1}`);
 
-                const context = String(job.context || '').trim();
+                const context = String(job.summary || job.context || '').trim();
                 if (context) {
                     doc.setFont('helvetica', 'italic');
                     doc.setFontSize(9);
@@ -3863,27 +3879,31 @@ export default function QuotePage() {
                     y += contextLines.length * 4.3 + 5;
                 }
 
-                const stappen = [
-                    ...job.sections.voorbereiding,
-                    ...job.sections.uitvoering,
-                    ...job.sections.afwerking,
-                    ...(job.legacyNotes || []),
-                ].map((line) => String(line || '').trim()).filter(Boolean);
-                const resolvedStappen = stappen.length > 0 ? stappen : ['Geen werkbeschrijving beschikbaar.'];
-
-                doc.setFontSize(9);
-                doc.setTextColor(40, 40, 40);
-                resolvedStappen.forEach((stap, index) => {
-                    const nummer = `${index + 1}.`;
-                    const regels = doc.splitTextToSize(stap, pageWidth - (margin * 2) - 10);
-                    const ruimte = Math.max(6, regels.length * 4.5) + 2;
-                    addPageIfNeeded(ruimte + 2);
-
+                const sections: Array<[string, string[]]> = [
+                    ['WERKZAAMHEDEN', job.work_scope],
+                    ['MATERIALEN / PRODUCTEN', job.materials],
+                    ['MAATVOERING', job.dimensions],
+                    ['INBEGREPEN', job.included],
+                    ['NIET INBEGREPEN', job.excluded],
+                ];
+                sections.forEach(([label, rows]) => {
+                    const cleanRows = rows.map((line) => String(line || '').trim()).filter(Boolean);
+                    if (cleanRows.length === 0) return;
+                    addPageIfNeeded(16);
                     doc.setFont('helvetica', 'bold');
-                    doc.text(nummer, margin, y);
-                    doc.setFont('helvetica', 'normal');
-                    doc.text(regels, margin + 8, y);
-                    y += ruimte;
+                    doc.setFontSize(10);
+                    doc.text(label, margin, y);
+                    y += 6;
+                    cleanRows.forEach((line, index) => {
+                        const wrapped = doc.splitTextToSize(line, pageWidth - (margin * 2) - 10);
+                        addPageIfNeeded(Math.max(6, wrapped.length * 4.5) + 4);
+                        doc.text(`${index + 1}.`, margin, y);
+                        doc.setFont('helvetica', 'normal');
+                        doc.text(wrapped, margin + 8, y);
+                        y += Math.max(6, wrapped.length * 4.5) + 2;
+                        doc.setFont('helvetica', 'bold');
+                    });
+                    y += 3;
                 });
             });
         } else {
@@ -3904,21 +3924,32 @@ export default function QuotePage() {
 
             doc.setFontSize(9);
             doc.setTextColor(40, 40, 40);
-            const stappen = werkbeschrijvingStappen.length > 0
-                ? werkbeschrijvingStappen
-                : ['Geen werkbeschrijving beschikbaar.'];
-
-            stappen.forEach((stap, index) => {
-                const nummer = `${index + 1}.`;
-                const regels = doc.splitTextToSize(stap, pageWidth - (margin * 2) - 10);
-                const ruimte = Math.max(6, regels.length * 4.5) + 2;
-                addPageIfNeeded(ruimte + 2);
-
+            const singleJob = jobs[0];
+            const sections: Array<[string, string[]]> = [
+                ['WERKZAAMHEDEN', singleJob?.work_scope || []],
+                ['MATERIALEN / PRODUCTEN', singleJob?.materials || []],
+                ['MAATVOERING', singleJob?.dimensions || []],
+                ['INBEGREPEN', singleJob?.included || []],
+                ['NIET INBEGREPEN', singleJob?.excluded || []],
+            ];
+            sections.forEach(([label, rows]) => {
+                const cleanRows = rows.map((line) => String(line || '').trim()).filter(Boolean);
+                if (cleanRows.length === 0) return;
+                addPageIfNeeded(16);
                 doc.setFont('helvetica', 'bold');
-                doc.text(nummer, margin, y);
-                doc.setFont('helvetica', 'normal');
-                doc.text(regels, margin + 8, y);
-                y += ruimte;
+                doc.setFontSize(10);
+                doc.text(label, margin, y);
+                y += 6;
+                cleanRows.forEach((line, index) => {
+                    const wrapped = doc.splitTextToSize(line, pageWidth - (margin * 2) - 10);
+                    addPageIfNeeded(Math.max(6, wrapped.length * 4.5) + 4);
+                    doc.text(`${index + 1}.`, margin, y);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(wrapped, margin + 8, y);
+                    y += Math.max(6, wrapped.length * 4.5) + 2;
+                    doc.setFont('helvetica', 'bold');
+                });
+                y += 3;
             });
         }
 
@@ -4097,7 +4128,7 @@ export default function QuotePage() {
                 workDescriptionStructured,
             );
             files.push({
-                fileName: `Werkbeschrijving-${offerteNummer}.pdf`,
+                fileName: `Werk-en-Levering-${offerteNummer}.pdf`,
                 blob: werkbeschrijvingBlob,
             });
         }
@@ -4231,9 +4262,9 @@ export default function QuotePage() {
             },
             projectLocatie: resolvedProjectLocatie,
             korteTitel: workDescriptionStructured.title || normalizedData?.korteTitel,
-            korteBeschrijving: workDescriptionStructured.context || normalizedData?.korteBeschrijving,
-            werkbeschrijving: generateWorkSummary(normalizedData?.werkbeschrijving || []),
-            werkbeschrijvingFull: normalizeWerkbeschrijving(normalizedData?.werkbeschrijving || []),
+            korteBeschrijving: workDescriptionStructured.summary || normalizedData?.korteBeschrijving,
+            werkbeschrijving: workDescriptionStructured.summary || generateWorkSummary(normalizedData?.werkbeschrijving || []),
+            werkbeschrijvingFull: flattenStructuredWorkDescription(workDescriptionStructured),
             werkbeschrijvingStructured: workDescriptionStructured,
             grootmaterialen: materials.groot.map(m => ({
                 aantal: m.aantal,
@@ -4736,13 +4767,40 @@ export default function QuotePage() {
     );
 
     const isWerkbeschrijvingEmpty = useMemo(() => {
-        const flat = flattenStructuredWorkDescription(workDescriptionStructured);
         const hasTitle = workDescriptionStructured.title.trim().length > 0;
-        const hasContext = workDescriptionStructured.context.trim().length > 0;
-        return !hasTitle && !hasContext && flat.length === 0;
+        const hasSummary = workDescriptionStructured.summary.trim().length > 0;
+        const hasScope = workDescriptionStructured.jobs.length > 0
+            ? workDescriptionStructured.jobs.some((job) => job.work_scope.some((line) => line.trim().length > 0))
+            : workDescriptionStructured.work_scope.some((line) => line.trim().length > 0);
+        return !hasTitle && !hasSummary && !hasScope;
     }, [workDescriptionStructured]);
 
     const showWerkbeschrijvingWarning = !loading && isWerkbeschrijvingEmpty;
+    const workDeliveryValidation = useMemo(
+        () => {
+            const scopes = workDescriptionStructured.jobs.length > 0
+                ? workDescriptionStructured.jobs
+                : [workDescriptionStructured];
+            const errors = scopes.flatMap((scope, index) => {
+                const result = validateWorkDeliveryScope(scope);
+                const prefix = scopes.length > 1 ? `${scope.title || `Klus ${index + 1}`}: ` : '';
+                return result.errors.map((error) => `${prefix}${error}`);
+            });
+            return { valid: errors.length === 0, errors };
+        },
+        [workDescriptionStructured],
+    );
+
+    const requireValidWorkDelivery = useCallback((): boolean => {
+        if (workDeliveryValidation.valid) return true;
+        toast({
+            variant: 'destructive',
+            title: 'Werk & Levering is nog niet compleet',
+            description: workDeliveryValidation.errors.join(' '),
+        });
+        setActiveTab('werkbeschrijving');
+        return false;
+    }, [toast, workDeliveryValidation]);
 
     const applyLocalWorkDescriptionUpdate = useCallback(
         (
@@ -4768,6 +4826,7 @@ export default function QuotePage() {
 
         const serialized = JSON.stringify({
             structured: currentWerkbeschrijvingStructured,
+            rows: flattenStructuredWorkDescription(currentWerkbeschrijvingStructured),
         });
         const shouldAutoApplyTemplate = Boolean(
             !templateAutoAppliedRef.current
@@ -4791,6 +4850,7 @@ export default function QuotePage() {
         setWorkDescriptionStructured(next);
         lastSyncedWerkbeschrijvingRef.current = JSON.stringify({
             structured: next,
+            rows: flattenStructuredWorkDescription(next),
         });
     }, [currentWerkbeschrijvingStructured, detectedWorkDescriptionTemplate]);
 
@@ -4843,7 +4903,7 @@ export default function QuotePage() {
                     toast({
                         variant: 'destructive',
                         title: 'Automatisch opslaan mislukt',
-                        description: err?.message || 'Kon werkbeschrijving niet opslaan.',
+                        description: err?.message || 'Kon Werk & Levering niet opslaan.',
                     });
                 })
                 .finally(() => {
@@ -4860,6 +4920,42 @@ export default function QuotePage() {
             }
         };
     }, [workDescriptionStructured, calculation?.data_json, updateDataJson, toast]);
+
+    const persistGeneratedWorkDescription = useCallback(async (next: WorkDescriptionStructured) => {
+        if (!calculation?.data_json) {
+            throw new Error('Nog geen offerte-data beschikbaar.');
+        }
+
+        if (autoSaveWerkbeschrijvingTimerRef.current) {
+            clearTimeout(autoSaveWerkbeschrijvingTimerRef.current);
+            autoSaveWerkbeschrijvingTimerRef.current = null;
+        }
+
+        const parsedStructured = toStructuredWorkDescription({
+            werkbeschrijving_structured: next,
+            korteTitel: next.title,
+            korteBeschrijving: next.summary || next.context,
+        });
+        const parsedWerkbeschrijving = flattenStructuredWorkDescription(parsedStructured);
+        const serialized = JSON.stringify({
+            structured: parsedStructured,
+            rows: parsedWerkbeschrijving,
+        });
+        const root = unwrapRoot(calculation.data_json);
+
+        await updateDataJson({
+            ...root,
+            korteTitel: parsedStructured.title,
+            korteBeschrijving: parsedStructured.summary || parsedStructured.context,
+            werkbeschrijving: parsedWerkbeschrijving,
+            werkbeschrijving_jobs: parsedStructured.jobs,
+            werkbeschrijving_structured: parsedStructured,
+        });
+
+        lastSyncedWerkbeschrijvingRef.current = serialized;
+        workDescriptionDirtyRef.current = false;
+        setWorkDescriptionStructured(parsedStructured);
+    }, [calculation?.data_json, updateDataJson]);
 
     const handleGenerateWorkDescription = async (action: 'full' | 'uitvoering-only' | 'improve') => {
         if (!user) return;
@@ -4879,14 +4975,16 @@ export default function QuotePage() {
             const notesContext = truncatePromptText(buildQuoteNotesContextWithoutLinks(quoteNoteSections), 1800);
             const materialPromptLines = werkbeschrijvingMaterialContext.length > 0
                 ? [
-                    'Verplichte materialen (deze moeten expliciet terugkomen in de werkbeschrijving):',
+                    'Goedgekeurde materialen (uitsluitend opnemen onder materials):',
                     ...werkbeschrijvingMaterialContext.map((item) => `- ${item.name} (${item.quantity} ${item.unit}, type: ${item.type})`),
-                    'Als materialen zijn opgegeven, noem ze concreet in de stappen.',
+                    'Noem geen ander materiaal en verwerk materialen niet in andere klantsecties.',
                 ]
                 : [];
             const notesPromptLines = notesContext
                 ? [
-                    'Notities van gebruiker (gebruik deze context actief, inclusief maten/afmetingen):',
+                    'VERPLICHTE SCOPE UIT GEBRUIKERSNOTITIES:',
+                    'Verwerk iedere concrete regel hieronder. Sla geen werkzaamheden, keuzes of maten over en neem afmetingen exact over.',
+                    'Formuleer definitief en professioneel. Laat onzekere taal zoals "eventueel", "mogelijk", "iets anders", "indien nodig" en "in overleg" weg.',
                     notesContext,
                 ]
                 : [];
@@ -4896,11 +4994,34 @@ export default function QuotePage() {
                     werkbeschrijvingMeasurementsContext,
                 ]
                 : [];
+            const currentWorkDescriptionContext = truncatePromptText(JSON.stringify({
+                title: workDescriptionStructured.title,
+                summary: workDescriptionStructured.summary,
+                work_scope: workDescriptionStructured.work_scope,
+                materials: workDescriptionStructured.materials,
+                dimensions: workDescriptionStructured.dimensions,
+                included: workDescriptionStructured.included,
+                excluded: workDescriptionStructured.excluded,
+                internal_notes: workDescriptionStructured.internal_notes,
+                jobs: workDescriptionStructured.jobs.map((job) => ({
+                    title: job.title,
+                    summary: job.summary,
+                    work_scope: job.work_scope,
+                    materials: job.materials,
+                    dimensions: job.dimensions,
+                    included: job.included,
+                    excluded: job.excluded,
+                    internal_notes: job.internal_notes,
+                })),
+            }), 4000);
             const promptBase = [
                 `Actie: ${action}`,
                 workDescriptionStructured.title.trim() ? `Titel: ${workDescriptionStructured.title.trim()}` : '',
-                workDescriptionStructured.context.trim() ? `Context: ${workDescriptionStructured.context.trim()}` : '',
+                workDescriptionStructured.summary.trim() ? `Samenvatting: ${workDescriptionStructured.summary.trim()}` : '',
                 resolvedWorkDescriptionCategory ? `Categorie: ${resolvedWorkDescriptionCategory}` : '',
+                currentWorkDescriptionContext
+                    ? `HUIDIGE WERK & LEVERING:\nGebruik dit als basis en verwerk latere wijzigingen zonder bestaande concrete scope ongemerkt weg te laten.\n${currentWorkDescriptionContext}`
+                    : '',
                 ...materialPromptLines,
                 ...notesPromptLines,
                 ...measurementPromptLines,
@@ -4917,7 +5038,7 @@ export default function QuotePage() {
                     quoteId: id,
                     action,
                     title: workDescriptionStructured.title,
-                    context: workDescriptionStructured.context,
+                    context: workDescriptionStructured.summary,
                     category: resolvedWorkDescriptionCategory,
                     targetSection: action === 'uitvoering-only' ? 'uitvoering' : undefined,
                     structuredInput: workDescriptionStructured,
@@ -4932,7 +5053,7 @@ export default function QuotePage() {
                 | null;
 
             if (!response.ok) {
-                throw new Error(payload?.error || 'Kon werkbeschrijving niet genereren.');
+                throw new Error(payload?.error || 'Kon Werk & Levering niet genereren.');
             }
 
             const generatedStructured = payload?.werkbeschrijvingStructured
@@ -4940,10 +5061,10 @@ export default function QuotePage() {
                 : null;
 
             if (generatedStructured && flattenStructuredWorkDescription(generatedStructured).length > 0) {
-                applyLocalWorkDescriptionUpdate(generatedStructured);
+                await persistGeneratedWorkDescription(generatedStructured);
                 toast({
-                    title: 'Werkbeschrijving bijgewerkt',
-                    description: 'AI-output is verwerkt in de structuur.',
+                    title: 'Werk & Levering bijgewerkt',
+                    description: 'AI-output is verwerkt en opgeslagen.',
                 });
                 return;
             }
@@ -4955,7 +5076,7 @@ export default function QuotePage() {
                 : [];
 
             if (generated.length === 0) {
-                throw new Error('Geen werkbeschrijving ontvangen.');
+                throw new Error('Geen Werk & Levering ontvangen.');
             }
 
             if (action === 'uitvoering-only') {
@@ -4965,6 +5086,7 @@ export default function QuotePage() {
                         const jobs = Array.isArray(normalizedPrev.jobs) && normalizedPrev.jobs.length > 0
                             ? normalizedPrev.jobs
                             : [{
+                                ...normalizedPrev,
                                 title: normalizedPrev.title,
                                 context: normalizedPrev.context,
                                 sections: normalizedPrev.sections,
@@ -5003,14 +5125,14 @@ export default function QuotePage() {
             }
 
             toast({
-                title: 'Werkbeschrijving bijgewerkt',
+                title: 'Werk & Levering bijgewerkt',
                 description: 'AI-output is verwerkt in de structuur.',
             });
         } catch (err: any) {
             toast({
                 variant: 'destructive',
                 title: 'Genereren mislukt',
-                description: err?.message || 'Kon werkbeschrijving niet genereren.',
+                description: err?.message || 'Kon Werk & Levering niet genereren.',
             });
         } finally {
             setIsGeneratingWorkDescription(false);
@@ -5026,6 +5148,7 @@ export default function QuotePage() {
             const jobs = Array.isArray(normalizedPrev.jobs) && normalizedPrev.jobs.length > 0
                 ? normalizedPrev.jobs
                 : [{
+                    ...normalizedPrev,
                     title: normalizedPrev.title,
                     context: normalizedPrev.context,
                     sections: normalizedPrev.sections,
@@ -5447,7 +5570,7 @@ export default function QuotePage() {
                                 onClick={() => {
                                     void handleDownloadPDF();
                                 }}
-                                disabled={!totals || loading || isGeneratingPDF}
+                                disabled={loading || isGeneratingPDF}
                                 aria-label="Download PDF"
                                 title="Download PDF"
                             >
@@ -5547,7 +5670,7 @@ export default function QuotePage() {
                                         void handleDownloadPDF();
                                     }}
                                     className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
-                                    disabled={!totals || loading || isGeneratingPDF}
+                                    disabled={loading || isGeneratingPDF}
                                     aria-label="Download"
                                     title="Download"
                                 >
@@ -5571,7 +5694,9 @@ export default function QuotePage() {
                                 <Button
                                     variant="success"
                                     className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
-                                    onClick={() => setIsSendModalOpen(true)}
+                                    onClick={() => {
+                                        if (requireValidWorkDelivery()) setIsSendModalOpen(true);
+                                    }}
                                     aria-label="Versturen"
                                     title="Versturen"
                                 >
@@ -5638,8 +5763,8 @@ export default function QuotePage() {
                                             "relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground",
                                             showWerkbeschrijvingWarning && "text-red-400 data-[state=active]:text-red-400"
                                         )}
-                                        aria-label="Werkbeschrijving"
-                                        title="Werkbeschrijving"
+                                        aria-label="Werk & Levering"
+                                        title="Werk & Levering"
                                     >
                                         <ClipboardList size={16} />
                                     </TabsTrigger>
@@ -5658,22 +5783,6 @@ export default function QuotePage() {
                                         title="Foto's"
                                     >
                                         <Camera size={16} />
-                                    </TabsTrigger>
-                                    <TabsTrigger
-                                        value="materiaalpresentatie"
-                                        className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
-                                        aria-label="Materiaalpresentatie"
-                                        title="Materiaalpresentatie"
-                                    >
-                                        <Sparkles size={16} />
-                                    </TabsTrigger>
-                                    <TabsTrigger
-                                        value="materiaallijst"
-                                        className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
-                                        aria-label="Materiaallijst"
-                                        title="Materiaallijst"
-                                    >
-                                        <ClipboardList size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="notities"
@@ -5733,14 +5842,6 @@ export default function QuotePage() {
                                     <ImageIcon size={16} />
                                     Foto&apos;s
                                 </TabsTrigger>
-                                <TabsTrigger value="materiaalpresentatie" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
-                                    <Sparkles size={16} />
-                                    Materiaalpresentatie
-                                </TabsTrigger>
-                                <TabsTrigger value="materiaallijst" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
-                                    <ClipboardList size={16} />
-                                    Materiaallijst
-                                </TabsTrigger>
                                 <TabsTrigger
                                     value="werkbeschrijving"
                                     className={cn(
@@ -5749,7 +5850,7 @@ export default function QuotePage() {
                                     )}
                                 >
                                     <ClipboardList size={16} />
-                                    Werkbeschrijving
+                                    Werk &amp; Levering
                                     {showWerkbeschrijvingWarning && <AlertCircle size={12} className="text-red-500" />}
                                 </TabsTrigger>
                                 <TabsTrigger value="notities" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
@@ -6812,9 +6913,9 @@ export default function QuotePage() {
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
                                     <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-emerald-400" />
                                     <FileText size={48} className="mx-auto text-emerald-400 mb-4" />
-                                    <h3 className="text-lg font-medium text-emerald-300 mb-2">Nog geen werkbeschrijving</h3>
+                                    <h3 className="text-lg font-medium text-emerald-300 mb-2">Nog geen Werk &amp; Levering</h3>
                                     <p className="text-emerald-200/80">
-                                        De werkbeschrijving wordt automatisch gevuld zodra de calculatie is voltooid.
+                                        Werk &amp; Levering kan worden gegenereerd zodra de calculatie is voltooid.
                                     </p>
                                 </div>
                             ) : (
@@ -7449,7 +7550,9 @@ export default function QuotePage() {
                         <Button
                             variant="success"
                             className="h-12 w-full justify-center text-base font-semibold"
-                            onClick={() => setIsSendModalOpen(true)}
+                            onClick={() => {
+                                if (requireValidWorkDelivery()) setIsSendModalOpen(true);
+                            }}
                         >
                             <Mail className="mr-2 h-4 w-4" />
                             Versturen offerte
@@ -7513,7 +7616,7 @@ export default function QuotePage() {
                 }
                 afzenderNaam={businessData?.contactNaam || user?.displayName || userProfile?.naam || ''}
                 korteTitel={workDescriptionStructured.title || normalizedData?.korteTitel}
-                korteBeschrijving={workDescriptionStructured.context || normalizedData?.korteBeschrijving}
+                korteBeschrijving={workDescriptionStructured.summary || normalizedData?.korteBeschrijving}
             />
 
             <SendQuoteWhatsAppModal

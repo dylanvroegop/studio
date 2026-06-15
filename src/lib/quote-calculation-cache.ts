@@ -48,32 +48,7 @@ function buildManualDataJson(quoteData: QuoteDataShape): Record<string, unknown>
   return {
     grootmaterialen: [],
     verbruiksartikelen: [],
-    uren_specificatie: [],
-    totaal_uren: 0,
-    werkbeschrijving: werkomschrijving ? [werkomschrijving] : [],
-    werkbeschrijving_structured: {
-      title: '',
-      context: '',
-      sections: {
-        voorbereiding: [],
-        uitvoering: werkomschrijving ? [werkomschrijving] : [],
-        afwerking: [],
-      },
-      jobs: [
-        {
-          title: '',
-          context: '',
-          sections: {
-            voorbereiding: [],
-            uitvoering: werkomschrijving ? [werkomschrijving] : [],
-            afwerking: [],
-          },
-          legacyNotes: [],
-        },
-      ],
-      activeJobIndex: 0,
-      legacyNotes: [],
-    },
+    ...(werkomschrijving ? { werkomschrijving } : {}),
     klantinformatie: quoteData.klantinformatie ?? null,
     instellingen: {
       btwTarief: toFiniteNumber(instellingen?.btwTarief, 21),

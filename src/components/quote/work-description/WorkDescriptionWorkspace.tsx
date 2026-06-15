@@ -1,18 +1,27 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { WorkDescriptionStructured, type WorkDescriptionJob, normalizeWerkbeschrijving } from '@/lib/quote-calculations';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { WorkDescriptionStructured, type WorkDescriptionJob } from '@/lib/quote-calculations';
+import {
+  DEFAULT_ELECTRICAL_SCOPE,
+  enforceWorkDeliverySafety,
+  getFinishLevelLabel,
+  sanitizeMaterialDescription,
+  validateWorkDeliveryScope,
+  type FinishLevel,
+} from '@/lib/work-delivery';
 import { WorkDescriptionSectionEditor } from './WorkDescriptionSectionEditor';
 
 type Mode = 'edit' | 'preview';
 type AiAction = 'full' | 'uitvoering-only' | 'improve';
-type SectionKey = keyof WorkDescriptionStructured['sections'];
+type RowKey = 'work_scope' | 'materials' | 'dimensions' | 'included' | 'excluded' | 'internal_notes';
 
 interface WorkDescriptionWorkspaceProps {
   value: WorkDescriptionStructured;
@@ -26,99 +35,76 @@ interface WorkDescriptionWorkspaceProps {
   onApplyTemplate?: () => void;
 }
 
-function ensureRows(rows: string[]): string[] {
-  return rows.length > 0 ? rows : [''];
+function rows(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item ?? '')) : [];
 }
 
-function normalizeEditableRows(rows: unknown): string[] {
-  if (Array.isArray(rows) && rows.every((row) => typeof row === 'string')) {
-    return rows.map((row) => String(row ?? ''));
-  }
-  return normalizeWerkbeschrijving(rows || []);
-}
-
-const WASTE_REMOVAL_STEP = 'Vrijgekomen afval afvoeren en afvoeren conform afspraak.';
-
-function isWasteRemovalRow(value: string): boolean {
-  const normalized = String(value || '').toLowerCase();
-  return (
-    normalized.includes('afval')
-    && (normalized.includes('afvoer') || normalized.includes('meenem') || normalized.includes('take away'))
-  );
-}
-
-function detectWasteRemovalFromJob(job: WorkDescriptionJob | undefined): boolean {
-  if (!job) return false;
-  if (typeof job.afvalAfvoeren === 'boolean') return job.afvalAfvoeren;
-  return [
-    ...(job.sections?.voorbereiding || []),
-    ...(job.sections?.uitvoering || []),
-    ...(job.sections?.afwerking || []),
-  ].some(isWasteRemovalRow);
+function ensureRows(value: string[]): string[] {
+  return value.length > 0 ? value : [''];
 }
 
 function normalizeJobs(value: WorkDescriptionStructured): WorkDescriptionJob[] {
-  if (Array.isArray(value.jobs) && value.jobs.length > 0) {
-    return value.jobs.map((job) => ({
-      ...job,
-      title: String(job?.title || ''),
-      context: String(job?.context || ''),
-      afvalAfvoeren: detectWasteRemovalFromJob(job),
-      sections: {
-        voorbereiding: normalizeEditableRows(job?.sections?.voorbereiding),
-        uitvoering: normalizeEditableRows(job?.sections?.uitvoering),
-        afwerking: normalizeEditableRows(job?.sections?.afwerking),
-      },
-      legacyNotes: normalizeEditableRows(job?.legacyNotes || []),
-    }));
-  }
+  if (value.jobs.length > 0) return value.jobs;
   return [{
-    title: value.title || '',
-    context: value.context || '',
-    afvalAfvoeren: [
-      ...(normalizeEditableRows(value.sections?.voorbereiding)),
-      ...(normalizeEditableRows(value.sections?.uitvoering)),
-      ...(normalizeEditableRows(value.sections?.afwerking)),
-    ].some(isWasteRemovalRow),
-    sections: {
-      voorbereiding: normalizeEditableRows(value.sections?.voorbereiding),
-      uitvoering: normalizeEditableRows(value.sections?.uitvoering),
-      afwerking: normalizeEditableRows(value.sections?.afwerking),
-    },
-    legacyNotes: normalizeEditableRows(value.legacyNotes || []),
+    title: value.title,
+    context: value.summary || value.context,
+    summary: value.summary || value.context,
+    work_scope: rows(value.work_scope),
+    materials: rows(value.materials),
+    dimensions: rows(value.dimensions),
+    included: rows(value.included),
+    excluded: rows(value.excluded),
+    internal_notes: rows(value.internal_notes),
+    afvalAfvoeren: value.afvalAfvoeren,
+    electricalScope: value.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
+    finishLevel: value.finishLevel || 'constructief_gereed',
+    customFinishDescription: value.customFinishDescription,
+    sections: value.sections,
+    legacyNotes: value.legacyNotes || [],
   }];
 }
 
-function clampIndex(index: number, maxExclusive: number): number {
-  if (maxExclusive <= 0) return 0;
-  if (!Number.isFinite(index)) return 0;
-  return Math.max(0, Math.min(Math.floor(index), maxExclusive - 1));
+function clamp(index: number, length: number): number {
+  return Math.max(0, Math.min(Number.isFinite(index) ? Math.floor(index) : 0, Math.max(0, length - 1)));
 }
 
-function applyJobUpdate(
+function updateActiveJob(
   value: WorkDescriptionStructured,
   activeJobIndex: number,
-  updater: (job: WorkDescriptionJob) => WorkDescriptionJob
+  updater: (job: WorkDescriptionJob) => WorkDescriptionJob,
 ): WorkDescriptionStructured {
   const jobs = normalizeJobs(value);
-  const clamped = clampIndex(activeJobIndex, jobs.length);
-  const nextJobs = jobs.map((job, index) => (index === clamped ? updater(job) : job));
-  const active = nextJobs[clamped];
-
+  const index = clamp(activeJobIndex, jobs.length);
+  const nextJobs = jobs.map((job, jobIndex) => jobIndex === index ? updater(job) : job);
+  const active = nextJobs[index];
   return {
     ...value,
-    title: active?.title || '',
-    context: active?.context || '',
-    sections: {
-      voorbereiding: [...(active?.sections.voorbereiding || [])],
-      uitvoering: [...(active?.sections.uitvoering || [])],
-      afwerking: [...(active?.sections.afwerking || [])],
-    },
-    legacyNotes: [...(active?.legacyNotes || [])],
+    title: active.title,
+    context: active.summary,
+    summary: active.summary,
+    work_scope: [...active.work_scope],
+    materials: [...active.materials],
+    dimensions: [...active.dimensions],
+    included: [...active.included],
+    excluded: [...active.excluded],
+    internal_notes: [...active.internal_notes],
+    afvalAfvoeren: active.afvalAfvoeren === true,
+    electricalScope: active.electricalScope,
+    finishLevel: active.finishLevel,
+    customFinishDescription: active.customFinishDescription,
     jobs: nextJobs,
-    activeJobIndex: clamped,
+    activeJobIndex: index,
   };
 }
+
+const FINISH_LEVELS: FinishLevel[] = [
+  'constructief_gereed',
+  'plaatmateriaal_gemonteerd',
+  'sausklaar',
+  'schilderklaar',
+  'volledig_afgewerkt',
+  'custom',
+];
 
 export function WorkDescriptionWorkspace({
   value,
@@ -129,262 +115,165 @@ export function WorkDescriptionWorkspace({
   isGenerating,
   isAutoSaving,
 }: WorkDescriptionWorkspaceProps) {
-  const showDevTools = process.env.NODE_ENV === 'development';
   const jobs = useMemo(() => normalizeJobs(value), [value]);
-  const [activeJobIndexLocal, setActiveJobIndexLocal] = useState<number>(() => clampIndex(value.activeJobIndex ?? 0, jobs.length));
-  const activeJobIndex = clampIndex(activeJobIndexLocal, jobs.length);
-  const activeJob = jobs[activeJobIndex];
-  const showJobTabs = jobs.length > 1;
-
-  useEffect(() => {
-    setActiveJobIndexLocal((prev) => clampIndex(value.activeJobIndex ?? prev, jobs.length));
-  }, [value.activeJobIndex, jobs.length]);
+  const [activeIndexLocal, setActiveIndexLocal] = useState(value.activeJobIndex || 0);
+  const activeIndex = clamp(activeIndexLocal, jobs.length);
+  const activeJob = jobs[activeIndex];
+  const validation = useMemo(() => validateWorkDeliveryScope(activeJob), [activeJob]);
 
   useEffect(() => {
     if (mode === 'preview') onModeChange('edit');
   }, [mode, onModeChange]);
 
-  useEffect(() => {
-    const isEnabled = Boolean(activeJob?.afvalAfvoeren);
-    if (!isEnabled) return;
-    const afwerkingRows = activeJob?.sections?.afwerking || [];
-    const hasWasteRow = afwerkingRows.some(isWasteRemovalRow);
-    if (hasWasteRow) return;
-
-    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
-      ...job,
-      sections: {
-        ...job.sections,
-        afwerking: ensureRows([...(job.sections?.afwerking || []), WASTE_REMOVAL_STEP]),
-      },
-    })));
-  }, [activeJob?.afvalAfvoeren, activeJob?.sections?.afwerking, activeJobIndex, onChange, value]);
-
-  const setActiveJobIndex = (nextIndex: number) => {
-    const clamped = clampIndex(nextIndex, jobs.length);
-    setActiveJobIndexLocal(clamped);
-    onChange({
-      ...value,
-      title: jobs[clamped]?.title || '',
-      context: jobs[clamped]?.context || '',
-      sections: {
-        voorbereiding: [...(jobs[clamped]?.sections.voorbereiding || [])],
-        uitvoering: [...(jobs[clamped]?.sections.uitvoering || [])],
-        afwerking: [...(jobs[clamped]?.sections.afwerking || [])],
-      },
-      legacyNotes: [...(jobs[clamped]?.legacyNotes || [])],
-      jobs,
-      activeJobIndex: clamped,
-    });
+  const changeJob = (index: number) => {
+    setActiveIndexLocal(index);
+    onChange(updateActiveJob(value, index, (job) => job));
   };
 
-  const updateSectionRow = (section: SectionKey, index: number, rowValue: string) => {
-    const currentRows = [...(activeJob?.sections?.[section] || [])];
-    currentRows[index] = rowValue;
-    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
-      ...job,
-      sections: {
-        ...job.sections,
-        [section]: ensureRows(currentRows),
-      },
-    })));
+  const setField = <K extends keyof WorkDescriptionJob>(key: K, fieldValue: WorkDescriptionJob[K]) => {
+    onChange(updateActiveJob(value, activeIndex, (job) => ({ ...job, [key]: fieldValue })));
   };
 
-  const addSectionRow = (section: SectionKey) => {
-    const currentRows = [...(activeJob?.sections?.[section] || []), ''];
-    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
-      ...job,
-      sections: {
-        ...job.sections,
-        [section]: ensureRows(currentRows),
-      },
-    })));
-  };
-
-  const removeSectionRow = (section: SectionKey, index: number) => {
-    const currentRows = (activeJob?.sections?.[section] || []).filter((_, rowIndex) => rowIndex !== index);
-    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
-      ...job,
-      sections: {
-        ...job.sections,
-        [section]: ensureRows(currentRows),
-      },
-    })));
-  };
-
-  const moveSectionRow = (section: SectionKey, index: number, direction: 'up' | 'down') => {
-    const rows = [...(activeJob?.sections?.[section] || [])];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= rows.length) return;
-
-    const temp = rows[index];
-    rows[index] = rows[targetIndex];
-    rows[targetIndex] = temp;
-
-    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
-      ...job,
-      sections: {
-        ...job.sections,
-        [section]: ensureRows(rows),
-      },
-    })));
-  };
-
-  const clearAllSectionsKeepTitleAndContext = () => {
-    onChange(applyJobUpdate(value, activeJobIndex, (job) => ({
-      ...job,
-      sections: {
-        voorbereiding: [],
-        uitvoering: [],
-        afwerking: [],
-      },
-      legacyNotes: [],
-    })));
-  };
-
-  const setWasteRemoval = (enabled: boolean) => {
-    onChange(applyJobUpdate(value, activeJobIndex, (job) => {
-      const afwerkingRows = [...(job.sections?.afwerking || [])];
-      const withoutWasteRows = afwerkingRows.filter((row) => !isWasteRemovalRow(row));
-      const nextAfwerking = enabled ? [...withoutWasteRows, WASTE_REMOVAL_STEP] : withoutWasteRows;
-      return {
-        ...job,
-        afvalAfvoeren: enabled,
-        sections: {
-          ...job.sections,
-          afwerking: ensureRows(nextAfwerking),
-        },
-      };
+  const setSafetyField = <K extends 'afvalAfvoeren' | 'electricalScope' | 'finishLevel' | 'customFinishDescription'>(
+    key: K,
+    fieldValue: WorkDescriptionJob[K],
+  ) => {
+    onChange(updateActiveJob(value, activeIndex, (job) => {
+      const updated = { ...job, [key]: fieldValue, afvalAfvoeren: key === 'afvalAfvoeren' ? fieldValue === true : job.afvalAfvoeren === true };
+      const safe = enforceWorkDeliverySafety(updated);
+      return { ...updated, ...safe, context: safe.summary };
     }));
   };
 
+  const changeRow = (key: RowKey, index: number, rowValue: string) => {
+    const next = [...rows(activeJob[key])];
+    next[index] = key === 'materials' ? sanitizeMaterialDescription(rowValue) : rowValue;
+    setField(key, ensureRows(next));
+  };
+
+  const addRow = (key: RowKey) => setField(key, [...rows(activeJob[key]), '']);
+  const removeRow = (key: RowKey, index: number) => setField(key, ensureRows(rows(activeJob[key]).filter((_, rowIndex) => rowIndex !== index)));
+  const moveRow = (key: RowKey, index: number, direction: 'up' | 'down') => {
+    const next = [...rows(activeJob[key])];
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setField(key, next);
+  };
+
+  const renderRows = (key: RowKey, title: string, placeholder: string) => (
+    <WorkDescriptionSectionEditor
+      title={title}
+      rows={ensureRows(rows(activeJob[key]))}
+      placeholder={placeholder}
+      onChangeRow={(index, rowValue) => changeRow(key, index, rowValue)}
+      onAddRow={() => addRow(key)}
+      onRemoveRow={(index) => removeRow(key, index)}
+      onMoveRow={(index, direction) => moveRow(key, index, direction)}
+    />
+  );
+
   return (
     <div className="space-y-4">
-      {showJobTabs ? (
-        <div className="rounded-xl border border-border/70 bg-muted/20 p-2">
-          <div className="mb-2 px-1 text-xs font-medium tracking-wide text-muted-foreground">Klussen</div>
-          <div className="flex flex-wrap gap-1.5">
-            {jobs.map((job, index) => {
-              const isActive = index === activeJobIndex;
-              return (
-                <button
-                  key={`work-job-tab-${index}`}
-                  type="button"
-                  onClick={() => setActiveJobIndex(index)}
-                  className={[
-                    'inline-flex max-w-full items-center rounded-lg border px-3 py-1.5 text-sm transition-colors',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                    isActive
-                      ? 'border-emerald-400/60 bg-emerald-500/15 text-emerald-100 shadow-[inset_0_-2px_0_rgba(52,211,153,0.65)]'
-                      : 'border-border/60 bg-background/60 text-muted-foreground hover:bg-background hover:text-foreground',
-                  ].join(' ')}
-                >
-                  <span className="truncate">{job.title.trim() || `Klus ${index + 1}`}</span>
-                </button>
-              );
-            })}
-          </div>
+      {jobs.length > 1 ? (
+        <div className="flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/20 p-2">
+          {jobs.map((job, index) => (
+            <Button key={`${job.title}-${index}`} type="button" size="sm" variant={index === activeIndex ? 'success' : 'outline'} onClick={() => changeJob(index)}>
+              {job.title || `Klus ${index + 1}`}
+            </Button>
+          ))}
         </div>
       ) : null}
 
-      <Card className="border border-border bg-card/50">
+      <Card className="border-border bg-card/50">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Werkbeschrijving</CardTitle>
+          <CardTitle className="text-base">Werk &amp; Levering</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {!validation.valid ? (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+              <div className="mb-1 flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4" /> Nog niet gereed voor PDF of versturen</div>
+              <ul className="list-disc space-y-1 pl-5">{validation.errors.map((error) => <li key={error}>{error}</li>)}</ul>
+            </div>
+          ) : null}
+
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Hoofdtitel</Label>
-              <Input
-                value={activeJob?.title || ''}
-                onChange={(e) => onChange(applyJobUpdate(value, activeJobIndex, (job) => ({ ...job, title: e.target.value })))}
-                placeholder="Bijv. Dakisolatie woning"
-                className="h-9"
-              />
+              <Label>Titel</Label>
+              <Input value={activeJob.title} onChange={(event) => setField('title', event.target.value)} placeholder="Bijv. Voorzetwand woonkamer" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Korte context / samenvatting (optioneel)</Label>
-              <Input
-                value={activeJob?.context || ''}
-                onChange={(e) => onChange(applyJobUpdate(value, activeJobIndex, (job) => ({ ...job, context: e.target.value })))}
-                placeholder="Bijv. renovatie zolderverdieping"
-                className="h-9"
-              />
+              <Label>Afwerkingsniveau</Label>
+              <select
+                value={activeJob.finishLevel}
+                onChange={(event) => setSafetyField('finishLevel', event.target.value as FinishLevel)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {FINISH_LEVELS.map((level) => <option key={level} value={level}>{getFinishLevelLabel(level)}</option>)}
+              </select>
             </div>
           </div>
+          <div className="space-y-1">
+            <Label>Korte omschrijving (maximaal 2 korte zinnen)</Label>
+            <Textarea value={activeJob.summary} onChange={(event) => setField('summary', event.target.value)} rows={2} placeholder="Beschrijf alleen het afgesproken eindresultaat." />
+          </div>
 
-          <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="afval-afvoeren-toggle" className="text-sm font-medium text-foreground">
-                  Afval afvoeren
-                </Label>
-                <p className="text-xs text-muted-foreground">Bij Ja wordt automatisch een afvoer-stap toegevoegd in Afwerking.</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div><Label>Afval afvoeren</Label><p className="text-xs text-muted-foreground">Alleen opnemen wanneer dit expliciet is overeengekomen.</p></div>
+                <Switch checked={activeJob.afvalAfvoeren === true} onCheckedChange={(checked) => setSafetyField('afvalAfvoeren', checked)} />
               </div>
-              <Switch
-                id="afval-afvoeren-toggle"
-                checked={detectWasteRemovalFromJob(activeJob)}
-                onCheckedChange={setWasteRemoval}
-              />
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div><Label>Elektrawerk inbegrepen</Label><p className="text-xs text-muted-foreground">Alleen de hieronder vastgelegde onderdelen.</p></div>
+                <Switch
+                  checked={activeJob.electricalScope.enabled}
+                  onCheckedChange={(enabled) => setSafetyField('electricalScope', { ...activeJob.electricalScope, enabled })}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div />
-
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="success" size="sm" onClick={() => onGenerate('full')} disabled={isGenerating}>
-                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                Genereer werkbeschrijving
-              </Button>
-              {showDevTools ? (
-                <Button
-                  type="button"
-                  variant="destructiveSoft"
-                  size="sm"
-                  onClick={clearAllSectionsKeepTitleAndContext}
-                  disabled={isGenerating}
-                >
-                  Dev: wis stappen
-                </Button>
-              ) : null}
-              {isAutoSaving ? (
-                <span className="text-xs text-muted-foreground">Opslaan...</span>
-              ) : null}
+          {activeJob.electricalScope.enabled ? (
+            <div className="grid gap-3 rounded-lg border border-border/70 p-3 md:grid-cols-2">
+              <div className="space-y-1 md:col-span-2"><Label>Expliciete omschrijving elektrawerk</Label><Input value={activeJob.electricalScope.description} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, description: event.target.value })} /></div>
+              <div className="space-y-1"><Label>Maximale kabellengte (meter, optioneel)</Label><Input type="number" min="0" value={activeJob.electricalScope.maxLengthMeters ?? ''} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, maxLengthMeters: event.target.value ? Number(event.target.value) : undefined })} /></div>
+              <div className="space-y-1"><Label>Inbegrepen onderdelen, één per regel</Label><Textarea value={activeJob.electricalScope.includedItems.join('\n')} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, includedItems: event.target.value.split('\n') })} /></div>
+              <div className="space-y-1 md:col-span-2"><Label>Uitgesloten onderdelen, één per regel</Label><Textarea value={activeJob.electricalScope.excludedItems.join('\n')} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, excludedItems: event.target.value.split('\n') })} /></div>
             </div>
+          ) : null}
+
+          {activeJob.finishLevel === 'custom' ? (
+            <div className="space-y-1"><Label>Maatwerk afwerkingsniveau</Label><Input value={activeJob.customFinishDescription || ''} onChange={(event) => setField('customFinishDescription', event.target.value)} /></div>
+          ) : null}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="success" size="sm" onClick={() => onGenerate('full')} disabled={isGenerating}>
+              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              Genereer Werk &amp; Levering
+            </Button>
+            {isAutoSaving ? <span className="self-center text-xs text-muted-foreground">Opslaan...</span> : null}
           </div>
         </CardContent>
       </Card>
 
       <div className="space-y-3">
-        <WorkDescriptionSectionEditor
-          title="Voorbereiding"
-          rows={ensureRows(activeJob?.sections?.voorbereiding || [])}
-          placeholder="Bijv. Materiaal aanvoeren en werkplek voorbereiden"
-          onChangeRow={(index, rowValue) => updateSectionRow('voorbereiding', index, rowValue)}
-          onAddRow={() => addSectionRow('voorbereiding')}
-          onRemoveRow={(index) => removeSectionRow('voorbereiding', index)}
-          onMoveRow={(index, direction) => moveSectionRow('voorbereiding', index, direction)}
-        />
-        <WorkDescriptionSectionEditor
-          title="Uitvoering"
-          rows={ensureRows(activeJob?.sections?.uitvoering || [])}
-          placeholder="Bijv. Isolatiemateriaal plaatsen volgens maatvoering"
-          onChangeRow={(index, rowValue) => updateSectionRow('uitvoering', index, rowValue)}
-          onAddRow={() => addSectionRow('uitvoering')}
-          onRemoveRow={(index) => removeSectionRow('uitvoering', index)}
-          onMoveRow={(index, direction) => moveSectionRow('uitvoering', index, direction)}
-        />
-        <WorkDescriptionSectionEditor
-          title="Afwerking"
-          rows={ensureRows(activeJob?.sections?.afwerking || [])}
-          placeholder="Bijv. Naden afwerken en werkplek schoon opleveren"
-          onChangeRow={(index, rowValue) => updateSectionRow('afwerking', index, rowValue)}
-          onAddRow={() => addSectionRow('afwerking')}
-          onRemoveRow={(index) => removeSectionRow('afwerking', index)}
-          onMoveRow={(index, direction) => moveSectionRow('afwerking', index, direction)}
-        />
+        {renderRows('work_scope', 'Werkzaamheden', 'Wat wordt commercieel geleverd, zonder uitvoeringsvolgorde')}
+        {renderRows('materials', 'Materialen / producten', 'Alleen materiaal uit de calculatie of handmatig goedgekeurd materiaal')}
+        {renderRows('dimensions', 'Maatvoering', 'Bijv. wand 4.200 x 2.600 mm')}
+        {renderRows('included', 'Inbegrepen', 'Expliciet inbegrepen onderdeel')}
+        {renderRows('excluded', 'Niet inbegrepen', 'Expliciete uitsluiting')}
       </div>
+
+      <Card className="border-border bg-muted/10">
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Interne werkinstructie</CardTitle></CardHeader>
+        <CardContent>
+          <p className="mb-3 text-xs text-muted-foreground">Alleen intern. Deze regels verschijnen niet in de klant-PDF.</p>
+          {renderRows('internal_notes', 'Interne notities', 'Interne methode, aandachtspunt of oude werkbeschrijvingsregel')}
+        </CardContent>
+      </Card>
     </div>
   );
 }

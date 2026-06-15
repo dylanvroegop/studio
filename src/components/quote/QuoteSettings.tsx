@@ -125,8 +125,8 @@ export function QuoteSettings({ settings, onChange, variant = 'default' }: Quote
             <SectionCard title="Inhoud van de PDF" subtitle="Kies welke onderdelen en bijlagen in de offerte komen">
                 <ToggleRow
                     settingKey="showFullWerkbeschrijving"
-                    label="Volledige werkbeschrijving"
-                    description="Alle stappen op aparte pagina"
+                    label="Volledige Werk & Levering"
+                    description="Scope, materialen, maatvoering en uitsluitingen"
                     icon={FileText}
                 />
                 <ToggleRow

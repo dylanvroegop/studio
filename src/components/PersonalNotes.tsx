@@ -344,7 +344,7 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
               Offerte notities
             </SheetTitle>
             <SheetDescription>
-              Deze notities worden gebruikt binnen de offerte, bijvoorbeeld voor werkbeschrijving en calculatie-context.
+              Deze notities worden gebruikt binnen de offerte, bijvoorbeeld voor Werk &amp; Levering en calculatie-context.
             </SheetDescription>
           </SheetHeader>
 

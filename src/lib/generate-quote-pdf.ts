@@ -674,7 +674,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // PAGE 2: FULL WERKBESCHRIJVING (if enabled)
+    // PAGE 2: FULL WERK & LEVERING (if enabled)
     // ═══════════════════════════════════════════════════════════════
 
     const structuredWorkDescription = sanitizeWorkDescriptionStructured(data.werkbeschrijvingStructured);
@@ -683,14 +683,25 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         : [{
             title: structuredWorkDescription.title,
             context: structuredWorkDescription.context,
+            summary: structuredWorkDescription.summary,
+            work_scope: structuredWorkDescription.work_scope,
+            materials: structuredWorkDescription.materials,
+            dimensions: structuredWorkDescription.dimensions,
+            included: structuredWorkDescription.included,
+            excluded: structuredWorkDescription.excluded,
+            internal_notes: structuredWorkDescription.internal_notes,
+            afvalAfvoeren: structuredWorkDescription.afvalAfvoeren,
+            electricalScope: structuredWorkDescription.electricalScope,
+            finishLevel: structuredWorkDescription.finishLevel,
             sections: structuredWorkDescription.sections,
             legacyNotes: structuredWorkDescription.legacyNotes || [],
         }];
     const hasStructuredWorkDescription = structuredJobs.some((job) =>
-        job.sections.voorbereiding.length > 0
-        || job.sections.uitvoering.length > 0
-        || job.sections.afwerking.length > 0
-        || (job.legacyNotes?.length || 0) > 0
+        job.work_scope.length > 0
+        || job.materials.length > 0
+        || job.dimensions.length > 0
+        || job.included.length > 0
+        || job.excluded.length > 0
     );
 
     if (data.settings.showFullWerkbeschrijving && data.werkbeschrijvingFull && data.werkbeschrijvingFull.length > 0) {
@@ -709,12 +720,34 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             });
         };
 
+        const drawScopeSection = (label: string, rows: string[]) => {
+            const cleanRows = rows.map((line) => String(line || '').trim()).filter(Boolean);
+            if (cleanRows.length === 0) return;
+            checkPageBreak(18);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.setTextColor(45, 45, 45);
+            doc.text(label, margin, y);
+            y += 6;
+            doc.setFontSize(9);
+            drawStepList(cleanRows);
+            y += 3;
+        };
+
+        const drawJobScope = (job: typeof structuredJobs[number]) => {
+            drawScopeSection('WERKZAAMHEDEN', job.work_scope);
+            drawScopeSection('MATERIALEN / PRODUCTEN', job.materials);
+            drawScopeSection('MAATVOERING', job.dimensions);
+            drawScopeSection('INBEGREPEN', job.included);
+            drawScopeSection('NIET INBEGREPEN', job.excluded);
+        };
+
         if (hasStructuredWorkDescription && structuredJobs.length > 1) {
             structuredJobs.forEach((job, jobIndex) => {
                 doc.addPage();
                 y = margin;
 
-                drawSectionPageHeader('WERKBESCHRIJVING');
+                drawSectionPageHeader('WERK & LEVERING');
 
                 const jobTitle = String(job.title || '').trim() || `Werkzaamheden ${jobIndex + 1}`;
                 doc.setFontSize(14);
@@ -724,7 +757,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                 doc.text(titleLines, margin, y);
                 y += titleLines.length * 5.3 + 3;
 
-                const jobContext = String(job.context || '').trim();
+                const jobContext = String(job.summary || job.context || '').trim();
                 if (jobContext) {
                     doc.setFontSize(9);
                     doc.setFont('helvetica', 'italic');
@@ -737,30 +770,16 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                 drawLine(y);
                 y += 8;
 
-                const rows = [
-                    ...job.sections.voorbereiding,
-                    ...job.sections.uitvoering,
-                    ...job.sections.afwerking,
-                    ...(job.legacyNotes || []),
-                ].map((line) => String(line || '').trim()).filter(Boolean);
-
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(9);
                 doc.setTextColor(50, 50, 50);
-
-                if (rows.length > 0) {
-                    drawStepList(rows);
-                } else {
-                    const fallback = doc.splitTextToSize('Geen stappen beschikbaar voor deze klus.', pageWidth - (margin * 2));
-                    doc.text(fallback, margin, y);
-                    y += fallback.length * 4.5 + 2;
-                }
+                drawJobScope(job);
             });
         } else {
             doc.addPage();
             y = margin;
 
-            drawSectionPageHeader('WERKBESCHRIJVING');
+            drawSectionPageHeader('WERK & LEVERING');
 
             const singleJob = structuredJobs[0];
             const resolvedTitle = String(singleJob?.title || data.korteTitel || '').trim();
@@ -773,7 +792,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                 y += titleLines.length * 5 + 4;
             }
 
-            const resolvedContext = String(singleJob?.context || data.korteBeschrijving || '').trim();
+            const resolvedContext = String(singleJob?.summary || singleJob?.context || data.korteBeschrijving || '').trim();
             if (resolvedContext) {
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'italic');
@@ -786,29 +805,8 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             doc.setFontSize(9);
             doc.setTextColor(50, 50, 50);
             doc.setFont('helvetica', 'normal');
-            const introText = 'De werkzaamheden worden uitgevoerd volgens onderstaande stappen:';
-            doc.text(introText, margin, y);
-            y += 10;
-
-            const drawSection = (label: string, rows: string[]) => {
-                if (rows.length === 0) return;
-                checkPageBreak(18);
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(10);
-                doc.setTextColor(45, 45, 45);
-                doc.text(label, margin, y);
-                y += 6;
-                doc.setFontSize(9);
-                drawStepList(rows);
-                y += 3;
-            };
-
             if (hasStructuredWorkDescription) {
-                drawSection('VOORBEREIDING', singleJob?.sections.voorbereiding || []);
-                drawSection('UITVOERING', singleJob?.sections.uitvoering || []);
-                drawSection('AFWERKING', singleJob?.sections.afwerking || []);
-            } else {
-                drawStepList(data.werkbeschrijvingFull);
+                drawJobScope(singleJob);
             }
 
             y += 5;
@@ -818,7 +816,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             doc.setFontSize(8);
             doc.setTextColor(100, 100, 100);
             doc.setFont('helvetica', 'italic');
-            const footerNote = 'Bovenstaande werkzaamheden worden vakkundig uitgevoerd volgens de geldende normen en richtlijnen.';
+            const footerNote = 'Werkzaamheden en leveringen zijn uitsluitend inbegrepen voor zover hierboven expliciet omschreven.';
             doc.text(footerNote, margin, y);
         }
     }
@@ -1426,7 +1424,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                     imgWidth = (imgProps.width * availableHeight) / imgProps.height;
                 }
 
-                doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
+                doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight, undefined, 'NONE');
                 doc.setDrawColor(226, 232, 240);
                 doc.setLineWidth(0.25);
                 doc.rect(margin, y, imgWidth, imgHeight);

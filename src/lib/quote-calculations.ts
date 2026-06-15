@@ -1,5 +1,15 @@
 // src/lib/quote-calculations.ts
 
+import {
+    DEFAULT_ELECTRICAL_SCOPE,
+    DEFAULT_WORK_DELIVERY_SCOPE,
+    enforceWorkDeliverySafety,
+    flattenWorkDeliveryScope,
+    sanitizeWorkDeliveryScope,
+    type ElectricalScope,
+    type FinishLevel,
+} from '@/lib/work-delivery';
+
 // ==============================
 // Types die jouw quotes/[id]/page.tsx verwacht
 // ==============================
@@ -44,7 +54,18 @@ export type WorkDescriptionSectionKey = 'voorbereiding' | 'uitvoering' | 'afwerk
 export type WorkDescriptionJob = {
     title: string;
     context: string;
+    summary: string;
+    work_scope: string[];
+    materials: string[];
+    dimensions: string[];
+    included: string[];
+    excluded: string[];
+    internal_notes: string[];
     afvalAfvoeren?: boolean;
+    electricalScope: ElectricalScope;
+    finishLevel: FinishLevel;
+    customFinishDescription?: string;
+    /** Legacy fields are retained for migration only and never rendered to customers. */
     sections: {
         voorbereiding: string[];
         uitvoering: string[];
@@ -56,6 +77,17 @@ export type WorkDescriptionJob = {
 export type WorkDescriptionStructured = {
     title: string;
     context: string;
+    summary: string;
+    work_scope: string[];
+    materials: string[];
+    dimensions: string[];
+    included: string[];
+    excluded: string[];
+    internal_notes: string[];
+    afvalAfvoeren: boolean;
+    electricalScope: ElectricalScope;
+    finishLevel: FinishLevel;
+    customFinishDescription?: string;
     sections: {
         voorbereiding: string[];
         uitvoering: string[];
@@ -156,7 +188,16 @@ type AnyObject = Record<string, any>;
 const EMPTY_WORK_DESCRIPTION_JOB: WorkDescriptionJob = {
     title: '',
     context: '',
+    summary: '',
+    work_scope: [],
+    materials: [],
+    dimensions: [],
+    included: [...DEFAULT_WORK_DELIVERY_SCOPE.included],
+    excluded: [...DEFAULT_WORK_DELIVERY_SCOPE.excluded],
+    internal_notes: [],
     afvalAfvoeren: false,
+    electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
+    finishLevel: 'constructief_gereed',
     sections: {
         voorbereiding: [],
         uitvoering: [],
@@ -168,6 +209,16 @@ const EMPTY_WORK_DESCRIPTION_JOB: WorkDescriptionJob = {
 const EMPTY_WORK_DESCRIPTION_STRUCTURED: WorkDescriptionStructured = {
     title: '',
     context: '',
+    summary: '',
+    work_scope: [],
+    materials: [],
+    dimensions: [],
+    included: [...DEFAULT_WORK_DELIVERY_SCOPE.included],
+    excluded: [...DEFAULT_WORK_DELIVERY_SCOPE.excluded],
+    internal_notes: [],
+    afvalAfvoeren: false,
+    electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
+    finishLevel: 'constructief_gereed',
     sections: {
         voorbereiding: [],
         uitvoering: [],
@@ -283,6 +334,21 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
     return {
         title: value.title,
         context: value.context,
+        summary: value.summary,
+        work_scope: [...value.work_scope],
+        materials: [...value.materials],
+        dimensions: [...value.dimensions],
+        included: [...value.included],
+        excluded: [...value.excluded],
+        internal_notes: [...value.internal_notes],
+        afvalAfvoeren: value.afvalAfvoeren,
+        electricalScope: {
+            ...value.electricalScope,
+            includedItems: [...value.electricalScope.includedItems],
+            excludedItems: [...value.electricalScope.excludedItems],
+        },
+        finishLevel: value.finishLevel,
+        customFinishDescription: value.customFinishDescription,
         sections: {
             voorbereiding: [...value.sections.voorbereiding],
             uitvoering: [...value.sections.uitvoering],
@@ -292,7 +358,17 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
             ? value.jobs.map((job) => ({
                 title: normalizeWorkDescriptionText(job?.title),
                 context: normalizeWorkDescriptionText(job?.context),
+                summary: normalizeWorkDescriptionText(job?.summary || job?.context),
+                work_scope: normalizeEditableWorkDescriptionItems(job?.work_scope),
+                materials: normalizeEditableWorkDescriptionItems(job?.materials),
+                dimensions: normalizeEditableWorkDescriptionItems(job?.dimensions),
+                included: normalizeEditableWorkDescriptionItems(job?.included),
+                excluded: normalizeEditableWorkDescriptionItems(job?.excluded),
+                internal_notes: normalizeEditableWorkDescriptionItems(job?.internal_notes),
                 afvalAfvoeren: Boolean(job?.afvalAfvoeren),
+                electricalScope: job?.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
+                finishLevel: job?.finishLevel || 'constructief_gereed',
+                customFinishDescription: job?.customFinishDescription,
                 sections: {
                     voorbereiding: normalizeEditableWorkDescriptionItems(job?.sections?.voorbereiding),
                     uitvoering: normalizeEditableWorkDescriptionItems(job?.sections?.uitvoering),
@@ -337,17 +413,23 @@ function normalizeWorkDescriptionJob(input: unknown): WorkDescriptionJob {
         ?? row.items
     );
     const afwerking = normalizeEditableWorkDescriptionItems(sectionsValue.afwerking ?? row.afwerking);
-    const inferredAfvalAfvoeren = hasWasteRemovalText([
-        ...voorbereiding,
-        ...uitvoering,
-        ...afwerking,
-        ...fallbackRows,
-    ]);
+    const delivery = sanitizeWorkDeliveryScope({
+        ...row,
+        title: row.korteTitel ?? row.korte_titel ?? row.title,
+        summary: row.summary ?? row.korteBeschrijving ?? row.korte_beschrijving ?? row.context ?? row.samenvatting,
+        internal_notes: [
+            ...normalizeEditableWorkDescriptionItems(row.internal_notes ?? row.internalNotes),
+            ...voorbereiding,
+            ...(uitvoering.length > 0 ? uitvoering : fallbackRows),
+            ...afwerking,
+            ...normalizeEditableWorkDescriptionItems(row.legacyNotes),
+        ],
+        afvalAfvoeren: row.afvalAfvoeren === true,
+    });
 
     return {
-        title: normalizeWorkDescriptionText(row.korteTitel ?? row.korte_titel ?? row.title),
-        context: normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving ?? row.context ?? row.samenvatting),
-        afvalAfvoeren: typeof row.afvalAfvoeren === 'boolean' ? row.afvalAfvoeren : inferredAfvalAfvoeren,
+        ...delivery,
+        context: delivery.summary,
         sections: {
             voorbereiding,
             uitvoering: uitvoering.length > 0 ? uitvoering : fallbackRows,
@@ -374,7 +456,12 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
         .map((job) => normalizeWorkDescriptionJob(job))
         .filter((job) =>
             job.title
-            || job.context
+            || job.summary
+            || job.work_scope.length > 0
+            || job.materials.length > 0
+            || job.dimensions.length > 0
+            || job.included.length > 0
+            || job.internal_notes.length > 0
             || job.sections.voorbereiding.length > 0
             || job.sections.uitvoering.length > 0
             || job.sections.afwerking.length > 0
@@ -382,6 +469,7 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
         );
 
     const fallbackJob = normalizeWorkDescriptionJob({
+        ...row,
         korteTitel: row.korteTitel ?? row.korte_titel ?? row.title,
         korteBeschrijving: row.korteBeschrijving ?? row.korte_beschrijving ?? row.context,
         sections: {
@@ -394,7 +482,12 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
     });
     const hasFallbackContent =
         fallbackJob.title
-        || fallbackJob.context
+        || fallbackJob.summary
+        || fallbackJob.work_scope.length > 0
+        || fallbackJob.materials.length > 0
+        || fallbackJob.dimensions.length > 0
+        || fallbackJob.included.length > 0
+        || fallbackJob.internal_notes.length > 0
         || fallbackJob.sections.voorbereiding.length > 0
         || fallbackJob.sections.uitvoering.length > 0
         || fallbackJob.sections.afwerking.length > 0
@@ -411,6 +504,17 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
     const normalized: WorkDescriptionStructured = {
         title: normalizeWorkDescriptionText(row.title) || activeJob?.title || '',
         context: normalizeWorkDescriptionText(row.context) || activeJob?.context || '',
+        summary: normalizeWorkDescriptionText(row.summary) || activeJob?.summary || activeJob?.context || '',
+        work_scope: activeJob ? [...activeJob.work_scope] : normalizeEditableWorkDescriptionItems(row.work_scope),
+        materials: activeJob ? [...activeJob.materials] : normalizeEditableWorkDescriptionItems(row.materials),
+        dimensions: activeJob ? [...activeJob.dimensions] : normalizeEditableWorkDescriptionItems(row.dimensions),
+        included: activeJob ? [...activeJob.included] : normalizeEditableWorkDescriptionItems(row.included),
+        excluded: activeJob ? [...activeJob.excluded] : normalizeEditableWorkDescriptionItems(row.excluded),
+        internal_notes: activeJob ? [...activeJob.internal_notes] : normalizeEditableWorkDescriptionItems(row.internal_notes),
+        afvalAfvoeren: activeJob?.afvalAfvoeren === true,
+        electricalScope: activeJob?.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
+        finishLevel: activeJob?.finishLevel || 'constructief_gereed',
+        customFinishDescription: activeJob?.customFinishDescription,
         sections: {
             voorbereiding: activeJob
                 ? [...activeJob.sections.voorbereiding]
@@ -442,30 +546,36 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
     if (isObject(input)) {
         const row = input as Record<string, unknown>;
 
-        const directStructured = sanitizeWorkDescriptionStructured(
-            row.werkbeschrijving_structured
+        const directStructuredSource = row.werkbeschrijving_structured
             ?? row.werkbeschrijvingStructured
             ?? row.werkbeschrijving_jobs
             ?? row.werkbeschrijvingJobs
-            ?? row.jobs
-        );
-        const hasStructuredContent = directStructured.title
-            || directStructured.context
+            ?? row.jobs;
+        const directStructured = sanitizeWorkDescriptionStructured(directStructuredSource);
+        const hasStructuredContent = directStructuredSource != null && (directStructured.title
+            || directStructured.summary
+            || directStructured.work_scope.length > 0
+            || directStructured.materials.length > 0
+            || directStructured.dimensions.length > 0
+            || directStructured.included.length > 0
+            || directStructured.internal_notes.length > 0
             || directStructured.sections.voorbereiding.length > 0
             || directStructured.sections.uitvoering.length > 0
             || directStructured.sections.afwerking.length > 0
             || directStructured.jobs.length > 0
-            || (directStructured.legacyNotes?.length || 0) > 0;
+            || (directStructured.legacyNotes?.length || 0) > 0);
 
         if (hasStructuredContent) {
             const merged = cloneStructured(directStructured);
             if (!merged.title) merged.title = normalizeWorkDescriptionText(row.korteTitel ?? row.korte_titel);
-            if (!merged.context) merged.context = normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving);
+            if (!merged.summary) merged.summary = normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving);
+            merged.context = merged.summary;
             return merged;
         }
 
         base.title = normalizeWorkDescriptionText(row.korteTitel ?? row.korte_titel ?? row.title);
-        base.context = normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving ?? row.context);
+        base.summary = normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving ?? row.context);
+        base.context = base.summary;
 
         const legacyRaw = row.werkbeschrijving ?? row.description ?? row.text ?? row.output ?? input;
         const parsedLegacyRaw = (() => {
@@ -508,11 +618,20 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
         base.jobs = [{
             title: base.title,
             context: base.context,
-            afvalAfvoeren: hasWasteRemovalText([
+            summary: base.summary,
+            work_scope: [],
+            materials: [],
+            dimensions: [],
+            included: [...base.included],
+            excluded: [...base.excluded],
+            internal_notes: [
                 ...base.sections.voorbereiding,
                 ...base.sections.uitvoering,
                 ...base.sections.afwerking,
-            ]),
+            ],
+            afvalAfvoeren: false,
+            electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
+            finishLevel: 'constructief_gereed',
             sections: {
                 voorbereiding: [...base.sections.voorbereiding],
                 uitvoering: [...base.sections.uitvoering],
@@ -520,6 +639,11 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
             },
             legacyNotes: [...(base.legacyNotes || [])],
         }];
+        base.internal_notes = [
+            ...base.sections.voorbereiding,
+            ...base.sections.uitvoering,
+            ...base.sections.afwerking,
+        ];
         base.activeJobIndex = 0;
 
         return base;
@@ -527,10 +651,20 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
 
     const lines = normalizeWerkbeschrijving(input);
     base.sections.uitvoering = lines;
+    base.internal_notes = [...lines];
     base.jobs = [{
         title: base.title,
         context: base.context,
-        afvalAfvoeren: hasWasteRemovalText(lines),
+        summary: base.summary,
+        work_scope: [],
+        materials: [],
+        dimensions: [],
+        included: [...base.included],
+        excluded: [...base.excluded],
+        internal_notes: [...lines],
+        afvalAfvoeren: false,
+        electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
+        finishLevel: 'constructief_gereed',
         sections: {
             voorbereiding: [...base.sections.voorbereiding],
             uitvoering: [...base.sections.uitvoering],
@@ -549,22 +683,12 @@ export function flattenStructuredWorkDescription(input: unknown): string[] {
 
     if (structured.jobs.length > 0) {
         return structured.jobs
-            .flatMap((job) => [
-                ...job.sections.voorbereiding,
-                ...job.sections.uitvoering,
-                ...job.sections.afwerking,
-                ...(job.legacyNotes || []),
-            ])
+            .flatMap((job) => flattenWorkDeliveryScope(job))
             .map((line) => String(line || '').trim())
             .filter(Boolean);
     }
 
-    return [
-        ...structured.sections.voorbereiding,
-        ...structured.sections.uitvoering,
-        ...structured.sections.afwerking,
-        ...(structured.legacyNotes || []),
-    ]
+    return flattenWorkDeliveryScope(structured)
         .map((line) => String(line || '').trim())
         .filter(Boolean);
 }
@@ -774,8 +898,12 @@ export function normalizeVerbruiksartikelen(input: any): MaterialItem[] {
 
                 const aantal = toNumber(item.aantal, 1);
 
+                const materialFields = { ...item };
+                delete materialFields.body;
+                delete materialFields.data;
+                delete materialFields.quote_metadata;
                 return {
-                    ...item,
+                    ...materialFields,
                     product,
                     prijs_per_stuk,
                     aantal,
@@ -974,8 +1102,12 @@ export function normalizeDataJson(input: any): DataJson {
         return null;
     };
 
-    const normalizedGrootMaterialen = normalizeMaterialen((base as any).grootmaterialen);
-    const normalizedVerbruiksartikelen = normalizeVerbruiksartikelen((base as any).verbruiksartikelen);
+    const normalizedGrootMaterialen = normalizeMaterialen(
+        (base as any).grootmaterialen ?? (base as any).materialen
+    );
+    const normalizedVerbruiksartikelen = normalizeVerbruiksartikelen(
+        (base as any).verbruiksartikelen ?? (base as any).data
+    );
     let resolvedVerbruiksartikelen = normalizedVerbruiksartikelen;
 
     if (resolvedVerbruiksartikelen.length === 0) {

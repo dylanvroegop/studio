@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 const OPENAI_MODEL = 'gpt-5.2';
 
 const EXTRACTION_PROMPT = `
-Je extraheert klantgegevens uit Nederlandse screenshots/foto's met contactgegevens.
+Je extraheert klantgegevens uit maximaal twee Nederlandse screenshots/foto's. De afbeeldingen horen bij dezelfde klant. Combineer de informatie uit alle afbeeldingen tot één klantrecord; contactgegevens kunnen op de ene afbeelding staan en het adres op de andere.
 
 Geef ALTIJD exact 1 JSON object terug (geen markdown, geen uitleg) met deze velden:
 {
@@ -178,7 +178,7 @@ function normalizeClientPayload(input: Record<string, unknown>): Record<string, 
 
 async function callOpenAiExtraction(params: {
   apiKey: string;
-  imageDataUrl: string;
+  imageDataUrls: string[];
 }): Promise<Record<string, unknown>> {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -194,7 +194,10 @@ async function callOpenAiExtraction(params: {
           role: 'user',
           content: [
             { type: 'input_text', text: EXTRACTION_PROMPT },
-            { type: 'input_image', image_url: params.imageDataUrl },
+            ...params.imageDataUrls.map((imageDataUrl) => ({
+              type: 'input_image' as const,
+              image_url: imageDataUrl,
+            })),
           ],
         },
       ],
@@ -238,25 +241,38 @@ export async function POST(request: Request) {
     }
 
     const formData = await request.formData();
-    const image = formData.get('file');
+    const uploadedFiles = formData.getAll('files');
+    const legacyFile = formData.get('file');
+    const images = uploadedFiles.length > 0
+      ? uploadedFiles
+      : legacyFile
+        ? [legacyFile]
+        : [];
 
-    if (!(image instanceof File)) {
+    if (images.length === 0 || images.some((image) => !(image instanceof File))) {
       return NextResponse.json({ ok: false, message: 'Afbeelding ontbreekt.' }, { status: 400 });
     }
 
-    const filename = safeString(image.name) || `client-${Date.now()}.jpg`;
-    const contentType = inferContentType(safeString(image.type), filename);
-
-    if (!isSupportedImage(contentType, filename)) {
-      return NextResponse.json({ ok: false, message: 'Alleen JPG, PNG, WEBP of HEIC/HEIF zijn toegestaan.' }, { status: 400 });
+    if (images.length > 2) {
+      return NextResponse.json({ ok: false, message: 'Upload maximaal 2 afbeeldingen.' }, { status: 400 });
     }
 
-    const bytes = Buffer.from(await image.arrayBuffer());
-    const imageDataUrl = toImageDataUrl(contentType, bytes);
+    const imageDataUrls = await Promise.all(images.map(async (image, index) => {
+      const file = image as File;
+      const filename = safeString(file.name) || `client-${Date.now()}-${index + 1}.jpg`;
+      const contentType = inferContentType(safeString(file.type), filename);
+
+      if (!isSupportedImage(contentType, filename)) {
+        throw new Error('Alleen JPG, PNG, WEBP of HEIC/HEIF zijn toegestaan.');
+      }
+
+      const bytes = Buffer.from(await file.arrayBuffer());
+      return toImageDataUrl(contentType, bytes);
+    }));
 
     const extracted = await callOpenAiExtraction({
       apiKey,
-      imageDataUrl,
+      imageDataUrls,
     });
 
     const normalized = normalizeClientPayload(extracted);

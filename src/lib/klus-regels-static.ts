@@ -98,16 +98,21 @@ function createBoeiboordRuleSet(config: {
     },
     [config.sectionKeyBeplating]: {
       sectionKey: config.sectionKeyBeplating,
-      logic: 'visual_center_joint_layout',
-      joint_alignment: 'centered',
-      formula: 'for each strip: segments_per_strip = ceil((strip_length_mm + seam_thickness_mm) / (sheet_length_mm + seam_thickness_mm)); segment_length_mm = (strip_length_mm - ((segments_per_strip - 1) * seam_thickness_mm)) / segments_per_strip; segments_needed = sum(segments_per_strip); segments_per_lane = floor(sheet_length_mm / segment_length_mm); lanes_per_sheet = floor(sheet_width_mm / strip_height_mm); sheets_layout = ceil(segments_needed / max(1, segments_per_lane * lanes_per_sheet)); sheets_area_guard = ceil(((total_panel_area_m2 + kopkanten_area_m2)) / ((sheet_length_mm * sheet_width_mm) / 1000000)); aantal = max(sheets_layout, sheets_area_guard)',
+      logic: config.sectionKeyBeplating === 'keralit_panelen'
+        ? 'precomputed one-dimensional cut plan; every visible course is one uninterrupted cut'
+        : 'visual_center_joint_layout',
+      joint_alignment: config.sectionKeyBeplating === 'keralit_panelen' ? 'no_joints_per_course' : 'centered',
+      formula: config.sectionKeyBeplating === 'keralit_panelen'
+        ? 'Use material_entry.keralit_cut_plan only. If valid=true then aantal = requiredStockLengths. Never calculate Keralit/Unipanel panels from m2, area, dekking_m2 or total_panel_area_m2. Each cutsMm entry must come from one single stock length and may never be assembled from multiple offcuts. Different cuts may share one stock length only when their sum fits within stockLengthMm. Remainders from different stock lengths may never be combined. If valid=false then requires_manual_input and return error. The cut plan already includes physical offcut waste, so do not apply wastePercentage again.'
+        : 'for each strip: segments_per_strip = ceil((strip_length_mm + seam_thickness_mm) / (sheet_length_mm + seam_thickness_mm)); segment_length_mm = (strip_length_mm - ((segments_per_strip - 1) * seam_thickness_mm)) / segments_per_strip; segments_needed = sum(segments_per_strip); segments_per_lane = floor(sheet_length_mm / segment_length_mm); lanes_per_sheet = floor(sheet_width_mm / strip_height_mm); sheets_layout = ceil(segments_needed / max(1, segments_per_lane * lanes_per_sheet)); sheets_area_guard = ceil(((total_panel_area_m2 + kopkanten_area_m2)) / ((sheet_length_mm * sheet_width_mm) / 1000000)); aantal = max(sheets_layout, sheets_area_guard)',
       required_inputs: [
         'material.lengte',
         'material.breedte',
-        "maatwerk_item['naad dikte tussen 2 platen kopkant']",
       ],
       missing_input_behavior: 'requires_manual_input',
-      wastePercentage: 'user_input',
+      wastePercentage: config.sectionKeyBeplating === 'keralit_panelen'
+        ? 'ignored_cut_plan_includes_offcuts'
+        : 'user_input',
     },
     ventilatieprofiel: {
       sectionKey: 'ventilatieprofiel',

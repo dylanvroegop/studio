@@ -6,19 +6,28 @@ import type { Firestore } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { createEmptyQuote } from '@/lib/firestore-actions';
 
-// In dev (React Strict Mode) mount-effects can run twice.
-// Keep a per-user in-flight promise so a single navigation creates only one quote.
-const inFlightQuoteCreates = new Map<string, Promise<string>>();
+// In dev (React Strict Mode) mount-effects can run twice. Keep the complete
+// initialization in flight so Supabase is initialized only once as well.
+const inFlightQuoteInitializations = new Map<string, Promise<string>>();
 
-function createEmptyQuoteDeduped(firestore: Firestore, userId: string): Promise<string> {
-  const existing = inFlightQuoteCreates.get(userId);
+async function initializeEmptyQuoteDeduped(
+  firestore: Firestore,
+  userId: string,
+  getToken: () => Promise<string>,
+): Promise<string> {
+  const existing = inFlightQuoteInitializations.get(userId);
   if (existing) return existing;
 
-  const promise = createEmptyQuote(firestore, userId).finally(() => {
-    inFlightQuoteCreates.delete(userId);
+  const promise = (async () => {
+    const quoteId = await createEmptyQuote(firestore, userId);
+    const token = await getToken();
+    await ensureManualQuoteData(quoteId, token);
+    return quoteId;
+  })().finally(() => {
+    inFlightQuoteInitializations.delete(userId);
   });
 
-  inFlightQuoteCreates.set(userId, promise);
+  inFlightQuoteInitializations.set(userId, promise);
   return promise;
 }
 
@@ -50,9 +59,11 @@ export function NewQuoteRedirectClient() {
     let cancelled = false;
     (async () => {
       try {
-        const quoteId = await createEmptyQuoteDeduped(firestore, user.uid);
-        const token = await user.getIdToken();
-        await ensureManualQuoteData(quoteId, token);
+        const quoteId = await initializeEmptyQuoteDeduped(
+          firestore,
+          user.uid,
+          () => user.getIdToken(),
+        );
 
         const returnTo = searchParams.get('returnTo');
         let successRedirect: string | undefined;

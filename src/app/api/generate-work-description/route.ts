@@ -8,6 +8,8 @@ import {
   toStructuredWorkDescription,
   type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
+import { enforceRequiredNoteCoverage } from '@/lib/work-description-note-coverage';
+import { enforceWorkDeliverySafety, isIgnoredWorkDeliveryMaterial, sanitizeWorkDeliveryScope } from '@/lib/work-delivery';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -83,37 +85,131 @@ function enforceWasteRemovalPreferences(
   structuredInput: unknown,
 ): WorkDescriptionStructured {
   const preferences = getWasteRemovalPreferences(structuredInput);
-  const filterRows = (rows: string[], enabled: boolean) => (
-    enabled ? rows : rows.filter((row) => !isWasteRemovalRow(row))
-  );
+  const inputStructured = sanitizeWorkDescriptionStructured(structuredInput);
   const jobs = generated.jobs.map((job, index) => {
     const enabled = preferences.jobs[index] ?? preferences.active;
-    return {
+    const controls = inputStructured.jobs[index] || inputStructured.jobs[inputStructured.activeJobIndex || 0] || inputStructured;
+    const safe = enforceWorkDeliverySafety({
       ...job,
       afvalAfvoeren: enabled,
-      sections: {
-        voorbereiding: filterRows(job.sections.voorbereiding, enabled),
-        uitvoering: filterRows(job.sections.uitvoering, enabled),
-        afwerking: filterRows(job.sections.afwerking, enabled),
-      },
-      legacyNotes: filterRows(job.legacyNotes || [], enabled),
-    };
+      electricalScope: controls.electricalScope,
+      finishLevel: controls.finishLevel,
+      customFinishDescription: controls.customFinishDescription,
+    });
+    return { ...job, ...safe, context: safe.summary };
   });
   const activeIndex = Math.max(0, Math.min(generated.activeJobIndex || 0, Math.max(0, jobs.length - 1)));
   const activeJob = jobs[activeIndex];
-  const rootEnabled = activeJob ? activeJob.afvalAfvoeren === true : preferences.active;
+  const root = enforceWorkDeliverySafety({
+    ...sanitizeWorkDeliveryScope(generated),
+    afvalAfvoeren: activeJob ? activeJob.afvalAfvoeren === true : preferences.active,
+    electricalScope: activeJob?.electricalScope || inputStructured.electricalScope,
+    finishLevel: activeJob?.finishLevel || inputStructured.finishLevel,
+    customFinishDescription: activeJob?.customFinishDescription || inputStructured.customFinishDescription,
+  });
 
   return {
     ...generated,
-    sections: activeJob?.sections || {
-      voorbereiding: filterRows(generated.sections.voorbereiding, rootEnabled),
-      uitvoering: filterRows(generated.sections.uitvoering, rootEnabled),
-      afwerking: filterRows(generated.sections.afwerking, rootEnabled),
-    },
-    legacyNotes: activeJob?.legacyNotes || filterRows(generated.legacyNotes || [], rootEnabled),
+    ...root,
+    context: root.summary,
+    sections: activeJob?.sections || generated.sections,
+    legacyNotes: activeJob?.legacyNotes || generated.legacyNotes,
     jobs,
     activeJobIndex: activeIndex,
   };
+}
+
+function enforceGenerationRules(
+  generated: WorkDescriptionStructured,
+  body: RequestBody | null,
+): WorkDescriptionStructured {
+  const completed = fillMissingGeneratedScope(generated, body);
+  const wasteFiltered = enforceWasteRemovalPreferences(completed, body?.structuredInput);
+  const notesCovered = enforceRequiredNoteCoverage(wasteFiltered, body?.notesContext, isWasteRemovalRow);
+  return enforceWasteRemovalPreferences(notesCovered, body?.structuredInput);
+}
+
+function getMaterialContextRows(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const row = item as Record<string, unknown>;
+    const name = safeString(row.name);
+    if (!name || isIgnoredWorkDeliveryMaterial(name)) return [];
+    return [name];
+  });
+}
+
+function fillMissingGeneratedScope(
+  generated: WorkDescriptionStructured,
+  body: RequestBody | null,
+): WorkDescriptionStructured {
+  const existing = sanitizeWorkDescriptionStructured(body?.structuredInput);
+  const existingActiveIndex = Math.max(
+    0,
+    Math.min(existing.activeJobIndex || 0, Math.max(0, existing.jobs.length - 1)),
+  );
+  const existingActiveJob = existing.jobs[existingActiveIndex] || existing;
+  const approvedMaterials = getMaterialContextRows(body?.materialContext);
+
+  const fillJob = (
+    job: WorkDescriptionStructured['jobs'][number],
+    index: number,
+  ): WorkDescriptionStructured['jobs'][number] => {
+    const fallback = existing.jobs[index] || existingActiveJob;
+    const summary = job.summary || fallback.summary || safeString(body?.context);
+    return {
+      ...job,
+      title: job.title || fallback.title || safeString(body?.title),
+      context: summary,
+      summary,
+      work_scope: job.work_scope.length > 0
+        ? job.work_scope
+        : (fallback.work_scope.length > 0 ? fallback.work_scope : (summary ? [summary] : [])),
+      materials: job.materials.length > 0
+        ? job.materials
+        : (fallback.materials.length > 0 ? fallback.materials : approvedMaterials),
+      dimensions: job.dimensions.length > 0 ? job.dimensions : fallback.dimensions,
+      included: job.included.length > 0 ? job.included : fallback.included,
+      excluded: job.excluded.length > 0 ? job.excluded : fallback.excluded,
+      internal_notes: job.internal_notes.length > 0 ? job.internal_notes : fallback.internal_notes,
+    };
+  };
+
+  const jobs = generated.jobs.length > 0
+    ? generated.jobs.map(fillJob)
+    : [fillJob({
+        ...existingActiveJob,
+        title: generated.title,
+        context: generated.context,
+        summary: generated.summary,
+        work_scope: generated.work_scope,
+        materials: generated.materials,
+        dimensions: generated.dimensions,
+        included: generated.included,
+        excluded: generated.excluded,
+        internal_notes: generated.internal_notes,
+      }, existingActiveIndex)];
+  const activeIndex = Math.max(
+    0,
+    Math.min(generated.activeJobIndex || 0, Math.max(0, jobs.length - 1)),
+  );
+  const activeJob = jobs[activeIndex];
+
+  return sanitizeWorkDescriptionStructured({
+    ...generated,
+    title: activeJob.title,
+    context: activeJob.summary,
+    summary: activeJob.summary,
+    work_scope: activeJob.work_scope,
+    materials: activeJob.materials,
+    dimensions: activeJob.dimensions,
+    included: activeJob.included,
+    excluded: activeJob.excluded,
+    internal_notes: activeJob.internal_notes,
+    jobs,
+    activeJobIndex: activeIndex,
+  });
 }
 
 function pickFirstString(
@@ -201,7 +297,11 @@ function extractDirectWerkbeschrijving(result: unknown): string[] {
 function hasStructuredContent(value: WorkDescriptionStructured): boolean {
   return Boolean(
     value.title
-    || value.context
+    || value.summary
+    || value.work_scope.length > 0
+    || value.materials.length > 0
+    || value.dimensions.length > 0
+    || value.included.length > 0
     || value.jobs.length > 0
     || value.sections.voorbereiding.length > 0
     || value.sections.uitvoering.length > 0
@@ -477,9 +577,36 @@ function buildPromptFromBody(body: RequestBody): string {
   const directPrompt = safeString(body.prompt);
   const preferences = getWasteRemovalPreferences(body.structuredInput);
   const wasteRemovalRule = preferences.active
-    ? 'Afval afvoeren staat expliciet AAN. Neem hiervoor een duidelijke stap op onder Afwerking.'
+    ? 'Afval afvoeren staat expliciet AAN. Neem uitsluitend de overeengekomen afvoer op onder included.'
     : WASTE_REMOVAL_DISABLED_RULE;
-  if (directPrompt) return `${directPrompt}\n\n${wasteRemovalRule}`;
+  const notesRule = safeString(body.notesContext)
+    ? [
+        'HARDE REGEL VOOR GEBRUIKERSNOTITIES:',
+        'Verwerk IEDERE concrete werkzaamheid, keuze en maat uit de gebruikersnotities in de werkbeschrijving.',
+        'Sla niets over, neem afmetingen exact over en voeg geen vervangende aannames toe.',
+        'De offerte is definitief: gebruik uitsluitend concrete, professionele formuleringen.',
+        'Verwijder onzekere taal zoals "eventueel", "mogelijk", "iets anders", "indien nodig" en "in overleg".',
+        'Wanneer een notitie eerst een concrete werkwijze noemt en daarna een vaag alternatief, gebruik alleen de concrete werkwijze.',
+        'Controleer voor je antwoord regel voor regel of alle notities aantoonbaar terugkomen.',
+      ].join(' ')
+    : '';
+  const scopeRules = [
+    'Geef uitsluitend geldige JSON terug met exact deze velden:',
+    '{"title":"","summary":"","work_scope":[],"materials":[],"dimensions":[],"included":[],"excluded":[],"internal_notes":[]}',
+    'Schrijf geen stappenplan en geen uitvoeringsvolgorde.',
+    'Gebruik nooit de secties Voorbereiding, Uitvoering of Afwerking.',
+    'Verzin geen werkzaamheden, afwerkingsniveau, elektrawerk, sloopwerk of afvalafvoer.',
+    'Beschrijf geen methode tenzij deze expliciet is aangeleverd.',
+    'Gebruik niet de woorden eerst, vervolgens, daarna, stap 1 of stap 2.',
+    'Neem alleen scope over die expliciet blijkt uit notities, maatvoering of calculatiedata.',
+    'Materialen mogen uitsluitend onder materials staan.',
+    'HARDE REGEL: "Extra kosten" is geen materiaal of product en mag nergens in Werk & Levering worden genoemd.',
+    'HARDE REGEL: vermeld NOOIT aantallen of bestelhoeveelheden van materialen. Schrijf dus geen "18 stuk", "2 platen", "3 rollen" of hoeveelheden tussen haakjes. Productafmetingen en productspecificaties mogen wel blijven staan.',
+    'Plaats bij onduidelijkheid een veilige uitsluiting onder excluded of laat het onderdeel weg.',
+    'Formuleer commercieel en bescherm tegen scope creep en onbetaald meerwerk.',
+    'summary bevat maximaal twee korte zinnen.',
+  ].join(' ');
+  if (directPrompt) return [directPrompt, scopeRules, notesRule, wasteRemovalRule].filter(Boolean).join('\n\n');
 
   const parts = [
     safeString(body.title) ? `Titel: ${safeString(body.title)}` : '',
@@ -489,7 +616,7 @@ function buildPromptFromBody(body: RequestBody): string {
     safeString(body.measurementsContext) ? `Maatvoering: ${safeString(body.measurementsContext)}` : '',
   ].filter(Boolean);
 
-  return [...parts, wasteRemovalRule].join('\n');
+  return [...parts, scopeRules, notesRule, wasteRemovalRule].filter(Boolean).join('\n');
 }
 
 export async function POST(request: Request) {
@@ -574,9 +701,9 @@ export async function POST(request: Request) {
 
     const directStructured = extractDirectStructured(result);
     if (directStructured && flattenStructuredWorkDescription(directStructured).length > 0) {
-      const structured = enforceWasteRemovalPreferences(
+      const structured = enforceGenerationRules(
         sanitizeWorkDescriptionStructured(directStructured),
-        rawBody?.structuredInput,
+        rawBody,
       );
       const flattened = flattenStructuredWorkDescription(structured);
       if (quoteId) {
@@ -590,9 +717,9 @@ export async function POST(request: Request) {
 
     const directWerkbeschrijving = extractDirectWerkbeschrijving(result);
     if (directWerkbeschrijving.length > 0) {
-      const structured = enforceWasteRemovalPreferences(
+      const structured = enforceGenerationRules(
         toStructuredWorkDescription({ werkbeschrijving: directWerkbeschrijving }),
-        rawBody?.structuredInput,
+        rawBody,
       );
       const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
       if (quoteId) {
@@ -614,9 +741,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Lege werkbeschrijving ontvangen.' }, { status: 502 });
     }
 
-    const structured = enforceWasteRemovalPreferences(
+    const structured = enforceGenerationRules(
       toStructuredWorkDescription({ werkbeschrijving }),
-      rawBody?.structuredInput,
+      rawBody,
     );
     const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
     if (quoteId) {
@@ -653,10 +780,12 @@ async function persistWorkDescription(
 
   const existing = Array.isArray(existingRows) ? existingRows[0] : null;
   if (existing?.id) {
-    const existingJson =
-      existing.data_json && typeof existing.data_json === 'object'
-        ? (existing.data_json as Record<string, unknown>)
-        : {};
+    const existingRoot = Array.isArray(existing.data_json)
+      ? existing.data_json[0]
+      : existing.data_json;
+    const existingJson = existingRoot && typeof existingRoot === 'object'
+      ? (existingRoot as Record<string, unknown>)
+      : {};
 
     const merged = {
       ...existingJson,
