@@ -66,10 +66,34 @@ export function isNoteRequirementCovered(requirement: string, generatedText: str
   const matchingNumbers = numericTokens.filter((token) => generated.includes(token));
   const matchingWords = wordTokens.filter((token) => generated.includes(token));
 
-  if (numericTokens.length > 0 && matchingNumbers.length === 0) return false;
+  if (numericTokens.length > 0 && matchingNumbers.length !== numericTokens.length) return false;
   if (wordTokens.length === 0) return matchingNumbers.length === numericTokens.length;
 
   return matchingWords.length / wordTokens.length >= 0.6;
+}
+
+function extractExplicitTotalFacts(notesContext: unknown): string[] {
+  if (typeof notesContext !== 'string' || !notesContext.trim()) return [];
+
+  const facts: string[] = [];
+  const pattern = /\b(?:in\s+)?totaal\s*:?[ \t]*(\d+(?:[.,]\d+)?)[ \t]+([^.,;\n]{1,80})/gi;
+  for (const match of notesContext.matchAll(pattern)) {
+    const amount = match[1]?.trim();
+    const subject = match[2]?.trim().replace(/\s+/g, ' ').replace(/[.!?]+$/g, '');
+    if (!amount || !subject) continue;
+    facts.push(`In totaal betreft het ${amount} ${subject}.`);
+  }
+
+  return Array.from(new Set(facts));
+}
+
+function appendTotalFactsToSummary(summary: string, totalFacts: string[]): string {
+  if (totalFacts.length === 0) return summary;
+  const firstSentence = summary
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)[0] || '';
+  return [firstSentence, totalFacts.join(' ')].filter(Boolean).join(' ');
 }
 
 function formatDimensions(value: string): string {
@@ -116,6 +140,9 @@ export function enforceRequiredNoteCoverage(
     .filter((requirement) => !shouldExclude(requirement));
   if (requirements.length === 0) return generated;
 
+  const totalFacts = extractExplicitTotalFacts(notesContext)
+    .filter((fact) => !shouldExclude(fact));
+
   const generatedText = [
     generated.title,
     generated.summary,
@@ -138,13 +165,19 @@ export function enforceRequiredNoteCoverage(
     .filter((requirement) => !isNoteRequirementCovered(requirement, generatedText))
     .map(formatRequiredNoteStep);
 
-  if (missingSteps.length === 0) return generated;
+  const missingTotalFacts = totalFacts.filter((fact) => !isNoteRequirementCovered(fact, generatedText));
+  if (missingSteps.length === 0 && missingTotalFacts.length === 0) return generated;
+
+  const requiredScopeRows = Array.from(new Set([...missingSteps, ...missingTotalFacts]));
+  const nextSummary = appendTotalFactsToSummary(generated.summary, totalFacts);
 
   const activeIndex = Math.max(0, Math.min(generated.activeJobIndex || 0, Math.max(0, generated.jobs.length - 1)));
   if (generated.jobs.length === 0) {
     return {
       ...generated,
-      work_scope: [...generated.work_scope, ...missingSteps],
+      context: nextSummary,
+      summary: nextSummary,
+      work_scope: [...generated.work_scope, ...requiredScopeRows],
     };
   }
 
@@ -152,13 +185,17 @@ export function enforceRequiredNoteCoverage(
     index === activeIndex
       ? {
           ...job,
-          work_scope: [...job.work_scope, ...missingSteps],
+          context: appendTotalFactsToSummary(job.summary, totalFacts),
+          summary: appendTotalFactsToSummary(job.summary, totalFacts),
+          work_scope: [...job.work_scope, ...requiredScopeRows],
         }
       : job
   ));
 
   return {
     ...generated,
+    context: jobs[activeIndex].summary,
+    summary: jobs[activeIndex].summary,
     jobs,
     activeJobIndex: activeIndex,
     work_scope: jobs[activeIndex].work_scope,
