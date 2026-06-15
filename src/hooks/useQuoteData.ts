@@ -235,5 +235,40 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
         }
     }, [user]);
 
-    return { calculation, loading, error, updateDataJson };
+    const updateDataJsonPatch = useCallback(async (patch: Record<string, unknown>) => {
+        const currentCalculation = calculationRef.current;
+        if (!currentCalculation || !user) {
+            throw new Error('Offerte-data is nog niet beschikbaar.');
+        }
+
+        const token = await getUserTokenSafe(user);
+        if (!token) {
+            throw new Error('Authenticatie tijdelijk niet beschikbaar.');
+        }
+
+        const response = await fetch('/api/quotes/update-data-json', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                calculation_id: currentCalculation.id,
+                data_json_patch: patch,
+            }),
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result?.ok || !result.data?.data_json) {
+            throw new Error(result?.message || 'Kon offerte-data niet opslaan.');
+        }
+
+        const persisted = result.data.data_json as QuoteCalculation['data_json'];
+        const persistedCalculation = { ...currentCalculation, data_json: persisted };
+        calculationRef.current = persistedCalculation;
+        lastSyncedDataJsonSignatureRef.current = JSON.stringify(persisted);
+        setCalculation((prev) => prev ? { ...prev, data_json: persisted } : persistedCalculation);
+        return persisted;
+    }, [user]);
+
+    return { calculation, loading, error, updateDataJson, updateDataJsonPatch };
 }

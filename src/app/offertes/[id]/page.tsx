@@ -664,7 +664,7 @@ export default function QuotePage() {
     const [quote, setQuote] = useState<Quote | null>(null);
 
     // Fetch calculation data from Supabase
-    const { calculation, loading: calculationLoading, error: calculationError, updateDataJson } = useQuoteData(id, {
+    const { calculation, loading: calculationLoading, error: calculationError, updateDataJson, updateDataJsonPatch } = useQuoteData(id, {
         pollWhenMissing: quote?.status === 'in_behandeling',
         pollIntervalMs: 5000,
         preferCompletedFallback: false,
@@ -4884,11 +4884,9 @@ export default function QuotePage() {
             }, WORK_DESCRIPTION_SAVING_INDICATOR_DELAY_MS);
 
             const saveStartedAt = Date.now();
-            const root = unwrapRoot(calculation.data_json);
-            updateDataJson({
-                ...root,
+            updateDataJsonPatch({
                 korteTitel: parsedStructured.title,
-                korteBeschrijving: parsedStructured.context,
+                korteBeschrijving: parsedStructured.summary || parsedStructured.context,
                 werkbeschrijving: parsedWerkbeschrijving,
                 werkbeschrijving_jobs: parsedStructured.jobs,
                 werkbeschrijving_structured: parsedStructured,
@@ -4919,7 +4917,7 @@ export default function QuotePage() {
                 clearTimeout(autoSaveWerkbeschrijvingTimerRef.current);
             }
         };
-    }, [workDescriptionStructured, calculation?.data_json, updateDataJson, toast]);
+    }, [workDescriptionStructured, calculation?.data_json, updateDataJsonPatch, toast]);
 
     const persistGeneratedWorkDescription = useCallback(async (next: WorkDescriptionStructured) => {
         if (!calculation?.data_json) {
@@ -4941,10 +4939,7 @@ export default function QuotePage() {
             structured: parsedStructured,
             rows: parsedWerkbeschrijving,
         });
-        const root = unwrapRoot(calculation.data_json);
-
-        await updateDataJson({
-            ...root,
+        await updateDataJsonPatch({
             korteTitel: parsedStructured.title,
             korteBeschrijving: parsedStructured.summary || parsedStructured.context,
             werkbeschrijving: parsedWerkbeschrijving,
@@ -4955,7 +4950,7 @@ export default function QuotePage() {
         lastSyncedWerkbeschrijvingRef.current = serialized;
         workDescriptionDirtyRef.current = false;
         setWorkDescriptionStructured(parsedStructured);
-    }, [calculation?.data_json, updateDataJson]);
+    }, [calculation?.data_json, updateDataJsonPatch]);
 
     const handleGenerateWorkDescription = async (action: 'full' | 'uitvoering-only' | 'improve') => {
         if (!user) return;

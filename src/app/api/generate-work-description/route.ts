@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
-import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
   flattenStructuredWorkDescription,
   sanitizeWorkDescriptionStructured,
@@ -706,9 +705,6 @@ export async function POST(request: Request) {
         rawBody,
       );
       const flattened = flattenStructuredWorkDescription(structured);
-      if (quoteId) {
-        await persistWorkDescription(quoteId, userId, flattened, structured);
-      }
       return NextResponse.json({
         werkbeschrijving: flattened,
         werkbeschrijvingStructured: structured,
@@ -722,9 +718,6 @@ export async function POST(request: Request) {
         rawBody,
       );
       const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
-      if (quoteId) {
-        await persistWorkDescription(quoteId, userId, filteredWerkbeschrijving, structured);
-      }
       return NextResponse.json({
         werkbeschrijving: filteredWerkbeschrijving,
         werkbeschrijvingStructured: structured,
@@ -746,10 +739,6 @@ export async function POST(request: Request) {
       rawBody,
     );
     const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
-    if (quoteId) {
-      await persistWorkDescription(quoteId, userId, filteredWerkbeschrijving, structured);
-    }
-
     return NextResponse.json({
       werkbeschrijving: filteredWerkbeschrijving,
       werkbeschrijvingStructured: structured,
@@ -758,63 +747,4 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : 'Werkbeschrijving genereren mislukt';
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-async function persistWorkDescription(
-  quoteId: string,
-  userId: string,
-  werkbeschrijving: string[],
-  werkbeschrijvingStructured?: WorkDescriptionStructured,
-): Promise<void> {
-  if (!quoteId || !userId || werkbeschrijving.length === 0) return;
-
-  const { data: existingRows, error: readError } = await supabaseAdmin
-    .from('quotes_collection')
-    .select('id, data_json')
-    .eq('quoteid', quoteId)
-    .eq('gebruikerid', userId)
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  if (readError) throw new Error(readError.message);
-
-  const existing = Array.isArray(existingRows) ? existingRows[0] : null;
-  if (existing?.id) {
-    const existingRoot = Array.isArray(existing.data_json)
-      ? existing.data_json[0]
-      : existing.data_json;
-    const existingJson = existingRoot && typeof existingRoot === 'object'
-      ? (existingRoot as Record<string, unknown>)
-      : {};
-
-    const merged = {
-      ...existingJson,
-      werkbeschrijving,
-      ...(werkbeschrijvingStructured?.jobs?.length ? { werkbeschrijving_jobs: werkbeschrijvingStructured.jobs } : {}),
-      ...(werkbeschrijvingStructured ? { werkbeschrijving_structured: werkbeschrijvingStructured } : {}),
-    };
-
-    const { error: updateError } = await supabaseAdmin
-      .from('quotes_collection')
-      .update({ data_json: merged })
-      .eq('id', String(existing.id));
-
-    if (updateError) throw new Error(updateError.message);
-    return;
-  }
-
-  const { error: insertError } = await supabaseAdmin
-    .from('quotes_collection')
-    .insert({
-      quoteid: quoteId,
-      gebruikerid: userId,
-      status: 'completed',
-      data_json: {
-        werkbeschrijving,
-        ...(werkbeschrijvingStructured?.jobs?.length ? { werkbeschrijving_jobs: werkbeschrijvingStructured.jobs } : {}),
-        ...(werkbeschrijvingStructured ? { werkbeschrijving_structured: werkbeschrijvingStructured } : {}),
-      },
-    });
-
-  if (insertError) throw new Error(insertError.message);
 }

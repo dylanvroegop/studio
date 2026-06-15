@@ -34,16 +34,41 @@ export async function POST(req: Request) {
         if (trialBlockedResponse) return trialBlockedResponse;
 
         // 2. Parse Body
-        const { calculation_id, data_json } = await req.json();
+        const { calculation_id, data_json, data_json_patch } = await req.json();
 
-        if (!calculation_id || !data_json) {
+        if (!calculation_id || (!data_json && !data_json_patch)) {
             return NextResponse.json({ ok: false, message: 'Missing required fields' }, { status: 400 });
+        }
+
+        let nextDataJson = data_json;
+        if (data_json_patch && typeof data_json_patch === 'object' && !Array.isArray(data_json_patch)) {
+            const { data: current, error: readError } = await supabaseAdmin
+                .from('quotes_collection')
+                .select('data_json')
+                .eq('id', calculation_id)
+                .eq('gebruikerid', decodedToken.uid)
+                .maybeSingle();
+
+            if (readError) {
+                return NextResponse.json({ ok: false, message: readError.message }, { status: 500 });
+            }
+            if (!current) {
+                return NextResponse.json({ ok: false, message: 'Calculation not found' }, { status: 404 });
+            }
+
+            const currentRoot = Array.isArray(current.data_json)
+                ? current.data_json[0]
+                : current.data_json;
+            nextDataJson = {
+                ...(currentRoot && typeof currentRoot === 'object' ? currentRoot : {}),
+                ...data_json_patch,
+            };
         }
 
         // 3. Update Supabase using admin client (bypasses RLS)
         const { data, error } = await supabaseAdmin
             .from('quotes_collection')
-            .update({ data_json })
+            .update({ data_json: nextDataJson })
             .eq('id', calculation_id)
             .eq('gebruikerid', decodedToken.uid)
             .select();
