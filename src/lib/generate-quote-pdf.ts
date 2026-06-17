@@ -698,7 +698,6 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         }];
     const hasStructuredWorkDescription = structuredJobs.some((job) =>
         job.work_scope.length > 0
-        || job.materials.length > 0
         || job.dimensions.length > 0
         || job.included.length > 0
         || job.excluded.length > 0
@@ -736,7 +735,6 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
 
         const drawJobScope = (job: typeof structuredJobs[number]) => {
             drawScopeSection('WERKZAAMHEDEN', job.work_scope);
-            drawScopeSection('MATERIALEN / PRODUCTEN', job.materials);
             drawScopeSection('MAATVOERING', job.dimensions);
             drawScopeSection('INBEGREPEN', job.included);
             drawScopeSection('NIET INBEGREPEN', job.excluded);

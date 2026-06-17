@@ -91,6 +91,34 @@ function unique(input: string[]): string[] {
   return Array.from(new Set(input.map((item) => item.trim()).filter(Boolean)));
 }
 
+function truncateAtWord(value: string, maxLength: number): string {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  if (compact.length <= maxLength) return compact;
+  const shortened = compact.slice(0, maxLength + 1);
+  const wordBoundary = shortened.lastIndexOf(' ');
+  return `${shortened.slice(0, wordBoundary > maxLength * 0.6 ? wordBoundary : maxLength).trim()}...`;
+}
+
+function deriveTitleFromScope(scope: WorkDeliveryScope, fallbackTitle?: string): string {
+  const fallback = text(fallbackTitle);
+  if (fallback && !/^offerte(?:\s+\d+)?$/i.test(fallback)) {
+    return truncateAtWord(fallback, 80);
+  }
+
+  const firstScopeLine = scope.work_scope.find((line) => line.trim()) || '';
+  if (!firstScopeLine) return '';
+
+  const concise = firstScopeLine.split(/[.;]/, 1)[0].split(/\s+-\s+/, 1)[0];
+  return truncateAtWord(concise, 80);
+}
+
+function deriveSummaryFromScope(scope: WorkDeliveryScope): string {
+  const firstScopeLine = scope.work_scope.find((line) => line.trim()) || '';
+  if (!firstScopeLine) return '';
+  const summary = truncateAtWord(firstScopeLine, 240);
+  return /[.!?]$/.test(summary) ? summary : `${summary}.`;
+}
+
 const MATERIAL_QUANTITY_UNIT = '(?:stuk(?:s)?|pcs?|plaat|platen|paneel|panelen|rol(?:len)?|doos|dozen|zak(?:ken)?|pak(?:ken)?|bundel(?:s)?|lengte(?:s)?|koker(?:s)?|bus(?:sen)?|blik(?:ken)?|set(?:s)?)';
 
 export function isIgnoredWorkDeliveryMaterial(value: string): boolean {
@@ -175,6 +203,16 @@ export function sanitizeWorkDeliveryScope(input: unknown): WorkDeliveryScope {
   return enforceWorkDeliverySafety(result);
 }
 
+export function completeWorkDeliveryScope(
+  input: unknown,
+  fallbackTitle?: string,
+): WorkDeliveryScope {
+  const scope = sanitizeWorkDeliveryScope(input);
+  const title = scope.title || deriveTitleFromScope(scope, fallbackTitle);
+  const summary = scope.summary || deriveSummaryFromScope(scope);
+  return enforceWorkDeliverySafety({ ...scope, title, summary });
+}
+
 export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliveryScope {
   const scope: WorkDeliveryScope = {
     ...input,
@@ -238,7 +276,6 @@ export function flattenWorkDeliveryScope(input: unknown): string[] {
   const scope = sanitizeWorkDeliveryScope(input);
   return unique([
     ...scope.work_scope,
-    ...scope.materials,
     ...scope.dimensions,
     ...scope.included,
     ...scope.excluded,
@@ -255,15 +292,12 @@ export function validateWorkDeliveryScope(
     text(raw.title ?? raw.korteTitel),
     text(raw.summary ?? raw.context),
     ...rows(raw.work_scope),
-    ...rows(raw.materials),
     ...rows(raw.dimensions),
     ...rows(raw.included),
     ...rows(raw.excluded),
   ].join('\n');
 
   if (!scope.title) errors.push('Vul een titel in.');
-  const sentenceCount = scope.summary.split(/[.!?]+/).map((part) => part.trim()).filter(Boolean).length;
-  if (sentenceCount > 2) errors.push('Korte omschrijving mag maximaal twee zinnen bevatten.');
   if (scope.work_scope.length === 0) errors.push('Voeg minimaal één regel toe onder Werkzaamheden.');
   if (scope.excluded.length === 0) errors.push('Niet inbegrepen mag niet leeg zijn.');
   if (scope.finishLevel === 'custom' && !scope.customFinishDescription) {

@@ -13,6 +13,7 @@ import {
     normalizeDataJson,
     unwrapRoot,
     toStructuredWorkDescription,
+    completeStructuredWorkDescription,
     flattenStructuredWorkDescription,
     type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
@@ -24,9 +25,9 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, CalendarClock, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, CalendarClock, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors } from 'lucide-react';
 
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -64,6 +65,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn, parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
 import { buildAddressString, buildGoogleMapsDirectionsUrl, hasMinimalAddress } from '@/lib/maps';
 import { reportOperationalError } from '@/lib/report-operational-error';
+import { repairCopiedNoteBlobs } from '@/lib/work-description-note-coverage';
 import {
     defaultQuotePdfTextSettings,
     sanitizeQuotePdfTextSettings,
@@ -613,6 +615,36 @@ function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): strin
             return lines.join('\n');
         })
         .join('\n\n');
+}
+
+function isWasteRemovalRow(value: string): boolean {
+    const normalized = String(value || '').toLowerCase();
+    if (!normalized) return false;
+    return (
+        (normalized.includes('afval') || normalized.includes('puin') || normalized.includes('restmateriaal'))
+        && (
+            normalized.includes('afvoer')
+            || normalized.includes('meenem')
+            || normalized.includes('stort')
+            || normalized.includes('container')
+            || normalized.includes('verwijder')
+        )
+    );
+}
+
+function isCustomerRelevantWorkDeliveryProduct(value: string, type?: 'groot' | 'verbruik'): boolean {
+    const normalized = String(value || '').toLowerCase();
+    if (!normalized || isIgnoredWorkDeliveryMaterial(normalized)) return false;
+
+    if (/(schroef|schroeven|lijm|contactlijm|kit\b|ms-polymeer|cleaner|ontvetter|handschoen|folie|tape|butylband|schuurpapier|poetsdoek|doek|neopreen|aansluitkit|bevestig)/i.test(normalized)) {
+        return false;
+    }
+
+    if (/(keralit|trespa|hpl|rockpanel|gevelbekleding|boeiboord|boeiboorden|epdm|underlayment|daktrim|dakbedekking|ral\s*7016|antraciet|anthracite)/i.test(normalized)) {
+        return true;
+    }
+
+    return type === 'groot' && /(plaat|panelen|dak|gevel|trim|rand|bekleding)/i.test(normalized);
 }
 
 function getMaterialPackageSummary(pkg: QuoteMaterialPackage): string {
@@ -1956,10 +1988,19 @@ export default function QuotePage() {
     const handleSelectMaterial = (material: any) => {
         if (!activeCategory) return;
 
+        const priceExcl =
+            parsePriceToNumber(material?.prijs_per_stuk) ??
+            parsePriceToNumber(material?.prijs_excl_btw) ??
+            parsePriceToNumber(material?.prijs) ??
+            0;
+
         const newItem: MaterialItem = {
             aantal: 1,
-            product: material.materiaalnaam,
-            prijs_per_stuk: material.prijs_per_stuk || material.prijs || 0
+            product: material.materiaalnaam || '',
+            prijs_per_stuk: priceExcl,
+            eenheid: String(material?.eenheid || '').trim() || 'stuk',
+            row_id: material?.row_id || material?.id || null,
+            material_ref_id: material?.id || material?.row_id || null,
         };
 
         handleAddItem(activeCategory, newItem);
@@ -2662,6 +2703,13 @@ export default function QuotePage() {
         _sourceIndex: number;
         _sourceKey: string;
     };
+    type SplitQuoteDraft = {
+        id: string;
+        title: string;
+        totalHours: number;
+        marginAmount: number;
+        workJobIndex: number | null;
+    };
 
     const combinedMaterialItems = useMemo<CombinedMaterialItem[]>(() => {
         const grootItems = materials.groot.map((item, index) => ({
@@ -2678,6 +2726,197 @@ export default function QuotePage() {
         }));
         return [...grootItems, ...verbruikItems];
     }, [materials.groot, materials.verbruik]);
+
+    const [isSplitQuoteOpen, setIsSplitQuoteOpen] = useState(false);
+    const [isSplittingQuote, setIsSplittingQuote] = useState(false);
+    const [splitQuoteDrafts, setSplitQuoteDrafts] = useState<SplitQuoteDraft[]>([]);
+    const [splitMaterialAssignments, setSplitMaterialAssignments] = useState<Record<string, string>>({});
+
+    const splitWorkJobOptions = useMemo(() => {
+        const jobs = Array.isArray(workDescriptionStructured.jobs) ? workDescriptionStructured.jobs : [];
+        return jobs.map((job, index) => ({
+            index,
+            title: String(job?.title || `Klus ${index + 1}`).trim() || `Klus ${index + 1}`,
+        }));
+    }, [workDescriptionStructured.jobs]);
+
+    const createSplitDraftId = useCallback(() => (
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    ), []);
+
+    const handleOpenSplitQuoteDialog = useCallback(() => {
+        const jobCount = Math.max(2, splitWorkJobOptions.length || 0);
+        const hoursPerDraft = Number(normalizedData?.totaal_uren || 0) > 0
+            ? Number((Number(normalizedData?.totaal_uren || 0) / jobCount).toFixed(2))
+            : 0;
+        const sourceFixedMargin = quoteSettings?.extras?.winstMarge?.mode === 'fixed'
+            ? Number(quoteSettings.extras.winstMarge.fixedAmount || 0)
+            : 0;
+        const marginPerDraft = sourceFixedMargin > 0
+            ? Number((sourceFixedMargin / jobCount).toFixed(2))
+            : 0;
+        const drafts = Array.from({ length: jobCount }, (_, index) => {
+            const jobOption = splitWorkJobOptions[index];
+            return {
+                id: createSplitDraftId(),
+                title: jobOption?.title || `Deelofferte ${index + 1}`,
+                totalHours: hoursPerDraft,
+                marginAmount: marginPerDraft,
+                workJobIndex: jobOption ? jobOption.index : null,
+            };
+        });
+        const fallbackDraftId = drafts[0]?.id || '';
+        const initialAssignments = combinedMaterialItems.reduce<Record<string, string>>((acc, item) => {
+            acc[item._sourceKey] = fallbackDraftId;
+            return acc;
+        }, {});
+        setSplitQuoteDrafts(drafts);
+        setSplitMaterialAssignments(initialAssignments);
+        setIsSplitQuoteOpen(true);
+    }, [combinedMaterialItems, createSplitDraftId, normalizedData?.totaal_uren, quoteSettings?.extras?.winstMarge?.fixedAmount, quoteSettings?.extras?.winstMarge?.mode, splitWorkJobOptions]);
+
+    const updateSplitDraft = useCallback((draftId: string, patch: Partial<SplitQuoteDraft>) => {
+        setSplitQuoteDrafts((prev) => prev.map((draft) => (
+            draft.id === draftId ? { ...draft, ...patch } : draft
+        )));
+    }, [createSplitDraftId]);
+
+    const addSplitDraft = useCallback(() => {
+        setSplitQuoteDrafts((prev) => ([
+            ...prev,
+            {
+                id: createSplitDraftId(),
+                title: `Deelofferte ${prev.length + 1}`,
+                totalHours: 0,
+                marginAmount: 0,
+                workJobIndex: null,
+            },
+        ]));
+    }, []);
+
+    const removeSplitDraft = useCallback((draftId: string) => {
+        setSplitQuoteDrafts((prev) => {
+            if (prev.length <= 2) return prev;
+            const next = prev.filter((draft) => draft.id !== draftId);
+            const fallbackId = next[0]?.id || '';
+            setSplitMaterialAssignments((assignments) => {
+                const nextAssignments = { ...assignments };
+                Object.entries(nextAssignments).forEach(([key, assignedDraftId]) => {
+                    if (assignedDraftId === draftId) nextAssignments[key] = fallbackId;
+                });
+                return nextAssignments;
+            });
+            return next;
+        });
+    }, []);
+
+    const splitDraftSummaries = useMemo(() => {
+        return splitQuoteDrafts.map((draft) => {
+            const rows = combinedMaterialItems.filter((item) => splitMaterialAssignments[item._sourceKey] === draft.id);
+            const totalExcl = rows.reduce((sum, item) => {
+                const row = item as Record<string, unknown>;
+                const aantal = Number(item.aantal);
+                const prijs = Number(item.prijs_per_stuk ?? row.prijs_excl_btw ?? row.prijs);
+                return sum + ((Number.isFinite(aantal) ? aantal : 0) * (Number.isFinite(prijs) ? prijs : 0));
+            }, 0);
+            return {
+                draftId: draft.id,
+                rowCount: rows.length,
+                totalExcl,
+            };
+        });
+    }, [combinedMaterialItems, splitMaterialAssignments, splitQuoteDrafts]);
+
+    const handleCreateSplitQuotes = useCallback(async () => {
+        if (!user || !id) return;
+        if (splitQuoteDrafts.length < 2) {
+            toast({
+                variant: 'destructive',
+                title: 'Te weinig deeloffertes',
+                description: 'Maak minimaal twee deeloffertes.',
+            });
+            return;
+        }
+
+        const splits = splitQuoteDrafts.map((draft) => {
+            const materialRows = combinedMaterialItems
+                .filter((item) => splitMaterialAssignments[item._sourceKey] === draft.id)
+                .map((item) => ({
+                    sourceCategory: item._sourceCategory,
+                    sourceIndex: item._sourceIndex,
+                    item: Object.fromEntries(
+                        Object.entries(item).filter(([key]) => !['_sourceCategory', '_sourceIndex', '_sourceKey'].includes(key))
+                    ),
+                }));
+            return {
+                ...draft,
+                title: draft.title.trim(),
+                materialRows,
+            };
+        });
+
+        const invalidTitle = splits.find((split) => !split.title);
+        if (invalidTitle) {
+            toast({
+                variant: 'destructive',
+                title: 'Titel ontbreekt',
+                description: 'Elke deelofferte heeft een titel nodig.',
+            });
+            return;
+        }
+
+        const emptySplit = splits.find((split) => split.materialRows.length === 0 && Number(split.totalHours || 0) <= 0);
+        if (emptySplit) {
+            toast({
+                variant: 'destructive',
+                title: 'Deelofferte is leeg',
+                description: `${emptySplit.title} heeft nog geen producten of uren.`,
+            });
+            return;
+        }
+
+        setIsSplittingQuote(true);
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/quotes/split', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    quoteId: id,
+                    dataJson: normalizedData || {},
+                    splits,
+                }),
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.ok) {
+                throw new Error(payload?.message || 'Kon deeloffertes niet aanmaken.');
+            }
+
+            const created = Array.isArray(payload.created) ? payload.created : [];
+            toast({
+                title: 'Deeloffertes aangemaakt',
+                description: `${created.length} nieuwe offerte(s) staan klaar.`,
+            });
+            setIsSplitQuoteOpen(false);
+            if (created[0]?.id) {
+                router.push(`/offertes/${created[0].id}`);
+            }
+        } catch (error) {
+            console.error('Fout bij splitsen offerte:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Splitsen mislukt',
+                description: error instanceof Error ? error.message : 'Probeer het opnieuw.',
+            });
+        } finally {
+            setIsSplittingQuote(false);
+        }
+    }, [combinedMaterialItems, id, normalizedData, router, splitMaterialAssignments, splitQuoteDrafts, toast, user]);
 
     const materialExportItems = useMemo<MaterialListExportItem[]>(() => {
         const mapItem = (item: MaterialItem, bron: string, index: number): MaterialListExportItem | null => {
@@ -2709,6 +2948,7 @@ export default function QuotePage() {
         const toRow = (item: MaterialItem, type: 'groot' | 'verbruik') => {
             const name = String(item?.product || '').trim();
             if (!name || isIgnoredWorkDeliveryMaterial(name)) return null;
+            if (!isCustomerRelevantWorkDeliveryProduct(name, type)) return null;
             const quantity = Number(item?.aantal);
             const unit = String((item as any)?.eenheid || 'stuk').trim() || 'stuk';
             return {
@@ -3881,7 +4121,6 @@ export default function QuotePage() {
 
                 const sections: Array<[string, string[]]> = [
                     ['WERKZAAMHEDEN', job.work_scope],
-                    ['MATERIALEN / PRODUCTEN', job.materials],
                     ['MAATVOERING', job.dimensions],
                     ['INBEGREPEN', job.included],
                     ['NIET INBEGREPEN', job.excluded],
@@ -3927,7 +4166,6 @@ export default function QuotePage() {
             const singleJob = jobs[0];
             const sections: Array<[string, string[]]> = [
                 ['WERKZAAMHEDEN', singleJob?.work_scope || []],
-                ['MATERIALEN / PRODUCTEN', singleJob?.materials || []],
                 ['MAATVOERING', singleJob?.dimensions || []],
                 ['INBEGREPEN', singleJob?.included || []],
                 ['NIET INBEGREPEN', singleJob?.excluded || []],
@@ -4692,14 +4930,22 @@ export default function QuotePage() {
     };
 
     const currentWerkbeschrijvingStructured = useMemo(
-        () => toStructuredWorkDescription({
+        () => {
+            const structured = toStructuredWorkDescription({
             werkbeschrijving: normalizedData?.werkbeschrijving,
             werkbeschrijving_jobs: (normalizedData as any)?.werkbeschrijving_jobs,
             werkbeschrijving_structured: (normalizedData as any)?.werkbeschrijving_structured,
             korteTitel: normalizedData?.korteTitel,
             korteBeschrijving: normalizedData?.korteBeschrijving,
-        }),
-        [normalizedData],
+            });
+            const repaired = repairCopiedNoteBlobs(
+                structured,
+                buildQuoteNotesContextWithoutLinks(quoteNoteSections),
+                isWasteRemovalRow,
+            );
+            return completeStructuredWorkDescription(repaired, quote?.titel);
+        },
+        [normalizedData, quote?.titel, quoteNoteSections],
     );
 
     const resolvedWorkDescriptionCategory = useMemo(() => {
@@ -4970,15 +5216,17 @@ export default function QuotePage() {
             const notesContext = truncatePromptText(buildQuoteNotesContextWithoutLinks(quoteNoteSections), 1800);
             const materialPromptLines = werkbeschrijvingMaterialContext.length > 0
                 ? [
-                    'Goedgekeurde materialen (uitsluitend opnemen onder materials):',
-                    ...werkbeschrijvingMaterialContext.map((item) => `- ${item.name} (${item.quantity} ${item.unit}, type: ${item.type})`),
-                    'Noem geen ander materiaal en verwerk materialen niet in andere klantsecties.',
+                    'Klant-relevante productkeuzes uit de calculatie (geen aparte productenlijst maken):',
+                    ...werkbeschrijvingMaterialContext.map((item) => `- ${item.name}`),
+                    'Verwerk alleen belangrijke keuzes in normale zinnen onder Werkzaamheden, bijvoorbeeld type gevelbekleding, HPL/Trespa/Keralit, EPDM of underlayment.',
+                    'Noem geen aantallen, bestelhoeveelheden, kleine montagemiddelen, lijm, kit, cleaner, schroeven, tape, folie of werkgereedschap.',
                 ]
                 : [];
             const notesPromptLines = notesContext
                 ? [
                     'VERPLICHTE SCOPE UIT GEBRUIKERSNOTITIES:',
                     'Verwerk iedere concrete regel hieronder. Sla geen werkzaamheden, keuzes of maten over en neem afmetingen exact over.',
+                    'Bepaal de hoofdtitel op basis van de totale notities. Gebruik een bestaande titel alleen als die de volledige scope dekt; als de notities dakwerk zoals golfplaten verwijderen, underlayment leggen en EPDM leggen bevatten, is de hoofdklus "Dak vervangen" en niet alleen boeiboorden of dakrand.',
                     'Formuleer definitief en professioneel. Laat onzekere taal zoals "eventueel", "mogelijk", "iets anders", "indien nodig" en "in overleg" weg.',
                     notesContext,
                 ]
@@ -4989,38 +5237,67 @@ export default function QuotePage() {
                     werkbeschrijvingMeasurementsContext,
                 ]
                 : [];
-            const currentWorkDescriptionContext = truncatePromptText(JSON.stringify({
-                title: workDescriptionStructured.title,
-                summary: workDescriptionStructured.summary,
-                work_scope: workDescriptionStructured.work_scope,
-                materials: workDescriptionStructured.materials,
-                dimensions: workDescriptionStructured.dimensions,
-                included: workDescriptionStructured.included,
-                excluded: workDescriptionStructured.excluded,
-                internal_notes: workDescriptionStructured.internal_notes,
-                jobs: workDescriptionStructured.jobs.map((job) => ({
-                    title: job.title,
-                    summary: job.summary,
-                    work_scope: job.work_scope,
-                    materials: job.materials,
-                    dimensions: job.dimensions,
-                    included: job.included,
-                    excluded: job.excluded,
-                    internal_notes: job.internal_notes,
-                })),
-            }), 4000);
+            const activeWorkDescriptionIndex = Math.max(
+                0,
+                Math.min(workDescriptionStructured.activeJobIndex || 0, Math.max(0, workDescriptionStructured.jobs.length - 1)),
+            );
+            const activeWorkDescriptionJob = workDescriptionStructured.jobs[activeWorkDescriptionIndex];
+            const generationControlInput = {
+                afvalAfvoeren: activeWorkDescriptionJob?.afvalAfvoeren ?? workDescriptionStructured.afvalAfvoeren,
+                electricalScope: activeWorkDescriptionJob?.electricalScope ?? workDescriptionStructured.electricalScope,
+                finishLevel: activeWorkDescriptionJob?.finishLevel ?? workDescriptionStructured.finishLevel,
+                customFinishDescription: activeWorkDescriptionJob?.customFinishDescription ?? workDescriptionStructured.customFinishDescription,
+                jobs: [{
+                    afvalAfvoeren: activeWorkDescriptionJob?.afvalAfvoeren ?? workDescriptionStructured.afvalAfvoeren,
+                    electricalScope: activeWorkDescriptionJob?.electricalScope ?? workDescriptionStructured.electricalScope,
+                    finishLevel: activeWorkDescriptionJob?.finishLevel ?? workDescriptionStructured.finishLevel,
+                    customFinishDescription: activeWorkDescriptionJob?.customFinishDescription ?? workDescriptionStructured.customFinishDescription,
+                }],
+            };
+            const clearedWorkDescription: WorkDescriptionStructured = {
+                title: '',
+                context: '',
+                summary: '',
+                work_scope: [],
+                materials: [],
+                dimensions: [],
+                included: [],
+                excluded: [],
+                internal_notes: [],
+                afvalAfvoeren: generationControlInput.afvalAfvoeren,
+                electricalScope: generationControlInput.electricalScope,
+                finishLevel: generationControlInput.finishLevel,
+                customFinishDescription: generationControlInput.customFinishDescription,
+                sections: { voorbereiding: [], uitvoering: [], afwerking: [] },
+                jobs: [{
+                    title: '',
+                    context: '',
+                    summary: '',
+                    work_scope: [],
+                    materials: [],
+                    dimensions: [],
+                    included: [],
+                    excluded: [],
+                    internal_notes: [],
+                    afvalAfvoeren: generationControlInput.afvalAfvoeren,
+                    electricalScope: generationControlInput.electricalScope,
+                    finishLevel: generationControlInput.finishLevel,
+                    customFinishDescription: generationControlInput.customFinishDescription,
+                    sections: { voorbereiding: [], uitvoering: [], afwerking: [] },
+                    legacyNotes: [],
+                }],
+                activeJobIndex: 0,
+                legacyNotes: [],
+            };
             const promptBase = [
                 `Actie: ${action}`,
-                workDescriptionStructured.title.trim() ? `Titel: ${workDescriptionStructured.title.trim()}` : '',
-                workDescriptionStructured.summary.trim() ? `Samenvatting: ${workDescriptionStructured.summary.trim()}` : '',
                 resolvedWorkDescriptionCategory ? `Categorie: ${resolvedWorkDescriptionCategory}` : '',
-                currentWorkDescriptionContext
-                    ? `HUIDIGE WERK & LEVERING:\nGebruik dit als basis en verwerk latere wijzigingen zonder bestaande concrete scope ongemerkt weg te laten.\n${currentWorkDescriptionContext}`
-                    : '',
                 ...materialPromptLines,
                 ...notesPromptLines,
                 ...measurementPromptLines,
             ].filter(Boolean).join('\n');
+
+            setWorkDescriptionStructured(clearedWorkDescription);
 
             const response = await fetch('/api/generate-work-description', {
                 method: 'POST',
@@ -5032,11 +5309,11 @@ export default function QuotePage() {
                     prompt: promptBase,
                     quoteId: id,
                     action,
-                    title: workDescriptionStructured.title,
-                    context: workDescriptionStructured.summary,
+                    title: '',
+                    context: '',
                     category: resolvedWorkDescriptionCategory,
                     targetSection: action === 'uitvoering-only' ? 'uitvoering' : undefined,
-                    structuredInput: workDescriptionStructured,
+                    structuredInput: generationControlInput,
                     materialContext: werkbeschrijvingMaterialContext,
                     notesContext,
                     measurementsContext: werkbeschrijvingMeasurementsContext,
@@ -5540,6 +5817,16 @@ export default function QuotePage() {
                             <Button
                                 variant="outline"
                                 className="h-11 px-0"
+                                onClick={handleOpenSplitQuoteDialog}
+                                disabled={combinedMaterialItems.length === 0 && Number(normalizedData?.totaal_uren || 0) <= 0}
+                                aria-label="Splits offerte"
+                                title="Splits offerte"
+                            >
+                                <Scissors size={16} />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="h-11 px-0"
                                 onClick={() => setIsPlanningTypeDialogOpen(true)}
                                 aria-label="Inplannen"
                                 title="Inplannen"
@@ -5615,6 +5902,17 @@ export default function QuotePage() {
                                 >
                                     <ReceiptText size={16} />
                                     Maak factuur
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
+                                    onClick={handleOpenSplitQuoteDialog}
+                                    disabled={combinedMaterialItems.length === 0 && Number(normalizedData?.totaal_uren || 0) <= 0}
+                                    aria-label="Splits offerte"
+                                    title="Splits offerte"
+                                >
+                                    <Scissors size={16} />
+                                    Splits offerte
                                 </Button>
                                 {routeMapsUrl && (
                                     <Button
@@ -7486,6 +7784,204 @@ export default function QuotePage() {
                         )}
                     </Tabs>
 
+                    <Dialog open={isSplitQuoteOpen} onOpenChange={(open) => {
+                        if (!isSplittingQuote) setIsSplitQuoteOpen(open);
+                    }}>
+                        <DialogContent className="flex h-[88vh] w-[96vw] max-w-6xl flex-col overflow-hidden">
+                            <DialogHeader className="shrink-0">
+                                <DialogTitle>Offerte splitsen</DialogTitle>
+                                <DialogDescription>
+                                    Maak nieuwe offertes vanuit deze offerte. Kies per productregel bij welke deelofferte die hoort.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+                                <div className="grid gap-3 lg:grid-cols-2">
+                                    {splitQuoteDrafts.map((draft, index) => {
+                                        const summary = splitDraftSummaries.find((item) => item.draftId === draft.id);
+                                        return (
+                                            <div key={draft.id} className="rounded-lg border border-border/70 bg-card/60 p-3">
+                                                <div className="mb-3 flex items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-xs font-semibold text-primary">
+                                                            {index + 1}
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-semibold">Deelofferte</div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {summary?.rowCount || 0} productregels • {formatCurrency(summary?.totalExcl || 0)} excl.
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                        onClick={() => removeSplitDraft(draft.id)}
+                                                        disabled={splitQuoteDrafts.length <= 2 || isSplittingQuote}
+                                                        aria-label="Deelofferte verwijderen"
+                                                        title="Deelofferte verwijderen"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+
+                                                <div className="grid gap-3 sm:grid-cols-[1fr_120px_140px]">
+                                                    <div className="space-y-1.5">
+                                                        <Label htmlFor={`split-title-${draft.id}`}>Titel</Label>
+                                                        <Input
+                                                            id={`split-title-${draft.id}`}
+                                                            value={draft.title}
+                                                            onChange={(event) => updateSplitDraft(draft.id, { title: event.target.value })}
+                                                            disabled={isSplittingQuote}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <Label htmlFor={`split-hours-${draft.id}`}>Uren</Label>
+                                                        <Input
+                                                            id={`split-hours-${draft.id}`}
+                                                            type="number"
+                                                            min={0}
+                                                            step="0.25"
+                                                            value={draft.totalHours}
+                                                            onChange={(event) => updateSplitDraft(draft.id, {
+                                                                totalHours: Math.max(0, Number(event.target.value) || 0),
+                                                            })}
+                                                            disabled={isSplittingQuote}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <Label htmlFor={`split-margin-${draft.id}`}>Marge</Label>
+                                                        <Input
+                                                            id={`split-margin-${draft.id}`}
+                                                            type="number"
+                                                            min={0}
+                                                            step="0.01"
+                                                            value={draft.marginAmount}
+                                                            onChange={(event) => updateSplitDraft(draft.id, {
+                                                                marginAmount: Math.max(0, Number(event.target.value) || 0),
+                                                            })}
+                                                            disabled={isSplittingQuote}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-3 space-y-1.5">
+                                                    <Label htmlFor={`split-work-${draft.id}`}>Werk & Levering</Label>
+                                                    <select
+                                                        id={`split-work-${draft.id}`}
+                                                        value={draft.workJobIndex === null ? 'custom' : String(draft.workJobIndex)}
+                                                        onChange={(event) => updateSplitDraft(draft.id, {
+                                                            workJobIndex: event.target.value === 'custom' ? null : Number(event.target.value),
+                                                        })}
+                                                        disabled={isSplittingQuote}
+                                                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none ring-offset-background focus:ring-2 focus:ring-ring"
+                                                    >
+                                                        <option value="custom">Automatisch maken op basis van titel en producten</option>
+                                                        {splitWorkJobOptions.map((job) => (
+                                                            <option key={job.index} value={job.index}>
+                                                                {job.title}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="gap-2"
+                                    onClick={addSplitDraft}
+                                    disabled={isSplittingQuote}
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Deelofferte toevoegen
+                                </Button>
+
+                                <div className="rounded-lg border border-border/70">
+                                    <div className="flex items-center justify-between gap-3 border-b border-border/70 px-3 py-2">
+                                        <div>
+                                            <div className="text-sm font-semibold">Producten verdelen</div>
+                                            <div className="text-xs text-muted-foreground">
+                                                Elke regel wordt naar precies een nieuwe offerte gekopieerd.
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {combinedMaterialItems.length} regels
+                                        </div>
+                                    </div>
+                                    <div className="divide-y divide-border/60">
+                                        {combinedMaterialItems.length === 0 ? (
+                                            <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                                                Geen productregels gevonden. Je kunt nog wel uren verdelen via de deeloffertes hierboven.
+                                            </div>
+                                        ) : (
+                                            combinedMaterialItems.map((item) => {
+                                                const row = item as Record<string, unknown>;
+                                                const product = String(item.product || '').trim() || 'Onbekend product';
+                                                const aantal = Number(item.aantal);
+                                                const eenheid = String(row.eenheid || 'stuk').trim() || 'stuk';
+                                                const prijs = Number(item.prijs_per_stuk ?? row.prijs_excl_btw ?? row.prijs);
+                                                const totaal = (Number.isFinite(aantal) ? aantal : 0) * (Number.isFinite(prijs) ? prijs : 0);
+                                                return (
+                                                    <div key={item._sourceKey} className="grid gap-3 px-3 py-2 sm:grid-cols-[1fr_220px] sm:items-center">
+                                                        <div className="min-w-0">
+                                                            <div className="truncate text-sm font-medium text-foreground">{product}</div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {item._sourceCategory === 'groot' ? 'Grootmateriaal' : 'Verbruik'} • {Number.isFinite(aantal) ? aantal : 0} {eenheid} • {formatCurrency(totaal)} excl.
+                                                            </div>
+                                                        </div>
+                                                        <select
+                                                            value={splitMaterialAssignments[item._sourceKey] || splitQuoteDrafts[0]?.id || ''}
+                                                            onChange={(event) => setSplitMaterialAssignments((prev) => ({
+                                                                ...prev,
+                                                                [item._sourceKey]: event.target.value,
+                                                            }))}
+                                                            disabled={isSplittingQuote}
+                                                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none ring-offset-background focus:ring-2 focus:ring-ring"
+                                                            aria-label={`${product} toewijzen aan deelofferte`}
+                                                        >
+                                                            {splitQuoteDrafts.map((draft, draftIndex) => (
+                                                                <option key={draft.id} value={draft.id}>
+                                                                    {draft.title || `Deelofferte ${draftIndex + 1}`}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <DialogFooter className="shrink-0 gap-2 border-t border-border/70 pt-4 sm:gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setIsSplitQuoteOpen(false)}
+                                    disabled={isSplittingQuote}
+                                >
+                                    Annuleren
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="success"
+                                    onClick={() => void handleCreateSplitQuotes()}
+                                    disabled={isSplittingQuote}
+                                    className="gap-2"
+                                >
+                                    {isSplittingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}
+                                    {isSplittingQuote ? 'Deeloffertes maken...' : `${splitQuoteDrafts.length} deeloffertes maken`}
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
                     <Dialog open={isPlanningTypeDialogOpen} onOpenChange={setIsPlanningTypeDialogOpen}>
                         <DialogContent className="sm:max-w-md">
                             <DialogHeader>
@@ -7628,6 +8124,7 @@ export default function QuotePage() {
                         includeWerkbeschrijving: false,
                     })
                 }
+                onMarkAsSent={handleMarkQuoteAsSent}
             />
 
             {activeCategory && (

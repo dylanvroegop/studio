@@ -152,7 +152,7 @@ export function WorkDescriptionWorkspace({
   };
 
   const addRow = (key: RowKey) => setField(key, [...rows(activeJob[key]), '']);
-  const removeRow = (key: RowKey, index: number) => setField(key, ensureRows(rows(activeJob[key]).filter((_, rowIndex) => rowIndex !== index)));
+  const removeRow = (key: RowKey, index: number) => setField(key, rows(activeJob[key]).filter((_, rowIndex) => rowIndex !== index));
   const moveRow = (key: RowKey, index: number, direction: 'up' | 'down') => {
     const next = [...rows(activeJob[key])];
     const target = direction === 'up' ? index - 1 : index + 1;
@@ -214,7 +214,7 @@ export function WorkDescriptionWorkspace({
             </div>
           </div>
           <div className="space-y-1">
-            <Label>Korte omschrijving (maximaal 2 korte zinnen)</Label>
+            <Label>Korte omschrijving</Label>
             <Textarea value={activeJob.summary} onChange={(event) => setField('summary', event.target.value)} rows={2} placeholder="Beschrijf alleen het afgesproken eindresultaat." />
           </div>
 
@@ -261,7 +261,6 @@ export function WorkDescriptionWorkspace({
 
       <div className="space-y-3">
         {renderRows('work_scope', 'Werkzaamheden', 'Wat wordt commercieel geleverd, zonder uitvoeringsvolgorde')}
-        {renderRows('materials', 'Materialen / producten', 'Alleen materiaal uit de calculatie of handmatig goedgekeurd materiaal')}
         {renderRows('dimensions', 'Maatvoering', 'Bijv. wand 4.200 x 2.600 mm')}
         {renderRows('included', 'Inbegrepen', 'Expliciet inbegrepen onderdeel')}
         {renderRows('excluded', 'Niet inbegrepen', 'Expliciete uitsluiting')}

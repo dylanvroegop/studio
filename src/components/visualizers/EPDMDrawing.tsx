@@ -29,6 +29,9 @@ type EPDMDrawingProps = Omit<RoofDrawingProps, 'edgeLeft' | 'edgeRight' | 'onEdg
 };
 
 const labelColor = "rgb(100, 116, 139)"; // Slate-500
+const STANDARD_DAKRAND_WIDTH_MM = 50;
+const MIN_DAKRAND_RENDER_PX = 4;
+const MAX_DAKRAND_RENDER_PX = 8;
 
 const labelMap: Record<string, string> = {
     'dakraam': 'Lichtkoepel',
@@ -42,7 +45,7 @@ const labelMap: Record<string, string> = {
 export function EPDMDrawing({
     lengte,
     hoogte,
-    dakrandWidth = 0,
+    dakrandWidth = STANDARD_DAKRAND_WIDTH_MM,
     edgeTop = 'wall', // Default Top to Wall (standard Gevel)
     edgeBottom = 'free',
     edgeLeft = 'free',
@@ -142,7 +145,8 @@ export function EPDMDrawing({
 
     const lengteNum = typeof lengte === 'number' ? lengte : parseFloat(String(lengte)) || 0;
     const heightNum = typeof hoogte === 'number' ? hoogte : parseFloat(String(hoogte)) || 0;
-    const dakrandNum = typeof dakrandWidth === 'number' ? dakrandWidth : parseFloat(String(dakrandWidth)) || 0;
+    const parsedDakrandWidth = typeof dakrandWidth === 'number' ? dakrandWidth : parseFloat(String(dakrandWidth)) || 0;
+    const dakrandNum = parsedDakrandWidth > 0 ? STANDARD_DAKRAND_WIDTH_MM : 0;
     const toNonNegativeInt = (value: number | string | null | undefined): number => {
         if (value === null || value === undefined || value === '') return 0;
         const parsed = Number(String(value).replace(',', '.'));
@@ -249,9 +253,12 @@ export function EPDMDrawing({
                 const pxPerMmH = pxPerMm;
                 const pxPerMmW = pxPerMm;
 
-                // Convert dakrandWidth (mm) to pixels
+                // EPDM dakrand is standardized at 50 mm, but the SVG band is capped
+                // so it remains readable on small and large roofs.
                 const drPxRaw = dakrandNum * pxPerMm;
-                const drPx = Math.max(1.5, drPxRaw);
+                const drPx = dakrandNum > 0
+                    ? Math.min(MAX_DAKRAND_RENDER_PX, Math.max(MIN_DAKRAND_RENDER_PX, drPxRaw))
+                    : 0;
 
                 // Determine inner boundaries
                 const topIsWall = edgeTop === 'wall';
@@ -403,22 +410,6 @@ export function EPDMDrawing({
                     const ux = dx / len;
                     const uy = dy / len;
 
-                    const midX = (p1.x + p2.x) / 2;
-                    const midY = (p1.y + p2.y) / 2;
-
-                    // Calculate Inside Normal (Clockwise winding -> 90deg right is inside)
-                    // Normal = (-dy, dx) normalized
-                    const nx = -uy;
-                    const ny = ux;
-
-                    // Label Position (Inside)
-                    const textDist = 25;
-                    const labelX = midX + (nx * textDist);
-                    const labelY = midY + (ny * textDist);
-                    const outsideTextDist = 18;
-                    const outsideLabelX = midX - (nx * outsideTextDist);
-                    const outsideLabelY = midY - (ny * outsideTextDist);
-
                     // Normalize Angle for Readability (Keep between 0 and 180, preferring 90)
                     // This aligns verticals to read Down (90) per user request
                     // Normalize Angle for Readability (Keep between -90 and 90)
@@ -445,6 +436,21 @@ export function EPDMDrawing({
                     // Beam Visualization
                     const sideHasDakgoot = dakgootBySide[side];
                     const showBeam = edgeType === 'free' && dakrandNum > 0 && !sideHasDakgoot;
+
+                    const midX = (p1.x + p2.x) / 2;
+                    const midY = (p1.y + p2.y) / 2;
+
+                    // Calculate Inside Normal (Clockwise winding -> 90deg right is inside)
+                    // Normal = (-dy, dx) normalized
+                    const nx = -uy;
+                    const ny = ux;
+
+                    const materialTextDist = showBeam ? thickness + 18 : 24;
+                    const edgeTextDist = 22;
+                    const labelX = midX + (nx * materialTextDist);
+                    const labelY = midY + (ny * materialTextDist);
+                    const outsideLabelX = midX - (nx * edgeTextDist);
+                    const outsideLabelY = midY - (ny * edgeTextDist);
                     const trimStartRaw =
                         side === 'right' ? (edgeTop === 'free' ? thickness : 0)
                             : side === 'left' ? (edgeBottom === 'free' ? thickness : 0)
@@ -464,10 +470,10 @@ export function EPDMDrawing({
                     const beamStartY = p1.y + (uy * trimStart);
                     const beamEndX = p2.x - (ux * trimEnd);
                     const beamEndY = p2.y - (uy * trimEnd);
-                    const beamInnerStartX = beamStartX + (nx * thickness);
-                    const beamInnerStartY = beamStartY + (ny * thickness);
-                    const beamInnerEndX = beamEndX + (nx * thickness);
-                    const beamInnerEndY = beamEndY + (ny * thickness);
+                    const beamStrokeStartX = beamStartX + (nx * thickness / 2);
+                    const beamStrokeStartY = beamStartY + (ny * thickness / 2);
+                    const beamStrokeEndX = beamEndX + (nx * thickness / 2);
+                    const beamStrokeEndY = beamEndY + (ny * thickness / 2);
 
                     // Interaction Zone (Invisible but clickable)
                     const hitThickness = 40;
@@ -478,18 +484,24 @@ export function EPDMDrawing({
 
                             {/* Visual Beam (Only if dakrand) */}
                             {showBeam && (
-                                <path
-                                    d={`M ${beamStartX} ${beamStartY} L ${beamEndX} ${beamEndY} L ${beamInnerEndX} ${beamInnerEndY} L ${beamInnerStartX} ${beamInnerStartY} Z`}
-                                    fill="rgb(70, 75, 85)"
-                                    fillOpacity={0.5}
+                                <line
+                                    x1={beamStrokeStartX}
+                                    y1={beamStrokeStartY}
+                                    x2={beamStrokeEndX}
+                                    y2={beamStrokeEndY}
+                                    stroke="rgb(70, 75, 85)"
+                                    strokeWidth={thickness}
+                                    strokeLinecap="butt"
                                 />
                             )}
 
                             {/* Hit Area */}
                             <line
                                 x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
+                                data-interaction-hit-area="true"
                                 stroke="transparent"
                                 strokeWidth={hitThickness}
+                                pointerEvents="stroke"
                             />
 
                             {/* Label */}

@@ -8,14 +8,21 @@ import {
   type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
 import { enforceRequiredNoteCoverage } from '@/lib/work-description-note-coverage';
-import { enforceWorkDeliverySafety, isIgnoredWorkDeliveryMaterial, sanitizeWorkDeliveryScope } from '@/lib/work-delivery';
+import {
+  completeWorkDeliveryScope,
+  enforceWorkDeliverySafety,
+  isIgnoredWorkDeliveryMaterial,
+  sanitizeMaterialDescription,
+  sanitizeWorkDeliveryScope,
+} from '@/lib/work-delivery';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const DEFAULT_N8N_WORK_DESCRIPTION_WEBHOOK =
-  'https://n8n.dylan8n.org/webhook/38942fcb-1194-4f6b-8032-0c970425af7c';
-const N8N_TIMEOUT_MS = 60_000;
+const OPENAI_MODEL = process.env.OPENAI_WORK_DESCRIPTION_MODEL?.trim()
+  || process.env.OPENAI_MODEL?.trim()
+  || 'gpt-4.1-mini';
+const OPENAI_TIMEOUT_MS = 60_000;
 const WASTE_REMOVAL_DISABLED_RULE = [
   'HARDE REGEL: GEEN AFVAL AFVOEREN.',
   'Neem geen stap op over afval, puin of restmateriaal afvoeren, meenemen, storten of in een container plaatsen.',
@@ -36,14 +43,6 @@ type RequestBody = {
   measurementsContext?: unknown;
 };
 
-function getWebhookUrl(): string {
-  return (
-    process.env.N8N_WORK_DESCRIPTION_WEBHOOK_URL
-    || process.env.NEXT_PUBLIC_N8N_WORK_DESCRIPTION_WEBHOOK
-    || DEFAULT_N8N_WORK_DESCRIPTION_WEBHOOK
-  ).trim();
-}
-
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice('Bearer '.length).trim();
@@ -52,6 +51,79 @@ function extractBearerToken(authHeader: string | null): string | null {
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function extractResponseText(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const row = payload as {
+    output_text?: unknown;
+    output?: Array<{
+      content?: Array<{
+        text?: unknown;
+        type?: unknown;
+      }>;
+    }>;
+  };
+
+  if (typeof row.output_text === 'string' && row.output_text.trim()) {
+    return row.output_text.trim();
+  }
+
+  if (Array.isArray(row.output)) {
+    const parts = row.output
+      .flatMap((item) => Array.isArray(item?.content) ? item.content : [])
+      .map((content) => typeof content?.text === 'string' ? content.text : '')
+      .filter(Boolean);
+    if (parts.length > 0) return parts.join('\n').trim();
+  }
+
+  return '';
+}
+
+async function callOpenAiWorkDescription(apiKey: string, prompt: string): Promise<unknown> {
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.1,
+      input: [
+        {
+          role: 'system',
+          content: [{
+            type: 'input_text',
+            text: [
+              'Je bent een Nederlandse Werk & Levering-generator voor offertes in de bouw.',
+              'Je zet gebruikersnotities om naar zakelijke, concrete scope.',
+              'Geef uitsluitend geldig JSON terug. Geen markdown, geen uitleg.',
+              'Gebruik alleen scope die expliciet in de aangeleverde context staat.',
+            ].join('\n'),
+          }],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'input_text', text: prompt }],
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = safeString((payload as { error?: { message?: unknown } }).error?.message) || 'OpenAI generatie mislukt.';
+    throw new Error(message);
+  }
+
+  const outputText = extractResponseText(payload);
+  if (!outputText) {
+    throw new Error('OpenAI gaf geen leesbare output terug.');
+  }
+
+  return parseJsonDeep(outputText) ?? outputText;
 }
 
 function isWasteRemovalRow(value: string): boolean {
@@ -70,13 +142,28 @@ function isWasteRemovalRow(value: string): boolean {
 }
 
 function getWasteRemovalPreferences(input: unknown): { jobs: boolean[]; active: boolean } {
+  const raw = input && typeof input === 'object' && !Array.isArray(input)
+    ? input as Record<string, unknown>
+    : {};
+  const rawJobs = Array.isArray(raw.jobs) ? raw.jobs : [];
+  const rawJobPreferences = rawJobs.map((job) => (
+    Boolean(job && typeof job === 'object' && (job as Record<string, unknown>).afvalAfvoeren === true)
+  ));
   const structured = sanitizeWorkDescriptionStructured(input);
-  const jobs = structured.jobs.map((job) => job.afvalAfvoeren === true);
+  const jobs = rawJobPreferences.length > 0
+    ? rawJobPreferences
+    : structured.jobs.map((job) => job.afvalAfvoeren === true);
   const activeIndex = Math.max(0, Math.min(structured.activeJobIndex || 0, Math.max(0, jobs.length - 1)));
   return {
     jobs,
-    active: jobs[activeIndex] === true,
+    active: jobs[activeIndex] === true || raw.afvalAfvoeren === true,
   };
+}
+
+function getRawWorkDescriptionControls(input: unknown): Record<string, unknown> {
+  return input && typeof input === 'object' && !Array.isArray(input)
+    ? input as Record<string, unknown>
+    : {};
 }
 
 function enforceWasteRemovalPreferences(
@@ -85,26 +172,44 @@ function enforceWasteRemovalPreferences(
 ): WorkDescriptionStructured {
   const preferences = getWasteRemovalPreferences(structuredInput);
   const inputStructured = sanitizeWorkDescriptionStructured(structuredInput);
+  const rawControls = getRawWorkDescriptionControls(structuredInput);
   const jobs = generated.jobs.map((job, index) => {
     const enabled = preferences.jobs[index] ?? preferences.active;
-    const controls = inputStructured.jobs[index] || inputStructured.jobs[inputStructured.activeJobIndex || 0] || inputStructured;
+    const rawJobs = Array.isArray(rawControls.jobs) ? rawControls.jobs : [];
+    const rawJobControls = rawJobs[index] && typeof rawJobs[index] === 'object'
+      ? rawJobs[index] as Record<string, unknown>
+      : null;
+    const controls = inputStructured.jobs[index] || inputStructured.jobs[inputStructured.activeJobIndex || 0] || rawJobControls || rawControls || inputStructured;
+    const electricalScope = controls.electricalScope && typeof controls.electricalScope === 'object'
+      ? controls.electricalScope as WorkDescriptionStructured['electricalScope']
+      : (rawControls.electricalScope && typeof rawControls.electricalScope === 'object'
+          ? rawControls.electricalScope as WorkDescriptionStructured['electricalScope']
+          : inputStructured.electricalScope);
+    const finishLevel = (safeString(controls.finishLevel) || safeString(rawControls.finishLevel) || inputStructured.finishLevel) as WorkDescriptionStructured['finishLevel'];
+    const customFinishDescription = safeString(controls.customFinishDescription) || safeString(rawControls.customFinishDescription) || undefined;
     const safe = enforceWorkDeliverySafety({
       ...job,
       afvalAfvoeren: enabled,
-      electricalScope: controls.electricalScope,
-      finishLevel: controls.finishLevel,
-      customFinishDescription: controls.customFinishDescription,
+      electricalScope,
+      finishLevel,
+      customFinishDescription,
     });
     return { ...job, ...safe, context: safe.summary };
   });
   const activeIndex = Math.max(0, Math.min(generated.activeJobIndex || 0, Math.max(0, jobs.length - 1)));
   const activeJob = jobs[activeIndex];
+  const rootElectricalScope = activeJob?.electricalScope
+    || (rawControls.electricalScope && typeof rawControls.electricalScope === 'object'
+      ? rawControls.electricalScope as WorkDescriptionStructured['electricalScope']
+      : inputStructured.electricalScope);
+  const rootFinishLevel = (activeJob?.finishLevel || safeString(rawControls.finishLevel) || inputStructured.finishLevel) as WorkDescriptionStructured['finishLevel'];
+  const rootCustomFinishDescription = activeJob?.customFinishDescription || safeString(rawControls.customFinishDescription) || inputStructured.customFinishDescription;
   const root = enforceWorkDeliverySafety({
     ...sanitizeWorkDeliveryScope(generated),
     afvalAfvoeren: activeJob ? activeJob.afvalAfvoeren === true : preferences.active,
-    electricalScope: activeJob?.electricalScope || inputStructured.electricalScope,
-    finishLevel: activeJob?.finishLevel || inputStructured.finishLevel,
-    customFinishDescription: activeJob?.customFinishDescription || inputStructured.customFinishDescription,
+    electricalScope: rootElectricalScope,
+    finishLevel: rootFinishLevel,
+    customFinishDescription: rootCustomFinishDescription,
   });
 
   return {
@@ -118,6 +223,52 @@ function enforceWasteRemovalPreferences(
   };
 }
 
+function inferTitleFromNotes(notesContext: unknown): string {
+  const notes = safeString(notesContext).toLowerCase();
+  if (!notes) return '';
+
+  const hasRoofReplacementSignals = [
+    /golfplaten?\s+(weg\s+)?halen|oude\s+golfplaten?\s+(verwijderen|weg\s+halen)/,
+    /underlayment\s+platen?\s+leggen|underlayment\s+leggen/,
+    /\bepdm\s+leggen\b|\bepdm\b.*\bonderlayment\b/,
+  ].filter((pattern) => pattern.test(notes)).length;
+
+  if (hasRoofReplacementSignals >= 2) return 'Dak vervangen';
+  if (/\bdak\b/.test(notes) && /\bvervang/.test(notes)) return 'Dak vervangen';
+  return '';
+}
+
+function applyInferredTitle(
+  generated: WorkDescriptionStructured,
+  body: RequestBody | null,
+): WorkDescriptionStructured {
+  const inferredTitle = inferTitleFromNotes(body?.notesContext);
+  if (!inferredTitle) return generated;
+
+  const currentTitle = safeString(generated.title);
+  const titleLooksTooNarrow =
+    !currentTitle
+    || /boei|boeiboord|dakrand/i.test(currentTitle)
+    || currentTitle.length > 80;
+
+  if (!titleLooksTooNarrow && currentTitle.toLowerCase() === inferredTitle.toLowerCase()) {
+    return generated;
+  }
+
+  const activeIndex = Math.max(0, Math.min(generated.activeJobIndex || 0, Math.max(0, generated.jobs.length - 1)));
+  const jobs = generated.jobs.length > 0
+    ? generated.jobs.map((job, index) => (
+        index === activeIndex ? { ...job, title: inferredTitle } : job
+      ))
+    : generated.jobs;
+
+  return {
+    ...generated,
+    title: titleLooksTooNarrow ? inferredTitle : currentTitle,
+    jobs,
+  };
+}
+
 function enforceGenerationRules(
   generated: WorkDescriptionStructured,
   body: RequestBody | null,
@@ -125,7 +276,14 @@ function enforceGenerationRules(
   const completed = fillMissingGeneratedScope(generated, body);
   const wasteFiltered = enforceWasteRemovalPreferences(completed, body?.structuredInput);
   const notesCovered = enforceRequiredNoteCoverage(wasteFiltered, body?.notesContext, isWasteRemovalRow);
-  return enforceWasteRemovalPreferences(notesCovered, body?.structuredInput);
+  const titled = applyInferredTitle(notesCovered, body);
+  const productChoicesCovered = enforceProductChoicesInScope(titled, body);
+  const withoutMaterialSection = {
+    ...productChoicesCovered,
+    materials: [],
+    jobs: productChoicesCovered.jobs.map((job) => ({ ...job, materials: [] })),
+  };
+  return enforceWasteRemovalPreferences(withoutMaterialSection, body?.structuredInput);
 }
 
 function getMaterialContextRows(input: unknown): string[] {
@@ -133,10 +291,86 @@ function getMaterialContextRows(input: unknown): string[] {
   return input.flatMap((item) => {
     if (!item || typeof item !== 'object') return [];
     const row = item as Record<string, unknown>;
-    const name = safeString(row.name);
-    if (!name || isIgnoredWorkDeliveryMaterial(name)) return [];
+    const name = sanitizeMaterialDescription(safeString(row.name));
+    if (!name || isIgnoredWorkDeliveryMaterial(name) || !isCustomerRelevantProductChoice(name)) return [];
     return [name];
   });
+}
+
+function normalizeForMaterialComparison(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function isCustomerRelevantProductChoice(value: string): boolean {
+  const normalized = normalizeForMaterialComparison(value);
+  if (!normalized) return false;
+  if (/(schroef|schroeven|lijm|contactlijm|kit\b|ms polymeer|cleaner|ontvetter|handschoen|folie|tape|butylband|schuurpapier|poetsdoek|doek|neopreen|aansluitkit|bevestig)/i.test(normalized)) {
+    return false;
+  }
+  return /(keralit|trespa|hpl|rockpanel|gevelbekleding|boeiboord|boeiboorden|epdm|underlayment|daktrim|dakbedekking|ral 7016|antraciet|anthracite)/i.test(normalized);
+}
+
+function formatProductChoiceScopeLine(value: string): string {
+  const material = sanitizeMaterialDescription(value);
+  const normalized = normalizeForMaterialComparison(material);
+
+  if (/\bepdm\b/i.test(normalized)) {
+    return 'De dakbedekking wordt uitgevoerd met EPDM.';
+  }
+  if (/underlayment/i.test(normalized)) {
+    return 'De dakopbouw wordt uitgevoerd met underlayment platen.';
+  }
+  if (/daktrim/i.test(normalized)) {
+    return /aluminium/i.test(normalized)
+      ? 'De dakrand wordt afgewerkt met aluminium daktrim.'
+      : 'De dakrand wordt afgewerkt met daktrim.';
+  }
+  if (/(keralit|trespa|hpl|rockpanel|gevelbekleding|boeiboord|boeiboorden)/i.test(normalized)) {
+    return `De zichtbare bekleding wordt uitgevoerd met ${material}.`;
+  }
+  return `Uitvoering met ${material}.`;
+}
+
+function productChoiceCovered(material: string, rows: string[]): boolean {
+  const normalizedRows = normalizeForMaterialComparison(rows.join(' '));
+  const normalizedMaterial = normalizeForMaterialComparison(material);
+  const importantTokens = normalizedMaterial
+    .split(/\s+/)
+    .filter((token) => (
+      token.length >= 4
+      && !/^(dikte|lengte|breedte|maat|ca|ral)$/.test(token)
+    ));
+  if (importantTokens.length === 0) return true;
+  return importantTokens.some((token) => normalizedRows.includes(token));
+}
+
+function enforceProductChoicesInScope(
+  generated: WorkDescriptionStructured,
+  body: RequestBody | null,
+): WorkDescriptionStructured {
+  const productChoices = getMaterialContextRows(body?.materialContext);
+  if (productChoices.length === 0) return generated;
+
+  const activeIndex = Math.max(0, Math.min(generated.activeJobIndex || 0, Math.max(0, generated.jobs.length - 1)));
+  const appendMissing = (rows: string[]) => {
+    const missingRows = productChoices
+      .filter((material) => !productChoiceCovered(material, rows))
+      .map(formatProductChoiceScopeLine);
+    return Array.from(new Set([...rows, ...missingRows]));
+  };
+
+  if (generated.jobs.length === 0) {
+    return { ...generated, work_scope: appendMissing(generated.work_scope) };
+  }
+
+  const jobs = generated.jobs.map((job, index) => (
+    index === activeIndex ? { ...job, work_scope: appendMissing(job.work_scope) } : job
+  ));
+  return {
+    ...generated,
+    jobs,
+    work_scope: jobs[activeIndex]?.work_scope || generated.work_scope,
+  };
 }
 
 function fillMissingGeneratedScope(
@@ -157,10 +391,9 @@ function fillMissingGeneratedScope(
   ): WorkDescriptionStructured['jobs'][number] => {
     const fallback = existing.jobs[index] || existingActiveJob;
     const summary = job.summary || fallback.summary || safeString(body?.context);
-    return {
+    const completed = completeWorkDeliveryScope({
       ...job,
       title: job.title || fallback.title || safeString(body?.title),
-      context: summary,
       summary,
       work_scope: job.work_scope.length > 0
         ? job.work_scope
@@ -172,7 +405,8 @@ function fillMissingGeneratedScope(
       included: job.included.length > 0 ? job.included : fallback.included,
       excluded: job.excluded.length > 0 ? job.excluded : fallback.excluded,
       internal_notes: job.internal_notes.length > 0 ? job.internal_notes : fallback.internal_notes,
-    };
+    }, safeString(body?.title) || safeString(body?.category));
+    return { ...job, ...completed, context: completed.summary };
   };
 
   const jobs = generated.jobs.length > 0
@@ -416,16 +650,16 @@ function extractDirectStructured(result: unknown): WorkDescriptionStructured | n
     return structuredFromRow;
   }
 
-  const n8nRows = extractDirectWerkbeschrijving(row);
-  const n8nTitle = pickFirstString(rowRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title'])
+  const fallbackRows = extractDirectWerkbeschrijving(row);
+  const fallbackTitle = pickFirstString(rowRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title'])
     || pickFirstString(parsedRecord, ['korteTitel', 'korte_titel', 'korteTitle', 'kortetitle', 'hoofdTitel', 'hoofdtitel', 'hoofdTitle', 'hoofdtitle', 'title']);
-  const n8nSummary = pickFirstString(rowRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context'])
+  const fallbackSummary = pickFirstString(rowRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context'])
     || pickFirstString(parsedRecord, ['korteBeschrijving', 'korte_beschrijving', 'korteBeschrijvingTekst', 'samenvatting', 'summary', 'context']);
-  if (n8nRows.length > 0 || n8nTitle || n8nSummary) {
+  if (fallbackRows.length > 0 || fallbackTitle || fallbackSummary) {
     const structured = toStructuredWorkDescription({
-      korteTitel: n8nTitle,
-      korteBeschrijving: n8nSummary,
-      werkbeschrijving: n8nRows,
+      korteTitel: fallbackTitle,
+      korteBeschrijving: fallbackSummary,
+      werkbeschrijving: fallbackRows,
     });
     if (hasStructuredContent(structured)) return structured;
   }
@@ -600,12 +834,14 @@ function buildPromptFromBody(body: RequestBody): string {
     'Gebruik niet de woorden eerst, vervolgens, daarna, stap 1 of stap 2.',
     'Neem alleen scope over die expliciet blijkt uit notities, maatvoering of calculatiedata.',
     'Expliciete aantallen, aantallen per woning/object en eindtotalen uit notities zijn essentiële scope en mogen nooit worden verkort of impliciet geformuleerd.',
-    'Materialen mogen uitsluitend onder materials staan.',
+    'Gebruik materials altijd als lege array. Maak geen aparte materialen/productenlijst.',
+    'Verwerk alleen klant-relevante productkeuzes in work_scope wanneer ze belangrijk zijn voor vertrouwen of afspraak, zoals Keralit, Trespa/HPL, Rockpanel, EPDM, underlayment of type/kleur gevelbekleding.',
+    'Noem geen verbruiksartikelen of hulpmaterialen zoals lijm, kit, cleaner, ontvetter, schroeven, handschoenen, folie, tape, band of schuurpapier.',
     'HARDE REGEL: "Extra kosten" is geen materiaal of product en mag nergens in Werk & Levering worden genoemd.',
     'HARDE REGEL: vermeld NOOIT aantallen of bestelhoeveelheden van materialen. Schrijf dus geen "18 stuk", "2 platen", "3 rollen" of hoeveelheden tussen haakjes. Productafmetingen en productspecificaties mogen wel blijven staan.',
     'Plaats bij onduidelijkheid een veilige uitsluiting onder excluded of laat het onderdeel weg.',
     'Formuleer commercieel en bescherm tegen scope creep en onbetaald meerwerk.',
-    'summary bevat maximaal twee korte zinnen.',
+    'summary mag meerdere zinnen bevatten wanneer dat nodig is om de afgesproken scope duidelijk te maken.',
   ].join(' ');
   if (directPrompt) return [directPrompt, scopeRules, notesRule, wasteRemovalRule].filter(Boolean).join('\n\n');
 
@@ -628,10 +864,8 @@ export async function POST(request: Request) {
     }
 
     const { auth } = initFirebaseAdmin();
-    let userId = '';
     try {
       const decoded = await auth.verifyIdToken(token);
-      userId = decoded.uid;
       const trialBlockedResponse = await ensureDemoTrialActiveByUid(decoded.uid);
       if (trialBlockedResponse) return trialBlockedResponse;
     } catch {
@@ -639,66 +873,32 @@ export async function POST(request: Request) {
     }
 
     const rawBody = (await request.json().catch(() => null)) as RequestBody | null;
-    const quoteId = safeString(rawBody?.quoteId);
     const prompt = buildPromptFromBody(rawBody || {});
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt of titel is verplicht.' }, { status: 400 });
     }
 
-    const webhookUrl = getWebhookUrl();
-    const webhookSecret = process.env.N8N_HEADER_SECRET?.trim();
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) {
+      return NextResponse.json({ error: 'OPENAI_API_KEY is niet geconfigureerd.' }, { status: 500 });
+    }
 
-    let response: Response;
+    let result: unknown;
     try {
-      response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(webhookSecret ? { 'x-offertehulp-secret': webhookSecret } : {}),
-        },
-        body: JSON.stringify({
-          ...(rawBody || {}),
-          prompt,
-          input: prompt,
-          quoteId,
-          userId,
-          userid: userId,
-        }),
-        signal: AbortSignal.timeout(N8N_TIMEOUT_MS),
-      });
+      result = await callOpenAiWorkDescription(apiKey, prompt);
     } catch (error) {
       const isTimeout = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
       const message = error instanceof Error ? error.message : 'Onbekende fout';
       return NextResponse.json(
         {
           error: isTimeout
-            ? 'Werkbeschrijving webhook timeout (n8n reageert niet op tijd).'
-            : `Werkbeschrijving webhook niet bereikbaar: ${message}`,
+            ? 'Werk & Levering generatie timeout.'
+            : `Werk & Levering generatie mislukt: ${message}`,
         },
         { status: isTimeout ? 504 : 502 }
       );
     }
-
-    const responseText = await response.text();
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: `Werkbeschrijving webhook mislukt (n8n ${response.status}).` },
-        { status: 502 }
-      );
-    }
-
-    let parsedData: unknown = responseText;
-    try {
-      parsedData = JSON.parse(responseText);
-    } catch {
-      // plain text response is also supported
-    }
-
-    const result =
-      Array.isArray(parsedData) && parsedData.length > 0
-        ? parsedData[0]
-        : parsedData;
 
     const directStructured = extractDirectStructured(result);
     if (directStructured && flattenStructuredWorkDescription(directStructured).length > 0) {

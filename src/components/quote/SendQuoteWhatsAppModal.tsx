@@ -24,6 +24,7 @@ interface SendQuoteWhatsAppModalProps {
   quoteId?: string;
   quotePdfUrl: string;
   onDownloadOfficialPdf?: () => Promise<void> | void;
+  onMarkAsSent?: () => Promise<void> | void;
 }
 
 function normalizePhoneForWhatsApp(raw: string): string {
@@ -65,6 +66,7 @@ export function SendQuoteWhatsAppModal({
   quoteId,
   quotePdfUrl,
   onDownloadOfficialPdf,
+  onMarkAsSent,
 }: SendQuoteWhatsAppModalProps) {
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState(''); // editable after prefill
@@ -181,6 +183,20 @@ export function SendQuoteWhatsAppModal({
 
       if (onDownloadOfficialPdf) {
         await Promise.resolve(onDownloadOfficialPdf());
+      }
+
+      if (onMarkAsSent) {
+        try {
+          await Promise.resolve(onMarkAsSent());
+        } catch (error) {
+          console.error('Error marking quote as sent:', error);
+          toast({
+            title: 'Status bijwerken mislukt',
+            description: "Kon offerte niet op 'Verzonden' zetten. Probeer het opnieuw.",
+            variant: 'destructive',
+          });
+          return;
+        }
       }
 
       const waUrl = buildWhatsAppUrl(normalizedPhone, outgoingMessage);

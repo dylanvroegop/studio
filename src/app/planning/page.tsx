@@ -77,6 +77,8 @@ interface Quote {
     offerteNummer?: number;
 }
 
+const QUOTE_WERKBESPREKING_DEFAULT_START_TIME = '19:00';
+
 function PlanningPageContent() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
@@ -632,7 +634,7 @@ function PlanningPageContent() {
             if (schedulingType === 'werkbespreking') {
                 setPendingWerkbesprekingDate(date);
                 setPendingWerkbesprekingEmployeeId(employeeId || employees[0]?.id || '');
-                setWerkbesprekingStartTime(planningSettings.defaultStartTime);
+                setWerkbesprekingStartTime(QUOTE_WERKBESPREKING_DEFAULT_START_TIME);
                 setIsWerkbesprekingTimeDialogOpen(true);
                 return;
             }

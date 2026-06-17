@@ -142,7 +142,7 @@
   background-size: 16px 16px;
 }
 
-.technical-drawing svg line,
+.technical-drawing svg line:not([data-interaction-hit-area='true']),
 .technical-drawing svg polyline,
 .technical-drawing svg path[stroke],
 .technical-drawing svg rect[stroke],

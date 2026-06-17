@@ -3,6 +3,7 @@
 import {
     DEFAULT_ELECTRICAL_SCOPE,
     DEFAULT_WORK_DELIVERY_SCOPE,
+    completeWorkDeliveryScope,
     enforceWorkDeliverySafety,
     flattenWorkDeliveryScope,
     sanitizeWorkDeliveryScope,
@@ -536,6 +537,40 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
     }
 
     return normalized;
+}
+
+export function completeStructuredWorkDescription(
+    input: unknown,
+    fallbackTitle?: string,
+): WorkDescriptionStructured {
+    const structured = sanitizeWorkDescriptionStructured(input);
+    const jobs = structured.jobs.map((job) => {
+        const completed = completeWorkDeliveryScope(job, fallbackTitle);
+        return {
+            ...job,
+            ...completed,
+            context: completed.summary,
+        };
+    });
+    const activeIndex = Math.max(
+        0,
+        Math.min(structured.activeJobIndex || 0, Math.max(0, jobs.length - 1)),
+    );
+    const activeJob = jobs[activeIndex];
+    const completedRoot = completeWorkDeliveryScope(
+        activeJob || structured,
+        fallbackTitle,
+    );
+
+    return {
+        ...structured,
+        ...completedRoot,
+        context: completedRoot.summary,
+        sections: activeJob?.sections || structured.sections,
+        legacyNotes: activeJob?.legacyNotes || structured.legacyNotes,
+        jobs,
+        activeJobIndex: activeIndex,
+    };
 }
 
 export function toStructuredWorkDescription(input: unknown): WorkDescriptionStructured {

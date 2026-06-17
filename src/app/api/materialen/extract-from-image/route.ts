@@ -7,10 +7,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const OPENAI_MODEL = 'gpt-5.2';
-const FALLBACK_OPENAI_MODEL = process.env.OPENAI_MATERIAL_IMAGE_FALLBACK_MODEL || 'gpt-5.1';
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
 const OPENAI_EXTRACTION_TIMEOUT_MS = 60_000;
-const SUPPLIER_FALLBACK_TIMEOUT_MS = 15_000;
 
 type OptionSets = {
   categories: string[];
@@ -523,71 +521,6 @@ async function callOpenAiExtraction(params: {
   return parseExtractionJson(outputText);
 }
 
-async function maybeRunSupplierUrlFallback(params: {
-  apiKey: string;
-  imageDataUrl: string;
-  options: OptionSets;
-  extracted: Record<string, unknown>;
-}): Promise<{ extracted: Record<string, unknown>; fallbackModel: string | null }> {
-  const rawSupplier = safeString(params.extracted.leverancier);
-  const shouldRunFallback = !rawSupplier || isUrlLike(rawSupplier);
-  if (!shouldRunFallback) {
-    return { extracted: params.extracted, fallbackModel: null };
-  }
-
-  const extraRules = [
-    rawSupplier
-      ? `De vorige analyse zette "${rawSupplier}" in "leverancier". Dat is fout als dit een volledige product-URL is.`
-      : 'De vorige analyse liet "leverancier" leeg. Controleer nu expliciet de zichtbare browser-URL, tabtitel, logo en shopnaam.',
-    'Gebruik de URL alleen als hint om de winkel/leveranciernaam te bepalen.',
-    'Voorbeelden: bouwmaat.nl => Bouwmaat, kunststofbouwmateriaal.nl => Kunststof Bouwmateriaal.',
-    'Als de shopnaam niet betrouwbaar uit logo, tabtitel, domein of zichtbare tekst te halen is, gebruik alleen de basis-URL t/m de domeinextensie, bijvoorbeeld https://www.kunststofbouwmateriaal.nl/.',
-    'Als de zichtbare URL lang is, negeer alles na de domeinextensie zoals .nl, .com, .be of .de.',
-    'Retourneer opnieuw het volledige JSON-object met dezelfde velden.',
-  ].join('\n- ');
-
-  try {
-    const fallbackExtraction = await callOpenAiExtraction({
-      apiKey: params.apiKey,
-      imageDataUrl: params.imageDataUrl,
-      options: params.options,
-      model: FALLBACK_OPENAI_MODEL,
-      extraRules: `- ${extraRules}`,
-      timeoutMs: SUPPLIER_FALLBACK_TIMEOUT_MS,
-    });
-
-    const fallbackSupplier = safeString(fallbackExtraction.leverancier);
-    if (isUrlLike(fallbackSupplier)) {
-      const fallbackOrigin = normalizeSupplierUrlOrigin(fallbackSupplier);
-      if (fallbackOrigin) {
-        return {
-          extracted: {
-            ...fallbackExtraction,
-            leverancier: fallbackOrigin,
-          },
-          fallbackModel: FALLBACK_OPENAI_MODEL,
-        };
-      }
-    }
-
-    if (fallbackSupplier) {
-      return { extracted: fallbackExtraction, fallbackModel: FALLBACK_OPENAI_MODEL };
-    }
-  } catch (error) {
-    console.warn('Materiaal screenshot supplier fallback faalde:', error);
-  }
-
-  const origin = normalizeSupplierUrlOrigin(rawSupplier);
-
-  return {
-    extracted: {
-      ...params.extracted,
-      leverancier: origin,
-    },
-    fallbackModel: null,
-  };
-}
-
 export async function POST(request: Request) {
   try {
     const token = extractBearerToken(request.headers.get('authorization'));
@@ -635,21 +568,11 @@ export async function POST(request: Request) {
       options,
     });
 
-    const fallbackResult = await maybeRunSupplierUrlFallback({
-      apiKey,
-      imageDataUrl,
-      options,
-      extracted,
-    });
-
-    const material = enforceOptions(normalizeMaterialPayload(fallbackResult.extracted), options);
+    const material = enforceOptions(normalizeMaterialPayload(extracted), options);
 
     return NextResponse.json({
       ok: true,
-      model: fallbackResult.fallbackModel
-        ? `${OPENAI_MODEL} + ${fallbackResult.fallbackModel}`
-        : OPENAI_MODEL,
-      fallbackModel: fallbackResult.fallbackModel,
+      model: OPENAI_MODEL,
       material,
     });
   } catch (error) {

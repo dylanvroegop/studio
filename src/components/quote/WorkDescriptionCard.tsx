@@ -13,7 +13,6 @@ export function WorkDescriptionCard({ werkbeschrijving, structured }: WorkDescri
     const job = scope?.jobs[scope.activeJobIndex || 0] || scope;
     const sections: Array<[string, string[]]> = job ? [
         ['Werkzaamheden', job.work_scope],
-        ['Materialen / producten', job.materials],
         ['Maatvoering', job.dimensions],
         ['Inbegrepen', job.included],
         ['Niet inbegrepen', job.excluded],

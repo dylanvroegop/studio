@@ -13,7 +13,6 @@ export function WorkDescriptionPreview({ value, activeJobIndex = 0 }: WorkDescri
   const job = jobs[Math.max(0, Math.min(activeJobIndex, jobs.length - 1))];
   const sections: Array<[string, string[]]> = [
     ['Werkzaamheden', job.work_scope],
-    ['Materialen / producten', job.materials],
     ['Maatvoering', job.dimensions],
     ['Inbegrepen', job.included],
     ['Niet inbegrepen', job.excluded],

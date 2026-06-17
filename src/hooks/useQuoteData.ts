@@ -22,6 +22,31 @@ function extractErrorMessage(err: unknown): string {
     return String(err ?? 'Onbekende fout');
 }
 
+interface ApiErrorPayload {
+    ok?: boolean;
+    message?: string;
+}
+
+class TransientApiResponseError extends Error {}
+
+async function parseApiJson<T extends ApiErrorPayload>(response: Response): Promise<T> {
+    const contentType = response.headers.get('content-type') || '';
+    const rawBody = await response.text();
+
+    if (!contentType.toLowerCase().includes('application/json')) {
+        const status = response.status || 0;
+        throw new TransientApiResponseError(
+            `De server gaf tijdelijk geen geldig antwoord${status ? ` (HTTP ${status})` : ''}.`
+        );
+    }
+
+    try {
+        return JSON.parse(rawBody) as T;
+    } catch {
+        throw new TransientApiResponseError('De server gaf tijdelijk een onvolledig antwoord.');
+    }
+}
+
 async function getUserTokenSafe(user: { getIdToken: () => Promise<string> } | null): Promise<string | null> {
     if (!user) return null;
     try {
@@ -85,7 +110,11 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                     }),
                 });
 
-                const result = await response.json();
+                const result = await parseApiJson<{
+                    ok?: boolean;
+                    message?: string;
+                    row?: QuoteCalculation | null;
+                }>(response);
                 if (!response.ok || !result.ok) {
                     throw new Error(result.message || 'Failed to fetch quote data');
                 }
@@ -128,7 +157,14 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                 console.error('Fetch error:', err);
                 if (isMounted) {
                     const message = err instanceof Error ? err.message : 'Failed to fetch quote data';
-                    setError(message);
+                    const isTransientResponse = err instanceof TransientApiResponseError;
+
+                    // App Hosting can briefly return an HTML error document while an
+                    // instance starts or a deployment switches over. Keep retrying
+                    // without replacing the entire quote page with a parser error.
+                    if (!isTransientResponse) {
+                        setError(message);
+                    }
 
                     const hasResolvedData = Boolean(calculationRef.current?.data_json);
                     if (hasResolvedData) {
@@ -202,18 +238,23 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                 })
             });
 
-            const result = await response.json();
+            const result = await parseApiJson<{
+                ok?: boolean;
+                message?: string;
+                data?: QuoteCalculation;
+            }>(response);
 
-            if (!result.ok) {
+            if (!response.ok || !result.ok) {
                 throw new Error(result.message || 'Failed to update');
             }
 
             // Update was successful, use the returned data
             if (result.data) {
-                const returnedSignature = JSON.stringify(result.data.data_json);
-                setCalculation(prev => prev ? { ...prev, data_json: result.data.data_json } : null);
+                const returnedDataJson = result.data.data_json;
+                const returnedSignature = JSON.stringify(returnedDataJson);
+                setCalculation(prev => prev ? { ...prev, data_json: returnedDataJson } : null);
                 calculationRef.current = currentCalculation
-                    ? { ...currentCalculation, data_json: result.data.data_json }
+                    ? { ...currentCalculation, data_json: returnedDataJson }
                     : currentCalculation;
                 lastSyncedDataJsonSignatureRef.current = returnedSignature;
             } else {
@@ -257,7 +298,11 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                 data_json_patch: patch,
             }),
         });
-        const result = await response.json().catch(() => null);
+        const result = await parseApiJson<{
+            ok?: boolean;
+            message?: string;
+            data?: QuoteCalculation;
+        }>(response).catch(() => null);
         if (!response.ok || !result?.ok || !result.data?.data_json) {
             throw new Error(result?.message || 'Kon offerte-data niet opslaan.');
         }

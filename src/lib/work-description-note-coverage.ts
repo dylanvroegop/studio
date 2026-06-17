@@ -10,6 +10,10 @@ function normalizeForComparison(value: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\bweg\s+halen\b/g, 'verwijderen')
+    .replace(/\bweghalen\b/g, 'verwijderen')
+    .replace(/\bverwijderd?\b/g, 'verwijderen')
+    .replace(/\bbestaande\b/g, 'oude')
     .replace(/(\d)\s*[x×]\s*(\d)/g, '$1x$2')
     .replace(/(\d)[.,](\d)/g, '$1.$2')
     .replace(/[^a-z0-9.]+/g, ' ')
@@ -57,14 +61,64 @@ export function extractRequiredNoteRequirements(notesContext: unknown): string[]
 }
 
 export function isNoteRequirementCovered(requirement: string, generatedText: string): boolean {
+  const requirementNormalized = normalizeForComparison(requirement);
   const generated = normalizeForComparison(generatedText);
+  const generatedTokens = new Set(generated.split(/\s+/).filter(Boolean));
+
+  if (
+    /golfplaten/.test(requirementNormalized)
+    && /(?:verwijderen|oude|golfplaten)/.test(requirementNormalized)
+    && generatedTokens.has('golfplaten')
+    && (generatedTokens.has('verwijderen') || generatedTokens.has('oude'))
+  ) {
+    return true;
+  }
+
+  if (
+    /underlayment/.test(requirementNormalized)
+    && /platen?/.test(requirementNormalized)
+    && generatedTokens.has('underlayment')
+    && (generatedTokens.has('plaat') || generatedTokens.has('platen'))
+  ) {
+    return true;
+  }
+
+  if (
+    /\bepdm\b/.test(requirementNormalized)
+    && generatedTokens.has('epdm')
+    && (/underlayment/.test(requirementNormalized) ? generatedTokens.has('underlayment') : true)
+  ) {
+    return true;
+  }
+
+  if (
+    /dakrand/.test(requirementNormalized)
+    && /opstaande/.test(requirementNormalized)
+    && generatedTokens.has('dakrand')
+    && generatedTokens.has('opstaande')
+  ) {
+    const requiredNumbers = getSignificantTokens(requirement)
+      .filter((token) => /\d/.test(token))
+      .map((token) => token.replace(/[^0-9.]/g, ''))
+      .filter(Boolean);
+    return requiredNumbers.every((token) => generated.includes(token));
+  }
+
+  if (
+    /boeiboorden?/.test(requirementNormalized)
+    && generatedTokens.has('boeiboorden')
+    && (generated.includes('7016') || generated.includes('antraciet') || generated.includes('anthracite'))
+  ) {
+    return true;
+  }
+
   const tokens = getSignificantTokens(requirement);
   if (tokens.length === 0) return true;
 
   const numericTokens = tokens.filter((token) => /\d/.test(token));
   const wordTokens = tokens.filter((token) => !/\d/.test(token));
   const matchingNumbers = numericTokens.filter((token) => generated.includes(token));
-  const matchingWords = wordTokens.filter((token) => generated.includes(token));
+  const matchingWords = wordTokens.filter((token) => generatedTokens.has(token));
 
   if (numericTokens.length > 0 && matchingNumbers.length !== numericTokens.length) return false;
   if (wordTokens.length === 0) return matchingNumbers.length === numericTokens.length;
@@ -113,10 +167,36 @@ function removeUncertainLanguage(value: string): string {
     .trim();
 }
 
+function formatMetric(value: string, unit: string): string {
+  return `${value.replace('.', ',')} ${unit}`;
+}
+
 export function formatRequiredNoteStep(requirement: string): string {
   const cleaned = removeUncertainLanguage(
     formatDimensions(requirement.replace(/\s*;\s*/g, '; ').trim()),
   );
+
+  const fenceMatch = cleaned.match(/^beton\s+schutting\s+plaatsen\s+(\d+(?:[.,]\d+)?)\s*m\s+(\d+(?:[.,]\d+)?)\s*cm\s+hoog\s+met\s+onderband/i);
+  if (fenceMatch) {
+    return `Plaatsen van een betonnen schutting met een lengte van ${formatMetric(fenceMatch[1], 'm')} en een hoogte van ${formatMetric(fenceMatch[2], 'cm')}, inclusief onderband.`;
+  }
+
+  if (/^ombouw\s+airco\s+maken\s+met\s+trespa/i.test(cleaned)) {
+    return 'Maken en monteren van een demontabele airco-ombouw van Trespa.';
+  }
+
+  if (/compriband/i.test(cleaned) && /dagkant/i.test(cleaned)) {
+    return 'Verwijderen en terugplaatsen van de Trespa dagkanten rondom de ramen, inclusief het aanbrengen van nieuw compriband voor een gesloten aansluiting tussen de Keralit gevelbekleding en de dagkanten.';
+  }
+
+  if (/schoonmaken|reinigen/i.test(cleaned) && /keralit/i.test(cleaned) && /tape|lijm/i.test(cleaned)) {
+    return 'Reinigen van de Keralit gevelbekleding en verwijderen van aanwezige tape- en lijmresten, voor zover dit mogelijk is zonder de gevelbekleding te beschadigen.';
+  }
+
+  const pergolaMatch = cleaned.match(/^pergola\s+(\d+(?:[.,]\d+)?)\s*x\s*(\d+(?:[.,]\d+)?)/i);
+  if (pergolaMatch) {
+    return `Maken en plaatsen van een Douglas pergola van circa ${formatMetric(pergolaMatch[1], 'm')} x ${formatMetric(pergolaMatch[2], 'm')}, uitgevoerd volgens de opgegeven materiaal- en maatvoeringsspecificaties.`;
+  }
 
   const postMatch = cleaned.match(/^paal vervangen\s+(\d+(?:[.,]\d+)?)\s*m\s+lang\s+(\d+(?:[.,]\d+)?)\s*x\s*(\d+(?:[.,]\d+)?)\s*cm$/i);
   if (postMatch) {
@@ -127,8 +207,90 @@ export function formatRequiredNoteStep(requirement: string): string {
     return 'Plaatsen van de paal in een betonpoer.';
   }
 
+  if (/golfplaten?/i.test(cleaned) && /(weg\s+halen|verwijderen|oude)/i.test(cleaned)) {
+    return 'Verwijderen van oude golfplaten.';
+  }
+
+  if (/\bepdm\b/i.test(cleaned) && /(leggen|aanbrengen)/i.test(cleaned)) {
+    return /underlayment/i.test(cleaned)
+      ? 'Aanbrengen van EPDM op de underlayment.'
+      : 'Aanbrengen van EPDM dakbedekking.';
+  }
+
+  if (/underlayment/i.test(cleaned) && /(platen?\s+leggen|leggen|aanbrengen)/i.test(cleaned)) {
+    return /bestaande\s+platen/i.test(cleaned)
+      ? 'Aanbrengen van underlayment platen op de bestaande platen.'
+      : 'Aanbrengen van underlayment platen.';
+  }
+
+  if (/dakrand/i.test(cleaned) && /opstaande\s+rand/i.test(cleaned)) {
+    const heightMatch = cleaned.match(/(\d+(?:[.,]\d+)?)\s*mm/i);
+    return `Maken van een dakrand met opstaande rand${heightMatch ? ` van ${heightMatch[1]} mm` : ''}.`;
+  }
+
+  if (/boeiboorden?/i.test(cleaned) && /7016|antraciet|anthracite/i.test(cleaned)) {
+    return 'Plaatsen van antracietkleurige boeiboorden in RAL 7016.';
+  }
+
   const sentence = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
   return /[.!?]$/.test(sentence) ? sentence : `${sentence}.`;
+}
+
+function countCoveredRequirements(row: string, requirements: string[]): number {
+  return requirements.filter((requirement) => isNoteRequirementCovered(requirement, row)).length;
+}
+
+function removeCopiedNoteBlobs(rows: string[], requirements: string[]): string[] {
+  if (requirements.length < 2) return rows;
+  return rows.filter((row) => {
+    if (/^bestaande\s+scope\s+wordt\s+aangevuld/i.test(row.trim())) return false;
+    const coveredCount = countCoveredRequirements(row, requirements);
+    const words = row.trim().split(/\s+/).filter(Boolean);
+    const sentenceCount = row.split(/[.!?]+/).map((part) => part.trim()).filter(Boolean).length;
+    const looksConcatenated =
+      coveredCount >= 2
+      || (coveredCount >= 1 && (row.length > 180 || words.length > 24) && sentenceCount <= 1);
+    return !looksConcatenated;
+  });
+}
+
+export function repairCopiedNoteBlobs(
+  generated: WorkDescriptionStructured,
+  notesContext: unknown,
+  shouldExclude: (value: string) => boolean = () => false,
+): WorkDescriptionStructured {
+  const requirements = extractRequiredNoteRequirements(notesContext)
+    .filter((requirement) => !shouldExclude(requirement));
+  if (requirements.length < 2) return generated;
+
+  const replacementRows = requirements.map(formatRequiredNoteStep);
+  const activeIndex = Math.max(0, Math.min(generated.activeJobIndex || 0, Math.max(0, generated.jobs.length - 1)));
+  const rootRows = removeCopiedNoteBlobs(generated.work_scope, requirements);
+  const rootChanged = rootRows.length !== generated.work_scope.length;
+
+  if (generated.jobs.length === 0) {
+    return rootChanged
+      ? { ...generated, work_scope: Array.from(new Set([...rootRows, ...replacementRows])) }
+      : generated;
+  }
+
+  let jobChanged = false;
+  const jobs = generated.jobs.map((job, index) => {
+    if (index !== activeIndex) return job;
+    const nextRows = removeCopiedNoteBlobs(job.work_scope, requirements);
+    if (nextRows.length === job.work_scope.length) return job;
+    jobChanged = true;
+    return { ...job, work_scope: Array.from(new Set([...nextRows, ...replacementRows])) };
+  });
+
+  if (!jobChanged && !rootChanged) return generated;
+  const activeJob = jobs[activeIndex];
+  return {
+    ...generated,
+    jobs,
+    work_scope: activeJob?.work_scope || Array.from(new Set([...rootRows, ...replacementRows])),
+    activeJobIndex: activeIndex,
+  };
 }
 
 export function enforceRequiredNoteCoverage(
@@ -140,48 +302,65 @@ export function enforceRequiredNoteCoverage(
     .filter((requirement) => !shouldExclude(requirement));
   if (requirements.length === 0) return generated;
 
+  const repairedGenerated = repairCopiedNoteBlobs(generated, notesContext, shouldExclude);
+
   const totalFacts = extractExplicitTotalFacts(notesContext)
     .filter((fact) => !shouldExclude(fact));
 
-  const generatedText = [
-    generated.title,
-    generated.summary,
-    ...generated.work_scope,
-    ...generated.materials,
-    ...generated.dimensions,
-    ...generated.included,
-    ...generated.excluded,
-    ...generated.jobs.flatMap((job) => [
+  const generatedScopeText = [
+    repairedGenerated.title,
+    repairedGenerated.summary,
+    ...repairedGenerated.work_scope,
+    ...repairedGenerated.included,
+    ...repairedGenerated.excluded,
+    ...repairedGenerated.jobs.flatMap((job) => [
       job.title,
       job.summary,
       ...job.work_scope,
-      ...job.materials,
-      ...job.dimensions,
       ...job.included,
       ...job.excluded,
     ]),
   ].join('\n');
+
+  const generatedText = [
+    generatedScopeText,
+    ...repairedGenerated.materials,
+    ...repairedGenerated.dimensions,
+    ...repairedGenerated.jobs.flatMap((job) => [
+      ...job.materials,
+      ...job.dimensions,
+    ]),
+  ].join('\n');
+
+  const normalizedGeneratedScopeText = normalizeForComparison(generatedScopeText);
   const missingSteps = requirements
-    .filter((requirement) => !isNoteRequirementCovered(requirement, generatedText))
-    .map(formatRequiredNoteStep);
+    .map((requirement) => ({
+      requirement,
+      step: formatRequiredNoteStep(requirement),
+    }))
+    .filter(({ requirement, step }) => (
+      !isNoteRequirementCovered(requirement, generatedScopeText)
+      && !normalizedGeneratedScopeText.includes(normalizeForComparison(step))
+    ))
+    .map(({ step }) => step);
 
   const missingTotalFacts = totalFacts.filter((fact) => !isNoteRequirementCovered(fact, generatedText));
-  if (missingSteps.length === 0 && missingTotalFacts.length === 0) return generated;
+  if (missingSteps.length === 0 && missingTotalFacts.length === 0) return repairedGenerated;
 
   const requiredScopeRows = Array.from(new Set([...missingSteps, ...missingTotalFacts]));
-  const nextSummary = appendTotalFactsToSummary(generated.summary, totalFacts);
+  const nextSummary = appendTotalFactsToSummary(repairedGenerated.summary, totalFacts);
 
-  const activeIndex = Math.max(0, Math.min(generated.activeJobIndex || 0, Math.max(0, generated.jobs.length - 1)));
-  if (generated.jobs.length === 0) {
+  const activeIndex = Math.max(0, Math.min(repairedGenerated.activeJobIndex || 0, Math.max(0, repairedGenerated.jobs.length - 1)));
+  if (repairedGenerated.jobs.length === 0) {
     return {
-      ...generated,
+      ...repairedGenerated,
       context: nextSummary,
       summary: nextSummary,
-      work_scope: [...generated.work_scope, ...requiredScopeRows],
+      work_scope: [...repairedGenerated.work_scope, ...requiredScopeRows],
     };
   }
 
-  const jobs = generated.jobs.map((job, index) => (
+  const jobs = repairedGenerated.jobs.map((job, index) => (
     index === activeIndex
       ? {
           ...job,
@@ -193,7 +372,7 @@ export function enforceRequiredNoteCoverage(
   ));
 
   return {
-    ...generated,
+    ...repairedGenerated,
     context: jobs[activeIndex].summary,
     summary: jobs[activeIndex].summary,
     jobs,
