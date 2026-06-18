@@ -63,6 +63,8 @@ export type WorkDescriptionJob = {
     excluded: string[];
     internal_notes: string[];
     afvalAfvoeren?: boolean;
+    schilderwerkInbegrepen?: boolean;
+    stucwerkInbegrepen?: boolean;
     electricalScope: ElectricalScope;
     finishLevel: FinishLevel;
     customFinishDescription?: string;
@@ -86,6 +88,8 @@ export type WorkDescriptionStructured = {
     excluded: string[];
     internal_notes: string[];
     afvalAfvoeren: boolean;
+    schilderwerkInbegrepen: boolean;
+    stucwerkInbegrepen: boolean;
     electricalScope: ElectricalScope;
     finishLevel: FinishLevel;
     customFinishDescription?: string;
@@ -197,6 +201,8 @@ const EMPTY_WORK_DESCRIPTION_JOB: WorkDescriptionJob = {
     excluded: [...DEFAULT_WORK_DELIVERY_SCOPE.excluded],
     internal_notes: [],
     afvalAfvoeren: false,
+    schilderwerkInbegrepen: false,
+    stucwerkInbegrepen: false,
     electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
     finishLevel: 'constructief_gereed',
     sections: {
@@ -218,6 +224,8 @@ const EMPTY_WORK_DESCRIPTION_STRUCTURED: WorkDescriptionStructured = {
     excluded: [...DEFAULT_WORK_DELIVERY_SCOPE.excluded],
     internal_notes: [],
     afvalAfvoeren: false,
+    schilderwerkInbegrepen: false,
+    stucwerkInbegrepen: false,
     electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
     finishLevel: 'constructief_gereed',
     sections: {
@@ -343,6 +351,8 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
         excluded: [...value.excluded],
         internal_notes: [...value.internal_notes],
         afvalAfvoeren: value.afvalAfvoeren,
+        schilderwerkInbegrepen: value.schilderwerkInbegrepen,
+        stucwerkInbegrepen: value.stucwerkInbegrepen,
         electricalScope: {
             ...value.electricalScope,
             includedItems: [...value.electricalScope.includedItems],
@@ -367,6 +377,8 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
                 excluded: normalizeEditableWorkDescriptionItems(job?.excluded),
                 internal_notes: normalizeEditableWorkDescriptionItems(job?.internal_notes),
                 afvalAfvoeren: Boolean(job?.afvalAfvoeren),
+                schilderwerkInbegrepen: Boolean(job?.schilderwerkInbegrepen),
+                stucwerkInbegrepen: Boolean(job?.stucwerkInbegrepen),
                 electricalScope: job?.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
                 finishLevel: job?.finishLevel || 'constructief_gereed',
                 customFinishDescription: job?.customFinishDescription,
@@ -426,6 +438,8 @@ function normalizeWorkDescriptionJob(input: unknown): WorkDescriptionJob {
             ...normalizeEditableWorkDescriptionItems(row.legacyNotes),
         ],
         afvalAfvoeren: row.afvalAfvoeren === true,
+        schilderwerkInbegrepen: row.schilderwerkInbegrepen === true,
+        stucwerkInbegrepen: row.stucwerkInbegrepen === true,
     });
 
     return {
@@ -513,6 +527,8 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
         excluded: activeJob ? [...activeJob.excluded] : normalizeEditableWorkDescriptionItems(row.excluded),
         internal_notes: activeJob ? [...activeJob.internal_notes] : normalizeEditableWorkDescriptionItems(row.internal_notes),
         afvalAfvoeren: activeJob?.afvalAfvoeren === true,
+        schilderwerkInbegrepen: activeJob?.schilderwerkInbegrepen === true,
+        stucwerkInbegrepen: activeJob?.stucwerkInbegrepen === true,
         electricalScope: activeJob?.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
         finishLevel: activeJob?.finishLevel || 'constructief_gereed',
         customFinishDescription: activeJob?.customFinishDescription,
@@ -665,6 +681,8 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
                 ...base.sections.afwerking,
             ],
             afvalAfvoeren: false,
+            schilderwerkInbegrepen: false,
+            stucwerkInbegrepen: false,
             electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
             finishLevel: 'constructief_gereed',
             sections: {
@@ -698,6 +716,8 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
         excluded: [...base.excluded],
         internal_notes: [...lines],
         afvalAfvoeren: false,
+        schilderwerkInbegrepen: false,
+        stucwerkInbegrepen: false,
         electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
         finishLevel: 'constructief_gereed',
         sections: {
@@ -1200,7 +1220,7 @@ export function normalizeDataJson(input: any): DataJson {
 // EXACT zoals jij hem aanroept in quotes/[id]/page.tsx
 // ==============================
 
-export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings): QuoteTotals {
+export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings, urenPerDag = 8): QuoteTotals {
     const roundCurrency = (value: number): number => {
         const safe = Number.isFinite(value) ? value : 0;
         return Math.round((safe + Number.EPSILON) * 100) / 100;
@@ -1264,7 +1284,8 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
                 : transportPerDagFromDistance > 0
                     ? "perKm"
                     : "none";
-    const transportAantalDagen = resolvedTransportMode === "none" ? 0 : Math.max(1, Math.ceil(totaalUren / 8));
+    const safeUrenPerDag = Number.isFinite(urenPerDag) && urenPerDag > 0 ? urenPerDag : 8;
+    const transportAantalDagen = resolvedTransportMode === "none" ? 0 : Math.max(1, Math.ceil(totaalUren / safeUrenPerDag));
     const totaalReistijdMinutes = roundTripMinutes * transportAantalDagen;
 
     let transportPerDag = 0;

@@ -137,8 +137,6 @@ export function CostSummaryCard({
         cancelEditingAmount();
     };
 
-    const totalTravelMinutesPerKlus = totals ? totals.transportDurationPerDagMinutes * totals.transportAantalDagen : 0;
-    const totalTravelHoursPerKlus = totalTravelMinutesPerKlus / 60;
     const totaalExclZonderMarge = totals ? totals.subtotaalExclBtw : 0;
     const winstMargeExclBtw = totals ? totals.winstMarge : 0;
     const btwMetMarge = totals ? totals.btw : 0;
@@ -396,12 +394,6 @@ export function CostSummaryCard({
                         <span className="text-muted-foreground">
                             <span className="block">
                                 Transport ({totals.transportRatePerKm.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} x {totals.transportDistanceKmOneWay.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}km = {formatCurrency(totals.transportOneWayCost)} x 2 = {formatCurrency(totals.transportRoundTripCost)} x {totals.transportAantalDagen} dagen)
-                            </span>
-                            <span className="block text-xs">
-                                totaal reistijd per dag; {totals.transportDurationPerDagMinutes} {totals.transportDurationPerDagMinutes === 1 ? 'minuut' : 'minuten'}
-                            </span>
-                            <span className="block text-xs">
-                                totaal reistijd per klus; {totalTravelHoursPerKlus.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} uur
                             </span>
                         </span>
                         {renderAmountColumns(

@@ -56,6 +56,8 @@ function normalizeJobs(value: WorkDescriptionStructured): WorkDescriptionJob[] {
     excluded: rows(value.excluded),
     internal_notes: rows(value.internal_notes),
     afvalAfvoeren: value.afvalAfvoeren,
+    schilderwerkInbegrepen: value.schilderwerkInbegrepen,
+    stucwerkInbegrepen: value.stucwerkInbegrepen,
     electricalScope: value.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
     finishLevel: value.finishLevel || 'constructief_gereed',
     customFinishDescription: value.customFinishDescription,
@@ -89,6 +91,8 @@ function updateActiveJob(
     excluded: [...active.excluded],
     internal_notes: [...active.internal_notes],
     afvalAfvoeren: active.afvalAfvoeren === true,
+    schilderwerkInbegrepen: active.schilderwerkInbegrepen === true,
+    stucwerkInbegrepen: active.stucwerkInbegrepen === true,
     electricalScope: active.electricalScope,
     finishLevel: active.finishLevel,
     customFinishDescription: active.customFinishDescription,
@@ -134,12 +138,18 @@ export function WorkDescriptionWorkspace({
     onChange(updateActiveJob(value, activeIndex, (job) => ({ ...job, [key]: fieldValue })));
   };
 
-  const setSafetyField = <K extends 'afvalAfvoeren' | 'electricalScope' | 'finishLevel' | 'customFinishDescription'>(
+  const setSafetyField = <K extends 'afvalAfvoeren' | 'schilderwerkInbegrepen' | 'stucwerkInbegrepen' | 'electricalScope' | 'finishLevel' | 'customFinishDescription'>(
     key: K,
     fieldValue: WorkDescriptionJob[K],
   ) => {
     onChange(updateActiveJob(value, activeIndex, (job) => {
-      const updated = { ...job, [key]: fieldValue, afvalAfvoeren: key === 'afvalAfvoeren' ? fieldValue === true : job.afvalAfvoeren === true };
+      const updated = {
+        ...job,
+        [key]: fieldValue,
+        afvalAfvoeren: key === 'afvalAfvoeren' ? fieldValue === true : job.afvalAfvoeren === true,
+        schilderwerkInbegrepen: key === 'schilderwerkInbegrepen' ? fieldValue === true : job.schilderwerkInbegrepen === true,
+        stucwerkInbegrepen: key === 'stucwerkInbegrepen' ? fieldValue === true : job.stucwerkInbegrepen === true,
+      };
       const safe = enforceWorkDeliverySafety(updated);
       return { ...updated, ...safe, context: safe.summary };
     }));
@@ -218,11 +228,23 @@ export function WorkDescriptionWorkspace({
             <Textarea value={activeJob.summary} onChange={(event) => setField('summary', event.target.value)} rows={2} placeholder="Beschrijf alleen het afgesproken eindresultaat." />
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
               <div className="flex items-center justify-between gap-3">
                 <div><Label>Afval afvoeren</Label><p className="text-xs text-muted-foreground">Alleen opnemen wanneer dit expliciet is overeengekomen.</p></div>
                 <Switch checked={activeJob.afvalAfvoeren === true} onCheckedChange={(checked) => setSafetyField('afvalAfvoeren', checked)} />
+              </div>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div><Label>Schilderwerk inbegrepen</Label><p className="text-xs text-muted-foreground">Alleen opnemen wanneer dit expliciet is overeengekomen.</p></div>
+                <Switch checked={activeJob.schilderwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('schilderwerkInbegrepen', checked)} />
+              </div>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div><Label>Stucwerk inbegrepen</Label><p className="text-xs text-muted-foreground">Alleen opnemen wanneer dit expliciet is overeengekomen.</p></div>
+                <Switch checked={activeJob.stucwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('stucwerkInbegrepen', checked)} />
               </div>
             </div>
             <div className="rounded-lg border border-border/70 bg-muted/20 p-3">

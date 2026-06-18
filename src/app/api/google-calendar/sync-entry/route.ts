@@ -9,6 +9,21 @@ function extractBearerToken(authHeader: string | null): string | null {
 
 type SyncAction = 'upsert' | 'delete';
 
+const GOOGLE_CALENDAR_RED_COLOR_ID = '11';
+const PLANNING_TIME_ZONE = 'Europe/Amsterdam';
+
+function getFirstName(label: string): string {
+  return label.trim().split(/\s+/)[0] || 'Planning';
+}
+
+function getStartHour(date: Date): string {
+  return new Intl.DateTimeFormat('nl-NL', {
+    hour: 'numeric',
+    hourCycle: 'h23',
+    timeZone: PLANNING_TIME_ZONE,
+  }).format(date);
+}
+
 interface SyncBody {
   action: SyncAction;
   entryId: string;
@@ -95,14 +110,7 @@ export async function POST(request: Request) {
     const isWerkbespreking = body.planningType === 'werkbespreking';
     const primaryLabel = body.cache?.clientName || body.cache?.projectTitle || 'Planning';
     const startDate = new Date(body.startDate);
-    const timeLabel = startDate.toLocaleTimeString('nl-NL', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-    const title = isWerkbespreking
-      ? `${timeLabel} Werkbespreking`
-      : primaryLabel;
+    const title = `${getFirstName(primaryLabel)} ${getStartHour(startDate)}`;
     const description = [
       body.cache?.clientName ? `Klant: ${body.cache.clientName}` : '',
       body.cache?.projectAddress ? `Adres: ${body.cache.projectAddress}` : '',
@@ -113,7 +121,7 @@ export async function POST(request: Request) {
     const payload = {
       summary: title,
       description,
-      colorId: isWerkbespreking ? '9' : '2',
+      colorId: GOOGLE_CALENDAR_RED_COLOR_ID,
       start: { dateTime: body.startDate },
       end: { dateTime: body.endDate },
       reminders: {

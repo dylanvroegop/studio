@@ -2665,7 +2665,7 @@ export default function QuotePage() {
         if (!quoteSettings) return;
         const safeAmount = Math.max(0, Number(amountExcl) || 0);
         const totaalUren = Number((calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0);
-        const transportAantalDagen = Math.max(1, Math.ceil(Math.max(0, totaalUren) / 8));
+        const transportAantalDagen = Math.max(1, Math.ceil(Math.max(0, totaalUren) / laborHoursPerDay));
         const vasteTransportkostenPerDag = safeAmount / transportAantalDagen;
         await handleUpdateSettings({
             ...quoteSettings,
@@ -3115,6 +3115,8 @@ export default function QuotePage() {
         setActiveCategory('groot');
     };
 
+    const laborHoursPerDay = Number(userProfile?.settings?.planningSettings?.defaultWorkdayHours) || 8;
+
     // Calculate totals when data is available
     const totals = useMemo(
         () => (normalizedData && quoteSettings
@@ -3122,9 +3124,9 @@ export default function QuotePage() {
                 ...normalizedData,
                 grootmaterialen: materials.groot,
                 verbruiksartikelen: materials.verbruik,
-            }, quoteSettings)
+            }, quoteSettings, laborHoursPerDay)
             : null),
-        [normalizedData, quoteSettings, materials.groot, materials.verbruik],
+        [normalizedData, quoteSettings, materials.groot, materials.verbruik, laborHoursPerDay],
     );
     const totalInclBtw = totals?.totaalInclBtw ?? null;
 
@@ -4070,6 +4072,8 @@ export default function QuotePage() {
                 excluded: structured.excluded,
                 internal_notes: structured.internal_notes,
                 afvalAfvoeren: structured.afvalAfvoeren,
+                schilderwerkInbegrepen: structured.schilderwerkInbegrepen,
+                stucwerkInbegrepen: structured.stucwerkInbegrepen,
                 electricalScope: structured.electricalScope,
                 finishLevel: structured.finishLevel,
                 sections: structured.sections,
@@ -4765,7 +4769,6 @@ export default function QuotePage() {
         calculation?.status === 'pending' ||
         calculation?.status === 'processing';
     const laborTotalHours = (calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0;
-    const laborHoursPerDay = Number(userProfile?.settings?.planningSettings?.defaultWorkdayHours) || 8;
     const laborRateExcl = Number(quoteSettings?.uurTariefExclBtw) || 0;
     const laborTotalExcl = (Number(laborTotalHours) || 0) * laborRateExcl;
     const footerVatRate = Number(quoteSettings?.btwTarief) || 21;
@@ -5244,11 +5247,15 @@ export default function QuotePage() {
             const activeWorkDescriptionJob = workDescriptionStructured.jobs[activeWorkDescriptionIndex];
             const generationControlInput = {
                 afvalAfvoeren: activeWorkDescriptionJob?.afvalAfvoeren ?? workDescriptionStructured.afvalAfvoeren,
+                schilderwerkInbegrepen: activeWorkDescriptionJob?.schilderwerkInbegrepen ?? workDescriptionStructured.schilderwerkInbegrepen,
+                stucwerkInbegrepen: activeWorkDescriptionJob?.stucwerkInbegrepen ?? workDescriptionStructured.stucwerkInbegrepen,
                 electricalScope: activeWorkDescriptionJob?.electricalScope ?? workDescriptionStructured.electricalScope,
                 finishLevel: activeWorkDescriptionJob?.finishLevel ?? workDescriptionStructured.finishLevel,
                 customFinishDescription: activeWorkDescriptionJob?.customFinishDescription ?? workDescriptionStructured.customFinishDescription,
                 jobs: [{
                     afvalAfvoeren: activeWorkDescriptionJob?.afvalAfvoeren ?? workDescriptionStructured.afvalAfvoeren,
+                    schilderwerkInbegrepen: activeWorkDescriptionJob?.schilderwerkInbegrepen ?? workDescriptionStructured.schilderwerkInbegrepen,
+                    stucwerkInbegrepen: activeWorkDescriptionJob?.stucwerkInbegrepen ?? workDescriptionStructured.stucwerkInbegrepen,
                     electricalScope: activeWorkDescriptionJob?.electricalScope ?? workDescriptionStructured.electricalScope,
                     finishLevel: activeWorkDescriptionJob?.finishLevel ?? workDescriptionStructured.finishLevel,
                     customFinishDescription: activeWorkDescriptionJob?.customFinishDescription ?? workDescriptionStructured.customFinishDescription,
@@ -5265,6 +5272,8 @@ export default function QuotePage() {
                 excluded: [],
                 internal_notes: [],
                 afvalAfvoeren: generationControlInput.afvalAfvoeren,
+                schilderwerkInbegrepen: generationControlInput.schilderwerkInbegrepen,
+                stucwerkInbegrepen: generationControlInput.stucwerkInbegrepen,
                 electricalScope: generationControlInput.electricalScope,
                 finishLevel: generationControlInput.finishLevel,
                 customFinishDescription: generationControlInput.customFinishDescription,
@@ -5280,6 +5289,8 @@ export default function QuotePage() {
                     excluded: [],
                     internal_notes: [],
                     afvalAfvoeren: generationControlInput.afvalAfvoeren,
+                    schilderwerkInbegrepen: generationControlInput.schilderwerkInbegrepen,
+                    stucwerkInbegrepen: generationControlInput.stucwerkInbegrepen,
                     electricalScope: generationControlInput.electricalScope,
                     finishLevel: generationControlInput.finishLevel,
                     customFinishDescription: generationControlInput.customFinishDescription,

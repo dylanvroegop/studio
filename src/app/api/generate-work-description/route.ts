@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { Firestore } from 'firebase-admin/firestore';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
@@ -41,6 +42,7 @@ type RequestBody = {
   materialContext?: unknown;
   notesContext?: unknown;
   measurementsContext?: unknown;
+  quoteCalculationContext?: unknown;
 };
 
 function extractBearerToken(authHeader: string | null): string | null {
@@ -51,6 +53,163 @@ function extractBearerToken(authHeader: string | null): string | null {
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function truncateText(value: string, maxLength: number): string {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+}
+
+function formatContextValue(value: unknown, depth = 0): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return truncateText(value, 120);
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, 5)
+      .map((item) => formatContextValue(item, depth + 1))
+      .filter(Boolean)
+      .join(' | ');
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (typeof (record as { toDate?: unknown }).toDate === 'function') return '';
+    if (depth >= 2) return '';
+    return Object.entries(record)
+      .filter(([key]) => !/^(id|createdAt|updatedAt|savedAt|savedByUid|uiState|visualisatie|visualisatieUrl|visualisatieSnapshots)$/i.test(key))
+      .slice(0, 12)
+      .map(([key, nested]) => {
+        const formatted = formatContextValue(nested, depth + 1);
+        return formatted ? `${key}: ${formatted}` : '';
+      })
+      .filter(Boolean)
+      .join(', ');
+  }
+  return '';
+}
+
+function formatContextEntries(input: unknown, maxRows = 12): string[] {
+  if (!input) return [];
+  const entries = Array.isArray(input)
+    ? input.flatMap((item, index) => (item && typeof item === 'object'
+        ? Object.entries(item as Record<string, unknown>).map(([key, value]) => [`${index + 1}.${key}`, value] as const)
+        : [[String(index + 1), item] as const]))
+    : typeof input === 'object'
+      ? Object.entries(input as Record<string, unknown>)
+      : [];
+
+  return entries
+    .map(([key, value]) => {
+      const formatted = formatContextValue(value);
+      return formatted ? `${key}: ${formatted}` : '';
+    })
+    .filter(Boolean)
+    .slice(0, maxRows);
+}
+
+function getMaterialNames(input: unknown): string[] {
+  const rows: unknown[] = [];
+  const collectRows = (value: unknown, depth = 0) => {
+    if (!value || depth > 4) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => collectRows(item, depth + 1));
+      return;
+    }
+    if (typeof value !== 'object') return;
+    const record = value as Record<string, unknown>;
+    if (
+      'materiaalnaam' in record
+      || 'naam' in record
+      || 'product' in record
+      || 'title' in record
+    ) {
+      rows.push(record);
+      return;
+    }
+    Object.values(record).forEach((item) => collectRows(item, depth + 1));
+  };
+
+  collectRows(input);
+
+  return rows
+    .flatMap((item) => {
+      if (!item || typeof item !== 'object') return [];
+      const row = item as Record<string, unknown>;
+      const name = safeString(row.materiaalnaam)
+        || safeString(row.naam)
+        || safeString(row.product)
+        || safeString(row.title);
+      return name ? [sanitizeMaterialDescription(name)] : [];
+    })
+    .filter((name) => name && !isIgnoredWorkDeliveryMaterial(name))
+    .slice(0, 20);
+}
+
+function buildJobCalculationContextLine(jobId: string, job: Record<string, unknown>, index: number): string {
+  const maatwerk = job.maatwerk && typeof job.maatwerk === 'object'
+    ? job.maatwerk as Record<string, unknown>
+    : {};
+  const meta = maatwerk.meta && typeof maatwerk.meta === 'object'
+    ? maatwerk.meta as Record<string, unknown>
+    : (job.meta && typeof job.meta === 'object' ? job.meta as Record<string, unknown> : {});
+  const materialen = job.materialen && typeof job.materialen === 'object'
+    ? job.materialen as Record<string, unknown>
+    : {};
+
+  const title = safeString(meta.title) || safeString(job.title) || `Klus ${index + 1}`;
+  const type = [safeString(meta.type), safeString(meta.slug)].filter(Boolean).join('/');
+  const description = safeString(meta.description);
+  const basisRows = formatContextEntries(maatwerk.basis ?? maatwerk.items, 8);
+  const additionRows = formatContextEntries(maatwerk.toevoegingen, 8);
+  const materialNames = getMaterialNames(materialen.materialen_lijst);
+  const notes = safeString(maatwerk.notities) || safeString(job.material_notities) || safeString(job.notities);
+  const workMethod = formatContextValue(job.werkwijze);
+
+  const parts = [
+    `Klus ${index + 1}: ${title}${type ? ` (${type})` : ''}${description ? ` - ${description}` : ''}`,
+    basisRows.length > 0 ? `Maatvoering/basis: ${basisRows.join('; ')}` : '',
+    additionRows.length > 0 ? `Toevoegingen: ${additionRows.join('; ')}` : '',
+    materialNames.length > 0 ? `Gekozen materialen: ${materialNames.join(', ')}` : '',
+    notes ? `Klusnotities: ${truncateText(notes, 400)}` : '',
+    workMethod ? `Werkwijze: ${workMethod}` : '',
+    `Firestore job id: ${jobId}`,
+  ].filter(Boolean);
+
+  return truncateText(parts.join('\n'), 2400);
+}
+
+async function buildQuoteCalculationContext(params: {
+  quoteId: unknown;
+  uid: string;
+  firestore: Firestore;
+}): Promise<string> {
+  const quoteId = safeString(params.quoteId);
+  if (!quoteId) return '';
+
+  const quoteSnap = await params.firestore.collection('quotes').doc(quoteId).get();
+  if (!quoteSnap.exists) return '';
+
+  const quote = quoteSnap.data() || {};
+  if (quote.userId !== params.uid) return '';
+
+  const klussen = quote.klussen && typeof quote.klussen === 'object'
+    ? quote.klussen as Record<string, unknown>
+    : {};
+  const jobEntries = Object.entries(klussen)
+    .filter(([, job]) => job && typeof job === 'object')
+    .slice(0, 12);
+
+  const quoteTitle = safeString(quote.titel) || safeString(quote.offerteNummer);
+  const jobLines = jobEntries.map(([jobId, job], index) => (
+    buildJobCalculationContextLine(jobId, job as Record<string, unknown>, index)
+  ));
+
+  return [
+    quoteTitle ? `Offertetitel: ${quoteTitle}` : '',
+    ...jobLines,
+  ].filter(Boolean).join('\n\n');
 }
 
 function extractResponseText(payload: unknown): string {
@@ -187,9 +346,17 @@ function enforceWasteRemovalPreferences(
           : inputStructured.electricalScope);
     const finishLevel = (safeString(controls.finishLevel) || safeString(rawControls.finishLevel) || inputStructured.finishLevel) as WorkDescriptionStructured['finishLevel'];
     const customFinishDescription = safeString(controls.customFinishDescription) || safeString(rawControls.customFinishDescription) || undefined;
+    const schilderwerkInbegrepen = controls.schilderwerkInbegrepen === true
+      || rawControls.schilderwerkInbegrepen === true
+      || inputStructured.schilderwerkInbegrepen === true;
+    const stucwerkInbegrepen = controls.stucwerkInbegrepen === true
+      || rawControls.stucwerkInbegrepen === true
+      || inputStructured.stucwerkInbegrepen === true;
     const safe = enforceWorkDeliverySafety({
       ...job,
       afvalAfvoeren: enabled,
+      schilderwerkInbegrepen,
+      stucwerkInbegrepen,
       electricalScope,
       finishLevel,
       customFinishDescription,
@@ -207,6 +374,12 @@ function enforceWasteRemovalPreferences(
   const root = enforceWorkDeliverySafety({
     ...sanitizeWorkDeliveryScope(generated),
     afvalAfvoeren: activeJob ? activeJob.afvalAfvoeren === true : preferences.active,
+    schilderwerkInbegrepen: activeJob
+      ? activeJob.schilderwerkInbegrepen === true
+      : rawControls.schilderwerkInbegrepen === true || inputStructured.schilderwerkInbegrepen === true,
+    stucwerkInbegrepen: activeJob
+      ? activeJob.stucwerkInbegrepen === true
+      : rawControls.stucwerkInbegrepen === true || inputStructured.stucwerkInbegrepen === true,
     electricalScope: rootElectricalScope,
     finishLevel: rootFinishLevel,
     customFinishDescription: rootCustomFinishDescription,
@@ -808,10 +981,21 @@ function parseWorkDescription(output: string): string[] {
 
 function buildPromptFromBody(body: RequestBody): string {
   const directPrompt = safeString(body.prompt);
+  const calculationContext = safeString(body.quoteCalculationContext);
   const preferences = getWasteRemovalPreferences(body.structuredInput);
   const wasteRemovalRule = preferences.active
-    ? 'Afval afvoeren staat expliciet AAN. Neem uitsluitend de overeengekomen afvoer op onder included.'
+    ? 'Afval afvoeren staat expliciet AAN. Neem de concrete afvalafvoer als een eigen, afzonderlijke regel op in work_scope. Zet deze niet onder included.'
     : WASTE_REMOVAL_DISABLED_RULE;
+  const structuredControls = sanitizeWorkDescriptionStructured(body.structuredInput);
+  const paintingRule = structuredControls.schilderwerkInbegrepen
+    ? 'Schilderwerk inbegrepen staat expliciet AAN. Neem het concrete schilderwerk als een eigen, afzonderlijke regel op in work_scope. Gebruik details uit de notities, bijvoorbeeld wat wordt geschilderd en een nog te kiezen kleur. Zet schilderwerk niet onder included of excluded.'
+    : 'Schilderwerk inbegrepen staat UIT. Neem schilderwerk, sauswerk, aflakken of verven niet op als inbegrepen werk.';
+  const stuccoRule = structuredControls.stucwerkInbegrepen
+    ? 'Stucwerk inbegrepen staat expliciet AAN. Behoud alle expliciete stucwerkzaamheden, aantallen en maatvoering en neem het concrete stucwerk als een eigen, afzonderlijke regel op in work_scope. Zet stucwerk niet onder included.'
+    : 'Stucwerk inbegrepen staat UIT. Neem stucwerk niet op als inbegrepen werk.';
+  const electricalRule = structuredControls.electricalScope.enabled
+    ? 'Elektrawerk inbegrepen staat expliciet AAN. Neem ieder concreet overeengekomen elektrisch onderdeel als een eigen regel op in work_scope. Zet elektrawerk niet onder included.'
+    : 'Elektrawerk inbegrepen staat UIT. Neem elektrawerk niet op als inbegrepen werk.';
   const notesRule = safeString(body.notesContext)
     ? [
         'HARDE REGEL VOOR GEBRUIKERSNOTITIES:',
@@ -829,6 +1013,8 @@ function buildPromptFromBody(body: RequestBody): string {
     '{"title":"","summary":"","work_scope":[],"materials":[],"dimensions":[],"included":[],"excluded":[],"internal_notes":[]}',
     'Schrijf geen stappenplan en geen uitvoeringsvolgorde.',
     'Gebruik nooit de secties Voorbereiding, Uitvoering of Afwerking.',
+    'Elke concrete werkzaamheid mag precies één keer in work_scope staan. Voeg geen parafrase toe van een bestaande regel, de title of de summary.',
+    'Voorbeeld: "Verwijderen van een kast en plaatsen van een wand" en "Kast verwijderen en daar een wand zetten" zijn dubbel; geef slechts één van deze regels terug.',
     'Verzin geen werkzaamheden, afwerkingsniveau, elektrawerk, sloopwerk of afvalafvoer.',
     'Beschrijf geen methode tenzij deze expliciet is aangeleverd.',
     'Gebruik niet de woorden eerst, vervolgens, daarna, stap 1 of stap 2.',
@@ -843,7 +1029,21 @@ function buildPromptFromBody(body: RequestBody): string {
     'Formuleer commercieel en bescherm tegen scope creep en onbetaald meerwerk.',
     'summary mag meerdere zinnen bevatten wanneer dat nodig is om de afgesproken scope duidelijk te maken.',
   ].join(' ');
-  if (directPrompt) return [directPrompt, scopeRules, notesRule, wasteRemovalRule].filter(Boolean).join('\n\n');
+  if (directPrompt) {
+    return [
+      directPrompt,
+      calculationContext ? `CALCULATIEDATA UIT FIRESTORE:\n${calculationContext}` : '',
+      calculationContext
+        ? 'Gebruik deze calculatiedata als bron voor klussoort, plaatsing/montage, maatvoering, gekozen materialen en onderdelen. Neem geen prijzen op.'
+        : '',
+      scopeRules,
+      notesRule,
+      paintingRule,
+      stuccoRule,
+      electricalRule,
+      wasteRemovalRule,
+    ].filter(Boolean).join('\n\n');
+  }
 
   const parts = [
     safeString(body.title) ? `Titel: ${safeString(body.title)}` : '',
@@ -851,9 +1051,10 @@ function buildPromptFromBody(body: RequestBody): string {
     safeString(body.category) ? `Categorie: ${safeString(body.category)}` : '',
     safeString(body.notesContext) ? `Notities: ${safeString(body.notesContext)}` : '',
     safeString(body.measurementsContext) ? `Maatvoering: ${safeString(body.measurementsContext)}` : '',
+    calculationContext ? `Calculatiedata uit Firestore:\n${calculationContext}` : '',
   ].filter(Boolean);
 
-  return [...parts, scopeRules, notesRule, wasteRemovalRule].filter(Boolean).join('\n');
+  return [...parts, scopeRules, notesRule, paintingRule, stuccoRule, electricalRule, wasteRemovalRule].filter(Boolean).join('\n');
 }
 
 export async function POST(request: Request) {
@@ -863,9 +1064,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { auth } = initFirebaseAdmin();
+    const { auth, firestore } = initFirebaseAdmin();
+    let uid = '';
     try {
       const decoded = await auth.verifyIdToken(token);
+      uid = decoded.uid;
       const trialBlockedResponse = await ensureDemoTrialActiveByUid(decoded.uid);
       if (trialBlockedResponse) return trialBlockedResponse;
     } catch {
@@ -873,7 +1076,19 @@ export async function POST(request: Request) {
     }
 
     const rawBody = (await request.json().catch(() => null)) as RequestBody | null;
-    const prompt = buildPromptFromBody(rawBody || {});
+    const quoteCalculationContext = await buildQuoteCalculationContext({
+      quoteId: rawBody?.quoteId,
+      uid,
+      firestore,
+    }).catch((error) => {
+      console.error('Kon Firestore calculatiedata niet laden voor Werk & Levering:', error);
+      return '';
+    });
+    const bodyWithContext: RequestBody = {
+      ...(rawBody || {}),
+      quoteCalculationContext: quoteCalculationContext || rawBody?.quoteCalculationContext,
+    };
+    const prompt = buildPromptFromBody(bodyWithContext);
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt of titel is verplicht.' }, { status: 400 });
@@ -904,7 +1119,7 @@ export async function POST(request: Request) {
     if (directStructured && flattenStructuredWorkDescription(directStructured).length > 0) {
       const structured = enforceGenerationRules(
         sanitizeWorkDescriptionStructured(directStructured),
-        rawBody,
+        bodyWithContext,
       );
       const flattened = flattenStructuredWorkDescription(structured);
       return NextResponse.json({
@@ -917,7 +1132,7 @@ export async function POST(request: Request) {
     if (directWerkbeschrijving.length > 0) {
       const structured = enforceGenerationRules(
         toStructuredWorkDescription({ werkbeschrijving: directWerkbeschrijving }),
-        rawBody,
+        bodyWithContext,
       );
       const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
       return NextResponse.json({
@@ -938,7 +1153,7 @@ export async function POST(request: Request) {
 
     const structured = enforceGenerationRules(
       toStructuredWorkDescription({ werkbeschrijving }),
-      rawBody,
+      bodyWithContext,
     );
     const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
     return NextResponse.json({

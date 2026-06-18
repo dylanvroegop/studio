@@ -24,6 +24,8 @@ export interface WorkDeliveryScope {
   excluded: string[];
   internal_notes: string[];
   afvalAfvoeren: boolean;
+  schilderwerkInbegrepen: boolean;
+  stucwerkInbegrepen: boolean;
   electricalScope: ElectricalScope;
   finishLevel: FinishLevel;
   customFinishDescription?: string;
@@ -37,6 +39,12 @@ export interface WorkDeliveryValidationResult {
 export const WASTE_INCLUDED_TEXT = 'Afvoeren van vrijkomend afval en restmateriaal zoals overeengekomen.';
 export const WASTE_EXCLUDED_TEXT = 'Afvoeren van afval, puin en restmateriaal.';
 export const ELECTRICAL_EXCLUDED_TEXT = 'Elektrawerkzaamheden, verplaatsen van kabels, stopcontacten, schakelaars en werkzaamheden aan de meterkast.';
+export const PAINTING_INCLUDED_TEXT = 'Schilderwerk inbegrepen zoals overeengekomen.';
+export const STUCCO_INCLUDED_TEXT = 'Stucwerk inbegrepen zoals overeengekomen.';
+export const WASTE_WORK_SCOPE_TEXT = 'Afvoeren van vrijkomend afval en restmateriaal.';
+export const PAINTING_WORK_SCOPE_TEXT = 'Schilderen van de overeengekomen onderdelen.';
+export const STUCCO_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen stucwerk.';
+export const ELECTRICAL_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen elektrawerk.';
 
 export const DEFAULT_ELECTRICAL_SCOPE: ElectricalScope = {
   enabled: false,
@@ -55,12 +63,17 @@ export const DEFAULT_WORK_DELIVERY_SCOPE: WorkDeliveryScope = {
   excluded: [WASTE_EXCLUDED_TEXT, ELECTRICAL_EXCLUDED_TEXT],
   internal_notes: [],
   afvalAfvoeren: false,
+  schilderwerkInbegrepen: false,
+  stucwerkInbegrepen: false,
   electricalScope: DEFAULT_ELECTRICAL_SCOPE,
   finishLevel: 'constructief_gereed',
 };
 
 const WASTE_PATTERN = /afval|puin|sloopafval|restmateriaal\s+afvoeren|container|bouwafvalzakken|afvoeren/i;
 const ELECTRICAL_PATTERN = /elektra|elektrisch|kabel|stopcontact|schakelaar|meterkast|wandcontactdoos|groepenkast/i;
+const PAINTING_PATTERN = /schilder|sauswerk|sausen|aflak|verven/i;
+const STUCCO_PATTERN = /stuc/i;
+const OTHER_FINISH_PATTERN = /plamuur|kitwerk|kitten/i;
 const FINISH_PATTERNS: Partial<Record<FinishLevel, RegExp>> = {
   constructief_gereed: /schilder|stuc|plamuur|kitwerk|kitten|sauswerk|sausen|aflak|verven/i,
   plaatmateriaal_gemonteerd: /schilder|stuc|plamuur|kitwerk|kitten|sauswerk|sausen|aflak|verven/i,
@@ -89,6 +102,64 @@ function rows(value: unknown): string[] {
 
 function unique(input: string[]): string[] {
   return Array.from(new Set(input.map((item) => item.trim()).filter(Boolean)));
+}
+
+function ensureWorkScopeRows(
+  scope: WorkDeliveryScope,
+  pattern: RegExp,
+  preferredRows: string[],
+  fallback: string,
+): void {
+  if (scope.work_scope.some((line) => pattern.test(line))) return;
+  const rowsToAdd = unique(preferredRows.filter((line) => pattern.test(line)));
+  scope.work_scope = deduplicateWorkScopeRows([
+    ...scope.work_scope,
+    ...(rowsToAdd.length > 0 ? rowsToAdd : [fallback]),
+  ]);
+}
+
+const WORK_SCOPE_STOP_WORDS = new Set([
+  'aan', 'als', 'bij', 'de', 'die', 'een', 'en', 'het', 'in', 'met', 'naar', 'om',
+  'onder', 'op', 'te', 'tot', 'uit', 'van', 'voor', 'wordt', 'zijn',
+]);
+
+function normalizeWorkScopeTokens(value: string): Set<string> {
+  const normalized = value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(?:weg\s*halen|weghalen|demonteren)\b/g, ' verwijderen ')
+    .replace(/\b(?:verwijderd|verwijder)\b/g, ' verwijderen ')
+    .replace(/\b(?:zetten|gezet|monteren|gemonteerd|aanbrengen|aangebracht)\b/g, ' plaatsen ')
+    .replace(/\b(?:plek|positie)\b/g, ' locatie ')
+    .replace(/\bbestaand(?:e)?\b/g, ' oude ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+  return new Set(normalized
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !WORK_SCOPE_STOP_WORDS.has(token)));
+}
+
+function isEquivalentWorkScopeRow(left: string, right: string): boolean {
+  const leftTokens = normalizeWorkScopeTokens(left);
+  const rightTokens = normalizeWorkScopeTokens(right);
+  if (leftTokens.size < 2 || rightTokens.size < 2) return false;
+
+  const overlap = [...leftTokens].filter((token) => rightTokens.has(token)).length;
+  const smallerSize = Math.min(leftTokens.size, rightTokens.size);
+  const largerSize = Math.max(leftTokens.size, rightTokens.size);
+
+  // A paraphrase usually preserves nearly all meaningful words, while adding or
+  // dropping a qualifier such as "nieuwe". Separate operations (for example only
+  // removing a cabinet versus only placing a wall) do not meet this threshold.
+  return overlap / smallerSize >= 0.8 && overlap / largerSize >= 0.65;
+}
+
+export function deduplicateWorkScopeRows(input: string[]): string[] {
+  return unique(input).filter((candidate, index, rows) => (
+    !rows.slice(0, index).some((existing) => isEquivalentWorkScopeRow(existing, candidate))
+  ));
 }
 
 function truncateAtWord(value: string, maxLength: number): string {
@@ -195,6 +266,8 @@ export function sanitizeWorkDeliveryScope(input: unknown): WorkDeliveryScope {
       ...getLegacyInternalNotes(input),
     ]),
     afvalAfvoeren: input.afvalAfvoeren === true,
+    schilderwerkInbegrepen: input.schilderwerkInbegrepen === true,
+    stucwerkInbegrepen: input.stucwerkInbegrepen === true,
     electricalScope,
     finishLevel: normalizeFinishLevel(input.finishLevel),
     customFinishDescription: text(input.customFinishDescription),
@@ -218,7 +291,7 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     ...input,
     title: isIgnoredWorkDeliveryMaterial(input.title) ? '' : input.title,
     summary: isIgnoredWorkDeliveryMaterial(input.summary) ? '' : input.summary,
-    work_scope: unique(input.work_scope).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),
+    work_scope: deduplicateWorkScopeRows(input.work_scope).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),
     materials: sanitizeMaterialRows(input.materials),
     dimensions: unique(input.dimensions).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),
     included: unique(input.included).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),
@@ -236,8 +309,10 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     if (WASTE_PATTERN.test(scope.title)) scope.title = '';
     scope.excluded = unique([...scope.excluded, WASTE_EXCLUDED_TEXT]);
   } else {
-    scope.included = unique([...scope.included.filter((line) => !WASTE_PATTERN.test(line)), WASTE_INCLUDED_TEXT]);
+    const wasteRows = scope.included.filter((line) => WASTE_PATTERN.test(line) && line !== WASTE_INCLUDED_TEXT);
+    scope.included = scope.included.filter((line) => !WASTE_PATTERN.test(line));
     scope.excluded = scope.excluded.filter((line) => !WASTE_PATTERN.test(line));
+    ensureWorkScopeRows(scope, WASTE_PATTERN, wasteRows, WASTE_WORK_SCOPE_TEXT);
   }
 
   if (!scope.electricalScope.enabled) {
@@ -246,12 +321,18 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     if (ELECTRICAL_PATTERN.test(scope.title)) scope.title = '';
     scope.excluded = unique([...scope.excluded, ELECTRICAL_EXCLUDED_TEXT]);
   } else {
-    customerKeys.forEach((key) => { scope[key] = scope[key].filter((line) => !ELECTRICAL_PATTERN.test(line)); });
-    scope.excluded = unique([...scope.excluded.filter((line) => line !== ELECTRICAL_EXCLUDED_TEXT), ...scope.electricalScope.excludedItems]);
-    scope.included = unique([
-      ...scope.included,
+    const electricalRows = [
+      ...scope.included.filter((line) => ELECTRICAL_PATTERN.test(line)),
       scope.electricalScope.description,
       ...scope.electricalScope.includedItems,
+    ];
+    scope.materials = scope.materials.filter((line) => !ELECTRICAL_PATTERN.test(line));
+    scope.dimensions = scope.dimensions.filter((line) => !ELECTRICAL_PATTERN.test(line));
+    scope.included = scope.included.filter((line) => !ELECTRICAL_PATTERN.test(line));
+    scope.excluded = unique([...scope.excluded.filter((line) => line !== ELECTRICAL_EXCLUDED_TEXT), ...scope.electricalScope.excludedItems]);
+    ensureWorkScopeRows(scope, ELECTRICAL_PATTERN, electricalRows, ELECTRICAL_WORK_SCOPE_TEXT);
+    scope.work_scope = unique([
+      ...scope.work_scope,
       Number.isFinite(scope.electricalScope.maxLengthMeters)
         ? `Kabellengte maximaal ${scope.electricalScope.maxLengthMeters} meter.`
         : '',
@@ -260,13 +341,44 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
 
   const finishPattern = FINISH_PATTERNS[scope.finishLevel];
   if (finishPattern) {
-    customerKeys.forEach((key) => { scope[key] = scope[key].filter((line) => !finishPattern.test(line)); });
-    if (finishPattern.test(scope.summary)) scope.summary = '';
-    if (finishPattern.test(scope.title)) scope.title = '';
-    const finishExclusions = scope.finishLevel === 'constructief_gereed'
-      ? 'Schilderwerk, stucwerk, plamuurwerk, kitwerk en sauswerk.'
-      : 'Schilderwerk, stucwerk, plamuurwerk, kitwerk en sauswerk na montage van het plaatmateriaal.';
-    scope.excluded = unique([...scope.excluded, finishExclusions]);
+    const disallowedFinishPattern = new RegExp([
+      !scope.schilderwerkInbegrepen ? PAINTING_PATTERN.source : '',
+      !scope.stucwerkInbegrepen ? STUCCO_PATTERN.source : '',
+      OTHER_FINISH_PATTERN.source,
+    ].filter(Boolean).join('|'), 'i');
+    customerKeys.forEach((key) => {
+      scope[key] = scope[key].filter((line) => !disallowedFinishPattern.test(line));
+    });
+    if (disallowedFinishPattern.test(scope.summary)) scope.summary = '';
+    if (disallowedFinishPattern.test(scope.title)) scope.title = '';
+
+    scope.excluded = scope.excluded.filter((line) => !finishPattern.test(line));
+    const excludedFinishParts = [
+      !scope.schilderwerkInbegrepen ? 'schilderwerk en sauswerk' : '',
+      !scope.stucwerkInbegrepen ? 'stucwerk' : '',
+      'plamuurwerk en kitwerk',
+    ].filter(Boolean);
+    if (excludedFinishParts.length > 0) {
+      const suffix = scope.finishLevel === 'plaatmateriaal_gemonteerd'
+        ? ' na montage van het plaatmateriaal'
+        : '';
+      const exclusion = `${excludedFinishParts.join(', ')}${suffix}.`;
+      scope.excluded = unique([...scope.excluded, exclusion.charAt(0).toUpperCase() + exclusion.slice(1)]);
+    }
+  }
+
+  if (scope.schilderwerkInbegrepen) {
+    const paintingRows = scope.included.filter((line) => PAINTING_PATTERN.test(line) && line !== PAINTING_INCLUDED_TEXT);
+    scope.included = scope.included.filter((line) => !PAINTING_PATTERN.test(line));
+    scope.excluded = scope.excluded.filter((line) => !PAINTING_PATTERN.test(line));
+    ensureWorkScopeRows(scope, PAINTING_PATTERN, paintingRows, PAINTING_WORK_SCOPE_TEXT);
+  }
+
+  if (scope.stucwerkInbegrepen) {
+    const stuccoRows = scope.included.filter((line) => STUCCO_PATTERN.test(line) && line !== STUCCO_INCLUDED_TEXT);
+    scope.included = scope.included.filter((line) => !STUCCO_PATTERN.test(line));
+    scope.excluded = scope.excluded.filter((line) => !STUCCO_PATTERN.test(line));
+    ensureWorkScopeRows(scope, STUCCO_PATTERN, stuccoRows, STUCCO_WORK_SCOPE_TEXT);
   }
 
   return scope;
@@ -310,7 +422,18 @@ export function validateWorkDeliveryScope(
     errors.push('Elektrawerk staat uit, maar klanttekst bevat elektrawerk.');
   }
   const finishPattern = FINISH_PATTERNS[scope.finishLevel];
-  if (finishPattern && finishPattern.test(customerText.replace(/Schilderwerk, stucwerk, plamuurwerk, kitwerk en sauswerk[^.]*\./i, ''))) {
+  const finishValidationText = customerText
+    .replace(/Schilderwerk, stucwerk, plamuurwerk, kitwerk en sauswerk[^.]*\./i, '')
+    .replace(PAINTING_INCLUDED_TEXT, '')
+    .replace(STUCCO_INCLUDED_TEXT, '');
+  if (
+    finishPattern
+    && (
+      (!scope.schilderwerkInbegrepen && PAINTING_PATTERN.test(finishValidationText))
+      || (!scope.stucwerkInbegrepen && STUCCO_PATTERN.test(finishValidationText))
+      || OTHER_FINISH_PATTERN.test(finishValidationText)
+    )
+  ) {
     errors.push('De klanttekst bevat afwerking die niet past bij het gekozen afwerkingsniveau.');
   }
 

@@ -691,6 +691,8 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             excluded: structuredWorkDescription.excluded,
             internal_notes: structuredWorkDescription.internal_notes,
             afvalAfvoeren: structuredWorkDescription.afvalAfvoeren,
+            schilderwerkInbegrepen: structuredWorkDescription.schilderwerkInbegrepen,
+            stucwerkInbegrepen: structuredWorkDescription.stucwerkInbegrepen,
             electricalScope: structuredWorkDescription.electricalScope,
             finishLevel: structuredWorkDescription.finishLevel,
             sections: structuredWorkDescription.sections,

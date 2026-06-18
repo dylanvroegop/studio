@@ -3,7 +3,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus, Trash2, Calculator, Package, Rows3, List, ArrowUpDown, PackageSearch, Eraser } from 'lucide-react';
+import { Loader2, Plus, Trash2, Calculator, Package, Rows3, List, ArrowUpDown, PackageSearch, Eraser, Pencil } from 'lucide-react';
 
 import { useUser } from '@/firebase';
 
@@ -50,6 +50,11 @@ type Material = {
   leverancier: string | null;
   gebruikerid: string;
   order_id?: number | null;
+  lengte?: string | number | null;
+  breedte?: string | number | null;
+  dikte?: string | number | null;
+  hoogte?: string | number | null;
+  unit?: string | null;
 };
 
 type BackgroundImportState = {
@@ -335,6 +340,7 @@ export default function MaterialenPage() {
   const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(50);
 
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
+  const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [bouwmaatImportOpen, setBouwmaatImportOpen] = useState<boolean>(false);
   const [savingCustom, setSavingCustom] = useState<boolean>(false);
 
@@ -731,6 +737,7 @@ export default function MaterialenPage() {
 
   const openCustomDialog = useCallback(() => {
     setPageError(null);
+    setEditingMaterial(null);
     resetCustomForm();
     setStep('choice'); // Zorgt dat je altijd begint bij de 2 kaarten
     setDialogOpen(true);
@@ -738,12 +745,32 @@ export default function MaterialenPage() {
 
   const closeCustomDialog = useCallback(() => {
     setDialogOpen(false);
+    setEditingMaterial(null);
     setSafetyPopupOpen(false);
     setSafetyQuestion('');
     setSafetyExpectedUnit('');
     setSafetyAnswer('');
     setSafetyAnswerError(null);
   }, []);
+
+  const openEditDialog = useCallback((material: Material) => {
+    setPageError(null);
+    resetCustomForm();
+    setEditingMaterial(material);
+    setIsCalculatie(isMaatEenheid(material.eenheid || ''));
+    setCustomNaam(material.materiaalnaam || '');
+    setCustomEenheid(material.eenheid || 'stuk');
+    setCustomPrijs(parsePriceToNumber(material.prijs)?.toString() || '');
+    setCustomSubsectie(material.subsectie || material.sub_categorie || material.categorie || '');
+    setCustomLeverancier(material.leverancier || '');
+    setMaatUnit(material.unit || 'mm');
+    setMaatLengte(material.lengte?.toString() || '');
+    setMaatBreedte(material.breedte?.toString() || '');
+    setMaatDikte(material.dikte?.toString() || '');
+    setMaatHoogte(material.hoogte?.toString() || '');
+    setStep('form');
+    setDialogOpen(true);
+  }, [resetCustomForm]);
 
   useEffect(() => {
     if (customEenheid === 'p/m3') {
@@ -777,14 +804,14 @@ export default function MaterialenPage() {
     // Basis check: naam, prijs en eenheid moeten er altijd zijn
     const basisCheck = !savingCustom && isNaamOk && isPrijsOk && isEenheidOk;
 
-    if (isCalculatie) {
+    if (isCalculatie && !editingMaterial) {
       // In calculatie-modus MOETEN lengte en breedte ingevuld zijn (isMaatOk)
       return basisCheck && isMaatOk;
     }
 
     // In 'Los artikel' modus zijn maten niet nodig
     return basisCheck;
-  }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk, isMaatOk, isCalculatie]);
+  }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk, isMaatOk, isCalculatie, editingMaterial]);
 
   const previewNaam = useMemo(() => {
     const base = (customNaam || '').trim() || '...';
@@ -871,6 +898,7 @@ export default function MaterialenPage() {
         prijs_excl_btw: prijsNumLocal,
         unit: maatUnitLocal,
       };
+      if (editingMaterial?.row_id) payload.row_id = editingMaterial.row_id;
       const safetyAnswerFinal = (safetyAnswerOverride || '').trim();
       if (safetyAnswerFinal) {
         payload.safety_confirmed = true;
@@ -939,6 +967,7 @@ export default function MaterialenPage() {
       await fetchMaterials();
       setSavingCustom(false);
       setDialogOpen(false);
+      setEditingMaterial(null);
     } catch (e: any) {
       console.error(e);
       const message = e?.message || 'Onbekende fout.';
@@ -963,6 +992,7 @@ export default function MaterialenPage() {
     maatDikte,
     maatHoogte,
     safetyExpectedUnit,
+    editingMaterial,
     fetchMaterials,
   ]);
 
@@ -1634,7 +1664,20 @@ export default function MaterialenPage() {
                     paginatedMaterials.map((material) => {
                       const prijsNumber = parsePriceToNumber(material.prijs);
                       return (
-                        <TableRow key={material.row_id}>
+                        <TableRow
+                          key={material.row_id}
+                          role="button"
+                          tabIndex={0}
+                          className="cursor-pointer"
+                          onClick={() => openEditDialog(material)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              openEditDialog(material);
+                            }
+                          }}
+                          aria-label={`Bewerk ${material.materiaalnaam || 'materiaal'}`}
+                        >
                           <TableCell className={cn(isCompact ? "py-1 font-medium" : "font-medium", "min-w-0")}>
                             <div className="min-w-0">
                               <div className="truncate">{material.materiaalnaam ?? '—'}</div>
@@ -1654,7 +1697,24 @@ export default function MaterialenPage() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              onClick={() => openDeleteDialog(material)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openEditDialog(material);
+                              }}
+                              title="Bewerken"
+                              aria-label={`Bewerk ${material.materiaalnaam || 'materiaal'}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openDeleteDialog(material);
+                              }}
                               title="Verwijderen"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1735,7 +1795,13 @@ export default function MaterialenPage() {
         />
 
         {/* ✅ Add custom dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            if (open) setDialogOpen(true);
+            else closeCustomDialog();
+          }}
+        >
           <DialogContent className="w-[95vw] sm:max-w-[640px] overflow-hidden p-0">
             {step === 'choice' ? (
               /* STAP 1: DE KEUZEKAARTEN (Nu beide met emerald hover) */
@@ -1809,7 +1875,7 @@ export default function MaterialenPage() {
                   </div>
                   <div className="flex flex-col gap-1">
                     <DialogTitle className="text-xl font-bold text-white leading-none">
-                      Nieuw {isCalculatie ? 'Calculatie Product' : 'Los Artikel'}
+                      {editingMaterial ? 'Materiaal bewerken' : `Nieuw ${isCalculatie ? 'Calculatie Product' : 'Los Artikel'}`}
                     </DialogTitle>
                     <DialogDescription className="text-zinc-400 text-sm">
                       Vul de gegevens van het materiaal in.
@@ -1965,10 +2031,10 @@ export default function MaterialenPage() {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => setStep('choice')}
+                    onClick={() => editingMaterial ? closeCustomDialog() : setStep('choice')}
                     className="h-11"
                   >
-                    Vorige
+                    {editingMaterial ? 'Annuleren' : 'Vorige'}
                   </Button>
 
                   <Button
@@ -1978,8 +2044,8 @@ export default function MaterialenPage() {
                     disabled={!canSaveCustom || savingCustom}
                     className="h-11 gap-2 px-8 text-sm font-bold shadow-lg shadow-success/20"
                   >
-                    {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    Materiaal toevoegen
+                    {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : editingMaterial ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    {editingMaterial ? 'Opslaan' : 'Materiaal toevoegen'}
                   </Button>
                 </DialogFooter>
               </>
