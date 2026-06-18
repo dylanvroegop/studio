@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { Badge } from "@/components/ui/badge";
 import { Circle, Clock, CheckCircle2, Send, XCircle, AlertCircle, Loader2 } from "lucide-react";
-export type Status = 'concept' | 'in_behandeling' | 'verzonden' | 'geaccepteerd' | 'afgewezen' | 'verlopen';
+export type Status = 'werkbespreking' | 'concept' | 'in_behandeling' | 'verzonden' | 'geaccepteerd' | 'afgewezen' | 'verlopen';
 
 // Helper to check if a single job (klus) is complete
 export function jobIsComplete(job: any): boolean {
@@ -33,7 +33,7 @@ export function getQuoteWorkStatus(quote: any): WorkStatus {
     const amount = quote.totaalbedrag || quote.amount || 0;
 
     // If already sent/accepted/rejected, show that status
-    if (status === 'verzonden' || status === 'geaccepteerd' || status === 'afgewezen' || status === 'verlopen') {
+    if (status === 'werkbespreking' || status === 'verzonden' || status === 'geaccepteerd' || status === 'afgewezen' || status === 'verlopen') {
         return { type: 'sent', status };
     }
 
@@ -133,6 +133,7 @@ export function WorkStatusBadge({ quote }: { quote: any }) {
 
     // workStatus.type === 'sent'
     const sentStatusMap: Record<Status, { text: string; className: string; icon: React.ReactNode }> = {
+        werkbespreking: { text: 'Werkbespreking', className: 'bg-violet-500/10 text-violet-300 border-violet-500/20', icon: <Clock className="h-3 w-3" /> },
         concept: { text: 'Concept', className: 'bg-muted text-foreground border-border', icon: <Circle className="h-3 w-3" /> },
         in_behandeling: { text: 'In bewerking', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20', icon: <Clock className="h-3 w-3" /> },
         verzonden: { text: 'Verzonden', className: 'bg-sky-500/10 text-sky-400 border-sky-500/20', icon: <Send className="h-3 w-3" /> },

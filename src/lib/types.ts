@@ -26,7 +26,7 @@ export type Quote = {
   id: string;
   userId: string;
 
-  status: "concept" | "in_behandeling" | "in_afwachting" | "verzonden" | "geaccepteerd" | "afgewezen" | "verlopen";
+  status: "werkbespreking" | "concept" | "in_behandeling" | "in_afwachting" | "verzonden" | "geaccepteerd" | "afgewezen" | "verlopen";
   createdAt: Timestamp;
   updatedAt: Timestamp;
   calculationStartedAt?: Timestamp | Date | string;

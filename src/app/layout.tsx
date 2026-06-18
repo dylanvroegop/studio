@@ -5,6 +5,7 @@ import { FirebaseClientProvider } from '@/firebase';
 import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
 import { ThemeModeProvider } from '@/context/ThemeModeContext';
 import { DeferredAuthGuards } from '@/components/DeferredAuthGuards';
+import { QuoteWorkMeetingStatusSync } from '@/components/QuoteWorkMeetingStatusSync';
 
 export const metadata: Metadata = {
   title: 'Calvora',
@@ -53,6 +54,7 @@ export default function RootLayout({
           <ThemeModeProvider>
             <MeasurementUnitProvider>
               <DeferredAuthGuards />
+              <QuoteWorkMeetingStatusSync />
               {children}
               <Toaster />
             </MeasurementUnitProvider>

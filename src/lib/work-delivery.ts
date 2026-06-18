@@ -26,6 +26,11 @@ export interface WorkDeliveryScope {
   afvalAfvoeren: boolean;
   schilderwerkInbegrepen: boolean;
   stucwerkInbegrepen: boolean;
+  plamuurwerkInbegrepen: boolean;
+  kitwerkInbegrepen: boolean;
+  steigerInbegrepen: boolean;
+  sloopwerkInbegrepen: boolean;
+  nadenVullenInbegrepen: boolean;
   electricalScope: ElectricalScope;
   finishLevel: FinishLevel;
   customFinishDescription?: string;
@@ -44,6 +49,9 @@ export const STUCCO_INCLUDED_TEXT = 'Stucwerk inbegrepen zoals overeengekomen.';
 export const WASTE_WORK_SCOPE_TEXT = 'Afvoeren van vrijkomend afval en restmateriaal.';
 export const PAINTING_WORK_SCOPE_TEXT = 'Schilderen van de overeengekomen onderdelen.';
 export const STUCCO_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen stucwerk.';
+export const FILLING_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen plamuurwerk.';
+export const SEALING_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen kitwerk.';
+export const SEAM_FILLING_WORK_SCOPE_TEXT = 'Vullen en afwerken van de overeengekomen naden.';
 export const ELECTRICAL_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen elektrawerk.';
 
 export const DEFAULT_ELECTRICAL_SCOPE: ElectricalScope = {
@@ -65,6 +73,11 @@ export const DEFAULT_WORK_DELIVERY_SCOPE: WorkDeliveryScope = {
   afvalAfvoeren: false,
   schilderwerkInbegrepen: false,
   stucwerkInbegrepen: false,
+  plamuurwerkInbegrepen: false,
+  kitwerkInbegrepen: false,
+  steigerInbegrepen: false,
+  sloopwerkInbegrepen: false,
+  nadenVullenInbegrepen: false,
   electricalScope: DEFAULT_ELECTRICAL_SCOPE,
   finishLevel: 'constructief_gereed',
 };
@@ -73,7 +86,9 @@ const WASTE_PATTERN = /afval|puin|sloopafval|restmateriaal\s+afvoeren|container|
 const ELECTRICAL_PATTERN = /elektra|elektrisch|kabel|stopcontact|schakelaar|meterkast|wandcontactdoos|groepenkast/i;
 const PAINTING_PATTERN = /schilder|sauswerk|sausen|aflak|verven/i;
 const STUCCO_PATTERN = /stuc/i;
-const OTHER_FINISH_PATTERN = /plamuur|kitwerk|kitten/i;
+const FILLING_PATTERN = /plamuur/i;
+const SEALING_PATTERN = /kitwerk|kitten/i;
+const SEAM_FILLING_PATTERN = /nad(?:en|e)\s+(?:vullen|afwerken)|voeg(?:en)?\s+(?:vullen|afwerken)/i;
 const FINISH_PATTERNS: Partial<Record<FinishLevel, RegExp>> = {
   constructief_gereed: /schilder|stuc|plamuur|kitwerk|kitten|sauswerk|sausen|aflak|verven/i,
   plaatmateriaal_gemonteerd: /schilder|stuc|plamuur|kitwerk|kitten|sauswerk|sausen|aflak|verven/i,
@@ -226,6 +241,39 @@ function normalizeFinishLevel(value: unknown): FinishLevel {
   return allowed.includes(value as FinishLevel) ? value as FinishLevel : 'constructief_gereed';
 }
 
+export function inferWorkDeliveryFinishLevel(input: unknown): FinishLevel {
+  if (!isRecord(input)) return 'constructief_gereed';
+
+  const availableText = [
+    text(input.title),
+    text(input.summary ?? input.context),
+    ...rows(input.work_scope),
+    ...rows(input.materials),
+    ...rows(input.included),
+    ...rows(input.internal_notes),
+  ].join('\n');
+
+  if (/volledig\s+afgewerkt/i.test(availableText)) return 'volledig_afgewerkt';
+  if (
+    input.schilderwerkInbegrepen === true
+    || input.stucwerkInbegrepen === true
+    || PAINTING_PATTERN.test(availableText)
+    || STUCCO_PATTERN.test(availableText)
+  ) return 'volledig_afgewerkt';
+  if (/sausklaar/i.test(availableText)) return 'sausklaar';
+  if (
+    input.plamuurwerkInbegrepen === true
+    || input.nadenVullenInbegrepen === true
+    || /schilderklaar/i.test(availableText)
+    || FILLING_PATTERN.test(availableText)
+    || SEAM_FILLING_PATTERN.test(availableText)
+  ) return 'schilderklaar';
+  if (/plaatmateriaal|gipsplaat|osb|multiplex|bekled(?:en|ing)|beplating/i.test(availableText)) {
+    return 'plaatmateriaal_gemonteerd';
+  }
+  return 'constructief_gereed';
+}
+
 function normalizeElectricalScope(value: unknown): ElectricalScope {
   if (!isRecord(value)) return { ...DEFAULT_ELECTRICAL_SCOPE };
   const maxLength = Number(value.maxLengthMeters);
@@ -268,6 +316,11 @@ export function sanitizeWorkDeliveryScope(input: unknown): WorkDeliveryScope {
     afvalAfvoeren: input.afvalAfvoeren === true,
     schilderwerkInbegrepen: input.schilderwerkInbegrepen === true,
     stucwerkInbegrepen: input.stucwerkInbegrepen === true,
+    plamuurwerkInbegrepen: input.plamuurwerkInbegrepen === true || input.plamuurEnKitwerkInbegrepen === true,
+    kitwerkInbegrepen: input.kitwerkInbegrepen === true || input.plamuurEnKitwerkInbegrepen === true,
+    steigerInbegrepen: input.steigerInbegrepen === true,
+    sloopwerkInbegrepen: input.sloopwerkInbegrepen === true,
+    nadenVullenInbegrepen: input.nadenVullenInbegrepen === true,
     electricalScope,
     finishLevel: normalizeFinishLevel(input.finishLevel),
     customFinishDescription: text(input.customFinishDescription),
@@ -344,7 +397,9 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     const disallowedFinishPattern = new RegExp([
       !scope.schilderwerkInbegrepen ? PAINTING_PATTERN.source : '',
       !scope.stucwerkInbegrepen ? STUCCO_PATTERN.source : '',
-      OTHER_FINISH_PATTERN.source,
+      !scope.plamuurwerkInbegrepen ? FILLING_PATTERN.source : '',
+      !scope.kitwerkInbegrepen ? SEALING_PATTERN.source : '',
+      !scope.nadenVullenInbegrepen ? SEAM_FILLING_PATTERN.source : '',
     ].filter(Boolean).join('|'), 'i');
     customerKeys.forEach((key) => {
       scope[key] = scope[key].filter((line) => !disallowedFinishPattern.test(line));
@@ -356,7 +411,9 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     const excludedFinishParts = [
       !scope.schilderwerkInbegrepen ? 'schilderwerk en sauswerk' : '',
       !scope.stucwerkInbegrepen ? 'stucwerk' : '',
-      'plamuurwerk en kitwerk',
+      !scope.plamuurwerkInbegrepen ? 'plamuurwerk' : '',
+      !scope.kitwerkInbegrepen ? 'kitwerk' : '',
+      !scope.nadenVullenInbegrepen ? 'naden vullen' : '',
     ].filter(Boolean);
     if (excludedFinishParts.length > 0) {
       const suffix = scope.finishLevel === 'plaatmateriaal_gemonteerd'
@@ -379,6 +436,27 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     scope.included = scope.included.filter((line) => !STUCCO_PATTERN.test(line));
     scope.excluded = scope.excluded.filter((line) => !STUCCO_PATTERN.test(line));
     ensureWorkScopeRows(scope, STUCCO_PATTERN, stuccoRows, STUCCO_WORK_SCOPE_TEXT);
+  }
+
+  if (scope.plamuurwerkInbegrepen) {
+    const fillingRows = scope.included.filter((line) => FILLING_PATTERN.test(line));
+    scope.included = scope.included.filter((line) => !FILLING_PATTERN.test(line));
+    scope.excluded = scope.excluded.filter((line) => !FILLING_PATTERN.test(line));
+    ensureWorkScopeRows(scope, FILLING_PATTERN, fillingRows, FILLING_WORK_SCOPE_TEXT);
+  }
+
+  if (scope.kitwerkInbegrepen) {
+    const sealingRows = scope.included.filter((line) => SEALING_PATTERN.test(line));
+    scope.included = scope.included.filter((line) => !SEALING_PATTERN.test(line));
+    scope.excluded = scope.excluded.filter((line) => !SEALING_PATTERN.test(line));
+    ensureWorkScopeRows(scope, SEALING_PATTERN, sealingRows, SEALING_WORK_SCOPE_TEXT);
+  }
+
+  if (scope.nadenVullenInbegrepen) {
+    const seamRows = scope.included.filter((line) => SEAM_FILLING_PATTERN.test(line));
+    scope.included = scope.included.filter((line) => !SEAM_FILLING_PATTERN.test(line));
+    scope.excluded = scope.excluded.filter((line) => !SEAM_FILLING_PATTERN.test(line));
+    ensureWorkScopeRows(scope, SEAM_FILLING_PATTERN, seamRows, SEAM_FILLING_WORK_SCOPE_TEXT);
   }
 
   return scope;
@@ -422,8 +500,13 @@ export function validateWorkDeliveryScope(
     errors.push('Elektrawerk staat uit, maar klanttekst bevat elektrawerk.');
   }
   const finishPattern = FINISH_PATTERNS[scope.finishLevel];
-  const finishValidationText = customerText
-    .replace(/Schilderwerk, stucwerk, plamuurwerk, kitwerk en sauswerk[^.]*\./i, '')
+  const finishValidationText = [
+    text(raw.title ?? raw.korteTitel),
+    text(raw.summary ?? raw.context),
+    ...rows(raw.work_scope),
+    ...rows(raw.dimensions),
+    ...rows(raw.included),
+  ].join('\n')
     .replace(PAINTING_INCLUDED_TEXT, '')
     .replace(STUCCO_INCLUDED_TEXT, '');
   if (
@@ -431,7 +514,9 @@ export function validateWorkDeliveryScope(
     && (
       (!scope.schilderwerkInbegrepen && PAINTING_PATTERN.test(finishValidationText))
       || (!scope.stucwerkInbegrepen && STUCCO_PATTERN.test(finishValidationText))
-      || OTHER_FINISH_PATTERN.test(finishValidationText)
+      || (!scope.plamuurwerkInbegrepen && FILLING_PATTERN.test(finishValidationText))
+      || (!scope.kitwerkInbegrepen && SEALING_PATTERN.test(finishValidationText))
+      || (!scope.nadenVullenInbegrepen && SEAM_FILLING_PATTERN.test(finishValidationText))
     )
   ) {
     errors.push('De klanttekst bevat afwerking die niet past bij het gekozen afwerkingsniveau.');

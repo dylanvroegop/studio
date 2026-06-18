@@ -8,7 +8,7 @@ import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
-import { Loader2, ChevronLeft, ChevronRight, Plus, Settings } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, Plus, RefreshCw, Settings } from 'lucide-react';
 import { useEmployees } from '@/hooks/useEmployees';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { TimelineView, PlanningEntry, PlanningEntryType } from '@/lib/types-planning';
@@ -117,6 +117,7 @@ function PlanningPageContent() {
     const [draftPlanningSettings, setDraftPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
     const [isPlanningSettingsOpen, setIsPlanningSettingsOpen] = useState(false);
     const [isSavingPlanningSettings, setIsSavingPlanningSettings] = useState(false);
+    const [isRefreshingGoogleCalendar, setIsRefreshingGoogleCalendar] = useState(false);
     const [selectedMobileDate, setSelectedMobileDate] = useState(new Date());
     const [schedulingQuote, setSchedulingQuote] = useState<Quote | null>(null);
     const [isLoadingSchedulingQuote, setIsLoadingSchedulingQuote] = useState(false);
@@ -331,6 +332,47 @@ function PlanningPageContent() {
             });
         } finally {
             setIsSavingPlanningSettings(false);
+        }
+    };
+
+    const handleRefreshGoogleCalendar = async () => {
+        if (!user || isRefreshingGoogleCalendar) return;
+        setIsRefreshingGoogleCalendar(true);
+        try {
+            const idToken = await user.getIdToken();
+            const response = await fetch('/api/google-calendar/refresh', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${idToken}` },
+            });
+            const result = await response.json().catch(() => null) as {
+                error?: string;
+                checked?: number;
+                updated?: number;
+                missing?: number;
+                skipped?: number;
+            } | null;
+
+            if (!response.ok) {
+                throw new Error(result?.error || 'Google Calendar vernieuwen mislukt.');
+            }
+
+            const details = [
+                `${result?.updated || 0} planning-item(s) bijgewerkt`,
+                result?.missing ? `${result.missing} verwijderd Google-item niet overgenomen` : '',
+                result?.skipped ? `${result.skipped} item(s) overgeslagen` : '',
+            ].filter(Boolean).join('. ');
+            toast({
+                title: 'Google Calendar gesynchroniseerd',
+                description: details || `${result?.checked || 0} gekoppelde item(s) gecontroleerd.`,
+            });
+        } catch (error) {
+            toast({
+                title: 'Synchroniseren mislukt',
+                description: error instanceof Error ? error.message : 'Google Calendar vernieuwen mislukt.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsRefreshingGoogleCalendar(false);
         }
     };
 
@@ -832,6 +874,18 @@ function PlanningPageContent() {
                         <span className="text-sm font-medium text-foreground min-w-[180px] text-center hidden sm:block">
                             {periodLabel}
                         </span>
+
+                        <Button
+                            variant="outline"
+                            className="h-10 gap-2"
+                            onClick={handleRefreshGoogleCalendar}
+                            disabled={isRefreshingGoogleCalendar}
+                            aria-label="Wijzigingen uit Google Calendar ophalen"
+                            title="Wijzigingen uit Google Calendar ophalen"
+                        >
+                            <RefreshCw className={cn("h-4 w-4", isRefreshingGoogleCalendar && "animate-spin")} />
+                            <span className="hidden xl:inline">Google verversen</span>
+                        </Button>
 
                         <Button
                             variant="outline"

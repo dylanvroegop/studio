@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,9 +13,9 @@ import {
   DEFAULT_ELECTRICAL_SCOPE,
   enforceWorkDeliverySafety,
   getFinishLevelLabel,
+  inferWorkDeliveryFinishLevel,
   sanitizeMaterialDescription,
   validateWorkDeliveryScope,
-  type FinishLevel,
 } from '@/lib/work-delivery';
 import { WorkDescriptionSectionEditor } from './WorkDescriptionSectionEditor';
 
@@ -58,6 +58,11 @@ function normalizeJobs(value: WorkDescriptionStructured): WorkDescriptionJob[] {
     afvalAfvoeren: value.afvalAfvoeren,
     schilderwerkInbegrepen: value.schilderwerkInbegrepen,
     stucwerkInbegrepen: value.stucwerkInbegrepen,
+    plamuurwerkInbegrepen: value.plamuurwerkInbegrepen,
+    kitwerkInbegrepen: value.kitwerkInbegrepen,
+    steigerInbegrepen: value.steigerInbegrepen,
+    sloopwerkInbegrepen: value.sloopwerkInbegrepen,
+    nadenVullenInbegrepen: value.nadenVullenInbegrepen,
     electricalScope: value.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
     finishLevel: value.finishLevel || 'constructief_gereed',
     customFinishDescription: value.customFinishDescription,
@@ -93,6 +98,11 @@ function updateActiveJob(
     afvalAfvoeren: active.afvalAfvoeren === true,
     schilderwerkInbegrepen: active.schilderwerkInbegrepen === true,
     stucwerkInbegrepen: active.stucwerkInbegrepen === true,
+    plamuurwerkInbegrepen: active.plamuurwerkInbegrepen === true,
+    kitwerkInbegrepen: active.kitwerkInbegrepen === true,
+    steigerInbegrepen: active.steigerInbegrepen === true,
+    sloopwerkInbegrepen: active.sloopwerkInbegrepen === true,
+    nadenVullenInbegrepen: active.nadenVullenInbegrepen === true,
     electricalScope: active.electricalScope,
     finishLevel: active.finishLevel,
     customFinishDescription: active.customFinishDescription,
@@ -100,15 +110,6 @@ function updateActiveJob(
     activeJobIndex: index,
   };
 }
-
-const FINISH_LEVELS: FinishLevel[] = [
-  'constructief_gereed',
-  'plaatmateriaal_gemonteerd',
-  'sausklaar',
-  'schilderklaar',
-  'volledig_afgewerkt',
-  'custom',
-];
 
 export function WorkDescriptionWorkspace({
   value,
@@ -123,11 +124,17 @@ export function WorkDescriptionWorkspace({
   const [activeIndexLocal, setActiveIndexLocal] = useState(value.activeJobIndex || 0);
   const activeIndex = clamp(activeIndexLocal, jobs.length);
   const activeJob = jobs[activeIndex];
+  const automaticFinishLevel = useMemo(() => inferWorkDeliveryFinishLevel(activeJob), [activeJob]);
   const validation = useMemo(() => validateWorkDeliveryScope(activeJob), [activeJob]);
 
   useEffect(() => {
     if (mode === 'preview') onModeChange('edit');
   }, [mode, onModeChange]);
+
+  useEffect(() => {
+    if (activeJob.finishLevel === automaticFinishLevel) return;
+    onChange(updateActiveJob(value, activeIndex, (job) => ({ ...job, finishLevel: automaticFinishLevel })));
+  }, [activeIndex, activeJob.finishLevel, automaticFinishLevel, onChange, value]);
 
   const changeJob = (index: number) => {
     setActiveIndexLocal(index);
@@ -138,7 +145,7 @@ export function WorkDescriptionWorkspace({
     onChange(updateActiveJob(value, activeIndex, (job) => ({ ...job, [key]: fieldValue })));
   };
 
-  const setSafetyField = <K extends 'afvalAfvoeren' | 'schilderwerkInbegrepen' | 'stucwerkInbegrepen' | 'electricalScope' | 'finishLevel' | 'customFinishDescription'>(
+  const setSafetyField = <K extends 'afvalAfvoeren' | 'schilderwerkInbegrepen' | 'stucwerkInbegrepen' | 'plamuurwerkInbegrepen' | 'kitwerkInbegrepen' | 'steigerInbegrepen' | 'sloopwerkInbegrepen' | 'nadenVullenInbegrepen' | 'electricalScope'>(
     key: K,
     fieldValue: WorkDescriptionJob[K],
   ) => {
@@ -149,6 +156,11 @@ export function WorkDescriptionWorkspace({
         afvalAfvoeren: key === 'afvalAfvoeren' ? fieldValue === true : job.afvalAfvoeren === true,
         schilderwerkInbegrepen: key === 'schilderwerkInbegrepen' ? fieldValue === true : job.schilderwerkInbegrepen === true,
         stucwerkInbegrepen: key === 'stucwerkInbegrepen' ? fieldValue === true : job.stucwerkInbegrepen === true,
+        plamuurwerkInbegrepen: key === 'plamuurwerkInbegrepen' ? fieldValue === true : job.plamuurwerkInbegrepen === true,
+        kitwerkInbegrepen: key === 'kitwerkInbegrepen' ? fieldValue === true : job.kitwerkInbegrepen === true,
+        steigerInbegrepen: key === 'steigerInbegrepen' ? fieldValue === true : job.steigerInbegrepen === true,
+        sloopwerkInbegrepen: key === 'sloopwerkInbegrepen' ? fieldValue === true : job.sloopwerkInbegrepen === true,
+        nadenVullenInbegrepen: key === 'nadenVullenInbegrepen' ? fieldValue === true : job.nadenVullenInbegrepen === true,
       };
       const safe = enforceWorkDeliverySafety(updated);
       return { ...updated, ...safe, context: safe.summary };
@@ -171,7 +183,7 @@ export function WorkDescriptionWorkspace({
     setField(key, next);
   };
 
-  const renderRows = (key: RowKey, title: string, placeholder: string) => (
+  const renderRows = (key: RowKey, title: string, placeholder: string, beforeRows?: ReactNode) => (
     <WorkDescriptionSectionEditor
       title={title}
       rows={ensureRows(rows(activeJob[key]))}
@@ -180,6 +192,7 @@ export function WorkDescriptionWorkspace({
       onAddRow={() => addRow(key)}
       onRemoveRow={(index) => removeRow(key, index)}
       onMoveRow={(index, direction) => moveRow(key, index, direction)}
+      beforeRows={beforeRows}
     />
   );
 
@@ -200,6 +213,14 @@ export function WorkDescriptionWorkspace({
           <CardTitle className="text-base">Werk &amp; Levering</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="success" size="sm" onClick={() => onGenerate('full')} disabled={isGenerating}>
+              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              Genereer
+            </Button>
+            {isAutoSaving ? <span className="self-center text-xs text-muted-foreground">Opslaan...</span> : null}
+          </div>
+
           {!validation.valid ? (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
               <div className="mb-1 flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4" /> Nog niet gereed voor PDF of versturen</div>
@@ -207,94 +228,83 @@ export function WorkDescriptionWorkspace({
             </div>
           ) : null}
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1">
-              <Label>Titel</Label>
-              <Input value={activeJob.title} onChange={(event) => setField('title', event.target.value)} placeholder="Bijv. Voorzetwand woonkamer" />
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Afval afvoeren</Label>
+              <Switch checked={activeJob.afvalAfvoeren === true} onCheckedChange={(checked) => setSafetyField('afvalAfvoeren', checked)} />
             </div>
-            <div className="space-y-1">
-              <Label>Afwerkingsniveau</Label>
-              <select
-                value={activeJob.finishLevel}
-                onChange={(event) => setSafetyField('finishLevel', event.target.value as FinishLevel)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                {FINISH_LEVELS.map((level) => <option key={level} value={level}>{getFinishLevelLabel(level)}</option>)}
-              </select>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Schilderwerk</Label>
+              <Switch checked={activeJob.schilderwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('schilderwerkInbegrepen', checked)} />
             </div>
-          </div>
-          <div className="space-y-1">
-            <Label>Korte omschrijving</Label>
-            <Textarea value={activeJob.summary} onChange={(event) => setField('summary', event.target.value)} rows={2} placeholder="Beschrijf alleen het afgesproken eindresultaat." />
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div><Label>Afval afvoeren</Label><p className="text-xs text-muted-foreground">Alleen opnemen wanneer dit expliciet is overeengekomen.</p></div>
-                <Switch checked={activeJob.afvalAfvoeren === true} onCheckedChange={(checked) => setSafetyField('afvalAfvoeren', checked)} />
-              </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Stucwerk</Label>
+              <Switch checked={activeJob.stucwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('stucwerkInbegrepen', checked)} />
             </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div><Label>Schilderwerk inbegrepen</Label><p className="text-xs text-muted-foreground">Alleen opnemen wanneer dit expliciet is overeengekomen.</p></div>
-                <Switch checked={activeJob.schilderwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('schilderwerkInbegrepen', checked)} />
-              </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Plamuurwerk</Label>
+              <Switch checked={activeJob.plamuurwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('plamuurwerkInbegrepen', checked)} />
             </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div><Label>Stucwerk inbegrepen</Label><p className="text-xs text-muted-foreground">Alleen opnemen wanneer dit expliciet is overeengekomen.</p></div>
-                <Switch checked={activeJob.stucwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('stucwerkInbegrepen', checked)} />
-              </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Kitwerk</Label>
+              <Switch checked={activeJob.kitwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('kitwerkInbegrepen', checked)} />
             </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div><Label>Elektrawerk inbegrepen</Label><p className="text-xs text-muted-foreground">Alleen de hieronder vastgelegde onderdelen.</p></div>
-                <Switch
-                  checked={activeJob.electricalScope.enabled}
-                  onCheckedChange={(enabled) => setSafetyField('electricalScope', { ...activeJob.electricalScope, enabled })}
-                />
-              </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Steiger</Label>
+              <Switch checked={activeJob.steigerInbegrepen === true} onCheckedChange={(checked) => setSafetyField('steigerInbegrepen', checked)} />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Sloopwerk</Label>
+              <Switch checked={activeJob.sloopwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('sloopwerkInbegrepen', checked)} />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Naden vullen</Label>
+              <Switch checked={activeJob.nadenVullenInbegrepen === true} onCheckedChange={(checked) => setSafetyField('nadenVullenInbegrepen', checked)} />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Elektrawerk</Label>
+              <Switch
+                checked={activeJob.electricalScope.enabled}
+                onCheckedChange={(enabled) => setSafetyField('electricalScope', { ...activeJob.electricalScope, enabled })}
+              />
             </div>
           </div>
 
-          {activeJob.electricalScope.enabled ? (
-            <div className="grid gap-3 rounded-lg border border-border/70 p-3 md:grid-cols-2">
-              <div className="space-y-1 md:col-span-2"><Label>Expliciete omschrijving elektrawerk</Label><Input value={activeJob.electricalScope.description} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, description: event.target.value })} /></div>
-              <div className="space-y-1"><Label>Maximale kabellengte (meter, optioneel)</Label><Input type="number" min="0" value={activeJob.electricalScope.maxLengthMeters ?? ''} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, maxLengthMeters: event.target.value ? Number(event.target.value) : undefined })} /></div>
-              <div className="space-y-1"><Label>Inbegrepen onderdelen, één per regel</Label><Textarea value={activeJob.electricalScope.includedItems.join('\n')} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, includedItems: event.target.value.split('\n') })} /></div>
-              <div className="space-y-1 md:col-span-2"><Label>Uitgesloten onderdelen, één per regel</Label><Textarea value={activeJob.electricalScope.excludedItems.join('\n')} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, excludedItems: event.target.value.split('\n') })} /></div>
-            </div>
-          ) : null}
-
-          {activeJob.finishLevel === 'custom' ? (
-            <div className="space-y-1"><Label>Maatwerk afwerkingsniveau</Label><Input value={activeJob.customFinishDescription || ''} onChange={(event) => setField('customFinishDescription', event.target.value)} /></div>
-          ) : null}
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="success" size="sm" onClick={() => onGenerate('full')} disabled={isGenerating}>
-              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              Genereer Werk &amp; Levering
-            </Button>
-            {isAutoSaving ? <span className="self-center text-xs text-muted-foreground">Opslaan...</span> : null}
-          </div>
         </CardContent>
       </Card>
 
       <div className="space-y-3">
-        {renderRows('work_scope', 'Werkzaamheden', 'Wat wordt commercieel geleverd, zonder uitvoeringsvolgorde')}
+        {renderRows('work_scope', 'Werkzaamheden', 'Wat wordt commercieel geleverd, zonder uitvoeringsvolgorde', (
+          <div className="space-y-3 border-b border-border/70 pb-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label>Titel</Label>
+                <Input value={activeJob.title} onChange={(event) => setField('title', event.target.value)} placeholder="Bijv. Voorzetwand woonkamer" />
+              </div>
+              <div className="space-y-1">
+                <Label>Afwerkingsniveau</Label>
+                <div className="flex h-10 items-center rounded-md border border-input bg-muted/30 px-3 text-sm">{getFinishLevelLabel(automaticFinishLevel)}</div>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Korte omschrijving</Label>
+              <Textarea value={activeJob.summary} onChange={(event) => setField('summary', event.target.value)} rows={2} placeholder="Beschrijf alleen het afgesproken eindresultaat." />
+            </div>
+            {activeJob.electricalScope.enabled ? (
+              <div className="grid gap-3 rounded-lg border border-border/70 p-3 md:grid-cols-2">
+                <div className="space-y-1 md:col-span-2"><Label>Expliciete omschrijving elektrawerk</Label><Input value={activeJob.electricalScope.description} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, description: event.target.value })} /></div>
+                <div className="space-y-1"><Label>Maximale kabellengte (meter, optioneel)</Label><Input type="number" min="0" value={activeJob.electricalScope.maxLengthMeters ?? ''} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, maxLengthMeters: event.target.value ? Number(event.target.value) : undefined })} /></div>
+                <div className="space-y-1"><Label>Inbegrepen onderdelen, één per regel</Label><Textarea value={activeJob.electricalScope.includedItems.join('\n')} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, includedItems: event.target.value.split('\n') })} /></div>
+                <div className="space-y-1 md:col-span-2"><Label>Uitgesloten onderdelen, één per regel</Label><Textarea value={activeJob.electricalScope.excludedItems.join('\n')} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, excludedItems: event.target.value.split('\n') })} /></div>
+              </div>
+            ) : null}
+          </div>
+        ))}
         {renderRows('dimensions', 'Maatvoering', 'Bijv. wand 4.200 x 2.600 mm')}
         {renderRows('included', 'Inbegrepen', 'Expliciet inbegrepen onderdeel')}
         {renderRows('excluded', 'Niet inbegrepen', 'Expliciete uitsluiting')}
       </div>
 
-      <Card className="border-border bg-muted/10">
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Interne werkinstructie</CardTitle></CardHeader>
-        <CardContent>
-          <p className="mb-3 text-xs text-muted-foreground">Alleen intern. Deze regels verschijnen niet in de klant-PDF.</p>
-          {renderRows('internal_notes', 'Interne notities', 'Interne methode, aandachtspunt of oude werkbeschrijvingsregel')}
-        </CardContent>
-      </Card>
     </div>
   );
 }

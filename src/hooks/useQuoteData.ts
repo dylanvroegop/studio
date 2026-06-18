@@ -53,7 +53,8 @@ async function getUserTokenSafe(user: { getIdToken: () => Promise<string> } | nu
         return await user.getIdToken();
     } catch (err) {
         console.warn('⚠️ [useQuoteData] getIdToken failed, using cached fallback if available:', err);
-        const cached = (user as any)?.stsTokenManager?.accessToken;
+        const cached = (user as { stsTokenManager?: { accessToken?: unknown } })
+            .stsTokenManager?.accessToken;
         if (typeof cached === 'string' && cached.length > 0) {
             return cached;
         }
@@ -73,7 +74,9 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
     const [error, setError] = useState<string | null>(null);
     const calculationRef = useRef<QuoteCalculation | null>(null);
     const lastSyncedDataJsonSignatureRef = useRef<string | null>(null);
-    const inFlightDataJsonSignatureRef = useRef<string | null>(null);
+    const latestRequestedDataJsonSignatureRef = useRef<string | null>(null);
+    const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
+    const mutationVersionRef = useRef(0);
 
     useEffect(() => {
         calculationRef.current = calculation;
@@ -202,28 +205,30 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
         }
 
         const nextSignature = JSON.stringify(newDataJson);
-        const currentSignature = currentCalculation.data_json
-            ? JSON.stringify(currentCalculation.data_json)
-            : null;
 
-        // Prevent duplicate writes when nothing actually changed.
-        if (nextSignature === currentSignature || nextSignature === lastSyncedDataJsonSignatureRef.current) {
+        // Prevent duplicate writes, including repeated blur events for a payload
+        // that is already waiting in the queue.
+        if (
+            nextSignature === latestRequestedDataJsonSignatureRef.current
+            || nextSignature === lastSyncedDataJsonSignatureRef.current
+        ) {
             return;
         }
 
-        // Prevent overlapping duplicate requests for the same payload.
-        if (inFlightDataJsonSignatureRef.current === nextSignature) {
-            return;
-        }
+        const mutationVersion = ++mutationVersionRef.current;
+        latestRequestedDataJsonSignatureRef.current = nextSignature;
 
-        inFlightDataJsonSignatureRef.current = nextSignature;
+        // Apply edits immediately. Persisting is serialized below, so an older
+        // server response can never make a deleted/edited row flash back in.
+        const optimisticCalculation = { ...currentCalculation, data_json: newDataJson };
+        calculationRef.current = optimisticCalculation;
+        setCalculation(optimisticCalculation);
+        setError(null);
 
-        try {
+        const persist = async (): Promise<void> => {
             const token = await getUserTokenSafe(user);
             if (!token) {
-                setError('Authenticatie tijdelijk niet beschikbaar. Controleer je internetverbinding en probeer opnieuw.');
-                inFlightDataJsonSignatureRef.current = null;
-                return;
+                throw new Error('Authenticatie tijdelijk niet beschikbaar. Controleer je internetverbinding en probeer opnieuw.');
             }
 
             const response = await fetch('/api/quotes/update-data-json', {
@@ -248,31 +253,38 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                 throw new Error(result.message || 'Failed to update');
             }
 
-            // Update was successful, use the returned data
-            if (result.data) {
-                const returnedDataJson = result.data.data_json;
-                const returnedSignature = JSON.stringify(returnedDataJson);
-                setCalculation(prev => prev ? { ...prev, data_json: returnedDataJson } : null);
-                calculationRef.current = currentCalculation
-                    ? { ...currentCalculation, data_json: returnedDataJson }
-                    : currentCalculation;
-                lastSyncedDataJsonSignatureRef.current = returnedSignature;
-            } else {
-                setCalculation(prev => prev ? { ...prev, data_json: newDataJson } : null);
-                calculationRef.current = currentCalculation
-                    ? { ...currentCalculation, data_json: newDataJson }
-                    : currentCalculation;
-                lastSyncedDataJsonSignatureRef.current = nextSignature;
+            const persistedDataJson = result.data?.data_json ?? newDataJson;
+            lastSyncedDataJsonSignatureRef.current = JSON.stringify(persistedDataJson);
+
+            // A newer optimistic edit may already be visible. Never replace it
+            // with this older response while that newer write waits its turn.
+            if (mutationVersionRef.current === mutationVersion) {
+                const persistedCalculation = {
+                    ...(calculationRef.current ?? currentCalculation),
+                    data_json: persistedDataJson,
+                };
+                calculationRef.current = persistedCalculation;
+                setCalculation(persistedCalculation);
             }
+        };
+
+        const queuedWrite = writeQueueRef.current
+            .catch(() => undefined)
+            .then(persist);
+        writeQueueRef.current = queuedWrite.catch(() => undefined);
+
+        try {
+            await queuedWrite;
         } catch (err) {
             console.error('Failed to update quote data:', err);
             const message = extractErrorMessage(err);
             setError(message.includes('auth/network-request-failed')
                 ? 'Geen verbinding met authenticatie. Controleer je internet en probeer opnieuw.'
                 : message);
+            if (mutationVersionRef.current === mutationVersion) {
+                latestRequestedDataJsonSignatureRef.current = null;
+            }
             throw err;
-        } finally {
-            inFlightDataJsonSignatureRef.current = null;
         }
     }, [user]);
 
@@ -282,36 +294,64 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
             throw new Error('Offerte-data is nog niet beschikbaar.');
         }
 
-        const token = await getUserTokenSafe(user);
-        if (!token) {
-            throw new Error('Authenticatie tijdelijk niet beschikbaar.');
-        }
+        const mutationVersion = ++mutationVersionRef.current;
+        const currentRoot = Array.isArray(currentCalculation.data_json)
+            ? currentCalculation.data_json[0]
+            : currentCalculation.data_json;
+        const optimisticDataJson = {
+            ...(currentRoot && typeof currentRoot === 'object' ? currentRoot : {}),
+            ...patch,
+        } as QuoteCalculation['data_json'];
+        const optimisticCalculation = { ...currentCalculation, data_json: optimisticDataJson };
+        calculationRef.current = optimisticCalculation;
+        latestRequestedDataJsonSignatureRef.current = JSON.stringify(optimisticDataJson);
+        setCalculation(optimisticCalculation);
+        setError(null);
 
-        const response = await fetch('/api/quotes/update-data-json', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                calculation_id: currentCalculation.id,
-                data_json_patch: patch,
-            }),
-        });
-        const result = await parseApiJson<{
-            ok?: boolean;
-            message?: string;
-            data?: QuoteCalculation;
-        }>(response).catch(() => null);
-        if (!response.ok || !result?.ok || !result.data?.data_json) {
-            throw new Error(result?.message || 'Kon offerte-data niet opslaan.');
-        }
+        let persisted: QuoteCalculation['data_json'] = optimisticDataJson;
+        const persist = async (): Promise<void> => {
+            const token = await getUserTokenSafe(user);
+            if (!token) {
+                throw new Error('Authenticatie tijdelijk niet beschikbaar.');
+            }
 
-        const persisted = result.data.data_json as QuoteCalculation['data_json'];
-        const persistedCalculation = { ...currentCalculation, data_json: persisted };
-        calculationRef.current = persistedCalculation;
-        lastSyncedDataJsonSignatureRef.current = JSON.stringify(persisted);
-        setCalculation((prev) => prev ? { ...prev, data_json: persisted } : persistedCalculation);
+            const response = await fetch('/api/quotes/update-data-json', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    calculation_id: currentCalculation.id,
+                    data_json_patch: patch,
+                }),
+            });
+            const result = await parseApiJson<{
+                ok?: boolean;
+                message?: string;
+                data?: QuoteCalculation;
+            }>(response).catch(() => null);
+            if (!response.ok || !result?.ok || !result.data?.data_json) {
+                throw new Error(result?.message || 'Kon offerte-data niet opslaan.');
+            }
+
+            persisted = result.data.data_json as QuoteCalculation['data_json'];
+            lastSyncedDataJsonSignatureRef.current = JSON.stringify(persisted);
+            if (mutationVersionRef.current === mutationVersion) {
+                const persistedCalculation = {
+                    ...(calculationRef.current ?? currentCalculation),
+                    data_json: persisted,
+                };
+                calculationRef.current = persistedCalculation;
+                setCalculation(persistedCalculation);
+            }
+        };
+
+        const queuedWrite = writeQueueRef.current
+            .catch(() => undefined)
+            .then(persist);
+        writeQueueRef.current = queuedWrite.catch(() => undefined);
+        await queuedWrite;
         return persisted;
     }, [user]);
 

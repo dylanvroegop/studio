@@ -14,6 +14,8 @@ env:
     secret: N8N_FEEDBACK_WEBHOOK_URL
   - variable: N8N_HEADER_SECRET
     secret: N8N_HEADER_SECRET
+  - variable: CALVORA_USER_ID
+    secret: CALVORA_USER_ID
 
   - variable: STRIPE_SECRET_KEY
     secret: STRIPE_SECRET_KEY

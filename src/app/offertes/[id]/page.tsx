@@ -785,6 +785,7 @@ export default function QuotePage() {
     const materialPresetSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSavedMaterialPresetRef = useRef<string>('');
     const lastSyncedQuoteTotalRef = useRef<number | null>(null);
+    const quoteSettingsWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
 
     // Refresh captured drawings when entering the PDF tab.
     // Avoid depending on calculation data object references, which can cause
@@ -1310,9 +1311,12 @@ export default function QuotePage() {
             const nextVerbruik = Array.isArray(normalized.verbruiksartikelen) ? normalized.verbruiksartikelen : [];
 
             // 1. Materials
-            setMaterials({
-                groot: nextGroot,
-                verbruik: nextVerbruik,
+            setMaterials((current) => {
+                const grootUnchanged = JSON.stringify(current.groot) === JSON.stringify(nextGroot);
+                const verbruikUnchanged = JSON.stringify(current.verbruik) === JSON.stringify(nextVerbruik);
+                return grootUnchanged && verbruikUnchanged
+                    ? current
+                    : { groot: nextGroot, verbruik: nextVerbruik };
             });
 
             // 2. Client Info
@@ -3169,6 +3173,24 @@ export default function QuotePage() {
     // Handle updating settings
     const handleUpdateSettings = async (newSettings: QuoteCalculationSettings) => {
         setQuoteSettings(newSettings);
+        // Keep Firestore-backed values optimistic as well. The calculation
+        // hydration effect prefers quote metadata, so leaving this stale would
+        // immediately paint the previous cost value back into the UI.
+        setQuote((prev) => prev
+            ? ({
+                ...prev,
+                instellingen: {
+                    ...((prev.instellingen ?? {}) as any),
+                    btwTarief: newSettings.btwTarief,
+                    btwMode: newSettings.btwMode,
+                    uurTariefExclBtw: newSettings.uurTariefExclBtw,
+                    uurTarief: newSettings.uurTariefExclBtw,
+                    schattingUren: newSettings.schattingUren,
+                    extras: newSettings.extras,
+                },
+                extras: newSettings.extras,
+            } as any)
+            : prev);
         if (calculation) {
             const root = unwrapRoot(calculation.data_json);
             await updateDataJson({
@@ -3184,18 +3206,18 @@ export default function QuotePage() {
             });
         }
         if (firestore && id) {
-            try {
-                const nextInstellingen = {
-                    ...((quote?.instellingen ?? {}) as any),
-                    btwTarief: newSettings.btwTarief,
-                    btwMode: newSettings.btwMode,
-                    uurTariefExclBtw: newSettings.uurTariefExclBtw,
-                    uurTarief: newSettings.uurTariefExclBtw,
-                    schattingUren: newSettings.schattingUren,
-                    extras: newSettings.extras,
-                };
-                const cleanedInstellingen = removeEmptyFields(nextInstellingen) ?? {};
-                const cleanedExtras = removeEmptyFields(newSettings.extras) ?? {};
+            const nextInstellingen = {
+                ...((quote?.instellingen ?? {}) as any),
+                btwTarief: newSettings.btwTarief,
+                btwMode: newSettings.btwMode,
+                uurTariefExclBtw: newSettings.uurTariefExclBtw,
+                uurTarief: newSettings.uurTariefExclBtw,
+                schattingUren: newSettings.schattingUren,
+                extras: newSettings.extras,
+            };
+            const cleanedInstellingen = removeEmptyFields(nextInstellingen) ?? {};
+            const cleanedExtras = removeEmptyFields(newSettings.extras) ?? {};
+            const persistSettings = async (): Promise<void> => {
                 await updateDoc(doc(firestore, 'quotes', id), {
                     instellingen: cleanedInstellingen,
                     extras: cleanedExtras,
@@ -3208,6 +3230,14 @@ export default function QuotePage() {
                         extras: cleanedExtras,
                     } as any)
                     : prev);
+            };
+            const queuedWrite = quoteSettingsWriteQueueRef.current
+                .catch(() => undefined)
+                .then(persistSettings);
+            quoteSettingsWriteQueueRef.current = queuedWrite.catch(() => undefined);
+
+            try {
+                await queuedWrite;
             } catch (error) {
                 console.error('Failed to sync quote settings to Firestore:', error);
                 toast({
@@ -4074,6 +4104,11 @@ export default function QuotePage() {
                 afvalAfvoeren: structured.afvalAfvoeren,
                 schilderwerkInbegrepen: structured.schilderwerkInbegrepen,
                 stucwerkInbegrepen: structured.stucwerkInbegrepen,
+                plamuurwerkInbegrepen: structured.plamuurwerkInbegrepen,
+                kitwerkInbegrepen: structured.kitwerkInbegrepen,
+                steigerInbegrepen: structured.steigerInbegrepen,
+                sloopwerkInbegrepen: structured.sloopwerkInbegrepen,
+                nadenVullenInbegrepen: structured.nadenVullenInbegrepen,
                 electricalScope: structured.electricalScope,
                 finishLevel: structured.finishLevel,
                 sections: structured.sections,
@@ -5249,6 +5284,11 @@ export default function QuotePage() {
                 afvalAfvoeren: activeWorkDescriptionJob?.afvalAfvoeren ?? workDescriptionStructured.afvalAfvoeren,
                 schilderwerkInbegrepen: activeWorkDescriptionJob?.schilderwerkInbegrepen ?? workDescriptionStructured.schilderwerkInbegrepen,
                 stucwerkInbegrepen: activeWorkDescriptionJob?.stucwerkInbegrepen ?? workDescriptionStructured.stucwerkInbegrepen,
+                plamuurwerkInbegrepen: activeWorkDescriptionJob?.plamuurwerkInbegrepen ?? workDescriptionStructured.plamuurwerkInbegrepen,
+                kitwerkInbegrepen: activeWorkDescriptionJob?.kitwerkInbegrepen ?? workDescriptionStructured.kitwerkInbegrepen,
+                steigerInbegrepen: activeWorkDescriptionJob?.steigerInbegrepen ?? workDescriptionStructured.steigerInbegrepen,
+                sloopwerkInbegrepen: activeWorkDescriptionJob?.sloopwerkInbegrepen ?? workDescriptionStructured.sloopwerkInbegrepen,
+                nadenVullenInbegrepen: activeWorkDescriptionJob?.nadenVullenInbegrepen ?? workDescriptionStructured.nadenVullenInbegrepen,
                 electricalScope: activeWorkDescriptionJob?.electricalScope ?? workDescriptionStructured.electricalScope,
                 finishLevel: activeWorkDescriptionJob?.finishLevel ?? workDescriptionStructured.finishLevel,
                 customFinishDescription: activeWorkDescriptionJob?.customFinishDescription ?? workDescriptionStructured.customFinishDescription,
@@ -5256,6 +5296,11 @@ export default function QuotePage() {
                     afvalAfvoeren: activeWorkDescriptionJob?.afvalAfvoeren ?? workDescriptionStructured.afvalAfvoeren,
                     schilderwerkInbegrepen: activeWorkDescriptionJob?.schilderwerkInbegrepen ?? workDescriptionStructured.schilderwerkInbegrepen,
                     stucwerkInbegrepen: activeWorkDescriptionJob?.stucwerkInbegrepen ?? workDescriptionStructured.stucwerkInbegrepen,
+                    plamuurwerkInbegrepen: activeWorkDescriptionJob?.plamuurwerkInbegrepen ?? workDescriptionStructured.plamuurwerkInbegrepen,
+                    kitwerkInbegrepen: activeWorkDescriptionJob?.kitwerkInbegrepen ?? workDescriptionStructured.kitwerkInbegrepen,
+                    steigerInbegrepen: activeWorkDescriptionJob?.steigerInbegrepen ?? workDescriptionStructured.steigerInbegrepen,
+                    sloopwerkInbegrepen: activeWorkDescriptionJob?.sloopwerkInbegrepen ?? workDescriptionStructured.sloopwerkInbegrepen,
+                    nadenVullenInbegrepen: activeWorkDescriptionJob?.nadenVullenInbegrepen ?? workDescriptionStructured.nadenVullenInbegrepen,
                     electricalScope: activeWorkDescriptionJob?.electricalScope ?? workDescriptionStructured.electricalScope,
                     finishLevel: activeWorkDescriptionJob?.finishLevel ?? workDescriptionStructured.finishLevel,
                     customFinishDescription: activeWorkDescriptionJob?.customFinishDescription ?? workDescriptionStructured.customFinishDescription,
@@ -5274,6 +5319,11 @@ export default function QuotePage() {
                 afvalAfvoeren: generationControlInput.afvalAfvoeren,
                 schilderwerkInbegrepen: generationControlInput.schilderwerkInbegrepen,
                 stucwerkInbegrepen: generationControlInput.stucwerkInbegrepen,
+                plamuurwerkInbegrepen: generationControlInput.plamuurwerkInbegrepen,
+                kitwerkInbegrepen: generationControlInput.kitwerkInbegrepen,
+                steigerInbegrepen: generationControlInput.steigerInbegrepen,
+                sloopwerkInbegrepen: generationControlInput.sloopwerkInbegrepen,
+                nadenVullenInbegrepen: generationControlInput.nadenVullenInbegrepen,
                 electricalScope: generationControlInput.electricalScope,
                 finishLevel: generationControlInput.finishLevel,
                 customFinishDescription: generationControlInput.customFinishDescription,
@@ -5291,6 +5341,11 @@ export default function QuotePage() {
                     afvalAfvoeren: generationControlInput.afvalAfvoeren,
                     schilderwerkInbegrepen: generationControlInput.schilderwerkInbegrepen,
                     stucwerkInbegrepen: generationControlInput.stucwerkInbegrepen,
+                    plamuurwerkInbegrepen: generationControlInput.plamuurwerkInbegrepen,
+                    kitwerkInbegrepen: generationControlInput.kitwerkInbegrepen,
+                    steigerInbegrepen: generationControlInput.steigerInbegrepen,
+                    sloopwerkInbegrepen: generationControlInput.sloopwerkInbegrepen,
+                    nadenVullenInbegrepen: generationControlInput.nadenVullenInbegrepen,
                     electricalScope: generationControlInput.electricalScope,
                     finishLevel: generationControlInput.finishLevel,
                     customFinishDescription: generationControlInput.customFinishDescription,
@@ -5901,62 +5956,63 @@ export default function QuotePage() {
                         </div>
                     )}
 
-                    <div className="hidden w-full gap-2 overflow-x-auto pb-1 sm:flex sm:w-auto sm:overflow-visible sm:pb-0">
+                    <div className="hidden w-full gap-4 overflow-x-auto pb-1 sm:flex sm:w-auto sm:overflow-visible sm:pb-0">
                         {!loading && (
                             <>
                                 <Button
                                     variant="outline"
-                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
+                                    size="icon"
+                                    className="h-9 w-9 shrink-0"
                                     onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`)}
                                     aria-label="Maak factuur"
                                     title="Maak factuur"
                                 >
                                     <ReceiptText size={16} />
-                                    Maak factuur
                                 </Button>
                                 <Button
                                     variant="outline"
-                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
+                                    size="icon"
+                                    className="h-9 w-9 shrink-0"
                                     onClick={handleOpenSplitQuoteDialog}
                                     disabled={combinedMaterialItems.length === 0 && Number(normalizedData?.totaal_uren || 0) <= 0}
                                     aria-label="Splits offerte"
                                     title="Splits offerte"
                                 >
                                     <Scissors size={16} />
-                                    Splits offerte
                                 </Button>
                                 {routeMapsUrl && (
                                     <Button
                                         variant="outline"
-                                        className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
+                                        size="icon"
+                                        className="h-9 w-9 shrink-0"
                                         onClick={() => {
                                             window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
                                         }}
-                                        title={routeDestinationAddress}
+                                        aria-label="Route"
+                                        title={`Route naar ${routeDestinationAddress}`}
                                     >
                                         <Navigation size={16} />
-                                        Route
                                     </Button>
                                 )}
                                 <Button
                                     variant="outline"
-                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
+                                    size="icon"
+                                    className="h-9 w-9 shrink-0"
                                     onClick={() => setIsPlanningTypeDialogOpen(true)}
                                     aria-label="Inplannen"
                                     title="Inplannen"
                                 >
                                     <CalendarDays size={16} />
-                                    Inplannen
                                 </Button>
                                 <Button
                                     variant="outline"
-                                    className="flex h-10 min-w-10 items-center justify-center gap-2 px-3 sm:h-9 sm:min-w-0 sm:flex-1 sm:px-4"
+                                    size="icon"
+                                    className="h-9 w-9 shrink-0"
                                     onClick={() => router.push(`/offertes/${id}/overzicht`)}
                                     aria-label="Calculatie"
                                     title="Calculatie"
                                 >
                                     <PenTool size={16} />
-                                    Calculatie
                                 </Button>
                                 <Button
                                     variant="outline"

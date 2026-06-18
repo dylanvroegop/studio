@@ -352,11 +352,31 @@ function enforceWasteRemovalPreferences(
     const stucwerkInbegrepen = controls.stucwerkInbegrepen === true
       || rawControls.stucwerkInbegrepen === true
       || inputStructured.stucwerkInbegrepen === true;
+    const plamuurwerkInbegrepen = controls.plamuurwerkInbegrepen === true
+      || rawControls.plamuurwerkInbegrepen === true
+      || inputStructured.plamuurwerkInbegrepen === true;
+    const kitwerkInbegrepen = controls.kitwerkInbegrepen === true
+      || rawControls.kitwerkInbegrepen === true
+      || inputStructured.kitwerkInbegrepen === true;
+    const steigerInbegrepen = controls.steigerInbegrepen === true
+      || rawControls.steigerInbegrepen === true
+      || inputStructured.steigerInbegrepen === true;
+    const sloopwerkInbegrepen = controls.sloopwerkInbegrepen === true
+      || rawControls.sloopwerkInbegrepen === true
+      || inputStructured.sloopwerkInbegrepen === true;
+    const nadenVullenInbegrepen = controls.nadenVullenInbegrepen === true
+      || rawControls.nadenVullenInbegrepen === true
+      || inputStructured.nadenVullenInbegrepen === true;
     const safe = enforceWorkDeliverySafety({
       ...job,
       afvalAfvoeren: enabled,
       schilderwerkInbegrepen,
       stucwerkInbegrepen,
+      plamuurwerkInbegrepen,
+      kitwerkInbegrepen,
+      steigerInbegrepen,
+      sloopwerkInbegrepen,
+      nadenVullenInbegrepen,
       electricalScope,
       finishLevel,
       customFinishDescription,
@@ -380,6 +400,21 @@ function enforceWasteRemovalPreferences(
     stucwerkInbegrepen: activeJob
       ? activeJob.stucwerkInbegrepen === true
       : rawControls.stucwerkInbegrepen === true || inputStructured.stucwerkInbegrepen === true,
+    plamuurwerkInbegrepen: activeJob
+      ? activeJob.plamuurwerkInbegrepen === true
+      : rawControls.plamuurwerkInbegrepen === true || inputStructured.plamuurwerkInbegrepen === true,
+    kitwerkInbegrepen: activeJob
+      ? activeJob.kitwerkInbegrepen === true
+      : rawControls.kitwerkInbegrepen === true || inputStructured.kitwerkInbegrepen === true,
+    steigerInbegrepen: activeJob
+      ? activeJob.steigerInbegrepen === true
+      : rawControls.steigerInbegrepen === true || inputStructured.steigerInbegrepen === true,
+    sloopwerkInbegrepen: activeJob
+      ? activeJob.sloopwerkInbegrepen === true
+      : rawControls.sloopwerkInbegrepen === true || inputStructured.sloopwerkInbegrepen === true,
+    nadenVullenInbegrepen: activeJob
+      ? activeJob.nadenVullenInbegrepen === true
+      : rawControls.nadenVullenInbegrepen === true || inputStructured.nadenVullenInbegrepen === true,
     electricalScope: rootElectricalScope,
     finishLevel: rootFinishLevel,
     customFinishDescription: rootCustomFinishDescription,
@@ -993,6 +1028,21 @@ function buildPromptFromBody(body: RequestBody): string {
   const stuccoRule = structuredControls.stucwerkInbegrepen
     ? 'Stucwerk inbegrepen staat expliciet AAN. Behoud alle expliciete stucwerkzaamheden, aantallen en maatvoering en neem het concrete stucwerk als een eigen, afzonderlijke regel op in work_scope. Zet stucwerk niet onder included.'
     : 'Stucwerk inbegrepen staat UIT. Neem stucwerk niet op als inbegrepen werk.';
+  const fillingRule = structuredControls.plamuurwerkInbegrepen
+    ? 'Plamuurwerk inbegrepen staat expliciet AAN. Neem het concrete overeengekomen plamuurwerk als een eigen regel op in work_scope. Zet dit werk niet onder included of excluded.'
+    : 'Plamuurwerk inbegrepen staat UIT. Neem plamuurwerk niet op als inbegrepen werk.';
+  const sealingRule = structuredControls.kitwerkInbegrepen
+    ? 'Kitwerk inbegrepen staat expliciet AAN. Neem het concrete overeengekomen kitwerk als een eigen regel op in work_scope. Zet dit werk niet onder included of excluded.'
+    : 'Kitwerk inbegrepen staat UIT. Neem kitwerk niet op als inbegrepen werk.';
+  const scaffoldRule = structuredControls.steigerInbegrepen
+    ? 'Steiger inbegrepen staat expliciet AAN. Neem het concrete overeengekomen steigerwerk als een eigen regel op in work_scope.'
+    : 'Steiger inbegrepen staat UIT. Neem geen steiger, steigerhuur of steigerwerk op als inbegrepen werk.';
+  const demolitionRule = structuredControls.sloopwerkInbegrepen
+    ? 'Sloopwerk inbegrepen staat expliciet AAN. Neem het concrete overeengekomen sloopwerk als een eigen regel op in work_scope.'
+    : 'Sloopwerk inbegrepen staat UIT. Neem geen sloopwerk op als inbegrepen werk.';
+  const seamFillingRule = structuredControls.nadenVullenInbegrepen
+    ? 'Naden vullen inbegrepen staat expliciet AAN. Neem het vullen en afwerken van de overeengekomen naden als een eigen regel op in work_scope.'
+    : 'Naden vullen inbegrepen staat UIT. Neem het vullen of afwerken van naden niet op als inbegrepen werk.';
   const electricalRule = structuredControls.electricalScope.enabled
     ? 'Elektrawerk inbegrepen staat expliciet AAN. Neem ieder concreet overeengekomen elektrisch onderdeel als een eigen regel op in work_scope. Zet elektrawerk niet onder included.'
     : 'Elektrawerk inbegrepen staat UIT. Neem elektrawerk niet op als inbegrepen werk.';
@@ -1054,7 +1104,7 @@ function buildPromptFromBody(body: RequestBody): string {
     calculationContext ? `Calculatiedata uit Firestore:\n${calculationContext}` : '',
   ].filter(Boolean);
 
-  return [...parts, scopeRules, notesRule, paintingRule, stuccoRule, electricalRule, wasteRemovalRule].filter(Boolean).join('\n');
+  return [...parts, scopeRules, notesRule, paintingRule, stuccoRule, fillingRule, sealingRule, seamFillingRule, scaffoldRule, demolitionRule, electricalRule, wasteRemovalRule].filter(Boolean).join('\n');
 }
 
 export async function POST(request: Request) {

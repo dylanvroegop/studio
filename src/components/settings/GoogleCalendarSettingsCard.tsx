@@ -81,7 +81,7 @@ export function GoogleCalendarSettingsCard() {
       <CardHeader>
         <CardTitle>Google Calendar Sync</CardTitle>
         <CardDescription>
-          Nieuwe of gewijzigde planning-items worden automatisch in je Google Calendar gezet met reminder.
+          Planning-items gaan automatisch naar Google Calendar. Gebruik 'Google verversen' in Planning om gewijzigde datums en tijden terug te halen.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

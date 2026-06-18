@@ -65,6 +65,11 @@ export type WorkDescriptionJob = {
     afvalAfvoeren?: boolean;
     schilderwerkInbegrepen?: boolean;
     stucwerkInbegrepen?: boolean;
+    plamuurwerkInbegrepen?: boolean;
+    kitwerkInbegrepen?: boolean;
+    steigerInbegrepen?: boolean;
+    sloopwerkInbegrepen?: boolean;
+    nadenVullenInbegrepen?: boolean;
     electricalScope: ElectricalScope;
     finishLevel: FinishLevel;
     customFinishDescription?: string;
@@ -90,6 +95,11 @@ export type WorkDescriptionStructured = {
     afvalAfvoeren: boolean;
     schilderwerkInbegrepen: boolean;
     stucwerkInbegrepen: boolean;
+    plamuurwerkInbegrepen: boolean;
+    kitwerkInbegrepen: boolean;
+    steigerInbegrepen: boolean;
+    sloopwerkInbegrepen: boolean;
+    nadenVullenInbegrepen: boolean;
     electricalScope: ElectricalScope;
     finishLevel: FinishLevel;
     customFinishDescription?: string;
@@ -203,6 +213,11 @@ const EMPTY_WORK_DESCRIPTION_JOB: WorkDescriptionJob = {
     afvalAfvoeren: false,
     schilderwerkInbegrepen: false,
     stucwerkInbegrepen: false,
+    plamuurwerkInbegrepen: false,
+    kitwerkInbegrepen: false,
+    steigerInbegrepen: false,
+    sloopwerkInbegrepen: false,
+    nadenVullenInbegrepen: false,
     electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
     finishLevel: 'constructief_gereed',
     sections: {
@@ -226,6 +241,11 @@ const EMPTY_WORK_DESCRIPTION_STRUCTURED: WorkDescriptionStructured = {
     afvalAfvoeren: false,
     schilderwerkInbegrepen: false,
     stucwerkInbegrepen: false,
+    plamuurwerkInbegrepen: false,
+    kitwerkInbegrepen: false,
+    steigerInbegrepen: false,
+    sloopwerkInbegrepen: false,
+    nadenVullenInbegrepen: false,
     electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
     finishLevel: 'constructief_gereed',
     sections: {
@@ -353,6 +373,11 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
         afvalAfvoeren: value.afvalAfvoeren,
         schilderwerkInbegrepen: value.schilderwerkInbegrepen,
         stucwerkInbegrepen: value.stucwerkInbegrepen,
+        plamuurwerkInbegrepen: value.plamuurwerkInbegrepen,
+        kitwerkInbegrepen: value.kitwerkInbegrepen,
+        steigerInbegrepen: value.steigerInbegrepen,
+        sloopwerkInbegrepen: value.sloopwerkInbegrepen,
+        nadenVullenInbegrepen: value.nadenVullenInbegrepen,
         electricalScope: {
             ...value.electricalScope,
             includedItems: [...value.electricalScope.includedItems],
@@ -379,6 +404,11 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
                 afvalAfvoeren: Boolean(job?.afvalAfvoeren),
                 schilderwerkInbegrepen: Boolean(job?.schilderwerkInbegrepen),
                 stucwerkInbegrepen: Boolean(job?.stucwerkInbegrepen),
+                plamuurwerkInbegrepen: Boolean(job?.plamuurwerkInbegrepen),
+                kitwerkInbegrepen: Boolean(job?.kitwerkInbegrepen),
+                steigerInbegrepen: Boolean(job?.steigerInbegrepen),
+                sloopwerkInbegrepen: Boolean(job?.sloopwerkInbegrepen),
+                nadenVullenInbegrepen: Boolean(job?.nadenVullenInbegrepen),
                 electricalScope: job?.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
                 finishLevel: job?.finishLevel || 'constructief_gereed',
                 customFinishDescription: job?.customFinishDescription,
@@ -440,6 +470,11 @@ function normalizeWorkDescriptionJob(input: unknown): WorkDescriptionJob {
         afvalAfvoeren: row.afvalAfvoeren === true,
         schilderwerkInbegrepen: row.schilderwerkInbegrepen === true,
         stucwerkInbegrepen: row.stucwerkInbegrepen === true,
+        plamuurwerkInbegrepen: row.plamuurwerkInbegrepen === true || row.plamuurEnKitwerkInbegrepen === true,
+        kitwerkInbegrepen: row.kitwerkInbegrepen === true || row.plamuurEnKitwerkInbegrepen === true,
+        steigerInbegrepen: row.steigerInbegrepen === true,
+        sloopwerkInbegrepen: row.sloopwerkInbegrepen === true,
+        nadenVullenInbegrepen: row.nadenVullenInbegrepen === true,
     });
 
     return {
@@ -529,6 +564,11 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
         afvalAfvoeren: activeJob?.afvalAfvoeren === true,
         schilderwerkInbegrepen: activeJob?.schilderwerkInbegrepen === true,
         stucwerkInbegrepen: activeJob?.stucwerkInbegrepen === true,
+        plamuurwerkInbegrepen: activeJob?.plamuurwerkInbegrepen === true,
+        kitwerkInbegrepen: activeJob?.kitwerkInbegrepen === true,
+        steigerInbegrepen: activeJob?.steigerInbegrepen === true,
+        sloopwerkInbegrepen: activeJob?.sloopwerkInbegrepen === true,
+        nadenVullenInbegrepen: activeJob?.nadenVullenInbegrepen === true,
         electricalScope: activeJob?.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
         finishLevel: activeJob?.finishLevel || 'constructief_gereed',
         customFinishDescription: activeJob?.customFinishDescription,
@@ -683,6 +723,11 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
             afvalAfvoeren: false,
             schilderwerkInbegrepen: false,
             stucwerkInbegrepen: false,
+            plamuurwerkInbegrepen: false,
+            kitwerkInbegrepen: false,
+            steigerInbegrepen: false,
+            sloopwerkInbegrepen: false,
+            nadenVullenInbegrepen: false,
             electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
             finishLevel: 'constructief_gereed',
             sections: {
@@ -718,6 +763,11 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
         afvalAfvoeren: false,
         schilderwerkInbegrepen: false,
         stucwerkInbegrepen: false,
+        plamuurwerkInbegrepen: false,
+        kitwerkInbegrepen: false,
+        steigerInbegrepen: false,
+        sloopwerkInbegrepen: false,
+        nadenVullenInbegrepen: false,
         electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
         finishLevel: 'constructief_gereed',
         sections: {

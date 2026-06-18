@@ -64,6 +64,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
 import { cn } from '@/lib/utils';
 import { AppNavigation } from '@/components/AppNavigation';
+import { createEmptyQuote } from '@/lib/firestore-actions';
 
 type Client = {
   id: string;
@@ -346,13 +347,18 @@ export default function KlantenPage() {
       });
 
       const newClient = { ...editingClient, id: docRef.id, userId: user.uid };
+      const quoteId = await createEmptyQuote(firestore, user.uid);
+      await updateDoc(doc(firestore, 'quotes', quoteId), {
+        klantinformatie: toQuoteKlantinformatie(newClient),
+        updatedAt: serverTimestamp(),
+      });
       setClients((prev) => [newClient as Client, ...prev]);
       setEditingClient(null);
       setIsNewClient(false);
 
       toast({
         title: 'Klant aangemaakt',
-        description: 'De nieuwe klant is succesvol toegevoegd.',
+        description: 'De klant en een offerte onder Werkbespreking zijn aangemaakt.',
       });
     } catch (e) {
       console.error(e);

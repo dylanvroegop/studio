@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, doc, query, serverTimestamp, updateDoc, where, getDocs } from 'firebase/firestore';
 import { normalizeDataJson } from '@/lib/quote-calculations';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -515,7 +515,7 @@ export function ScheduleModal({
 
     const performSave = useCallback(async (overrideEmployeeId?: string) => {
         // Validation for single user mode
-        if (!selectedQuoteId) {
+        if (!selectedQuoteId || !firestore) {
             setIsSaving(false);
             setPendingSave(false);
             toast({ variant: 'destructive', title: 'Selecteer een offerte' });
@@ -652,6 +652,14 @@ export function ScheduleModal({
                 toast({ title: 'Planning aangemaakt' });
             }
 
+            if (selectedPlanningType === 'werkbespreking') {
+                const meetingStart = new Date(`${startDate}T${startTime || planningSettings.defaultStartTime}`);
+                await updateDoc(doc(firestore, 'quotes', selectedQuoteId), {
+                    status: meetingStart.getTime() <= Date.now() ? 'concept' : 'werkbespreking',
+                    updatedAt: serverTimestamp(),
+                });
+            }
+
             onClose();
         } catch (err) {
             console.error('Error saving planning:', err);
@@ -665,6 +673,7 @@ export function ScheduleModal({
         }
     }, [
         selectedQuoteId,
+        firestore,
         toast,
         totalHours,
         selectedEmployeeId,

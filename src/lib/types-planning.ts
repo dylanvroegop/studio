@@ -21,6 +21,7 @@ export interface PlanningEntry {
 
     status: PlanningStatus;
     notes?: string;
+    googleCalendarEventId?: string | null;
 
     cache: {
         clientName: string;

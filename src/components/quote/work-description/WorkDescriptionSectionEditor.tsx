@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +14,7 @@ interface WorkDescriptionSectionEditorProps {
   onAddRow: () => void;
   onRemoveRow: (index: number) => void;
   onMoveRow: (index: number, direction: 'up' | 'down') => void;
+  beforeRows?: ReactNode;
 }
 
 export function WorkDescriptionSectionEditor({
@@ -23,16 +25,18 @@ export function WorkDescriptionSectionEditor({
   onAddRow,
   onRemoveRow,
   onMoveRow,
+  beforeRows,
 }: WorkDescriptionSectionEditorProps) {
   return (
     <div className="space-y-3 rounded-xl border border-border/80 bg-card/80 p-4">
       <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-semibold text-foreground">{title}</Label>
-        <Button type="button" size="sm" variant="outline" className="h-8" onClick={onAddRow}>
-          <Plus className="mr-1 h-3.5 w-3.5" />
-          Stap toevoegen
+        <Button type="button" size="icon" variant="outline" className="h-8 w-8" onClick={onAddRow} aria-label={`Stap toevoegen aan ${title}`}>
+          <Plus className="h-3.5 w-3.5" />
         </Button>
       </div>
+
+      {beforeRows}
 
       <div className="space-y-2">
         {rows.map((row, index) => (

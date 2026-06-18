@@ -57,7 +57,7 @@ import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-sta
 import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-type FilterMode = 'alle' | 'concept' | 'in_afwachting' | 'verzonden' | 'geaccepteerd' | 'berekend' | 'archief';
+type FilterMode = 'alle' | 'concept' | 'in_afwachting' | 'verzonden' | 'geaccepteerd' | 'werkbespreking' | 'archief';
 const OFFERTES_FILTER_STORAGE_KEY = 'offertes:last-filter';
 type DefaultFilterMode = 'concept' | 'geaccepteerd';
 const OFFERTES_DEFAULT_FILTER_STORAGE_KEY = 'offertes:default-filter';
@@ -107,7 +107,7 @@ function isFilterMode(value: unknown): value is FilterMode {
     value === 'in_afwachting' ||
     value === 'verzonden' ||
     value === 'geaccepteerd' ||
-    value === 'berekend' ||
+    value === 'werkbespreking' ||
     value === 'archief'
   );
 }
@@ -244,6 +244,15 @@ function getOfferteStatusStyles(
         sideBorderClass: 'border-l-amber-400/70',
         rowTintClass: 'bg-amber-500/[0.08]',
       };
+  }
+
+  if (status === 'werkbespreking') {
+    return {
+      label: 'Werkbespreking',
+      badgeClass: 'bg-violet-500/10 text-violet-200/90 border-violet-500/25',
+      sideBorderClass: 'border-l-violet-400/70',
+      rowTintClass: 'bg-violet-500/[0.08]',
+    };
   }
 
   return {
@@ -878,8 +887,8 @@ export default function OffertesPage() {
       if (mode === 'geaccepteerd') {
         return nonArchived.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'geaccepteerd').length;
       }
-      if (mode === 'berekend') {
-        return nonArchived.filter((q) => q.status === 'in_behandeling' && hasCalculatedAmount(quoteTotalsById[q.id] ?? 0)).length;
+      if (mode === 'werkbespreking') {
+        return nonArchived.filter((q) => q.status === 'werkbespreking').length;
       }
       return 0;
     };
@@ -890,10 +899,10 @@ export default function OffertesPage() {
       in_afwachting: countFor('in_afwachting'),
       verzonden: countFor('verzonden'),
       geaccepteerd: countFor('geaccepteerd'),
-      berekend: countFor('berekend'),
+      werkbespreking: countFor('werkbespreking'),
       archief: countFor('archief'),
     } as Record<FilterMode, number>;
-  }, [quotesForSelectedYear, acceptedQuoteIdsFromInvoices, quoteTotalsById]);
+  }, [quotesForSelectedYear, acceptedQuoteIdsFromInvoices]);
 
   const filteredQuotes = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -907,7 +916,7 @@ export default function OffertesPage() {
       if (filter === 'in_afwachting') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'in_afwachting');
       if (filter === 'verzonden') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden');
       if (filter === 'geaccepteerd') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'geaccepteerd');
-      if (filter === 'berekend') result = result.filter((q) => q.status === 'in_behandeling' && hasCalculatedAmount(quoteTotalsById[q.id] ?? 0));
+      if (filter === 'werkbespreking') result = result.filter((q) => q.status === 'werkbespreking');
     }
 
     if (!s) return result;
@@ -917,7 +926,7 @@ export default function OffertesPage() {
       const titel = (getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || getTitel(q)).toLowerCase();
       return klant.includes(s) || nr.includes(s) || titel.includes(s);
     });
-  }, [filter, quotesForSelectedYear, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId, quoteTotalsById]);
+  }, [filter, quotesForSelectedYear, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId]);
 
   const filteredClients = useMemo(() => {
     const s = clientSearch.trim().toLowerCase();
@@ -1124,10 +1133,9 @@ export default function OffertesPage() {
     { value: 'alle', label: 'Alle', count: filterCountsByMode.alle },
     { value: 'geaccepteerd', label: 'Geaccepteerd', count: filterCountsByMode.geaccepteerd },
     { value: 'concept', label: 'Concept', count: filterCountsByMode.concept },
-    { value: 'in_afwachting', label: 'In afwachting', count: filterCountsByMode.in_afwachting },
+    { value: 'in_afwachting', label: 'Afwachten', count: filterCountsByMode.in_afwachting },
     { value: 'verzonden', label: 'Verzonden', count: filterCountsByMode.verzonden },
-    { value: 'berekend', label: 'Berekend', count: filterCountsByMode.berekend },
-    { value: 'archief', label: 'Archief', count: filterCountsByMode.archief },
+    { value: 'werkbespreking', label: 'Werkbespreking', count: filterCountsByMode.werkbespreking },
   ];
 
   const defaultFilterLabel = defaultFilter === 'geaccepteerd' ? 'Geaccepteerd' : 'Concept';
@@ -1353,6 +1361,21 @@ export default function OffertesPage() {
                     </div>
                   </DialogContent>
                 </Dialog>
+
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={filter === 'archief' ? 'default' : 'outline'}
+                  className={cn(
+                    'h-10 w-10 shrink-0',
+                    filter === 'archief' && 'bg-cyan-500/90 text-white hover:bg-cyan-400',
+                  )}
+                  onClick={() => setFilter('archief')}
+                  aria-label="Archief"
+                  title="Archief"
+                >
+                  <Archive className="h-4 w-4" />
+                </Button>
               </div>
 
               <div className="flex flex-wrap gap-2.5">
@@ -1776,14 +1799,30 @@ export default function OffertesPage() {
         </div>
       </main>
 
-      <Button
-        type="button"
-        className="fixed bottom-5 right-4 z-40 h-12 gap-2 rounded-full px-4 shadow-lg shadow-cyan-900/30 sm:hidden"
-        onClick={() => setCreateOpen(true)}
-      >
-        <Plus className="h-4 w-4" />
-        Nieuwe offerte
-      </Button>
+      <div className="fixed bottom-5 right-4 z-40 flex items-center gap-2 sm:hidden">
+        <Button
+          type="button"
+          size="icon"
+          variant={filter === 'archief' ? 'default' : 'outline'}
+          className={cn(
+            'h-12 w-12 rounded-full shadow-lg',
+            filter === 'archief' && 'bg-cyan-500/90 text-white hover:bg-cyan-400',
+          )}
+          onClick={() => setFilter('archief')}
+          aria-label="Archief"
+          title="Archief"
+        >
+          <Archive className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          className="h-12 gap-2 rounded-full px-4 shadow-lg shadow-cyan-900/30"
+          onClick={() => setCreateOpen(true)}
+        >
+          <Plus className="h-4 w-4" />
+          Nieuwe offerte
+        </Button>
+      </div>
 
       <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
           <AlertDialogContent className="rounded-2xl">

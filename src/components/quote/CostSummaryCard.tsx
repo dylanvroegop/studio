@@ -20,7 +20,7 @@ interface CostSummaryCardProps {
     onUpdateWinstMargeAmountExcl?: (value: number) => void;
 }
 
-import { useState, type FocusEvent, type ReactNode } from 'react';
+import { useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Input } from '@/components/ui/input';
 import { Pencil } from 'lucide-react';
 
@@ -47,6 +47,7 @@ export function CostSummaryCard({
     const [tempHours, setTempHours] = useState<string>('');
     const [editingField, setEditingField] = useState<null | 'groot' | 'verbruik' | 'extra' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount'>(null);
     const [tempFieldValue, setTempFieldValue] = useState<string>('');
+    const skipNextBlurSaveRef = useRef(false);
 
     const startEditingRate = () => {
         if (!settings) return;
@@ -55,6 +56,10 @@ export function CostSummaryCard({
     };
 
     const saveRate = () => {
+        if (skipNextBlurSaveRef.current) {
+            skipNextBlurSaveRef.current = false;
+            return;
+        }
         const newRate = parseFloat(tempRate);
         if (!isNaN(newRate) && onUpdateHourlyRate) {
             onUpdateHourlyRate(newRate);
@@ -72,6 +77,10 @@ export function CostSummaryCard({
     };
 
     const saveHours = () => {
+        if (skipNextBlurSaveRef.current) {
+            skipNextBlurSaveRef.current = false;
+            return;
+        }
         const newHours = parseFloat(tempHours);
         if (!isNaN(newHours) && onUpdateTotalHours) {
             onUpdateTotalHours(newHours);
@@ -111,6 +120,10 @@ export function CostSummaryCard({
     };
 
     const saveEditingAmount = () => {
+        if (skipNextBlurSaveRef.current) {
+            skipNextBlurSaveRef.current = false;
+            return;
+        }
         if (!editingField) return;
         const parsed = parseLocalizedNumber(tempFieldValue);
         if (Number.isNaN(parsed)) {
@@ -135,6 +148,21 @@ export function CostSummaryCard({
         }
 
         cancelEditingAmount();
+    };
+
+    const handleEditorKeyDown = (
+        event: KeyboardEvent<HTMLInputElement>,
+        cancel: () => void,
+    ) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            event.currentTarget.blur();
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            skipNextBlurSaveRef.current = true;
+            event.currentTarget.blur();
+            cancel();
+        }
     };
 
     const totaalExclZonderMarge = totals ? totals.subtotaalExclBtw : 0;
@@ -208,10 +236,7 @@ export function CostSummaryCard({
                                     onBlur={saveEditingAmount}
                                     onFocus={selectAllOnFocus}
                                     className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveEditingAmount();
-                                        if (e.key === 'Escape') cancelEditingAmount();
-                                    }}
+                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
                                 />
                             ) : (
                                 <button
@@ -238,10 +263,7 @@ export function CostSummaryCard({
                                     onBlur={saveEditingAmount}
                                     onFocus={selectAllOnFocus}
                                     className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveEditingAmount();
-                                        if (e.key === 'Escape') cancelEditingAmount();
-                                    }}
+                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
                                 />
                             ) : (
                                 <button
@@ -268,10 +290,7 @@ export function CostSummaryCard({
                                     onBlur={saveEditingAmount}
                                     onFocus={selectAllOnFocus}
                                     className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveEditingAmount();
-                                        if (e.key === 'Escape') cancelEditingAmount();
-                                    }}
+                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
                                 />
                             ) : (
                                 <button
@@ -298,10 +317,7 @@ export function CostSummaryCard({
                                     onBlur={saveEditingAmount}
                                     onFocus={selectAllOnFocus}
                                     className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveEditingAmount();
-                                        if (e.key === 'Escape') cancelEditingAmount();
-                                    }}
+                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
                                 />
                             ) : (
                                 <button
@@ -334,10 +350,7 @@ export function CostSummaryCard({
                                         onBlur={saveHours}
                                         onFocus={selectAllOnFocus}
                                         className="h-6 w-16 px-1 py-0 text-sm bg-muted border-border text-center"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') saveHours();
-                                            if (e.key === 'Escape') cancelEditingHours();
-                                        }}
+                                        onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingHours)}
                                     />
                                 </div>
                             ) : (
@@ -362,10 +375,7 @@ export function CostSummaryCard({
                                         onBlur={saveRate}
                                         onFocus={selectAllOnFocus}
                                         className="h-6 w-20 px-1 py-0 text-sm bg-muted border-border"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') saveRate();
-                                            if (e.key === 'Escape') cancelEditingRate();
-                                        }}
+                                        onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingRate)}
                                     />
                                 </div>
                             ) : (
@@ -406,10 +416,7 @@ export function CostSummaryCard({
                                     onBlur={saveEditingAmount}
                                     onFocus={selectAllOnFocus}
                                     className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveEditingAmount();
-                                        if (e.key === 'Escape') cancelEditingAmount();
-                                    }}
+                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
                                 />
                             ) : (
                                 <button
@@ -452,10 +459,7 @@ export function CostSummaryCard({
                                             onBlur={saveEditingAmount}
                                             onFocus={selectAllOnFocus}
                                             className="mx-1 inline-flex h-6 w-20 px-1 py-0 text-sm bg-muted border-border text-right"
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') saveEditingAmount();
-                                                if (e.key === 'Escape') cancelEditingAmount();
-                                            }}
+                                            onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
                                         />
                                     ) : (
                                         <button
@@ -483,10 +487,7 @@ export function CostSummaryCard({
                                     onBlur={saveEditingAmount}
                                     onFocus={selectAllOnFocus}
                                     className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveEditingAmount();
-                                        if (e.key === 'Escape') cancelEditingAmount();
-                                    }}
+                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
                                 />
                             ) : (
                                 <button

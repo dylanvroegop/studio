@@ -81,7 +81,7 @@ export async function reserveInvoiceNumber(
 
 /**
  * Creates a new empty quote document in Firestore immediately.
- * Uses 'concept' status and reserves a quote number.
+ * Uses 'werkbespreking' status and reserves a quote number.
  */
 export async function createEmptyQuote(firestore: Firestore, userId: string): Promise<string> {
     const number = await reserveQuoteNumber(firestore, userId);
@@ -127,7 +127,7 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
 
     const docRef = await addDoc(collection(firestore, 'quotes'), {
         userId,
-        status: 'concept',
+        status: 'werkbespreking',
         offerteNummer: number,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
