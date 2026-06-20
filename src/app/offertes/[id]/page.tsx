@@ -2630,7 +2630,13 @@ export default function QuotePage() {
     };
 
     const handleUpdateMaterialenVerbruikTotal = async (value: number) => {
-        await applyMaterialTargetWithAdjustment('verbruik', value, 'Handmatige verbruikscorrectie');
+        // Het opgeslagen verbruikssubtotaal bevat ook de regel "Extra kosten".
+        // Behoud die regel wanneer alleen het zichtbare verbruiksbedrag wijzigt.
+        await applyMaterialTargetWithAdjustment(
+            'verbruik',
+            roundMoney(value + extraKostenExcl),
+            'Handmatige verbruikscorrectie',
+        );
     };
 
     const handleUpdateMaterialenSubtotal = async (value: number) => {
@@ -3474,6 +3480,24 @@ export default function QuotePage() {
             algemeneVoorwaardenTekst,
             algemeneVoorwaardenTitel,
         };
+    };
+
+    const officialPdfCacheRef = useRef<{ signature: string; blob: Blob } | null>(null);
+
+    const handleOfficialPdfGenerated = useCallback((blob: Blob, signature: string): void => {
+        officialPdfCacheRef.current = { signature, blob };
+    }, []);
+
+    const getOfficialQuotePdf = async (
+        data: PDFQuoteData = buildPDFData(),
+    ): Promise<Blob> => {
+        const signature = JSON.stringify(data);
+        const cached = officialPdfCacheRef.current;
+        if (cached?.signature === signature) return cached.blob;
+
+        const blob = await generateQuotePDF(data);
+        officialPdfCacheRef.current = { signature, blob };
+        return blob;
     };
 
     // Updated PDF Download Handler
@@ -4363,21 +4387,15 @@ export default function QuotePage() {
         }
 
         const files: Array<{ fileName: string; blob: Blob }> = [];
-        const baseData = preparePDFData();
+        // The official attachment must use the exact same payload as PDFPreview.
+        // Optional standalone attachments may be added, but may never alter the quote PDF.
+        const baseData = buildPDFData();
         const offerteNummer = sanitizeFileNamePart(baseData.offerteNummer || 'CONCEPT');
         const projectTitel = String(baseData.korteTitel || '').trim();
         const klantNaam = String(baseData.klant?.naam || '').trim();
 
         if (attachments.includeOfferte) {
-            const offerteData: PDFQuoteData = {
-                ...baseData,
-                settings: {
-                    ...baseData.settings,
-                    showTekeningen: false,
-                    showFullWerkbeschrijving: false,
-                },
-            };
-            const offerteBlob = await generateQuotePDF(offerteData);
+            const offerteBlob = await getOfficialQuotePdf(baseData);
             files.push({
                 fileName: getQuotePdfFileName(klantNaam, offerteNummer),
                 blob: offerteBlob,
@@ -4426,10 +4444,8 @@ export default function QuotePage() {
         if (isGeneratingPDF) return;
 
         try {
-            const images = await captureDrawingsForPdf();
-            const data = preparePDFData();
-            (data as any).drawingImages = images;
-            const pdfBlob = await generateQuotePDF(data);
+            const data = buildPDFData();
+            const pdfBlob = await getOfficialQuotePdf(data);
             const offerteNummer = sanitizeFileNamePart(data.offerteNummer || 'CONCEPT');
             const klantNaam = sanitizeFileNamePart(data.klant?.naam || '');
             downloadBlobWithName(pdfBlob, getQuotePdfFileName(klantNaam, offerteNummer));
@@ -4479,111 +4495,6 @@ export default function QuotePage() {
         } else {
             setIsGeneratingPDF(false);
         }
-    };
-
-    const preparePDFData = (): PDFQuoteData => {
-        const resolvedProjectLocatie =
-            normalizedData?.projectLocatie?.trim()
-            || (
-                klantInfo?.afwijkendProjectadres && klantInfo?.projectAdres
-                    ? `${klantInfo.projectAdres.straat || ''} ${klantInfo.projectAdres.huisnummer || ''}, ${klantInfo.projectAdres.plaats || ''}`.trim().replace(/\s+,/g, ',')
-                    : `${klantInfo?.straat || ''} ${klantInfo?.huisnummer || ''}, ${klantInfo?.plaats || ''}`.trim().replace(/\s+,/g, ',')
-            )
-            || '';
-
-        return {
-            offerteNummer: (quote as any)?.offerteNummer || 'CONCEPT',
-            datum: new Date().toLocaleDateString('nl-NL', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-            }),
-            geldigTot: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-            }),
-            logoUrl: userProfile?.settings?.logoUrl || userProfile?.logoUrl || undefined,
-            signatureUrl: userProfile?.settings?.signatureUrl || userProfile?.signatureUrl || undefined,
-            logoScale: userProfile?.settings?.logoScale || userProfile?.logoScale || 1.0,
-            bedrijf: {
-                naam: (
-                    userProfile?.settings?.bedrijfsnaam ||
-                    businessData?.bedrijfsnaam ||
-                    userProfile?.bedrijfsnaam ||
-                    userProfile?.companyName ||
-                    'Mijn Bedrijf'
-                ),
-                adres:
-                    `${userProfile?.settings?.adres || ''} ${userProfile?.settings?.huisnummer || ''}`.trim() ||
-                    userProfile?.settings?.adres ||
-                    businessData?.adres ||
-                    userProfile?.adres ||
-                    userProfile?.address ||
-                    '',
-                postcode: userProfile?.settings?.postcode || businessData?.postcode || userProfile?.postcode || userProfile?.zipcode || '',
-                plaats: userProfile?.settings?.plaats || businessData?.plaats || userProfile?.plaats || userProfile?.city || '',
-                telefoon: userProfile?.settings?.telefoon || businessData?.telefoon || userProfile?.telefoon || userProfile?.phone || '',
-                email: userProfile?.settings?.email || businessData?.email || userProfile?.email || user?.email || '',
-                kvk: userProfile?.settings?.kvkNummer || businessData?.kvkNummer || businessData?.kvk || userProfile?.kvkNummer || userProfile?.kvk || '',
-                btw: userProfile?.settings?.btwNummer || businessData?.btwNummer || businessData?.btw || userProfile?.btwNummer || userProfile?.btw || '',
-                iban: userProfile?.settings?.iban || businessData?.iban || userProfile?.iban || '',
-            },
-            klant: {
-                naam: klantInfo ? `${klantInfo.voornaam} ${klantInfo.achternaam}`.trim() : '',
-                adres: klantInfo?.straat ? `${klantInfo.straat} ${klantInfo.huisnummer}` : '',
-                postcode: klantInfo?.postcode || '',
-                plaats: klantInfo?.plaats || '',
-                telefoon: klantInfo?.telefoonnummer || '',
-                email: klantInfo?.emailadres || '',
-            },
-            projectLocatie: resolvedProjectLocatie,
-            korteTitel: workDescriptionStructured.title || normalizedData?.korteTitel,
-            korteBeschrijving: workDescriptionStructured.summary || normalizedData?.korteBeschrijving,
-            werkbeschrijving: workDescriptionStructured.summary || generateWorkSummary(normalizedData?.werkbeschrijving || []),
-            werkbeschrijvingFull: flattenStructuredWorkDescription(workDescriptionStructured),
-            werkbeschrijvingStructured: workDescriptionStructured,
-            grootmaterialen: materials.groot.map(m => ({
-                aantal: m.aantal,
-                product: m.product,
-                prijsPerStuk: m.prijs_per_stuk || 0,
-                totaal: m.aantal * (m.prijs_per_stuk || 0)
-            })),
-            verbruiksartikelen: materials.verbruik.map(m => ({
-                aantal: m.aantal,
-                product: m.product,
-                prijsPerStuk: m.prijs_per_stuk || 0,
-                totaal: m.aantal * (m.prijs_per_stuk || 0)
-            })),
-            urenSpecificatie: (normalizedData?.urenSpecificatie || []).map((u: any) => ({
-                taak: u.omschrijving,
-                uren: parseFloat(u.uren) || 0
-            })),
-            totals: {
-                materialenGroot: totals?.materialenGroot || 0,
-                materialenVerbruik: totals?.materialenVerbruik || 0,
-                materialenTotaal: totals?.materialenTotaal || 0,
-                arbeidTotaal: totals?.arbeidTotaal || 0,
-                transportTotaal: totals?.transportTotaal || 0,
-                subtotaalExclBtw: totals?.subtotaalExclBtw || 0,
-                winstMarge: totals?.winstMarge || 0,
-                totaalExclBtw: totals?.totaalExclBtw || 0,
-                btw: totals?.btw || 0,
-                totaalInclBtw: totals?.totaalInclBtw || 0,
-                // Add missing fields required by PDFQuoteData
-                totaalUren: normalizedData?.totaal_uren || 0,
-                uurTarief: quoteSettings?.uurTariefExclBtw || 0,
-                btwPercentage: quoteSettings?.btwTarief || 21,
-                margePercentage: quoteSettings?.extras?.winstMarge?.percentage || 0,
-                margeBasis: quoteSettings?.extras?.winstMarge?.basis || 'totaal',
-            },
-            settings: pdfSettings,
-            materialPresentations,
-            onderVoorbehoud,
-            tekstInstellingen: pdfTextSettings,
-            algemeneVoorwaardenTekst,
-            algemeneVoorwaardenTitel,
-        };
     };
 
     // Handle PDF settings update with persistence
@@ -5263,7 +5174,8 @@ export default function QuotePage() {
             const notesPromptLines = notesContext
                 ? [
                     'VERPLICHTE SCOPE UIT GEBRUIKERSNOTITIES:',
-                    'Verwerk iedere concrete regel hieronder. Sla geen werkzaamheden, keuzes of maten over en neem afmetingen exact over.',
+                    'Gebruik alle concrete feiten hieronder als bron. Combineer verwante notities tot professionele werkzaamheden en kopieer ruwe notitieregels niet letterlijk.',
+                    'Zet losse maatvoering in dimensions. Neem een maat alleen in work_scope op wanneer die nodig is om de werkzaamheid ondubbelzinnig te beschrijven.',
                     'Bepaal de hoofdtitel op basis van de totale notities. Gebruik een bestaande titel alleen als die de volledige scope dekt; als de notities dakwerk zoals golfplaten verwijderen, underlayment leggen en EPDM leggen bevatten, is de hoofdklus "Dak vervangen" en niet alleen boeiboorden of dakrand.',
                     'Formuleer definitief en professioneel. Laat onzekere taal zoals "eventueel", "mogelijk", "iets anders", "indien nodig" en "in overleg" weg.',
                     notesContext,
@@ -5306,55 +5218,6 @@ export default function QuotePage() {
                     customFinishDescription: activeWorkDescriptionJob?.customFinishDescription ?? workDescriptionStructured.customFinishDescription,
                 }],
             };
-            const clearedWorkDescription: WorkDescriptionStructured = {
-                title: '',
-                context: '',
-                summary: '',
-                work_scope: [],
-                materials: [],
-                dimensions: [],
-                included: [],
-                excluded: [],
-                internal_notes: [],
-                afvalAfvoeren: generationControlInput.afvalAfvoeren,
-                schilderwerkInbegrepen: generationControlInput.schilderwerkInbegrepen,
-                stucwerkInbegrepen: generationControlInput.stucwerkInbegrepen,
-                plamuurwerkInbegrepen: generationControlInput.plamuurwerkInbegrepen,
-                kitwerkInbegrepen: generationControlInput.kitwerkInbegrepen,
-                steigerInbegrepen: generationControlInput.steigerInbegrepen,
-                sloopwerkInbegrepen: generationControlInput.sloopwerkInbegrepen,
-                nadenVullenInbegrepen: generationControlInput.nadenVullenInbegrepen,
-                electricalScope: generationControlInput.electricalScope,
-                finishLevel: generationControlInput.finishLevel,
-                customFinishDescription: generationControlInput.customFinishDescription,
-                sections: { voorbereiding: [], uitvoering: [], afwerking: [] },
-                jobs: [{
-                    title: '',
-                    context: '',
-                    summary: '',
-                    work_scope: [],
-                    materials: [],
-                    dimensions: [],
-                    included: [],
-                    excluded: [],
-                    internal_notes: [],
-                    afvalAfvoeren: generationControlInput.afvalAfvoeren,
-                    schilderwerkInbegrepen: generationControlInput.schilderwerkInbegrepen,
-                    stucwerkInbegrepen: generationControlInput.stucwerkInbegrepen,
-                    plamuurwerkInbegrepen: generationControlInput.plamuurwerkInbegrepen,
-                    kitwerkInbegrepen: generationControlInput.kitwerkInbegrepen,
-                    steigerInbegrepen: generationControlInput.steigerInbegrepen,
-                    sloopwerkInbegrepen: generationControlInput.sloopwerkInbegrepen,
-                    nadenVullenInbegrepen: generationControlInput.nadenVullenInbegrepen,
-                    electricalScope: generationControlInput.electricalScope,
-                    finishLevel: generationControlInput.finishLevel,
-                    customFinishDescription: generationControlInput.customFinishDescription,
-                    sections: { voorbereiding: [], uitvoering: [], afwerking: [] },
-                    legacyNotes: [],
-                }],
-                activeJobIndex: 0,
-                legacyNotes: [],
-            };
             const promptBase = [
                 `Actie: ${action}`,
                 resolvedWorkDescriptionCategory ? `Categorie: ${resolvedWorkDescriptionCategory}` : '',
@@ -5362,8 +5225,6 @@ export default function QuotePage() {
                 ...notesPromptLines,
                 ...measurementPromptLines,
             ].filter(Boolean).join('\n');
-
-            setWorkDescriptionStructured(clearedWorkDescription);
 
             const response = await fetch('/api/generate-work-description', {
                 method: 'POST',
@@ -7261,6 +7122,7 @@ export default function QuotePage() {
                             ) : (
                                 <PDFPreview
                                     pdfData={buildPDFData()}
+                                    onPdfGenerated={handleOfficialPdfGenerated}
                                     iframeClassName="w-full h-[82vh] rounded border border-zinc-700"
                                 />
                             )}
@@ -8139,6 +8001,7 @@ export default function QuotePage() {
                             <div className="min-h-0 flex-1 overflow-hidden p-2 sm:p-3">
                                 <PDFPreview
                                     pdfData={buildPDFData()}
+                                    onPdfGenerated={handleOfficialPdfGenerated}
                                     className="h-full border-white/10"
                                     contentClassName="h-full p-0"
                                     iframeClassName="h-full w-full rounded-none border-0"

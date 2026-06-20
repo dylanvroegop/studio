@@ -205,16 +205,6 @@ export async function POST(request: Request) {
   try {
     await auth.getUser(uid);
 
-    const existingImport = await importRef.get();
-    if (existingImport.exists) {
-      const data = existingImport.data() as ImportResult;
-      return response({
-        client_id: data.client_id,
-        project_id: data.project_id,
-        appointment_id: data.appointment_id || null,
-      });
-    }
-
     const clientInput = input.client;
     const normalizedPhone = normalizePhone(clientInput.phone);
     const normalizedEmail = normalizeText(clientInput.email);
@@ -263,11 +253,38 @@ export async function POST(request: Request) {
       const duplicate = await transaction.get(importRef);
       if (duplicate.exists) {
         const data = duplicate.data() as ImportResult;
-        return {
-          client_id: data.client_id,
-          project_id: data.project_id,
-          appointment_id: data.appointment_id || null,
-        };
+        const duplicateProjectRef = typeof data.project_id === 'string' && data.project_id
+          ? firestore.collection('quotes').doc(data.project_id)
+          : null;
+        const duplicateAppointmentRef = appointmentStart
+          && typeof data.appointment_id === 'string'
+          && data.appointment_id
+          ? firestore.collection('planning_entries').doc(data.appointment_id)
+          : null;
+
+        const duplicateSnapshots = await transaction.getAll(
+          ...[duplicateProjectRef, duplicateAppointmentRef].filter(
+            (reference): reference is NonNullable<typeof reference> => reference !== null
+          )
+        );
+        const duplicateProject = duplicateProjectRef ? duplicateSnapshots.shift() : null;
+        const duplicateAppointment = duplicateAppointmentRef ? duplicateSnapshots.shift() : null;
+        const projectIsReusable = duplicateProject?.exists
+          && duplicateProject.data()?.userId === uid
+          && duplicateProject.data()?.archived !== true;
+        const appointmentIsReusable = !appointmentStart || (
+          duplicateAppointment?.exists
+          && duplicateAppointment.data()?.userId === uid
+          && duplicateAppointment.data()?.quoteId === data.project_id
+        );
+
+        if (projectIsReusable && appointmentIsReusable) {
+          return {
+            client_id: data.client_id,
+            project_id: data.project_id,
+            appointment_id: data.appointment_id || null,
+          };
+        }
       }
 
       const counterSnapshot = await transaction.get(counterRef);
@@ -354,7 +371,6 @@ export async function POST(request: Request) {
         transaction.set(appointmentRef, {
           userId: uid,
           quoteId: projectRef.id,
-          employeeId: uid,
           leadKey: input.lead_key,
           source: SOURCE,
           startDate: Timestamp.fromDate(appointmentStart),
@@ -389,6 +405,7 @@ export async function POST(request: Request) {
         lead_key: input.lead_key,
         source: SOURCE,
         createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       return imported;
     });

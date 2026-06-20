@@ -9,7 +9,6 @@ import { DashboardHeader } from '@/components/DashboardHeader';
 import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
 import { Loader2, ChevronLeft, ChevronRight, Plus, RefreshCw, Settings } from 'lucide-react';
-import { useEmployees } from '@/hooks/useEmployees';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { TimelineView, PlanningEntry, PlanningEntryType } from '@/lib/types-planning';
 import { getDateRangeForView, autoSplitJob, calculateEndDateFromHours } from '@/lib/planning-utils';
@@ -97,7 +96,6 @@ function PlanningPageContent() {
     const openScheduleModalFromQuery = searchParams?.get('openScheduleModal') === '1';
     const prefillDateParam = (searchParams?.get('prefillDate') || '').trim();
     const prefillTimeParam = (searchParams?.get('prefillTime') || '').trim();
-    const prefillEmployeeIdParam = (searchParams?.get('prefillEmployeeId') || '').trim();
     const prefillHoursParam = Number(searchParams?.get('prefillHours') || '');
 
     const [view, setView] = useState<TimelineView>(urlView || 'week');
@@ -105,13 +103,11 @@ function PlanningPageContent() {
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<PlanningEntry | null>(null);
     const [modalPreselectedDate, setModalPreselectedDate] = useState<Date | undefined>(undefined);
-    const [modalPreselectedEmployee, setModalPreselectedEmployee] = useState<string | undefined>(undefined);
     const [modalPreselectedPlanningType, setModalPreselectedPlanningType] = useState<PlanningEntryType>('job');
     const [modalPreselectedStartTime, setModalPreselectedStartTime] = useState<string | undefined>(undefined);
     const [modalPreselectedTotalHours, setModalPreselectedTotalHours] = useState<number | undefined>(undefined);
     const [isWerkbesprekingTimeDialogOpen, setIsWerkbesprekingTimeDialogOpen] = useState(false);
     const [pendingWerkbesprekingDate, setPendingWerkbesprekingDate] = useState<Date | null>(null);
-    const [pendingWerkbesprekingEmployeeId, setPendingWerkbesprekingEmployeeId] = useState<string>('');
     const [werkbesprekingStartTime, setWerkbesprekingStartTime] = useState(DEFAULT_PLANNING_SETTINGS.defaultStartTime);
     const [planningSettings, setPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
     const [draftPlanningSettings, setDraftPlanningSettings] = useState<PlanningSettings>(DEFAULT_PLANNING_SETTINGS);
@@ -123,8 +119,6 @@ function PlanningPageContent() {
     const [isLoadingSchedulingQuote, setIsLoadingSchedulingQuote] = useState(false);
     const [quoteFinanceById, setQuoteFinanceById] = useState<Record<string, { amount: number; totalHours: number | null; totalEarnings: number | null }>>({});
     const lastAutoOpenKeyRef = React.useRef<string>('');
-
-    const { employees, isLoading: isLoadingEmployees, autoCreateSelf, isAutoCreating } = useEmployees();
 
     const dateRange = useMemo(() => getDateRangeForView(view, currentDate), [view, currentDate]);
 
@@ -422,11 +416,6 @@ function PlanningPageContent() {
         ? format(currentDate, 'yyyy', { locale: nl })
         : getDateRangeLabel();
 
-    const employeeNameById = useMemo(
-        () => new Map(employees.map((employee) => [employee.id, employee.name])),
-        [employees]
-    );
-
     const hydratedEntries = useMemo(() => {
         return entries.map((entry) => {
             const quoteFinance = quoteFinanceById[entry.quoteId];
@@ -465,13 +454,12 @@ function PlanningPageContent() {
                     entry,
                     start,
                     end,
-                    employeeName: employeeNameById.get(entry.employeeId) || 'Onbekend',
                     clientName: entry.cache?.clientName || 'Onbekende klant',
                     projectTitle: entry.cache?.projectTitle || '',
                 };
             })
             .sort((a, b) => a.start.getTime() - b.start.getTime());
-    }, [hydratedEntries, employeeNameById]);
+    }, [hydratedEntries]);
 
     const showMobileLayout = isMobile;
     const selectedMobileDateIsToday = isToday(selectedMobileDate);
@@ -497,7 +485,6 @@ function PlanningPageContent() {
             schedulingType,
             prefillDateParam,
             prefillTimeParam,
-            prefillEmployeeIdParam,
             Number.isFinite(prefillHoursParam) ? String(prefillHoursParam) : '',
         ].join('|');
 
@@ -519,7 +506,6 @@ function PlanningPageContent() {
 
         setSelectedEntry(null);
         setModalPreselectedDate(safeDate);
-        setModalPreselectedEmployee(prefillEmployeeIdParam || undefined);
         setModalPreselectedPlanningType(schedulingType);
         setModalPreselectedStartTime(safeTime);
         setModalPreselectedTotalHours(safeHours);
@@ -527,7 +513,6 @@ function PlanningPageContent() {
     }, [
         openScheduleModalFromQuery,
         prefillDateParam,
-        prefillEmployeeIdParam,
         prefillHoursParam,
         prefillTimeParam,
         schedulingMode,
@@ -539,7 +524,6 @@ function PlanningPageContent() {
     const handleEntryClick = (entry: PlanningEntry) => {
         setSelectedEntry(entry);
         setModalPreselectedDate(undefined);
-        setModalPreselectedEmployee(undefined);
         setModalPreselectedStartTime(undefined);
         setModalPreselectedTotalHours(undefined);
         setIsScheduleModalOpen(true);
@@ -547,7 +531,6 @@ function PlanningPageContent() {
 
     const createSchedulingEntryFromDate = async (
         date: Date,
-        employeeId: string,
         werkbesprekingTime?: string
     ) => {
         // In scheduling mode: directly create the planning entry
@@ -555,17 +538,6 @@ function PlanningPageContent() {
             toast({
                 title: 'Fout',
                 description: 'Offerte gegevens ontbreken',
-                variant: 'destructive'
-            });
-            return;
-        }
-
-        // Use first employee if no specific employee selected
-        const targetEmployeeId = employeeId || employees[0]?.id;
-        if (!targetEmployeeId) {
-            toast({
-                title: 'Geen uitvoerder',
-                description: 'Maak eerst een profiel aan in instellingen',
                 variant: 'destructive'
             });
             return;
@@ -608,7 +580,6 @@ function PlanningPageContent() {
                 // Convert to the format expected by addMultipleEntries
                 const entriesToAdd = splitEntries.map(entry => ({
                     quoteId: schedulingQuote.id,
-                    employeeId: targetEmployeeId,
                     startDate: entry.startDate,
                     endDate: entry.endDate,
                     scheduledHours: entry.hours,
@@ -642,7 +613,6 @@ function PlanningPageContent() {
 
                 await addEntry({
                     quoteId: schedulingQuote.id,
-                    employeeId: targetEmployeeId,
                     startDate,
                     endDate,
                     scheduledHours: schedulingDurationHours,
@@ -671,21 +641,19 @@ function PlanningPageContent() {
         }
     };
 
-    const handleEmptyCellClick = async (date: Date, employeeId: string) => {
+    const handleEmptyCellClick = async (date: Date) => {
         if (schedulingMode) {
             if (schedulingType === 'werkbespreking') {
                 setPendingWerkbesprekingDate(date);
-                setPendingWerkbesprekingEmployeeId(employeeId || employees[0]?.id || '');
                 setWerkbesprekingStartTime(QUOTE_WERKBESPREKING_DEFAULT_START_TIME);
                 setIsWerkbesprekingTimeDialogOpen(true);
                 return;
             }
 
-            await createSchedulingEntryFromDate(date, employeeId);
+            await createSchedulingEntryFromDate(date);
         } else {
             setSelectedEntry(null);
             setModalPreselectedDate(date);
-            setModalPreselectedEmployee(employeeId || undefined);
             setModalPreselectedPlanningType('werkbespreking');
             setModalPreselectedStartTime(undefined);
             setModalPreselectedTotalHours(undefined);
@@ -713,17 +681,14 @@ function PlanningPageContent() {
         setIsWerkbesprekingTimeDialogOpen(false);
         await createSchedulingEntryFromDate(
             pendingWerkbesprekingDate,
-            pendingWerkbesprekingEmployeeId,
             trimmed
         );
         setPendingWerkbesprekingDate(null);
-        setPendingWerkbesprekingEmployeeId('');
     };
 
-    const handleEntryDrop = async (entryId: string, newStart: Date, newEmployeeId: string) => {
+    const handleEntryDrop = async (entryId: string, newStart: Date) => {
         const entry = entries.find(e => e.id === entryId);
         if (!entry) return;
-        const effectiveEmployeeId = newEmployeeId || entry.employeeId;
 
         // If in week/month view, we want to shift the entire schedule for this quote
         if (view === 'week' || view === 'month') {
@@ -743,8 +708,7 @@ function PlanningPageContent() {
 
                 await updateEntry(entryId, {
                     startDate: newStart,
-                    endDate: newEnd,
-                    employeeId: effectiveEmployeeId
+                    endDate: newEnd
                 });
                 return;
             }
@@ -759,15 +723,13 @@ function PlanningPageContent() {
             const diffTime = newStartStart.getTime() - currentStartStart.getTime();
             const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-            if (diffDays !== 0 || newEmployeeId !== entry.employeeId) {
-                // If the employee changed, passing newEmployeeId updates all entries to that employee?
+            if (diffDays !== 0) {
                 // The requirements say: "move 'maandag' to 'zaterdag'... automatically adjusts the last one that would be in dinsdag as well to maandag."
                 // This implies moving the whole group.
                 await shiftQuoteEntries(
                     entry.quoteId,
                     entry.startDate.toDate(),
                     newStart,
-                    effectiveEmployeeId !== entry.employeeId ? effectiveEmployeeId : undefined,
                     planningSettings.workDays
                 );
             }
@@ -779,8 +741,7 @@ function PlanningPageContent() {
 
         await updateEntry(entryId, {
             startDate: newStart,
-            endDate: newEnd,
-            employeeId: effectiveEmployeeId
+            endDate: newEnd
         });
     };
 
@@ -903,7 +864,6 @@ function PlanningPageContent() {
                                 onClick={() => {
                                     setSelectedEntry(null);
                                     setModalPreselectedDate(undefined);
-                                    setModalPreselectedEmployee(undefined);
                                     setModalPreselectedPlanningType('werkbespreking');
                                     setModalPreselectedStartTime(undefined);
                                     setModalPreselectedTotalHours(undefined);
@@ -921,7 +881,6 @@ function PlanningPageContent() {
                             onClick={() => {
                                 setSelectedEntry(null);
                                 setModalPreselectedDate(undefined);
-                                setModalPreselectedEmployee(undefined);
                                 setModalPreselectedPlanningType(schedulingMode ? schedulingType : 'job');
                                 setModalPreselectedStartTime(undefined);
                                 setModalPreselectedTotalHours(undefined);
@@ -945,7 +904,7 @@ function PlanningPageContent() {
                 </div>
 
                 {/* Planning Content */}
-                {isLoadingEmployees || isLoadingEntries ? (
+                {isLoadingEntries ? (
                     <div className="flex-1 flex items-center justify-center">
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     </div>
@@ -955,11 +914,10 @@ function PlanningPageContent() {
                             currentDate={currentDate}
                             selectedDate={selectedMobileDate}
                             entries={hydratedEntries}
-                            employees={employees}
                             schedulingMode={schedulingMode}
                             onSelectDate={setSelectedMobileDate}
                             onEntryClick={handleEntryClick}
-                            onScheduleDayClick={(date) => handleEmptyCellClick(date, '')}
+                            onScheduleDayClick={handleEmptyCellClick}
                         />
 
                         {schedulingMode ? (
@@ -996,9 +954,8 @@ function PlanningPageContent() {
                                     onClick={() => handleEntryClick(item.entry)}
                                     className="w-full rounded-xl border border-border/70 bg-card/70 p-4 text-left transition-colors hover:bg-card"
                                 >
-                                    <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
                                         <span className="truncate font-semibold text-foreground">{item.clientName}</span>
-                                        <span className="shrink-0 text-xs text-muted-foreground">{item.employeeName}</span>
                                     </div>
                                     <div className="mt-1">
                                         <span
@@ -1028,7 +985,6 @@ function PlanningPageContent() {
                     <PlanningGrid
                         view={view}
                         dateRange={dateRange}
-                        employees={employees}
                         entries={hydratedEntries}
                         onEntryClick={handleEntryClick}
                         onEntryDrop={handleEntryDrop}
@@ -1047,11 +1003,9 @@ function PlanningPageContent() {
                     setIsScheduleModalOpen(false);
                     setSelectedEntry(null);
                     setModalPreselectedDate(undefined);
-                    setModalPreselectedEmployee(undefined);
                     setModalPreselectedStartTime(undefined);
                     setModalPreselectedTotalHours(undefined);
                 }}
-                employees={employees}
                 planningSettings={planningSettings}
                 view={view}
                 preselectedQuote={schedulingMode ? (schedulingQuote || undefined) : undefined}
@@ -1062,7 +1016,6 @@ function PlanningPageContent() {
                         : null
                 }
                 preselectedDate={modalPreselectedDate}
-                preselectedEmployee={modalPreselectedEmployee}
                 preselectedPlanningType={modalPreselectedPlanningType}
                 preselectedStartTime={modalPreselectedStartTime}
                 preselectedQuoteId={schedulingMode ? schedulingQuoteId || undefined : undefined}
@@ -1075,7 +1028,6 @@ function PlanningPageContent() {
                     setIsWerkbesprekingTimeDialogOpen(open);
                     if (!open) {
                         setPendingWerkbesprekingDate(null);
-                        setPendingWerkbesprekingEmployeeId('');
                     }
                 }}
             >
@@ -1098,7 +1050,6 @@ function PlanningPageContent() {
                             onClick={() => {
                                 setIsWerkbesprekingTimeDialogOpen(false);
                                 setPendingWerkbesprekingDate(null);
-                                setPendingWerkbesprekingEmployeeId('');
                             }}
                         >
                             Annuleren

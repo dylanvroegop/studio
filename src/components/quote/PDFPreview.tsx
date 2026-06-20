@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 
 interface PDFPreviewProps {
     pdfData: PDFQuoteData | null;
+    onPdfGenerated?: (blob: Blob, dataSignature: string) => void;
     className?: string;
     contentClassName?: string;
     iframeClassName?: string;
@@ -15,6 +16,7 @@ interface PDFPreviewProps {
 
 export function PDFPreview({
     pdfData,
+    onPdfGenerated,
     className,
     contentClassName,
     iframeClassName,
@@ -54,6 +56,7 @@ export function PDFPreview({
             latestObjectUrlRef.current = url;
             setPreviewUrl(url);
             lastCompletedSignatureRef.current = signature;
+            onPdfGenerated?.(blob, signature);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Fout bij genereren PDF');
         } finally {
@@ -62,7 +65,7 @@ export function PDFPreview({
             }
             setLoading(false);
         }
-    }, []);
+    }, [onPdfGenerated]);
 
     // Generate preview when data changes
     useEffect(() => {

@@ -17,7 +17,7 @@ interface DragState {
 interface UseDragResizeProps {
     entries: PlanningEntry[];
     view: TimelineView;
-    onEntryDrop: (entryId: string, newStart: Date, employeeId: string) => void;
+    onEntryDrop: (entryId: string, newStart: Date) => void;
     onEntryResize: (entryId: string, newStart: Date, newEnd: Date) => void;
     hours: number[]; // For Day view calculation
 }
@@ -94,8 +94,7 @@ export function useDragResize({
         if (view === 'day') {
             // Day View Logic: Horizontal modification on timeline
             // Access the specific timeline row element to measure dimensions
-            // We use elementFromPoint to find which row we are over, to handle moving between employees?
-            // For now, let's assume moving on the same row or rely on drop target detection.
+            // Use the row under the pointer so moving between days remains accurate.
 
             // Wait, for resizing, we are strictly bound to the timeline logic.
             // We need the width of the "hours" track.
@@ -138,14 +137,11 @@ export function useDragResize({
                     // Calculate new start time
                     const buildingNewStart = addMinutes(initialStart, snappedMinutes);
 
-                    // Check if we changed employee ("row")
-                    const targetEmployeeId = slotElement.getAttribute('data-employee-id');
-
                     // Also check if we changed "Day" (e.g. dragging to another day row)
                     // The slot also has data-date
                     const targetDateStr = slotElement.getAttribute('data-date');
 
-                    if (targetEmployeeId && targetDateStr) {
+                    if (targetDateStr) {
                         const targetDate = new Date(targetDateStr);
                         // We need to preserve the time of day from the original, but apply the date from target
                         // ACTUALLY, "Day View" usually lists days vertically.
@@ -158,22 +154,19 @@ export function useDragResize({
                         const newStartDate = new Date(targetDate);
                         newStartDate.setHours(originalHours, originalMinutes, 0, 0);
 
-                        onEntryDrop(entryId, newStartDate, targetEmployeeId);
+                        onEntryDrop(entryId, newStartDate);
                     }
                 }
             }
 
         } else if (view === 'week' || view === 'month') {
-            // Week View: Dragging to different day/employee
+            // Calendar views: dragging changes only the date.
             if (type === 'move') {
                 const elements = document.elementsFromPoint(e.clientX, e.clientY);
                 const slotElement = elements.find(el => el.getAttribute('data-role') === 'week-slot' || el.getAttribute('data-role') === 'month-slot');
 
                 if (slotElement) {
                     const targetDateStr = slotElement.getAttribute('data-date');
-                    const targetEmployeeId = slotElement.getAttribute('data-employee-id') ?? '';
-                    const fallbackEmployeeId = entries.find(entry => entry.id === entryId)?.employeeId ?? '';
-
                     if (targetDateStr) {
                         const targetDate = new Date(targetDateStr);
 
@@ -181,7 +174,7 @@ export function useDragResize({
                         const newStart = new Date(targetDate);
                         newStart.setHours(initialStart.getHours(), initialStart.getMinutes());
 
-                        onEntryDrop(entryId, newStart, targetEmployeeId || fallbackEmployeeId);
+                        onEntryDrop(entryId, newStart);
                     }
                 }
             }
@@ -194,7 +187,7 @@ export function useDragResize({
                 suppressClickTimerRef.current = null;
             }, 150);
         }
-    }, [dragState, view, hours, onEntryDrop, onEntryResize, entries]);
+    }, [dragState, view, hours, onEntryDrop, onEntryResize]);
 
     useEffect(() => {
         if (dragState) {

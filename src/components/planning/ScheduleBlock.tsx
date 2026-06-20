@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { TimelineView, PlanningEntry, Employee } from '@/lib/types-planning';
+import { TimelineView, PlanningEntry } from '@/lib/types-planning';
 import { calculateDayBlockPosition, calculateEndDateFromHours } from '@/lib/planning-utils';
 import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
@@ -11,12 +11,11 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { User, MapPin, Clock, Briefcase } from 'lucide-react';
+import { MapPin, Clock, Briefcase } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ScheduleBlockProps {
     entry: PlanningEntry;
-    employee: Employee;
     view: TimelineView;
     day: Date;
     hours: number[];
@@ -28,7 +27,6 @@ interface ScheduleBlockProps {
 
 export function ScheduleBlock({
     entry,
-    employee,
     view,
     day,
     hours,
@@ -204,10 +202,6 @@ export function ScheduleBlock({
                         </div>
 
                         <div className="border-t border-zinc-700 pt-2">
-                            <div className="flex items-center gap-2 text-white text-sm font-medium">
-                                <User className="w-3 h-3 text-zinc-400" />
-                                {employee.name}
-                            </div>
                             <div className="mt-1 text-xs font-medium" style={{ color: planningTypeColor }}>
                                 {planningTypeLabel}
                             </div>

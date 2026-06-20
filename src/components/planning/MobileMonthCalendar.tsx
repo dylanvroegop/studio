@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Employee, PlanningEntry } from '@/lib/types-planning';
+import { PlanningEntry } from '@/lib/types-planning';
 import {
     addDays,
     eachDayOfInterval,
@@ -23,7 +23,6 @@ interface MobileMonthCalendarProps {
     currentDate: Date;
     selectedDate: Date;
     entries: PlanningEntry[];
-    employees: Employee[];
     schedulingMode?: boolean;
     onSelectDate: (date: Date) => void;
     onEntryClick: (entry: PlanningEntry) => void;
@@ -43,7 +42,6 @@ export function MobileMonthCalendar({
     currentDate,
     selectedDate,
     entries,
-    employees,
     schedulingMode = false,
     onSelectDate,
     onEntryClick,
@@ -58,11 +56,6 @@ export function MobileMonthCalendar({
     const calendarEnd = useMemo(
         () => endOfWeek(monthEnd, { weekStartsOn: 1 }),
         [monthEnd]
-    );
-
-    const employeeNameById = useMemo(
-        () => new Map(employees.map((employee) => [employee.id, employee.name])),
-        [employees]
     );
 
     const eventsByDay = useMemo(() => {
@@ -173,8 +166,7 @@ export function MobileMonthCalendar({
                             <div className="space-y-1">
                                 {dayEntries.slice(0, 2).map((entry) => {
                                     const start = toDate(entry.startDate);
-                                    const employeeName = employeeNameById.get(entry.employeeId) || 'Onbekend';
-                                    const label = (entry.cache?.clientName || employeeName).slice(0, 16);
+                                    const label = (entry.cache?.clientName || 'Planning').slice(0, 16);
                                     const isWerkbespreking = (entry.planningType || 'job') === 'werkbespreking';
 
                                     return (

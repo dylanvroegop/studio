@@ -9,7 +9,8 @@ export interface PlanningEntry {
     id: string;
     userId: string;
     quoteId: string;
-    employeeId: string;
+    /** Legacy field. Planning is single-user and no longer assigns employees. */
+    employeeId?: string;
 
     startDate: Timestamp;
     endDate: Timestamp;
@@ -36,23 +37,17 @@ export interface PlanningEntry {
     updatedAt: Timestamp;
 }
 
+/** @deprecated Legacy settings data retained for backward-compatible cleanup. */
 export interface Employee {
     id: string;
     userId: string;
-
     name: string;
     color: string;
     email?: string;
     phone?: string;
-
     isActive: boolean;
-
-    defaultWorkHours: {
-        start: string;
-        end: string;
-    };
+    defaultWorkHours: { start: string; end: string };
     workDays: number[];
-
     createdAt: Timestamp;
     updatedAt: Timestamp;
 }
@@ -76,20 +71,14 @@ export const DEFAULT_PLANNING_SETTINGS: PlanningSettings = {
     showDailyEarnings: true,
 };
 
+/** @deprecated Employee colors are no longer used by Planning. */
 export const EMPLOYEE_COLORS = [
-    "#10b981", // emerald-500
-    "#3b82f6", // blue-500
-    "#f59e0b", // amber-500
-    "#ec4899", // pink-500
-    "#8b5cf6", // violet-500
-    "#06b6d4", // cyan-500
-    "#f97316", // orange-500
-    "#84cc16", // lime-500
+    "#10b981", "#3b82f6", "#f59e0b", "#ec4899",
+    "#8b5cf6", "#06b6d4", "#f97316", "#84cc16",
 ];
 
 export interface ScheduleBlock {
     entry: PlanningEntry;
-    employee: Employee;
     left: number;
     width: number;
     top: number;

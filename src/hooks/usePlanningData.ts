@@ -23,7 +23,6 @@ import { PlanningEntry, PlanningEntryType, PlanningStatus } from '@/lib/types-pl
 interface UsePlanningDataOptions {
     startDate?: Date;
     endDate?: Date;
-    employeeId?: string;
     quoteId?: string;
 }
 
@@ -89,10 +88,6 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             where('userId', '==', user.uid)
         );
 
-        if (options.employeeId) {
-            q = query(q, where('employeeId', '==', options.employeeId));
-        }
-
         if (options.quoteId) {
             q = query(q, where('quoteId', '==', options.quoteId));
         }
@@ -139,11 +134,10 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         );
 
         return () => unsubscribe();
-    }, [user, firestore, options.startDate?.getTime(), options.endDate?.getTime(), options.employeeId, options.quoteId]);
+    }, [user, firestore, options.startDate?.getTime(), options.endDate?.getTime(), options.quoteId]);
 
     const addEntry = useCallback(async (data: {
         quoteId: string;
-        employeeId: string;
         startDate: Date;
         endDate: Date;
         scheduledHours: number;
@@ -163,7 +157,6 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         const entryData = {
             userId: user.uid,
             quoteId: data.quoteId,
-            employeeId: data.employeeId,
             startDate: Timestamp.fromDate(data.startDate),
             endDate: Timestamp.fromDate(data.endDate),
             scheduledHours: data.scheduledHours,
@@ -193,7 +186,6 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
 
     const addMultipleEntries = useCallback(async (entries: Array<{
         quoteId: string;
-        employeeId: string;
         startDate: Date;
         endDate: Date;
         scheduledHours: number;
@@ -220,7 +212,6 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             batch.set(docRef, {
                 userId: user.uid,
                 quoteId: data.quoteId,
-                employeeId: data.employeeId,
                 startDate: Timestamp.fromDate(data.startDate),
                 endDate: Timestamp.fromDate(data.endDate),
                 scheduledHours: data.scheduledHours,
@@ -252,7 +243,6 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
     const updateEntry = useCallback(async (
         entryId: string,
         data: Partial<{
-            employeeId: string;
             startDate: Date;
             endDate: Date;
             scheduledHours: number;
@@ -277,7 +267,6 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             updatedAt: serverTimestamp()
         };
 
-        if (data.employeeId !== undefined) updateData.employeeId = data.employeeId;
         if (data.startDate !== undefined) updateData.startDate = Timestamp.fromDate(data.startDate);
         if (data.endDate !== undefined) updateData.endDate = Timestamp.fromDate(data.endDate);
         if (data.scheduledHours !== undefined) updateData.scheduledHours = data.scheduledHours;
@@ -357,7 +346,6 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         quoteId: string,
         referenceDate: Date,
         newStartDate: Date,
-        newEmployeeId?: string,
         workDays: number[] = [1, 2, 3, 4, 5]
     ) => {
         if (!user || !firestore) throw new Error('Not authenticated');
@@ -419,7 +407,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             return cursor;
         };
 
-        if (oldRef.getTime() === newRef.getTime() && !newEmployeeId) return;
+        if (oldRef.getTime() === newRef.getTime()) return;
 
         // Fetch all entries for this quote
         const q = query(
@@ -483,10 +471,6 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
                 endDate: Timestamp.fromDate(newEnd),
                 updatedAt: serverTimestamp()
             };
-
-            if (newEmployeeId) {
-                update.employeeId = newEmployeeId;
-            }
 
             batch.update(doc.ref, update);
 

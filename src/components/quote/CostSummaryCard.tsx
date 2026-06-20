@@ -199,6 +199,13 @@ export function CostSummaryCard({
         );
     }
     const winstProjectie = totals.winstProjectie;
+    // "Extra kosten" wordt als verbruiksartikel opgeslagen zodat het onderdeel
+    // blijft van het materiaalsubtotaal. Trek het hier af omdat deze kosten op
+    // de volgende regel als eigen kostencategorie worden getoond.
+    const verbruiksartikelenExclExtraKosten = Math.max(
+        0,
+        totals.materialenVerbruik - extraKostenExcl,
+    );
     const winstInclBtw = winstProjectie.winstInclBtw ?? (winstProjectie.omzetInclBtw - (winstProjectie.kostenInclBtw ?? 0));
     const winstNaBtwArbeidEnMarge = winstProjectie.winstNaBtwArbeidEnMarge ?? winstInclBtw;
     const btwArbeidEnMarge = winstProjectie.btwArbeidEnMarge ?? 0;
@@ -269,13 +276,13 @@ export function CostSummaryCard({
                                 <button
                                     type="button"
                                     className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
-                                    onClick={() => startEditingAmount('verbruik', totals.materialenVerbruik)}
+                                    onClick={() => startEditingAmount('verbruik', verbruiksartikelenExclExtraKosten)}
                                 >
-                                    {formatCurrency(totals.materialenVerbruik)}
+                                    {formatCurrency(verbruiksartikelenExclExtraKosten)}
                                     <Pencil size={12} className="text-muted-foreground" />
                                 </button>
                             ),
-                            calculateInclAmount(totals.materialenVerbruik, true)
+                            calculateInclAmount(verbruiksartikelenExclExtraKosten, true)
                         )}
                     </div>
                     <div className="flex justify-between text-sm">

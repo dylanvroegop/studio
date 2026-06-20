@@ -1,33 +1,37 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { TimelineView, PlanningEntry, Employee } from '@/lib/types-planning';
-import { getDaysInRange, getDutchHolidaysForYear, getHoursInDay, isWorkDay } from '@/lib/planning-utils';
-import { useDragResize } from './useDragResize';
-import { ScheduleBlock } from './ScheduleBlock';
-import { format, isSameDay, isToday, startOfMonth, addMonths, isSameMonth } from 'date-fns';
+import { addMonths, format, isSameDay, isSameMonth, isToday, startOfMonth } from 'date-fns';
 import { nl } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
 import { Timestamp } from 'firebase/firestore';
+
+import { cn } from '@/lib/utils';
+import { getDaysInRange, getDutchHolidaysForYear, getHoursInDay } from '@/lib/planning-utils';
+import { PlanningEntry, TimelineView } from '@/lib/types-planning';
+
+import { ScheduleBlock } from './ScheduleBlock';
+import { useDragResize } from './useDragResize';
 
 interface PlanningGridProps {
     view: TimelineView;
     dateRange: { start: Date; end: Date };
-    employees: Employee[];
     entries: PlanningEntry[];
     onEntryClick: (entry: PlanningEntry) => void;
-    onEntryDrop: (entryId: string, newStart: Date, employeeId: string) => void;
+    onEntryDrop: (entryId: string, newStart: Date) => void;
     onEntryResize: (entryId: string, newStart: Date, newEnd: Date) => void;
-    onEmptyCellClick: (date: Date, employeeId: string) => void;
+    onEmptyCellClick: (date: Date) => void;
     schedulingMode?: boolean;
     currentDate?: Date;
     pauseMinutes?: number;
 }
 
+function toDate(value: PlanningEntry['startDate']): Date {
+    return value instanceof Timestamp ? value.toDate() : new Date(value as unknown as string);
+}
+
 export function PlanningGrid({
     view,
     dateRange,
-    employees,
     entries,
     onEntryClick,
     onEntryDrop,
@@ -39,14 +43,11 @@ export function PlanningGrid({
 }: PlanningGridProps) {
     const days = useMemo(() => getDaysInRange(dateRange.start, dateRange.end), [dateRange]);
     const hours = useMemo(() => getHoursInDay(6, 20), []);
-    const employeeMap = useMemo(() => new Map(employees.map(employee => [employee.id, employee])), [employees]);
     const holidayNameByDateKey = useMemo(() => {
         const years = new Set(days.map((day) => day.getFullYear()));
         const map = new Map<string, string>();
         years.forEach((year) => {
-            getDutchHolidaysForYear(year).forEach((holiday) => {
-                map.set(holiday.dateKey, holiday.name);
-            });
+            getDutchHolidaysForYear(year).forEach((holiday) => map.set(holiday.dateKey, holiday.name));
         });
         return map;
     }, [days]);
@@ -56,257 +57,37 @@ export function PlanningGrid({
         view,
         onEntryDrop,
         onEntryResize,
-        hours
+        hours,
     });
 
-    const getEntriesForEmployeeAndDay = (employeeId: string, day: Date) => {
-        const filtered = entries.filter(entry => {
-            if (entry.employeeId !== employeeId) return false;
-
-            const entryStart = entry.startDate instanceof Timestamp
-                ? entry.startDate.toDate()
-                : new Date(entry.startDate as unknown as string);
-            const entryEnd = entry.endDate instanceof Timestamp
-                ? entry.endDate.toDate()
-                : new Date(entry.endDate as unknown as string);
-
-            return isSameDay(entryStart, day) || isSameDay(entryEnd, day) ||
-                (entryStart < day && entryEnd > day);
-        });
-
-        return filtered.sort((a, b) => {
-            const aStart = a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate as unknown as string);
-            const bStart = b.startDate instanceof Timestamp ? b.startDate.toDate() : new Date(b.startDate as unknown as string);
-            return aStart.getTime() - bStart.getTime();
-        });
-    };
-
-    const getEntriesForDay = (day: Date) => {
-        const filtered = entries.filter(entry => {
-            const entryStart = entry.startDate instanceof Timestamp
-                ? entry.startDate.toDate()
-                : new Date(entry.startDate as unknown as string);
-            const entryEnd = entry.endDate instanceof Timestamp
-                ? entry.endDate.toDate()
-                : new Date(entry.endDate as unknown as string);
-
-            return isSameDay(entryStart, day) || isSameDay(entryEnd, day) ||
-                (entryStart < day && entryEnd > day);
-        });
-
-        return filtered.sort((a, b) => {
-            const aStart = a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate as unknown as string);
-            const bStart = b.startDate instanceof Timestamp ? b.startDate.toDate() : new Date(b.startDate as unknown as string);
-            return aStart.getTime() - bStart.getTime();
-        });
-    };
+    const getEntriesForDay = (day: Date): PlanningEntry[] => entries
+        .filter((entry) => {
+            const start = toDate(entry.startDate);
+            const end = toDate(entry.endDate);
+            return isSameDay(start, day) || isSameDay(end, day) || (start < day && end > day);
+        })
+        .sort((left, right) => toDate(left.startDate).getTime() - toDate(right.startDate).getTime());
 
     if (view === 'day') {
-        // "Dag" view is now a detailed weekly overview (7 rows per employee)
-        // Each row is a timeline of hours for that day
-
         return (
-            <div className="flex-1 bg-card rounded-lg border border-border overflow-auto">
+            <div className="flex-1 overflow-auto rounded-lg border border-border bg-card">
                 <div className="min-w-[800px]">
-                    {/* Hour Headers - Sticky Top */}
-                    <div className="sticky top-0 z-10 bg-card border-b border-border grid"
-                        style={{ gridTemplateColumns: `150px repeat(${hours.length}, 1fr)` }}>
-                        <div className="p-3 border-r border-border">
-                            <span className="text-sm font-medium text-muted-foreground"></span>
-                        </div>
-                        {hours.map(hour => (
-                            <div key={hour} className="p-2 text-center border-r border-border last:border-r-0">
-                                <span className="text-xs text-muted-foreground">{hour}:00</span>
-                            </div>
-                        ))}
+                    <div className="sticky top-0 z-10 grid border-b border-border bg-card" style={{ gridTemplateColumns: `150px repeat(${hours.length}, 1fr)` }}>
+                        <div className="border-r border-border p-3" />
+                        {hours.map((hour) => <div key={hour} className="border-r border-border p-2 text-center text-xs text-muted-foreground">{hour}:00</div>)}
                     </div>
-
-                    {/* Employee Rows */}
-                    {employees.map(employee => (
-                        <div key={employee.id} className="border-b border-border last:border-b-0">
-                            {/* Employee Header - Sticky Left (Optional, but good for context if scrolling horizontally) */}
-                            <div className="bg-card/50 p-2 border-b border-border sticky left-0 z-[5]">
-                                <div className="flex items-center gap-2">
-                                    <div
-                                        className="w-3 h-3 rounded-full shrink-0"
-                                        style={{ backgroundColor: employee.color }}
-                                    />
-                                    <span className="text-sm font-medium truncate">{employee.name}</span>
-                                </div>
-                            </div>
-
-                            {/* 7 Day Rows for this Employee */}
-                            {days.map(day => {
-                                const dayEntries = getEntriesForEmployeeAndDay(employee.id, day);
-
-                                return (
-                                    <div
-                                        key={day.toISOString()}
-                                        className="grid border-b border-border last:border-b-0 min-h-[60px]"
-                                        style={{ gridTemplateColumns: `150px repeat(${hours.length}, 1fr)` }}
-                                    >
-                                        {/* Day Label */}
-                                        <div className={cn(
-                                            "p-3 border-r border-border flex flex-col justify-center sticky left-0 z-[4] bg-card"
-                                        )}>
-                                            <span className={cn(
-                                                "text-sm font-medium",
-                                                "text-foreground"
-                                            )}>
-                                                {format(day, 'EEE d MMM', { locale: nl })}
-                                            </span>
-                                            {holidayNameByDateKey.get(format(day, 'yyyy-MM-dd')) ? (
-                                                <span className="text-[10px] font-medium text-rose-300">
-                                                    {holidayNameByDateKey.get(format(day, 'yyyy-MM-dd'))}
-                                                </span>
-                                            ) : null}
-                                        </div>
-
-                                        {/* Timeline Track */}
-                                        <div
-                                            className={cn(
-                                                "relative col-span-full col-start-2",
-                                                !isWorkDay(day, employee.workDays) && "bg-muted/30",
-                                                schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
-                                                !schedulingMode && "cursor-default"
-                                            )}
-                                            onClick={() => !suppressClick && onEmptyCellClick(day, employee.id)}
-                                            data-date={day.toISOString()}
-                                            data-employee-id={employee.id}
-                                            data-role="day-slot"
-                                        >
-                                            {/* Vertical Grid Lines for Hours */}
-                                            <div className="absolute inset-0 grid pointer-events-none"
-                                                style={{ gridTemplateColumns: `repeat(${hours.length}, 1fr)` }}>
-                                                {hours.map(h => (
-                                                    <div key={h} className="border-r border-border last:border-r-0 h-full" />
-                                                ))}
-                                            </div>
-                                            {/* 15-minute Grid Lines */}
-                                            <div
-                                                className="absolute inset-0 pointer-events-none"
-                                                style={{
-                                                    backgroundImage: 'repeating-linear-gradient(to right, rgba(255,255,255,0.08) 0, rgba(255,255,255,0.08) 1px, transparent 1px, transparent 25%)',
-                                                    backgroundSize: `calc(100% / ${hours.length}) 100%`
-                                                }}
-                                            />
-
-                                            {/* Entries */}
-                                            {dayEntries.map(entry => (
-                                                <ScheduleBlock
-                                                    key={entry.id}
-                                                    entry={entry}
-                                                    employee={employee}
-                                                    view={view}
-                                                    day={day}
-                                                    hours={hours}
-                                                    pauseMinutes={pauseMinutes}
-                                                    onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
-                                                    onDragStart={onDragStart}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-
-    if (view === 'month') {
-        const monthStart = startOfMonth(dateRange.start);
-        const months = Array.from({ length: 8 }, (_, idx) => addMonths(monthStart, idx));
-        const dayNumbers = Array.from({ length: 31 }, (_, idx) => idx + 1);
-
-        return (
-            <div className="flex-1 bg-card rounded-lg border border-border overflow-auto">
-                <div className="min-w-[900px]">
-                    <div
-                        className="sticky top-0 z-10 bg-card border-b border-border grid"
-                        style={{ gridTemplateColumns: `150px repeat(${dayNumbers.length}, 1fr)` }}
-                    >
-                        <div className="p-3 border-r border-border">
-                            <span className="text-sm font-medium text-muted-foreground"></span>
-                        </div>
-                        {dayNumbers.map(dayNum => (
-                            <div
-                                key={dayNum}
-                                className="p-2 text-center border-r border-border last:border-r-0"
-                            >
-                                <div className="text-sm font-medium text-foreground">
-                                    {dayNum}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {months.map(monthDate => {
-                        const monthLabel = format(monthDate, 'MMMM yyyy', { locale: nl });
-
+                    {days.map((day) => {
+                        const dayEntries = getEntriesForDay(day);
                         return (
-                            <div
-                                key={monthDate.toISOString()}
-                                className="grid border-b border-border last:border-b-0"
-                                style={{ gridTemplateColumns: `150px repeat(${dayNumbers.length}, 1fr)` }}
-                            >
-                                <div className="p-3 border-r border-border flex items-center gap-2 bg-card/50 sticky left-0 z-[5]">
-                                    <span className="text-sm font-medium truncate">{monthLabel}</span>
+                            <div key={day.toISOString()} className="grid border-b border-border" style={{ gridTemplateColumns: `150px repeat(${hours.length}, 1fr)` }}>
+                                <button type="button" className="border-r border-border p-3 text-left text-sm" onClick={() => onEmptyCellClick(day)}>
+                                    {format(day, 'EEEE d MMM', { locale: nl })}
+                                </button>
+                                <div className="relative min-h-14" style={{ gridColumn: '2 / -1' }} data-role="day-slot" data-date={day.toISOString()}>
+                                    {dayEntries.map((entry) => (
+                                        <ScheduleBlock key={entry.id} entry={entry} view={view} day={day} hours={hours} pauseMinutes={pauseMinutes} onClick={() => onEntryClick(entry)} onDragStart={onDragStart} />
+                                    ))}
                                 </div>
-                                {dayNumbers.map(dayNum => {
-                                    const date = new Date(monthDate.getFullYear(), monthDate.getMonth(), dayNum);
-                                    const isValidDay = date.getMonth() === monthDate.getMonth();
-                                    const dayEntries = isValidDay ? getEntriesForDay(date) : [];
-                                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                                    const holidayName = isValidDay ? holidayNameByDateKey.get(format(date, 'yyyy-MM-dd')) : undefined;
-
-                                    return (
-                                        <div
-                                            key={`${monthDate.toISOString()}-${dayNum}`}
-                                            className={cn(
-                                                "relative min-h-[60px] border-r border-border last:border-r-0 p-0",
-                                                isValidDay ? "" : "bg-muted/30",
-                                                isValidDay && isWeekend && "bg-muted/20",
-                                                isValidDay && holidayName && "bg-rose-500/10",
-                                                schedulingMode && isValidDay && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
-                                                !schedulingMode && "cursor-default"
-                                            )}
-                                            onClick={() => isValidDay && !suppressClick && onEmptyCellClick(date, '')}
-                                            data-date={isValidDay ? date.toISOString() : undefined}
-                                            data-employee-id=""
-                                            data-role={isValidDay ? "month-slot" : undefined}
-                                        >
-                                            {holidayName ? (
-                                                <div className="px-1 pt-1 text-[10px] font-medium text-rose-300">
-                                                    Feestdag: {holidayName}
-                                                </div>
-                                            ) : null}
-                                            <div className="flex flex-col items-stretch gap-1 px-1 py-1">
-                                                {dayEntries.map((entry, idx) => {
-                                                    const employee = employeeMap.get(entry.employeeId);
-                                                    if (!employee) return null;
-
-                                                    return (
-                                                        <ScheduleBlock
-                                                            key={entry.id}
-                                                            entry={entry}
-                                                            employee={employee}
-                                                            view={view}
-                                                            day={date}
-                                                            hours={hours}
-                                                            pauseMinutes={pauseMinutes}
-                                                            stackIndex={idx}
-                                                            onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
-                                                            onDragStart={onDragStart}
-                                                        />
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
                             </div>
                         );
                     })}
@@ -316,128 +97,39 @@ export function PlanningGrid({
     }
 
     if (view === 'week') {
-        // Create an array of weeks from the date range days
         const weeks: Date[][] = [];
-        for (let i = 0; i < days.length; i += 7) {
-            weeks.push(days.slice(i, i + 7));
-        }
-
-        // Days header (Mon - Sun) - just use the first week to get names
-        const headerDays = weeks[0] || [];
-        const weekGridStyle: React.CSSProperties = { gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' };
-
+        for (let index = 0; index < days.length; index += 7) weeks.push(days.slice(index, index + 7));
         return (
-            <div className="flex-1 bg-card rounded-lg border border-zinc-700/50 overflow-auto">
+            <div className="flex-1 overflow-auto rounded-lg border border-zinc-700/50 bg-card">
                 <div className="min-w-[740px]">
-                    {/* Header: Mon - Sun */}
-                    <div
-                        className="sticky top-0 z-10 bg-card/95 backdrop-blur border-b border-zinc-700/50 grid"
-                        style={weekGridStyle}
-                    >
-                        {headerDays.map(day => {
-                            const dayIsToday = isToday(day);
-                            const holidayName = holidayNameByDateKey.get(format(day, 'yyyy-MM-dd'));
-                            return (
-                                <div
-                                    key={format(day, 'EEE')}
-                                    className={cn(
-                                        "min-w-0 p-2 text-center border-r border-zinc-700/50 last:border-r-0",
-                                        dayIsToday && "bg-emerald-500/12",
-                                        holidayName && "bg-rose-500/10"
-                                    )}
-                                >
-                                    <span className={cn(
-                                        "text-xs font-medium",
-                                        dayIsToday ? "text-emerald-300" : "text-muted-foreground/80"
-                                    )}>
-                                        {format(day, 'EEEE', { locale: nl })}
-                                    </span>
-                                    {holidayName ? (
-                                        <div className="mt-0.5 truncate text-[10px] font-medium text-rose-300">{holidayName}</div>
-                                    ) : null}
-                                </div>
-                            );
-                        })}
+                    <div className="sticky top-0 z-10 grid grid-cols-7 border-b border-zinc-700/50 bg-card/95 backdrop-blur">
+                        {(weeks[0] || []).map((day) => <div key={format(day, 'EEE')} className="border-r border-zinc-700/50 p-2 text-center text-xs font-medium text-muted-foreground">{format(day, 'EEEE', { locale: nl })}</div>)}
                     </div>
-
-                    {/* Employee Rows */}
-                    {employees.map(employee => (
-                        <div key={employee.id} className="border-b border-zinc-700/50 last:border-b-0">
-                            {/* Weeks */}
-                            {weeks.map((weekDays, weekIdx) => {
+                    {weeks.map((weekDays, weekIndex) => (
+                        <div key={weekIndex} className="grid grid-cols-7">
+                            {weekDays.map((day, dayIndex) => {
+                                const holidayName = holidayNameByDateKey.get(format(day, 'yyyy-MM-dd'));
+                                const dayEntries = getEntriesForDay(day);
                                 return (
-                                <div key={`${employee.id}-week-${weekIdx}`} className="border-b border-zinc-700/50 last:border-b-0">
-                                    <div className="grid" style={weekGridStyle}>
-                                        {weekDays.map((day, dayIdx) => {
-                                            const dayEntries = getEntriesForEmployeeAndDay(employee.id, day);
-                                            const dayOfWeek = day.getDay();
-                                            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                                            const isCurrentMonth = isSameMonth(day, currentDate);
-                                            const dayIsToday = isToday(day);
-                                            const holidayName = holidayNameByDateKey.get(format(day, 'yyyy-MM-dd'));
-                                            return (
-                                                <div
-                                                    key={day.toISOString()}
-                                                    className={cn(
-                                                        "relative min-h-[108px] min-w-0 overflow-hidden border-r border-zinc-700/50 border-b border-zinc-700/50 px-1 pt-1",
-                                                        "last:border-r-0",
-                                                        isWeekend && "bg-muted/20",
-                                                        holidayName && "bg-rose-500/10",
-                                                        dayIsToday && "bg-emerald-500/10 ring-1 ring-inset ring-emerald-400/50",
-                                                        schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
-                                                        !schedulingMode && "cursor-default hover:bg-zinc-900/12 transition-colors"
-                                                    )}
-                                                    onClick={() => !suppressClick && onEmptyCellClick(day, employee.id)}
-                                                    data-date={day.toISOString()}
-                                                    data-employee-id={employee.id}
-                                                    data-role="week-slot"
-                                                >
-                                                    {dayIdx === 0 && (
-                                                        <div className="absolute left-1 top-1 z-[1] text-[9px] font-medium uppercase tracking-wide text-zinc-600">
-                                                            {format(day, 'MMM', { locale: nl })}
-                                                        </div>
-                                                    )}
-                                                    <div
-                                                        className={cn(
-                                                            "absolute right-1 top-1 z-[1] text-[11px] leading-none font-medium",
-                                                            dayIsToday
-                                                                ? "rounded-full bg-emerald-500 px-1.5 py-0.5 text-zinc-950 shadow-sm"
-                                                                : isCurrentMonth
-                                                                    ? "text-zinc-400"
-                                                                    : "text-zinc-600"
-                                                        )}
-                                                    >
-                                                        {format(day, 'd', { locale: nl })}
-                                                    </div>
-
-                                                    <div className="relative z-0 mt-5 flex min-w-0 flex-col gap-1">
-                                                        {holidayName ? (
-                                                            <div className="truncate rounded bg-rose-500/20 px-1 py-0.5 text-[10px] font-medium text-rose-200">
-                                                                Feestdag: {holidayName}
-                                                            </div>
-                                                        ) : null}
-                                                        {dayEntries.map((entry, idx) => (
-                                                            <div key={entry.id} className="min-w-0">
-                                                                <ScheduleBlock
-                                                                    entry={entry}
-                                                                    employee={employee}
-                                                                    view={view}
-                                                                    day={day}
-                                                                    hours={hours}
-                                                                    pauseMinutes={pauseMinutes}
-                                                                    stackIndex={idx}
-                                                                    onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
-                                                                    onDragStart={onDragStart}
-                                                                />
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )})}
+                                    <button
+                                        type="button"
+                                        key={day.toISOString()}
+                                        className={cn('relative min-h-[108px] min-w-0 overflow-hidden border-b border-r border-zinc-700/50 px-1 pt-1 text-left', day.getDay() % 6 === 0 && 'bg-muted/20', holidayName && 'bg-rose-500/10', isToday(day) && 'bg-emerald-500/10 ring-1 ring-inset ring-emerald-400/50', schedulingMode && 'hover:bg-emerald-500/5')}
+                                        onClick={() => !suppressClick && onEmptyCellClick(day)}
+                                        data-date={day.toISOString()}
+                                        data-role="week-slot"
+                                    >
+                                        {dayIndex === 0 && <span className="absolute left-1 top-1 text-[9px] uppercase text-zinc-600">{format(day, 'MMM', { locale: nl })}</span>}
+                                        <span className={cn('absolute right-1 top-1 text-[11px]', isSameMonth(day, currentDate) ? 'text-zinc-400' : 'text-zinc-600')}>{format(day, 'd')}</span>
+                                        <div className="relative mt-5 flex min-w-0 flex-col gap-1">
+                                            {holidayName && <div className="truncate rounded bg-rose-500/20 px-1 py-0.5 text-[10px] text-rose-200">Feestdag: {holidayName}</div>}
+                                            {dayEntries.map((entry, entryIndex) => (
+                                                <ScheduleBlock key={entry.id} entry={entry} view={view} day={day} hours={hours} pauseMinutes={pauseMinutes} stackIndex={entryIndex} onClick={() => !isDragging && !suppressClick && onEntryClick(entry)} onDragStart={onDragStart} />
+                                            ))}
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </div>
                     ))}
                 </div>
@@ -445,93 +137,23 @@ export function PlanningGrid({
         );
     }
 
-    // Week / Month view
+    const months = Array.from({ length: 8 }, (_, index) => addMonths(startOfMonth(currentDate), index));
+    const dayNumbers = Array.from({ length: 31 }, (_, index) => index + 1);
     return (
-        <div className="flex-1 bg-card rounded-lg border border-border overflow-auto">
-            <div className="min-w-[800px]">
-                {/* Day Headers */}
-                <div
-                    className="sticky top-0 z-10 bg-card border-b border-border grid"
-                    style={{ gridTemplateColumns: `150px repeat(${days.length}, 1fr)` }}
-                >
-                    <div className="p-3 border-r border-border">
-                        <span className="text-sm font-medium text-muted-foreground"></span>
-                    </div>
-                    {days.map(day => {
-                        const holidayName = holidayNameByDateKey.get(format(day, 'yyyy-MM-dd'));
-                        return (
-                        <div
-                            key={day.toISOString()}
-                            className={cn(
-                                "p-2 text-center border-r border-border last:border-r-0",
-                                isToday(day) && "bg-emerald-500/10",
-                                holidayName && "bg-rose-500/10"
-                            )}
-                        >
-                            <div className="text-xs text-muted-foreground">
-                                {format(day, 'EEE', { locale: nl })}
-                            </div>
-                            <div className={cn(
-                                "text-sm font-medium",
-                                isToday(day) ? "text-emerald-400" : "text-foreground"
-                            )}>
-                                {format(day, 'd', { locale: nl })}
-                            </div>
-                            {holidayName ? (
-                                <div className="truncate text-[10px] font-medium text-rose-300">{holidayName}</div>
-                            ) : null}
-                        </div>
-                    );
-                    })}
-                </div>
-
-                {/* Employee Rows */}
-                {employees.map(employee => (
-                    <div
-                        key={employee.id}
-                        className="grid border-b border-border last:border-b-0"
-                        style={{ gridTemplateColumns: `150px repeat(${days.length}, 1fr)` }}
-                    >
-                        <div className="p-3 border-r border-border flex items-center gap-2 bg-card/50 sticky left-0 z-[5]">
-                            <div
-                                className="w-3 h-3 rounded-full shrink-0"
-                                style={{ backgroundColor: employee.color }}
-                            />
-                            <span className="text-sm font-medium truncate">{employee.name}</span>
-                        </div>
-                        {days.map(day => {
-                            const dayEntries = getEntriesForEmployeeAndDay(employee.id, day);
-
+        <div className="flex-1 overflow-auto rounded-lg border border-border bg-card">
+            <div className="min-w-[1200px]">
+                {months.map((month) => (
+                    <div key={month.toISOString()} className="grid border-b border-border" style={{ gridTemplateColumns: '150px repeat(31, minmax(36px, 1fr))' }}>
+                        <div className="sticky left-0 z-[5] border-r border-border bg-card p-3 text-sm font-medium">{format(month, 'MMMM yyyy', { locale: nl })}</div>
+                        {dayNumbers.map((dayNumber) => {
+                            const day = new Date(month.getFullYear(), month.getMonth(), dayNumber);
+                            const valid = day.getMonth() === month.getMonth();
+                            const dayEntries = valid ? getEntriesForDay(day) : [];
                             return (
-                                <div
-                                    key={day.toISOString()}
-                                    className={cn(
-                                        "relative min-h-[60px] border-r border-border last:border-r-0 p-1",
-                                        isToday(day) && "bg-emerald-500/5",
-                                        !isWorkDay(day, employee.workDays) && "bg-muted/30",
-                                        schedulingMode && "cursor-pointer hover:bg-emerald-500/5 transition-colors",
-                                        !schedulingMode && "cursor-default"
-                                    )}
-                                    onClick={() => !suppressClick && onEmptyCellClick(day, employee.id)}
-                                    data-date={day.toISOString()}
-                                    data-employee-id={employee.id}
-                                    data-role="month-slot"
-                                >
-                                    {dayEntries.map((entry, idx) => (
-                                        <ScheduleBlock
-                                            key={entry.id}
-                                            entry={entry}
-                                            employee={employee}
-                                            view={view}
-                                            day={day}
-                                            hours={hours}
-                                            pauseMinutes={pauseMinutes}
-                                            stackIndex={idx}
-                                        onClick={() => !isDragging && !suppressClick && onEntryClick(entry)}
-                                        onDragStart={onDragStart}
-                                    />
-                                    ))}
-                                </div>
+                                <button type="button" key={dayNumber} disabled={!valid} className={cn('min-h-[60px] border-r border-border p-1 text-left text-[10px]', !valid && 'bg-muted/30')} onClick={() => valid && onEmptyCellClick(day)} data-date={valid ? day.toISOString() : undefined} data-role={valid ? 'month-slot' : undefined}>
+                                    {valid && <span className="text-muted-foreground">{dayNumber}</span>}
+                                    {dayEntries.map((entry, entryIndex) => <ScheduleBlock key={entry.id} entry={entry} view={view} day={day} hours={hours} stackIndex={entryIndex} pauseMinutes={pauseMinutes} onClick={() => onEntryClick(entry)} onDragStart={onDragStart} />)}
+                                </button>
                             );
                         })}
                     </div>

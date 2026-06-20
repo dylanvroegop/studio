@@ -92,7 +92,9 @@ export function SendQuoteWhatsAppModal({
     const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
     const origin = isLocalhost ? 'https://app.calvora.nl' : (typeof window !== 'undefined' ? window.location.origin : 'https://app.calvora.nl');
     const fallbackUrl = quoteId ? `${origin}/view/${quoteId}` : '';
-    const resolvedQuoteUrl = trimmedProvidedUrl || fallbackUrl;
+    // A persisted PDF URL can point to an older generated document. Prefer the
+    // live quote route so WhatsApp never shares a stale PDF alongside the current one.
+    const resolvedQuoteUrl = fallbackUrl || trimmedProvidedUrl;
     setQuoteUrl(resolvedQuoteUrl);
 
     const guessedFirstName = String(
@@ -117,24 +119,6 @@ export function SendQuoteWhatsAppModal({
     }
   }, [isOpen, message]);
 
-  const insertFirstNameTokenAtCursor = () => {
-    const textarea = messageTextareaRef.current;
-    if (!textarea) {
-      setMessage((prev) => `${prev}${prev ? ' ' : ''}${FIRST_NAME_TOKEN}`);
-      return;
-    }
-
-    const start = textarea.selectionStart ?? message.length;
-    const end = textarea.selectionEnd ?? message.length;
-    const next = `${message.slice(0, start)}${FIRST_NAME_TOKEN}${message.slice(end)}`;
-    setMessage(next);
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const caret = start + FIRST_NAME_TOKEN.length;
-      textarea.setSelectionRange(caret, caret);
-    });
-  };
-
   const handleSendViaWhatsApp = async () => {
     if (isOpening || isLaunchingWhatsAppRef.current) return;
     isLaunchingWhatsAppRef.current = true;
@@ -155,8 +139,8 @@ export function SendQuoteWhatsAppModal({
 
     if (!trimmedQuoteUrl) {
       toast({
-        title: 'Geen PDF-link beschikbaar',
-        description: 'Er is geen quote.pdf_url gevonden voor deze offerte.',
+        title: 'Geen offertelink beschikbaar',
+        description: 'Er kon geen actuele link voor deze offerte worden opgebouwd.',
         variant: 'destructive',
       });
       isLaunchingWhatsAppRef.current = false;

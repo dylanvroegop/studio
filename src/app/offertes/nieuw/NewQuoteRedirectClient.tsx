@@ -77,7 +77,6 @@ export function NewQuoteRedirectClient() {
           })();
           const prefillDate = (searchParams.get('prefillDate') || '').trim();
           const prefillTime = (searchParams.get('prefillTime') || '').trim();
-          const prefillEmployeeId = (searchParams.get('prefillEmployeeId') || '').trim();
           const prefillHoursRaw = Number(searchParams.get('prefillHours') || '');
           const openScheduleModal = searchParams.get('openScheduleModal') === '1';
 
@@ -97,9 +96,6 @@ export function NewQuoteRedirectClient() {
           }
           if (/^([01]\d|2[0-3]):([0-5]\d)$/.test(prefillTime)) {
             planningParams.set('prefillTime', prefillTime);
-          }
-          if (prefillEmployeeId) {
-            planningParams.set('prefillEmployeeId', prefillEmployeeId);
           }
 
           successRedirect = `/planning?${planningParams.toString()}`;

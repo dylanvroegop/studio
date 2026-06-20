@@ -1048,14 +1048,15 @@ function buildPromptFromBody(body: RequestBody): string {
     : 'Elektrawerk inbegrepen staat UIT. Neem elektrawerk niet op als inbegrepen werk.';
   const notesRule = safeString(body.notesContext)
     ? [
-        'HARDE REGEL VOOR GEBRUIKERSNOTITIES:',
-        'Verwerk IEDERE concrete werkzaamheid, keuze en maat uit de gebruikersnotities in de werkbeschrijving.',
-        'Sla niets over, neem afmetingen exact over en voeg geen vervangende aannames toe.',
-        'Behoud ALLE expliciete aantallen en berekende totalen. Als de notitie bijvoorbeeld "2 per huis, 3 huizen, totaal 6 zijdes" vermeldt, moet "6 zijdes totaal" letterlijk en ondubbelzinnig in summary en work_scope staan.',
+        'REGELS VOOR GEBRUIKERSNOTITIES:',
+        'Gebruik iedere concrete werkzaamheid en keuze uit de gebruikersnotities als bron, maar kopieer ruwe notitieregels niet letterlijk.',
+        'Combineer verwante notities tot één professionele regel en beschrijf iedere concrete werkzaamheid precies één keer.',
+        'Zet losse afmetingen en maatopsommingen in dimensions. Herhaal ze alleen in work_scope wanneer de maat nodig is om de werkzaamheid ondubbelzinnig te beschrijven.',
+        'Behoud expliciete aantallen en berekende eindtotalen exact, maar vermeld ieder feit op één logische plaats.',
         'De offerte is definitief: gebruik uitsluitend concrete, professionele formuleringen.',
         'Verwijder onzekere taal zoals "eventueel", "mogelijk", "iets anders", "indien nodig" en "in overleg".',
         'Wanneer een notitie eerst een concrete werkwijze noemt en daarna een vaag alternatief, gebruik alleen de concrete werkwijze.',
-        'Controleer voor je antwoord regel voor regel of alle notities aantoonbaar terugkomen.',
+        'Controleer voor je antwoord of alle concrete afspraken inhoudelijk terugkomen zonder doublures.',
       ].join(' ')
     : '';
   const scopeRules = [
@@ -1069,7 +1070,7 @@ function buildPromptFromBody(body: RequestBody): string {
     'Beschrijf geen methode tenzij deze expliciet is aangeleverd.',
     'Gebruik niet de woorden eerst, vervolgens, daarna, stap 1 of stap 2.',
     'Neem alleen scope over die expliciet blijkt uit notities, maatvoering of calculatiedata.',
-    'Expliciete aantallen, aantallen per woning/object en eindtotalen uit notities zijn essentiële scope en mogen nooit worden verkort of impliciet geformuleerd.',
+    'Expliciete aantallen, aantallen per woning/object en eindtotalen uit notities zijn essentiële feiten en mogen nooit worden verkort of impliciet geformuleerd.',
     'Gebruik materials altijd als lege array. Maak geen aparte materialen/productenlijst.',
     'Verwerk alleen klant-relevante productkeuzes in work_scope wanneer ze belangrijk zijn voor vertrouwen of afspraak, zoals Keralit, Trespa/HPL, Rockpanel, EPDM, underlayment of type/kleur gevelbekleding.',
     'Noem geen verbruiksartikelen of hulpmaterialen zoals lijm, kit, cleaner, ontvetter, schroeven, handschoenen, folie, tape, band of schuurpapier.',

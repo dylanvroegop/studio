@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,9 +41,16 @@ export function SendInvoiceModal({
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const hasInitializedForOpenRef = useRef(false);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      hasInitializedForOpenRef.current = false;
+      return;
+    }
+    if (hasInitializedForOpenRef.current) return;
+    hasInitializedForOpenRef.current = true;
+
     setEmail(klantEmail || '');
     setSubject(`Factuur #${factuurNummer}`);
 

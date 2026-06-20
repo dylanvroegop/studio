@@ -27,8 +27,7 @@ import {
     normalizeLeverancierContactList,
     pickDefaultLeverancierId,
 } from '@/lib/types-settings';
-import { useEmployees } from '@/hooks/useEmployees';
-import { EMPLOYEE_COLORS } from '@/lib/types-planning';
+import { Employee, EMPLOYEE_COLORS } from '@/lib/types-planning';
 import { LogoUpload } from '@/components/settings/LogoUpload';
 import { GoogleCalendarSettingsCard } from '@/components/settings/GoogleCalendarSettingsCard';
 import { Switch } from '@/components/ui/switch';
@@ -125,7 +124,11 @@ function InstellingenPageContent() {
     const [currentPackageItems, setCurrentPackageItems] = useState<BouwplaatsItem[]>([]);
 
     // Employee CRUD State
-    const { employees, addEmployee, updateEmployee, deleteEmployee } = useEmployees();
+    // Legacy employee UI is disabled; keep inert values until its hidden markup is removed.
+    const employees: Employee[] = [];
+    const addEmployee = async (_data: Partial<Employee>) => undefined;
+    const updateEmployee = async (_id: string, _data: Partial<Employee>) => undefined;
+    const deleteEmployee = async (_id: string) => undefined;
     const [isEmployeeDialogOpen, setIsEmployeeDialogOpen] = useState(false);
     const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
     const [employeeForm, setEmployeeForm] = useState({ name: '', email: '', phone: '', color: EMPLOYEE_COLORS[0] });

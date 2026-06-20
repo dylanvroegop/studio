@@ -22,8 +22,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Calendar, Clock, User, Briefcase, Trash2, Navigation } from 'lucide-react';
-import { Employee, PlanningEntry, PlanningEntryType, PlanningSettings, TimelineView } from '@/lib/types-planning';
+import { Loader2, Calendar, Clock, Briefcase, Trash2, Navigation } from 'lucide-react';
+import { PlanningEntry, PlanningEntryType, PlanningSettings, TimelineView } from '@/lib/types-planning';
 import { autoSplitJob, calculateEndDateFromHours } from '@/lib/planning-utils';
 import { usePlanningData } from '@/hooks/usePlanningData';
 import { format } from 'date-fns';
@@ -76,14 +76,12 @@ interface Quote {
 interface ScheduleModalProps {
     isOpen: boolean;
     onClose: () => void;
-    employees: Employee[];
     planningSettings: PlanningSettings;
     view?: TimelineView;
     preselectedQuote?: Quote;
     preselectedHours?: number;
     existingEntry?: PlanningEntry | null;
     preselectedDate?: Date;
-    preselectedEmployee?: string;
     preselectedPlanningType?: PlanningEntryType;
     preselectedStartTime?: string;
     preselectedQuoteId?: string;
@@ -93,14 +91,12 @@ interface ScheduleModalProps {
 export function ScheduleModal({
     isOpen,
     onClose,
-    employees,
     planningSettings,
     view,
     preselectedQuote,
     preselectedHours,
     existingEntry,
     preselectedDate,
-    preselectedEmployee,
     preselectedPlanningType = 'job',
     preselectedStartTime,
     preselectedQuoteId,
@@ -116,11 +112,9 @@ export function ScheduleModal({
     const [isLoadingQuotes, setIsLoadingQuotes] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-    const [pendingSave, setPendingSave] = useState(false);
     const [quoteMetricsById, setQuoteMetricsById] = useState<Record<string, { totalHours: number; totalEarnings: number }>>({});
 
     const [selectedQuoteId, setSelectedQuoteId] = useState<string>(preselectedQuoteId || preselectedQuote?.id || '');
-    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(preselectedEmployee || '');
     const [startDate, setStartDate] = useState<string>(
         preselectedDate
             ? format(preselectedDate, 'yyyy-MM-dd')
@@ -187,7 +181,6 @@ export function ScheduleModal({
             // Reset to defaults when modal closes
             setConfirmDeleteOpen(false);
             setSelectedQuoteId(preselectedQuoteId || preselectedQuote?.id || '');
-            setSelectedEmployeeId(preselectedEmployee || '');
             setStartDate(
                 preselectedDate
                     ? format(preselectedDate, 'yyyy-MM-dd')
@@ -204,7 +197,6 @@ export function ScheduleModal({
     }, [
         isOpen,
         preselectedDate,
-        preselectedEmployee,
         planningSettings,
         preselectedPlanningType,
         preselectedQuoteId,
@@ -226,7 +218,6 @@ export function ScheduleModal({
 
         if (existingEntry) {
             setSelectedQuoteId(existingEntry.quoteId);
-            setSelectedEmployeeId(existingEntry.employeeId);
             const start = existingEntry.startDate.toDate();
             const end = existingEntry.endDate.toDate();
             const existingType = existingEntry.planningType || 'job';
@@ -241,14 +232,6 @@ export function ScheduleModal({
             setHasManualProjectAddressOverride(Boolean(cachedProjectAddress));
         } else {
             setSelectedQuoteId(preselectedQuoteId || preselectedQuote?.id || '');
-
-            if (preselectedEmployee) {
-                setSelectedEmployeeId(preselectedEmployee);
-            } else if (employees.length === 1) {
-                setSelectedEmployeeId(employees[0].id);
-            } else {
-                setSelectedEmployeeId('');
-            }
 
             if (preselectedDate) {
                 setStartDate(format(preselectedDate, 'yyyy-MM-dd'));
@@ -270,8 +253,6 @@ export function ScheduleModal({
         preselectedQuote,
         preselectedHours,
         preselectedDate,
-        preselectedEmployee,
-        employees,
         planningSettings.defaultStartTime,
         planningSettings.defaultEndTime,
         planningSettings.allowAutoSplit,
@@ -288,7 +269,6 @@ export function ScheduleModal({
             view: view || 'week',
             prefillDate: startDate || format(new Date(), 'yyyy-MM-dd'),
             prefillTime: (startTime || planningSettings.defaultStartTime || '08:00').trim(),
-            prefillEmployeeId: selectedEmployeeId || '',
             prefillHours: String(selectedPlanningType === 'werkbespreking' ? 1 : (totalHours || preselectedHours || 0)),
             openScheduleModal: '1',
         });
@@ -298,7 +278,6 @@ export function ScheduleModal({
         planningSettings.defaultStartTime,
         preselectedHours,
         router,
-        selectedEmployeeId,
         selectedPlanningType,
         startDate,
         startTime,
@@ -513,43 +492,17 @@ export function ScheduleModal({
         planningSettings.pauzeMinuten,
     ]);
 
-    const performSave = useCallback(async (overrideEmployeeId?: string) => {
+    const performSave = useCallback(async () => {
         // Validation for single user mode
         if (!selectedQuoteId || !firestore) {
             setIsSaving(false);
-            setPendingSave(false);
             toast({ variant: 'destructive', title: 'Selecteer een offerte' });
             return;
         }
 
         if (selectedPlanningType !== 'werkbespreking' && !totalHours) {
             setIsSaving(false);
-            setPendingSave(false);
             toast({ variant: 'destructive', title: 'Vul aantal uren in' });
-            return;
-        }
-
-        const isWerkbespreking = selectedPlanningType === 'werkbespreking';
-        // For werkbespreking we allow implicit assignment (first employee/current user).
-        const finalEmployeeId = overrideEmployeeId
-            || selectedEmployeeId
-            || (employees.length > 0 ? employees[0].id : '')
-            || (isWerkbespreking && user?.uid ? user.uid : '');
-
-        if (!finalEmployeeId) {
-            if (employees.length === 0) {
-                // Employee list is still loading; retry once data arrives.
-                setPendingSave(true);
-                setIsSaving(true);
-            } else {
-                setIsSaving(false);
-                setPendingSave(false);
-                toast({
-                    variant: 'destructive',
-                    title: 'Selecteer een uitvoerder',
-                    description: 'Kies eerst een uitvoerder voordat je de planning opslaat.',
-                });
-            }
             return;
         }
 
@@ -562,7 +515,6 @@ export function ScheduleModal({
                 console.error('Quote not found:', selectedQuoteId);
                 toast({ variant: 'destructive', title: 'Offerte niet gevonden', description: 'Herlaad de pagina.' });
                 setIsSaving(false);
-                setPendingSave(false);
                 return;
             }
 
@@ -599,7 +551,6 @@ export function ScheduleModal({
                         ? totalHours
                         : Math.max(0, (entryEnd.getTime() - entryStart.getTime()) / (1000 * 60 * 60)) || totalHours;
                 await updateEntry(existingEntry.id, {
-                    employeeId: finalEmployeeId,
                     startDate: entryStart,
                     endDate: entryEnd,
                     scheduledHours: hours,
@@ -611,7 +562,6 @@ export function ScheduleModal({
                 // Create multiple split entries
                 const entries = splitEntries.map((split) => ({
                     quoteId: selectedQuoteId,
-                    employeeId: finalEmployeeId,
                     startDate: split.startDate,
                     endDate: split.endDate,
                     scheduledHours: split.hours,
@@ -642,7 +592,6 @@ export function ScheduleModal({
 
                 await addEntry({
                     quoteId: selectedQuoteId,
-                    employeeId: finalEmployeeId,
                     startDate: entryStart,
                     endDate: entryEnd,
                     scheduledHours: hours,
@@ -676,8 +625,6 @@ export function ScheduleModal({
         firestore,
         toast,
         totalHours,
-        selectedEmployeeId,
-        employees,
         quotes,
         preselectedQuote,
         existingEntry,
@@ -695,62 +642,8 @@ export function ScheduleModal({
         routeDestinationAddress,
         quoteMetricsById,
         view,
-        user?.uid,
         onClose,
     ]);
-
-    // Ensure employee is selected if list updates and we have exactly 1
-    useEffect(() => {
-        if (employees.length === 1 && selectedEmployeeId !== employees[0].id) {
-            setSelectedEmployeeId(employees[0].id);
-        }
-
-        if (!pendingSave) {
-            return;
-        }
-
-        if (employees.length === 1 && !selectedEmployeeId) {
-            void performSave(employees[0].id);
-            setPendingSave(false);
-            return;
-        }
-
-        if (employees.length > 1 && !selectedEmployeeId) {
-            setIsSaving(false);
-            setPendingSave(false);
-            toast({
-                variant: 'destructive',
-                title: 'Kies een uitvoerder',
-                description: 'Selecteer een uitvoerder en probeer opnieuw.',
-            });
-            return;
-        }
-
-        if (employees.length > 0) {
-            void performSave();
-            setPendingSave(false);
-            return;
-        }
-
-        // Fallback: if employee loading takes too long, try current user uid.
-        const timer = window.setTimeout(() => {
-            if (user?.uid) {
-                void performSave(user.uid);
-                setPendingSave(false);
-                return;
-            }
-
-            setIsSaving(false);
-            setPendingSave(false);
-            toast({
-                variant: 'destructive',
-                title: 'Kan profiel niet laden',
-                description: 'Ververs de pagina en probeer opnieuw.',
-            });
-        }, 2000);
-
-        return () => window.clearTimeout(timer);
-    }, [employees, selectedEmployeeId, pendingSave, user, performSave, toast]);
 
     const handleSaveClick = useCallback(() => {
         void performSave();
@@ -907,34 +800,6 @@ export function ScheduleModal({
                         </div>
                     )}
 
-                    {/* Employee Selection */}
-                    {selectedPlanningType !== 'werkbespreking' && (
-                        <div className="space-y-2">
-                            <Label className="flex items-center gap-2">
-                                <User className="w-4 h-4" />
-                                Uitvoerder
-                            </Label>
-                            <Select
-                                value={selectedEmployeeId}
-                                onValueChange={setSelectedEmployeeId}
-                                disabled={isSaving || employees.length === 0}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder={employees.length === 0 ? 'Geen uitvoerder beschikbaar' : 'Selecteer een uitvoerder'} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {employees.map((employee) => (
-                                        <SelectItem key={employee.id} value={employee.id}>
-                                            {employee.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    )}
-
-
-
                     {/* Start / End Date */}
                     <div className={cn('gap-3', selectedPlanningType === 'werkbespreking' ? 'grid grid-cols-1' : 'grid grid-cols-1 sm:grid-cols-3')}>
                         <div className="space-y-2">
@@ -1083,7 +948,7 @@ export function ScheduleModal({
                     <Button
                         variant="success"
                         onClick={handleSaveClick}
-                        disabled={isSaving || !selectedQuoteId || (selectedPlanningType !== 'werkbespreking' && !totalHours) || (selectedPlanningType !== 'werkbespreking' && employees.length > 1 && !selectedEmployeeId)}
+                        disabled={isSaving || !selectedQuoteId || (selectedPlanningType !== 'werkbespreking' && !totalHours)}
                     >
                         {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         {existingEntry ? 'Bijwerken' : selectedPlanningType === 'werkbespreking' ? 'Werkbespreking inplannen' : 'Klus inplannen'}

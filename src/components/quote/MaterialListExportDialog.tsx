@@ -123,6 +123,7 @@ export function MaterialListExportDialog({
   const [selectedMaterialKeys, setSelectedMaterialKeys] = useState<string[]>([]);
   const lastSavedTemplateRef = useRef('');
   const templateTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const hasInitializedForOpenRef = useRef(false);
 
   const hasSuppliers = suppliers.length > 0;
   const supplierOptions = useMemo(() => (
@@ -219,7 +220,16 @@ export function MaterialListExportDialog({
   );
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      hasInitializedForOpenRef.current = false;
+      return;
+    }
+    if (hasInitializedForOpenRef.current) return;
+
+    // Props such as items, suppliers and meta can receive new identities while the
+    // dialog is open (for example after a Firestore snapshot). They are defaults,
+    // not an instruction to overwrite the user's active draft.
+    hasInitializedForOpenRef.current = true;
 
     const defaultSupplierOptions = defaultSupplierId
       ? supplierOptions.filter((option) => option.supplierId === defaultSupplierId)
