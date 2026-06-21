@@ -698,6 +698,8 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             steigerInbegrepen: structuredWorkDescription.steigerInbegrepen,
             sloopwerkInbegrepen: structuredWorkDescription.sloopwerkInbegrepen,
             nadenVullenInbegrepen: structuredWorkDescription.nadenVullenInbegrepen,
+            nadenVullenAfwerkingsniveau: structuredWorkDescription.nadenVullenAfwerkingsniveau,
+            schroefgatenPlamurenInbegrepen: structuredWorkDescription.schroefgatenPlamurenInbegrepen,
             electricalScope: structuredWorkDescription.electricalScope,
             finishLevel: structuredWorkDescription.finishLevel,
             sections: structuredWorkDescription.sections,

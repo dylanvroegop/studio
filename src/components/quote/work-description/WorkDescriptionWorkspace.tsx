@@ -15,6 +15,7 @@ import {
   getFinishLevelLabel,
   inferWorkDeliveryFinishLevel,
   sanitizeMaterialDescription,
+  sanitizeWorkDeliveryScope,
   validateWorkDeliveryScope,
 } from '@/lib/work-delivery';
 import { WorkDescriptionSectionEditor } from './WorkDescriptionSectionEditor';
@@ -63,6 +64,8 @@ function normalizeJobs(value: WorkDescriptionStructured): WorkDescriptionJob[] {
     steigerInbegrepen: value.steigerInbegrepen,
     sloopwerkInbegrepen: value.sloopwerkInbegrepen,
     nadenVullenInbegrepen: value.nadenVullenInbegrepen,
+    nadenVullenAfwerkingsniveau: value.nadenVullenAfwerkingsniveau,
+    schroefgatenPlamurenInbegrepen: value.schroefgatenPlamurenInbegrepen,
     electricalScope: value.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
     finishLevel: value.finishLevel || 'constructief_gereed',
     customFinishDescription: value.customFinishDescription,
@@ -103,6 +106,10 @@ function updateActiveJob(
     steigerInbegrepen: active.steigerInbegrepen === true,
     sloopwerkInbegrepen: active.sloopwerkInbegrepen === true,
     nadenVullenInbegrepen: active.nadenVullenInbegrepen === true,
+    nadenVullenAfwerkingsniveau: active.nadenVullenInbegrepen
+      ? active.nadenVullenAfwerkingsniveau === 'schilderklaar' ? 'schilderklaar' : 'behangklaar'
+      : undefined,
+    schroefgatenPlamurenInbegrepen: active.schroefgatenPlamurenInbegrepen === true,
     electricalScope: active.electricalScope,
     finishLevel: active.finishLevel,
     customFinishDescription: active.customFinishDescription,
@@ -144,7 +151,7 @@ export function LegacyWorkDescriptionWorkspace({
     onChange(updateActiveJob(value, activeIndex, (job) => ({ ...job, [key]: fieldValue })));
   };
 
-  const setSafetyField = <K extends 'afvalAfvoeren' | 'schilderwerkInbegrepen' | 'stucwerkInbegrepen' | 'plamuurwerkInbegrepen' | 'kitwerkInbegrepen' | 'steigerInbegrepen' | 'sloopwerkInbegrepen' | 'nadenVullenInbegrepen' | 'electricalScope'>(
+  const setSafetyField = <K extends 'afvalAfvoeren' | 'schilderwerkInbegrepen' | 'stucwerkInbegrepen' | 'plamuurwerkInbegrepen' | 'kitwerkInbegrepen' | 'steigerInbegrepen' | 'sloopwerkInbegrepen' | 'nadenVullenInbegrepen' | 'schroefgatenPlamurenInbegrepen' | 'electricalScope'>(
     key: K,
     fieldValue: WorkDescriptionJob[K],
   ) => {
@@ -160,8 +167,21 @@ export function LegacyWorkDescriptionWorkspace({
         steigerInbegrepen: key === 'steigerInbegrepen' ? fieldValue === true : job.steigerInbegrepen === true,
         sloopwerkInbegrepen: key === 'sloopwerkInbegrepen' ? fieldValue === true : job.sloopwerkInbegrepen === true,
         nadenVullenInbegrepen: key === 'nadenVullenInbegrepen' ? fieldValue === true : job.nadenVullenInbegrepen === true,
+        schroefgatenPlamurenInbegrepen: key === 'schroefgatenPlamurenInbegrepen' ? fieldValue === true : job.schroefgatenPlamurenInbegrepen === true,
       };
-      const safe = enforceWorkDeliverySafety(updated);
+      const safe = enforceWorkDeliverySafety(sanitizeWorkDeliveryScope(updated));
+      return { ...updated, ...safe, context: safe.summary };
+    }));
+  };
+
+  const setNadenVullenLevel = (level: 'behangklaar' | 'schilderklaar', checked: boolean) => {
+    onChange(updateActiveJob(value, activeIndex, (job) => {
+      const updated = {
+        ...job,
+        nadenVullenInbegrepen: checked,
+        nadenVullenAfwerkingsniveau: checked ? level : undefined,
+      };
+      const safe = enforceWorkDeliverySafety(sanitizeWorkDeliveryScope(updated));
       return { ...updated, ...safe, context: safe.summary };
     }));
   };
@@ -256,8 +276,18 @@ export function LegacyWorkDescriptionWorkspace({
               <Switch checked={activeJob.sloopwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('sloopwerkInbegrepen', checked)} />
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
-              <Label>Naden vullen</Label>
-              <Switch checked={activeJob.nadenVullenInbegrepen === true} onCheckedChange={(checked) => setSafetyField('nadenVullenInbegrepen', checked)} />
+              <Label>Naden vullen – Behangklaar</Label>
+              <Switch
+                checked={activeJob.nadenVullenInbegrepen === true && activeJob.nadenVullenAfwerkingsniveau !== 'schilderklaar'}
+                onCheckedChange={(checked) => setNadenVullenLevel('behangklaar', checked)}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Naden vullen – Schilderklaar</Label>
+              <Switch
+                checked={activeJob.nadenVullenInbegrepen === true && activeJob.nadenVullenAfwerkingsniveau === 'schilderklaar'}
+                onCheckedChange={(checked) => setNadenVullenLevel('schilderklaar', checked)}
+              />
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
               <Label>Elektrawerk</Label>
@@ -265,6 +295,10 @@ export function LegacyWorkDescriptionWorkspace({
                 checked={activeJob.electricalScope.enabled}
                 onCheckedChange={(enabled) => setSafetyField('electricalScope', { ...activeJob.electricalScope, enabled })}
               />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Schroefgaten plamuren</Label>
+              <Switch checked={activeJob.schroefgatenPlamurenInbegrepen === true} onCheckedChange={(checked) => setSafetyField('schroefgatenPlamurenInbegrepen', checked)} />
             </div>
           </div>
 
@@ -339,8 +373,25 @@ export function WorkDescriptionWorkspace({
     onChange({ ...value, [key]: fieldValue });
   };
 
-  const setSafetyField = (key: 'afvalAfvoeren' | 'schilderwerkInbegrepen' | 'stucwerkInbegrepen' | 'plamuurwerkInbegrepen' | 'kitwerkInbegrepen' | 'steigerInbegrepen' | 'sloopwerkInbegrepen' | 'nadenVullenInbegrepen', checked: boolean) => {
+  const setSafetyField = (key: 'afvalAfvoeren' | 'schilderwerkInbegrepen' | 'stucwerkInbegrepen' | 'plamuurwerkInbegrepen' | 'kitwerkInbegrepen' | 'steigerInbegrepen' | 'sloopwerkInbegrepen' | 'nadenVullenInbegrepen' | 'schroefgatenPlamurenInbegrepen', checked: boolean) => {
     const safe = enforceWorkDeliverySafety({ ...value, [key]: checked });
+    onChange({ ...value, ...safe, jobs });
+  };
+
+  const setNadenVullenLevel = (level: 'behangklaar' | 'schilderklaar', checked: boolean) => {
+    const safe = enforceWorkDeliverySafety({
+      ...value,
+      nadenVullenInbegrepen: checked,
+      nadenVullenAfwerkingsniveau: checked ? level : undefined,
+    });
+    onChange({ ...value, ...safe, jobs });
+  };
+
+  const setElectricalEnabled = (enabled: boolean) => {
+    const safe = enforceWorkDeliverySafety({
+      ...value,
+      electricalScope: { ...value.electricalScope, enabled },
+    });
     onChange({ ...value, ...safe, jobs });
   };
 
@@ -414,12 +465,34 @@ export function WorkDescriptionWorkspace({
             {([
               ['afvalAfvoeren', 'Afval afvoeren'], ['schilderwerkInbegrepen', 'Schilderwerk'], ['stucwerkInbegrepen', 'Stucwerk'],
               ['plamuurwerkInbegrepen', 'Plamuurwerk'], ['kitwerkInbegrepen', 'Kitwerk'], ['steigerInbegrepen', 'Steiger'],
-              ['sloopwerkInbegrepen', 'Sloopwerk'], ['nadenVullenInbegrepen', 'Naden vullen'],
+              ['sloopwerkInbegrepen', 'Sloopwerk'],
+              ['schroefgatenPlamurenInbegrepen', 'Schroefgaten plamuren'],
             ] as const).map(([key, label]) => (
               <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
                 <Label>{label}</Label><Switch checked={value[key] === true} onCheckedChange={(checked) => setSafetyField(key, checked)} />
               </div>
             ))}
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Naden vullen – Behangklaar</Label>
+              <Switch
+                checked={value.nadenVullenInbegrepen === true && value.nadenVullenAfwerkingsniveau !== 'schilderklaar'}
+                onCheckedChange={(checked) => setNadenVullenLevel('behangklaar', checked)}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Naden vullen – Schilderklaar</Label>
+              <Switch
+                checked={value.nadenVullenInbegrepen === true && value.nadenVullenAfwerkingsniveau === 'schilderklaar'}
+                onCheckedChange={(checked) => setNadenVullenLevel('schilderklaar', checked)}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+              <Label>Elektrawerk</Label>
+              <Switch
+                checked={value.electricalScope.enabled}
+                onCheckedChange={setElectricalEnabled}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

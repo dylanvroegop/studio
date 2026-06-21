@@ -9,6 +9,7 @@ import {
     sanitizeWorkDeliveryScope,
     type ElectricalScope,
     type FinishLevel,
+    type NadenVullenAfwerkingsniveau,
 } from '@/lib/work-delivery';
 
 // ==============================
@@ -70,6 +71,8 @@ export type WorkDescriptionJob = {
     steigerInbegrepen?: boolean;
     sloopwerkInbegrepen?: boolean;
     nadenVullenInbegrepen?: boolean;
+    nadenVullenAfwerkingsniveau?: NadenVullenAfwerkingsniveau;
+    schroefgatenPlamurenInbegrepen?: boolean;
     electricalScope: ElectricalScope;
     finishLevel: FinishLevel;
     customFinishDescription?: string;
@@ -100,6 +103,8 @@ export type WorkDescriptionStructured = {
     steigerInbegrepen: boolean;
     sloopwerkInbegrepen: boolean;
     nadenVullenInbegrepen: boolean;
+    nadenVullenAfwerkingsniveau?: NadenVullenAfwerkingsniveau;
+    schroefgatenPlamurenInbegrepen: boolean;
     electricalScope: ElectricalScope;
     finishLevel: FinishLevel;
     customFinishDescription?: string;
@@ -218,6 +223,8 @@ const EMPTY_WORK_DESCRIPTION_JOB: WorkDescriptionJob = {
     steigerInbegrepen: false,
     sloopwerkInbegrepen: false,
     nadenVullenInbegrepen: false,
+    nadenVullenAfwerkingsniveau: undefined,
+    schroefgatenPlamurenInbegrepen: false,
     electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
     finishLevel: 'constructief_gereed',
     sections: {
@@ -246,6 +253,8 @@ const EMPTY_WORK_DESCRIPTION_STRUCTURED: WorkDescriptionStructured = {
     steigerInbegrepen: false,
     sloopwerkInbegrepen: false,
     nadenVullenInbegrepen: false,
+    nadenVullenAfwerkingsniveau: undefined,
+    schroefgatenPlamurenInbegrepen: false,
     electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
     finishLevel: 'constructief_gereed',
     sections: {
@@ -378,6 +387,8 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
         steigerInbegrepen: value.steigerInbegrepen,
         sloopwerkInbegrepen: value.sloopwerkInbegrepen,
         nadenVullenInbegrepen: value.nadenVullenInbegrepen,
+        nadenVullenAfwerkingsniveau: value.nadenVullenAfwerkingsniveau,
+        schroefgatenPlamurenInbegrepen: value.schroefgatenPlamurenInbegrepen,
         electricalScope: {
             ...value.electricalScope,
             includedItems: [...value.electricalScope.includedItems],
@@ -409,6 +420,10 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
                 steigerInbegrepen: Boolean(job?.steigerInbegrepen),
                 sloopwerkInbegrepen: Boolean(job?.sloopwerkInbegrepen),
                 nadenVullenInbegrepen: Boolean(job?.nadenVullenInbegrepen),
+                nadenVullenAfwerkingsniveau: job?.nadenVullenInbegrepen
+                    ? job?.nadenVullenAfwerkingsniveau === 'schilderklaar' ? 'schilderklaar' : 'behangklaar'
+                    : undefined,
+                schroefgatenPlamurenInbegrepen: Boolean(job?.schroefgatenPlamurenInbegrepen),
                 electricalScope: job?.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
                 finishLevel: job?.finishLevel || 'constructief_gereed',
                 customFinishDescription: job?.customFinishDescription,
@@ -475,6 +490,10 @@ function normalizeWorkDescriptionJob(input: unknown): WorkDescriptionJob {
         steigerInbegrepen: row.steigerInbegrepen === true,
         sloopwerkInbegrepen: row.sloopwerkInbegrepen === true,
         nadenVullenInbegrepen: row.nadenVullenInbegrepen === true,
+        nadenVullenAfwerkingsniveau: row.nadenVullenInbegrepen === true
+            ? row.nadenVullenAfwerkingsniveau === 'schilderklaar' ? 'schilderklaar' : 'behangklaar'
+            : undefined,
+        schroefgatenPlamurenInbegrepen: row.schroefgatenPlamurenInbegrepen === true,
     });
 
     return {
@@ -569,6 +588,14 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
         steigerInbegrepen: typeof row.steigerInbegrepen === 'boolean' ? row.steigerInbegrepen : activeJob?.steigerInbegrepen === true,
         sloopwerkInbegrepen: typeof row.sloopwerkInbegrepen === 'boolean' ? row.sloopwerkInbegrepen : activeJob?.sloopwerkInbegrepen === true,
         nadenVullenInbegrepen: typeof row.nadenVullenInbegrepen === 'boolean' ? row.nadenVullenInbegrepen : activeJob?.nadenVullenInbegrepen === true,
+        nadenVullenAfwerkingsniveau: (typeof row.nadenVullenAfwerkingsniveau === 'string'
+            ? row.nadenVullenAfwerkingsniveau
+            : activeJob?.nadenVullenAfwerkingsniveau) === 'schilderklaar'
+            ? 'schilderklaar'
+            : (typeof row.nadenVullenInbegrepen === 'boolean' ? row.nadenVullenInbegrepen : activeJob?.nadenVullenInbegrepen === true)
+                ? 'behangklaar'
+                : undefined,
+        schroefgatenPlamurenInbegrepen: typeof row.schroefgatenPlamurenInbegrepen === 'boolean' ? row.schroefgatenPlamurenInbegrepen : activeJob?.schroefgatenPlamurenInbegrepen === true,
         electricalScope: isObject(row.electricalScope) ? normalizeWorkDescriptionJob({ electricalScope: row.electricalScope }).electricalScope : (activeJob?.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE }),
         finishLevel: normalizeWorkDescriptionText(row.finishLevel) as FinishLevel || activeJob?.finishLevel || 'constructief_gereed',
         customFinishDescription: normalizeWorkDescriptionText(row.customFinishDescription) || activeJob?.customFinishDescription,
@@ -725,6 +752,8 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
             steigerInbegrepen: false,
             sloopwerkInbegrepen: false,
             nadenVullenInbegrepen: false,
+            nadenVullenAfwerkingsniveau: undefined,
+            schroefgatenPlamurenInbegrepen: false,
             electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
             finishLevel: 'constructief_gereed',
             sections: {
@@ -765,6 +794,8 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
         steigerInbegrepen: false,
         sloopwerkInbegrepen: false,
         nadenVullenInbegrepen: false,
+        nadenVullenAfwerkingsniveau: undefined,
+        schroefgatenPlamurenInbegrepen: false,
         electricalScope: { ...DEFAULT_ELECTRICAL_SCOPE },
         finishLevel: 'constructief_gereed',
         sections: {

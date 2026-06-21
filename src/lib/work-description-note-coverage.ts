@@ -17,6 +17,7 @@ function normalizeForComparison(value: string): string {
     .replace(/(\d)\s*m(?=\s+(?:multiplex|underlayment|plaat|platen)\b)/g, '$1mm')
     .replace(/(\d)\s*[x×]\s*(\d)/g, '$1x$2')
     .replace(/(\d)[.,](\d)/g, '$1.$2')
+    .replace(/(\d+(?:\.\d+)?)\s*(mm|cm|m2|m²|m)\b/g, '$1$2')
     .replace(/[^a-z0-9.]+/g, ' ')
     .trim();
 }
@@ -76,12 +77,22 @@ export function extractRequiredNoteRequirements(notesContext: unknown): string[]
   let inMaatwerkBlock = false;
   const flushActive = () => {
     const combined = activeParts.join(' ').replace(/\s+/g, ' ').trim();
-    if (combined && getSignificantTokens(combined).length > 0) requirements.push(combined);
+    if (combined) {
+      const atomicRequirements = combined
+        .split(/(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Þ0-9])/)
+        .map((part) => part.trim())
+        .filter((part) => getSignificantTokens(part).length > 0);
+      requirements.push(...atomicRequirements);
+    }
     activeParts = [];
   };
 
   for (const rawLine of notesContext.split(/\r?\n/)) {
     const trimmed = rawLine.trim();
+    if (!trimmed) {
+      if (!inMaatwerkBlock) flushActive();
+      continue;
+    }
     const noteMatch = trimmed.match(/^notitie:\s*(.*)$/i);
     if (noteMatch) {
       flushActive();
@@ -94,8 +105,12 @@ export function extractRequiredNoteRequirements(notesContext: unknown): string[]
       if (noteTitle) activeParts.push(noteTitle);
       continue;
     }
-    if (/^#{1,4}\s*maatwerk\b\s*:?\s*$/i.test(trimmed) || /^maatwerk:\s*$/i.test(trimmed)) {
-      inMaatwerkBlock = true;
+    const headingMatch = trimmed.match(/^#{1,4}\s*(.*)$/);
+    if (headingMatch) {
+      flushActive();
+      const headingText = headingMatch[1].trim();
+      inMaatwerkBlock = isMaatwerkHeading(headingText);
+      if (!inMaatwerkBlock && headingText) activeParts.push(headingText);
       continue;
     }
     if (
@@ -107,7 +122,7 @@ export function extractRequiredNoteRequirements(notesContext: unknown): string[]
       if (maatwerkLine) requirements.push(maatwerkLine);
       continue;
     }
-    if (isHeading(rawLine) || !trimmed) continue;
+    if (isHeading(rawLine)) continue;
     inMaatwerkBlock = false;
     const line = rawLine
       .replace(/^[-*•]\s*/, '')
@@ -365,12 +380,18 @@ export function enforceRequiredNoteCoverage(
   notesContext: unknown,
   shouldExclude: (value: string) => boolean = () => false,
 ): WorkDescriptionStructured {
+  const maatwerkRequirements = new Set(
+    extractRequiredMaatwerkRequirements(notesContext).map(normalizeForComparison),
+  );
   const scopeRows = [
     ...generated.work_scope,
     ...generated.jobs.flatMap((job) => job.work_scope),
   ];
   const missingRequirements = extractRequiredNoteRequirements(notesContext)
     .filter((requirement) => !shouldExclude(requirement))
+    // Maatwerk belongs under dimensions and is enforced separately. Never copy
+    // raw dimension rows into the customer-facing work scope.
+    .filter((requirement) => !maatwerkRequirements.has(normalizeForComparison(requirement)))
     .filter((requirement) => !scopeRows.some((row) => isNoteRequirementCovered(requirement, row)))
     .map(formatRequiredNoteStep);
   const totalFacts = extractExplicitTotalFacts(notesContext)

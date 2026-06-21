@@ -2802,6 +2802,13 @@ export default function QuotePage() {
         marginAmount: number;
         workJobIndex: number | null;
     };
+    type SplitCalculationJobOption = {
+        id: string;
+        index: number;
+        label: string;
+        title: string;
+        subtitle: string;
+    };
 
     const combinedMaterialItems = useMemo<CombinedMaterialItem[]>(() => {
         const grootItems = materials.groot.map((item, index) => ({
@@ -2825,6 +2832,7 @@ export default function QuotePage() {
     const [isDuplicatingQuote, setIsDuplicatingQuote] = useState(false);
     const [splitQuoteDrafts, setSplitQuoteDrafts] = useState<SplitQuoteDraft[]>([]);
     const [splitMaterialAssignments, setSplitMaterialAssignments] = useState<Record<string, string>>({});
+    const [splitKlusAssignments, setSplitKlusAssignments] = useState<Record<string, string>>({});
 
     const splitWorkJobOptions = useMemo(() => {
         const jobs = Array.isArray(workDescriptionStructured.jobs) ? workDescriptionStructured.jobs : [];
@@ -2834,6 +2842,24 @@ export default function QuotePage() {
         }));
     }, [workDescriptionStructured.jobs]);
 
+    const splitCalculationJobOptions = useMemo<SplitCalculationJobOption[]>(() => {
+        const quoteWithJobs = quote as (Quote & { klussen?: Record<string, Record<string, unknown>> }) | null;
+        const jobs = quoteWithJobs?.klussen && typeof quoteWithJobs.klussen === 'object'
+            ? Object.entries(quoteWithJobs.klussen)
+            : [];
+        return jobs.map(([jobId, job], index) => {
+            const title = String(job?.titel || job?.title || job?.naam || `Klus ${index + 1}`).trim() || `Klus ${index + 1}`;
+            const subtitle = String(job?.omschrijving || job?.description || job?.notities || '').trim();
+            return {
+                id: jobId,
+                index,
+                label: `Job ${index + 1}`,
+                title,
+                subtitle,
+            };
+        });
+    }, [quote]);
+
     const createSplitDraftId = useCallback(() => (
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
             ? crypto.randomUUID()
@@ -2841,7 +2867,7 @@ export default function QuotePage() {
     ), []);
 
     const handleOpenSplitQuoteDialog = useCallback(() => {
-        const jobCount = Math.max(2, splitWorkJobOptions.length || 0);
+        const jobCount = Math.max(2, splitCalculationJobOptions.length || 0, splitWorkJobOptions.length || 0);
         const hoursPerDraft = Number(normalizedData?.totaal_uren || 0) > 0
             ? Number((Number(normalizedData?.totaal_uren || 0) / jobCount).toFixed(2))
             : 0;
@@ -2866,10 +2892,15 @@ export default function QuotePage() {
             acc[item._sourceKey] = fallbackDraftId;
             return acc;
         }, {});
+        const initialKlusAssignments = splitCalculationJobOptions.reduce<Record<string, string>>((acc, job, index) => {
+            acc[job.id] = drafts[index]?.id || fallbackDraftId;
+            return acc;
+        }, {});
         setSplitQuoteDrafts(drafts);
         setSplitMaterialAssignments(initialAssignments);
+        setSplitKlusAssignments(initialKlusAssignments);
         setIsSplitQuoteOpen(true);
-    }, [combinedMaterialItems, createSplitDraftId, normalizedData?.totaal_uren, quoteSettings?.extras?.winstMarge?.fixedAmount, quoteSettings?.extras?.winstMarge?.mode, splitWorkJobOptions]);
+    }, [combinedMaterialItems, createSplitDraftId, normalizedData?.totaal_uren, quoteSettings?.extras?.winstMarge?.fixedAmount, quoteSettings?.extras?.winstMarge?.mode, splitCalculationJobOptions, splitWorkJobOptions]);
 
     const updateSplitDraft = useCallback((draftId: string, patch: Partial<SplitQuoteDraft>) => {
         setSplitQuoteDrafts((prev) => prev.map((draft) => (
@@ -2896,6 +2927,13 @@ export default function QuotePage() {
             const next = prev.filter((draft) => draft.id !== draftId);
             const fallbackId = next[0]?.id || '';
             setSplitMaterialAssignments((assignments) => {
+                const nextAssignments = { ...assignments };
+                Object.entries(nextAssignments).forEach(([key, assignedDraftId]) => {
+                    if (assignedDraftId === draftId) nextAssignments[key] = fallbackId;
+                });
+                return nextAssignments;
+            });
+            setSplitKlusAssignments((assignments) => {
                 const nextAssignments = { ...assignments };
                 Object.entries(nextAssignments).forEach(([key, assignedDraftId]) => {
                     if (assignedDraftId === draftId) nextAssignments[key] = fallbackId;
@@ -2948,6 +2986,9 @@ export default function QuotePage() {
                 ...draft,
                 title: draft.title.trim(),
                 materialRows,
+                selectedKlusIds: splitCalculationJobOptions
+                    .filter((job) => splitKlusAssignments[job.id] === draft.id)
+                    .map((job) => job.id),
             };
         });
 
@@ -2993,8 +3034,8 @@ export default function QuotePage() {
 
             const created = Array.isArray(payload.created) ? payload.created : [];
             toast({
-                title: 'Deeloffertes aangemaakt',
-                description: `${created.length} nieuwe offerte(s) staan klaar.`,
+                title: 'Offerte gesplitst',
+                description: `${created.length} extra offerte(s) staan klaar. Deze offerte is bijgewerkt als Job 1.`,
             });
             setIsSplitQuoteOpen(false);
             if (created[0]?.id) {
@@ -3010,7 +3051,7 @@ export default function QuotePage() {
         } finally {
             setIsSplittingQuote(false);
         }
-    }, [combinedMaterialItems, id, normalizedData, router, splitMaterialAssignments, splitQuoteDrafts, toast, user]);
+    }, [combinedMaterialItems, id, normalizedData, router, splitCalculationJobOptions, splitKlusAssignments, splitMaterialAssignments, splitQuoteDrafts, toast, user]);
 
     const handleDuplicateQuote = useCallback(async () => {
         if (!user || !id || isDuplicatingQuote) return;
@@ -4258,6 +4299,7 @@ export default function QuotePage() {
                 steigerInbegrepen: structured.steigerInbegrepen,
                 sloopwerkInbegrepen: structured.sloopwerkInbegrepen,
                 nadenVullenInbegrepen: structured.nadenVullenInbegrepen,
+                nadenVullenAfwerkingsniveau: structured.nadenVullenAfwerkingsniveau,
                 electricalScope: structured.electricalScope,
                 finishLevel: structured.finishLevel,
                 sections: structured.sections,
@@ -5353,6 +5395,7 @@ export default function QuotePage() {
                 steigerInbegrepen: workDescriptionStructured.steigerInbegrepen,
                 sloopwerkInbegrepen: workDescriptionStructured.sloopwerkInbegrepen,
                 nadenVullenInbegrepen: workDescriptionStructured.nadenVullenInbegrepen,
+                nadenVullenAfwerkingsniveau: workDescriptionStructured.nadenVullenAfwerkingsniveau,
                 electricalScope: workDescriptionStructured.electricalScope,
                 finishLevel: workDescriptionStructured.finishLevel,
                 customFinishDescription: workDescriptionStructured.customFinishDescription,
@@ -8008,23 +8051,33 @@ export default function QuotePage() {
                                                 </div>
 
                                                 <div className="mt-3 space-y-1.5">
-                                                    <Label htmlFor={`split-work-${draft.id}`}>Werk & Levering</Label>
-                                                    <select
-                                                        id={`split-work-${draft.id}`}
-                                                        value={draft.workJobIndex === null ? 'custom' : String(draft.workJobIndex)}
-                                                        onChange={(event) => updateSplitDraft(draft.id, {
-                                                            workJobIndex: event.target.value === 'custom' ? null : Number(event.target.value),
-                                                        })}
-                                                        disabled={isSplittingQuote}
-                                                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none ring-offset-background focus:ring-2 focus:ring-ring"
-                                                    >
-                                                        <option value="custom">Automatisch maken op basis van titel en producten</option>
+                                                    <Label>Werk & Levering</Label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <Button
+                                                            type="button"
+                                                            variant={draft.workJobIndex === null ? 'default' : 'outline'}
+                                                            size="sm"
+                                                            onClick={() => updateSplitDraft(draft.id, { workJobIndex: null })}
+                                                            disabled={isSplittingQuote}
+                                                            className="h-8"
+                                                        >
+                                                            Auto
+                                                        </Button>
                                                         {splitWorkJobOptions.map((job) => (
-                                                            <option key={job.index} value={job.index}>
-                                                                {job.title}
-                                                            </option>
+                                                            <Button
+                                                                key={job.index}
+                                                                type="button"
+                                                                variant={draft.workJobIndex === job.index ? 'default' : 'outline'}
+                                                                size="sm"
+                                                                onClick={() => updateSplitDraft(draft.id, { workJobIndex: job.index })}
+                                                                disabled={isSplittingQuote}
+                                                                className="h-8"
+                                                                title={job.title}
+                                                            >
+                                                                Job {job.index + 1}
+                                                            </Button>
                                                         ))}
-                                                    </select>
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
@@ -8041,6 +8094,61 @@ export default function QuotePage() {
                                     <Plus className="h-4 w-4" />
                                     Deelofferte toevoegen
                                 </Button>
+
+                                {splitCalculationJobOptions.length > 0 && (
+                                    <div className="rounded-lg border border-border/70">
+                                        <div className="flex items-center justify-between gap-3 border-b border-border/70 px-3 py-2">
+                                            <div>
+                                                <div className="text-sm font-semibold">Klussen verdelen</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    Kies per calculatieklus naar welke offerte die mee moet.
+                                                </div>
+                                            </div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {splitCalculationJobOptions.length} klussen
+                                            </div>
+                                        </div>
+                                        <div className="divide-y divide-border/60">
+                                            {splitCalculationJobOptions.map((job) => (
+                                                <div key={job.id} className="grid gap-3 px-3 py-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="rounded-md bg-primary/15 px-2 py-1 text-xs font-semibold text-primary">
+                                                                {job.label}
+                                                            </div>
+                                                            <div className="truncate text-sm font-medium text-foreground">{job.title}</div>
+                                                        </div>
+                                                        {job.subtitle ? (
+                                                            <div className="mt-1 truncate text-xs text-muted-foreground">{job.subtitle}</div>
+                                                        ) : null}
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2 sm:justify-end">
+                                                        {splitQuoteDrafts.map((draft, draftIndex) => {
+                                                            const isSelected = (splitKlusAssignments[job.id] || splitQuoteDrafts[0]?.id || '') === draft.id;
+                                                            return (
+                                                                <Button
+                                                                    key={draft.id}
+                                                                    type="button"
+                                                                    variant={isSelected ? 'default' : 'outline'}
+                                                                    size="sm"
+                                                                    onClick={() => setSplitKlusAssignments((prev) => ({
+                                                                        ...prev,
+                                                                        [job.id]: draft.id,
+                                                                    }))}
+                                                                    disabled={isSplittingQuote}
+                                                                    className="h-8 min-w-16"
+                                                                    title={draft.title || `Deelofferte ${draftIndex + 1}`}
+                                                                >
+                                                                    Job {draftIndex + 1}
+                                                                </Button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="rounded-lg border border-border/70">
                                     <div className="flex items-center justify-between gap-3 border-b border-border/70 px-3 py-2">
@@ -8068,29 +8176,35 @@ export default function QuotePage() {
                                                 const prijs = Number(item.prijs_per_stuk ?? row.prijs_excl_btw ?? row.prijs);
                                                 const totaal = (Number.isFinite(aantal) ? aantal : 0) * (Number.isFinite(prijs) ? prijs : 0);
                                                 return (
-                                                    <div key={item._sourceKey} className="grid gap-3 px-3 py-2 sm:grid-cols-[1fr_220px] sm:items-center">
+                                                    <div key={item._sourceKey} className="grid gap-3 px-3 py-2 sm:grid-cols-[1fr_auto] sm:items-center">
                                                         <div className="min-w-0">
                                                             <div className="truncate text-sm font-medium text-foreground">{product}</div>
                                                             <div className="text-xs text-muted-foreground">
                                                                 {item._sourceCategory === 'groot' ? 'Grootmateriaal' : 'Verbruik'} • {Number.isFinite(aantal) ? aantal : 0} {eenheid} • {formatCurrency(totaal)} excl.
                                                             </div>
                                                         </div>
-                                                        <select
-                                                            value={splitMaterialAssignments[item._sourceKey] || splitQuoteDrafts[0]?.id || ''}
-                                                            onChange={(event) => setSplitMaterialAssignments((prev) => ({
-                                                                ...prev,
-                                                                [item._sourceKey]: event.target.value,
-                                                            }))}
-                                                            disabled={isSplittingQuote}
-                                                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none ring-offset-background focus:ring-2 focus:ring-ring"
-                                                            aria-label={`${product} toewijzen aan deelofferte`}
-                                                        >
-                                                            {splitQuoteDrafts.map((draft, draftIndex) => (
-                                                                <option key={draft.id} value={draft.id}>
-                                                                    {draft.title || `Deelofferte ${draftIndex + 1}`}
-                                                                </option>
-                                                            ))}
-                                                        </select>
+                                                        <div className="flex flex-wrap gap-2 sm:justify-end" aria-label={`${product} toewijzen aan deelofferte`}>
+                                                            {splitQuoteDrafts.map((draft, draftIndex) => {
+                                                                const isSelected = (splitMaterialAssignments[item._sourceKey] || splitQuoteDrafts[0]?.id || '') === draft.id;
+                                                                return (
+                                                                    <Button
+                                                                        key={draft.id}
+                                                                        type="button"
+                                                                        variant={isSelected ? 'default' : 'outline'}
+                                                                        size="sm"
+                                                                        onClick={() => setSplitMaterialAssignments((prev) => ({
+                                                                            ...prev,
+                                                                            [item._sourceKey]: draft.id,
+                                                                        }))}
+                                                                        disabled={isSplittingQuote}
+                                                                        className="h-8 min-w-16"
+                                                                        title={draft.title || `Deelofferte ${draftIndex + 1}`}
+                                                                    >
+                                                                        Job {draftIndex + 1}
+                                                                    </Button>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </div>
                                                 );
                                             })
@@ -8116,7 +8230,7 @@ export default function QuotePage() {
                                     className="gap-2"
                                 >
                                     {isSplittingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}
-                                    {isSplittingQuote ? 'Deeloffertes maken...' : `${splitQuoteDrafts.length} deeloffertes maken`}
+                                    {isSplittingQuote ? 'Splitsen...' : `${Math.max(0, splitQuoteDrafts.length - 1)} extra offerte${splitQuoteDrafts.length === 2 ? '' : 's'} maken`}
                                 </Button>
                             </DialogFooter>
                         </DialogContent>

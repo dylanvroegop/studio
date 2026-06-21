@@ -20,6 +20,7 @@ type SplitDraft = {
   totalHours?: number;
   marginAmount?: number;
   workJobIndex?: number | null;
+  selectedKlusIds?: string[];
 };
 
 type WorkJobRecord = Record<string, unknown> & {
@@ -361,9 +362,13 @@ export async function POST(req: Request) {
     }
 
     const created: Array<{ id: string; offerteNummer: number; title: string }> = [];
+    const sourceKlussen = sourceQuote.klussen && typeof sourceQuote.klussen === 'object'
+      ? sourceQuote.klussen as Record<string, unknown>
+      : {};
 
     for (let index = 0; index < splitDrafts.length; index += 1) {
       const split = splitDrafts[index];
+      const isPrimarySplit = index === 0;
       const title = String(split?.title || `Deelofferte ${index + 1}`).trim();
       const rows = Array.isArray(split?.materialRows) ? split.materialRows : [];
       if (!title) {
@@ -373,8 +378,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, message: `${title} heeft nog geen materialen of uren.` }, { status: 400 });
       }
 
-      const offerteNummer = await reserveQuoteNumberAdmin(firestore, uid);
-      const newQuoteRef = firestore.collection('quotes').doc();
+      const offerteNummer = isPrimarySplit
+        ? toFiniteNumber(sourceQuote.offerteNummer, 0)
+        : await reserveQuoteNumberAdmin(firestore, uid);
+      const targetQuoteRef = isPrimarySplit ? sourceRef : firestore.collection('quotes').doc();
       const grootmaterialen = rows
         .filter((row) => row.sourceCategory === 'groot')
         .map(normalizeMaterialItem)
@@ -425,12 +432,20 @@ export async function POST(req: Request) {
         splitVanOfferteNummer: sourceQuote.offerteNummer || null,
       });
 
-      const sourceKlussen = sourceQuote.klussen && typeof sourceQuote.klussen === 'object'
-        ? sourceQuote.klussen as Record<string, unknown>
-        : {};
+      const selectedKlusIds = Array.isArray(split.selectedKlusIds)
+        ? split.selectedKlusIds.map((klusId) => String(klusId || '').trim()).filter(Boolean)
+        : [];
+      const selectedKlusEntries = selectedKlusIds
+        .map((klusId) => [klusId, sourceKlussen[klusId]] as const)
+        .filter((entry): entry is readonly [string, unknown] => entry[1] !== undefined);
       const selectedKlusEntry = typeof split.workJobIndex === 'number'
         ? Object.entries(sourceKlussen)[split.workJobIndex]
         : null;
+      const selectedKlussenMap = selectedKlusEntries.length > 0
+        ? Object.fromEntries(selectedKlusEntries)
+        : selectedKlusEntry
+          ? { [selectedKlusEntry[0]]: selectedKlusEntry[1] }
+          : null;
       const sourceQuoteExtras = sourceQuote.extras && typeof sourceQuote.extras === 'object'
         ? sourceQuote.extras as Record<string, unknown>
         : {};
@@ -466,13 +481,24 @@ export async function POST(req: Request) {
           },
         },
         archived: false,
-        splitSource: {
-          quoteId,
-          offerteNummer: sourceQuote.offerteNummer || null,
-          marginAmount,
-          createdAt: FieldValue.serverTimestamp(),
-        },
-        createdAt: FieldValue.serverTimestamp(),
+        ...(isPrimarySplit
+          ? {
+              splitPrimary: {
+                quoteId,
+                offerteNummer: sourceQuote.offerteNummer || null,
+                marginAmount,
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+            }
+          : {
+              splitSource: {
+                quoteId,
+                offerteNummer: sourceQuote.offerteNummer || null,
+                marginAmount,
+                createdAt: FieldValue.serverTimestamp(),
+              },
+              createdAt: FieldValue.serverTimestamp(),
+            }),
         updatedAt: FieldValue.serverTimestamp(),
       });
       const mutableQuotePayload = quotePayload as Record<string, unknown>;
@@ -485,29 +511,40 @@ export async function POST(req: Request) {
       } else {
         delete mutableQuotePayload.notities;
       }
-      if (selectedKlusEntry) {
-        mutableQuotePayload.klussen = { [selectedKlusEntry[0]]: selectedKlusEntry[1] };
+      if (selectedKlussenMap) {
+        mutableQuotePayload.klussen = selectedKlussenMap;
       } else {
         delete mutableQuotePayload.klussen;
       }
 
-      await newQuoteRef.set(quotePayload);
+      await targetQuoteRef.set(mutableQuotePayload);
 
-      const { error: insertError } = await supabaseAdmin
-        .from('quotes_collection')
-        .insert({
-          quoteid: newQuoteRef.id,
-          gebruikerid: uid,
-          status: 'completed',
-          data_json: calculationDataJson,
-        });
+      const supabaseWrite = isPrimarySplit
+        ? await supabaseAdmin
+            .from('quotes_collection')
+            .update({
+              status: 'completed',
+              data_json: calculationDataJson,
+            })
+            .eq('quoteid', quoteId)
+            .eq('gebruikerid', uid)
+        : await supabaseAdmin
+            .from('quotes_collection')
+            .insert({
+              quoteid: targetQuoteRef.id,
+              gebruikerid: uid,
+              status: 'completed',
+              data_json: calculationDataJson,
+            });
 
-      if (insertError) {
-        console.error('Supabase insert error (split quote):', insertError);
-        return NextResponse.json({ ok: false, message: insertError.message }, { status: 500 });
+      if (supabaseWrite.error) {
+        console.error('Supabase write error (split quote):', supabaseWrite.error);
+        return NextResponse.json({ ok: false, message: supabaseWrite.error.message }, { status: 500 });
       }
 
-      created.push({ id: newQuoteRef.id, offerteNummer, title });
+      if (!isPrimarySplit) {
+        created.push({ id: targetQuoteRef.id, offerteNummer, title });
+      }
     }
 
     await sourceRef.set({

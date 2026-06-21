@@ -555,6 +555,16 @@ function enforceWasteRemovalPreferences(
     const nadenVullenInbegrepen = controls.nadenVullenInbegrepen === true
       || rawControls.nadenVullenInbegrepen === true
       || inputStructured.nadenVullenInbegrepen === true;
+    const nadenVullenAfwerkingsniveau = nadenVullenInbegrepen
+      ? controls.nadenVullenAfwerkingsniveau === 'schilderklaar'
+        || rawControls.nadenVullenAfwerkingsniveau === 'schilderklaar'
+        || inputStructured.nadenVullenAfwerkingsniveau === 'schilderklaar'
+          ? 'schilderklaar'
+          : 'behangklaar'
+      : undefined;
+    const schroefgatenPlamurenInbegrepen = controls.schroefgatenPlamurenInbegrepen === true
+      || rawControls.schroefgatenPlamurenInbegrepen === true
+      || inputStructured.schroefgatenPlamurenInbegrepen === true;
     const safe = enforceWorkDeliverySafety({
       ...job,
       afvalAfvoeren: enabled,
@@ -565,6 +575,8 @@ function enforceWasteRemovalPreferences(
       steigerInbegrepen,
       sloopwerkInbegrepen,
       nadenVullenInbegrepen,
+      nadenVullenAfwerkingsniveau,
+      schroefgatenPlamurenInbegrepen,
       electricalScope,
       finishLevel,
       customFinishDescription,
@@ -579,6 +591,16 @@ function enforceWasteRemovalPreferences(
       : inputStructured.electricalScope);
   const rootFinishLevel = (activeJob?.finishLevel || safeString(rawControls.finishLevel) || inputStructured.finishLevel) as WorkDescriptionStructured['finishLevel'];
   const rootCustomFinishDescription = activeJob?.customFinishDescription || safeString(rawControls.customFinishDescription) || inputStructured.customFinishDescription;
+  const rootNadenVullenInbegrepen = activeJob
+    ? activeJob.nadenVullenInbegrepen === true
+    : rawControls.nadenVullenInbegrepen === true || inputStructured.nadenVullenInbegrepen === true;
+  const rootNadenVullenAfwerkingsniveau = rootNadenVullenInbegrepen
+    ? activeJob?.nadenVullenAfwerkingsniveau === 'schilderklaar'
+      || rawControls.nadenVullenAfwerkingsniveau === 'schilderklaar'
+      || inputStructured.nadenVullenAfwerkingsniveau === 'schilderklaar'
+        ? 'schilderklaar'
+        : 'behangklaar'
+    : undefined;
   const root = enforceWorkDeliverySafety({
     ...sanitizeWorkDeliveryScope(generated),
     afvalAfvoeren: activeJob ? activeJob.afvalAfvoeren === true : preferences.active,
@@ -600,9 +622,11 @@ function enforceWasteRemovalPreferences(
     sloopwerkInbegrepen: activeJob
       ? activeJob.sloopwerkInbegrepen === true
       : rawControls.sloopwerkInbegrepen === true || inputStructured.sloopwerkInbegrepen === true,
-    nadenVullenInbegrepen: activeJob
-      ? activeJob.nadenVullenInbegrepen === true
-      : rawControls.nadenVullenInbegrepen === true || inputStructured.nadenVullenInbegrepen === true,
+    nadenVullenInbegrepen: rootNadenVullenInbegrepen,
+    nadenVullenAfwerkingsniveau: rootNadenVullenAfwerkingsniveau,
+    schroefgatenPlamurenInbegrepen: activeJob
+      ? activeJob.schroefgatenPlamurenInbegrepen === true
+      : rawControls.schroefgatenPlamurenInbegrepen === true || inputStructured.schroefgatenPlamurenInbegrepen === true,
     electricalScope: rootElectricalScope,
     finishLevel: rootFinishLevel,
     customFinishDescription: rootCustomFinishDescription,
@@ -656,6 +680,8 @@ function enforceGenerationRules(
         steigerInbegrepen: false,
         sloopwerkInbegrepen: false,
         nadenVullenInbegrepen: false,
+        nadenVullenAfwerkingsniveau: undefined,
+        schroefgatenPlamurenInbegrepen: false,
       };
     });
     if (getWasteRemovalPreferences(body?.structuredInput).active && jobs.length > 0) {
@@ -681,6 +707,8 @@ function enforceGenerationRules(
       steigerInbegrepen: controls.steigerInbegrepen,
       sloopwerkInbegrepen: controls.sloopwerkInbegrepen,
       nadenVullenInbegrepen: controls.nadenVullenInbegrepen,
+      nadenVullenAfwerkingsniveau: controls.nadenVullenAfwerkingsniveau,
+      schroefgatenPlamurenInbegrepen: controls.schroefgatenPlamurenInbegrepen,
       electricalScope: controls.electricalScope,
       finishLevel: controls.finishLevel,
       customFinishDescription: controls.customFinishDescription,
@@ -943,7 +971,9 @@ function getMissingNoteRequirements(
   if (!structured) return extractRequiredNoteRequirements(notesContext);
   const generatedRows = [
     ...structured.work_scope,
+    ...structured.dimensions,
     ...structured.jobs.flatMap((job) => job.work_scope),
+    ...structured.jobs.flatMap((job) => job.dimensions),
   ].filter(Boolean);
 
   return extractRequiredNoteRequirements(notesContext)
@@ -952,6 +982,16 @@ function getMissingNoteRequirements(
     // Combining unrelated words and measurements across the whole document
     // previously produced false positives for omitted note scope.
     .filter((requirement) => !generatedRows.some((row) => isNoteRequirementCovered(requirement, row)));
+}
+
+function finalizeNoteCoverage(
+  structured: WorkDescriptionStructured,
+  notesContext: unknown,
+): WorkDescriptionStructured {
+  return enforceRequiredMaatwerkCoverage(
+    enforceRequiredNoteCoverage(structured, notesContext, isWasteRemovalRow),
+    notesContext,
+  );
 }
 
 function extractDirectStructured(result: unknown): WorkDescriptionStructured | null {
@@ -1248,8 +1288,13 @@ function buildPromptFromBody(body: RequestBody): string {
     ? 'Sloopwerk inbegrepen staat expliciet AAN. Neem het concrete overeengekomen sloopwerk als een eigen regel op in work_scope.'
     : 'Sloopwerk inbegrepen staat UIT. Neem geen sloopwerk op als inbegrepen werk.';
   const seamFillingRule = structuredControls.nadenVullenInbegrepen
-    ? 'Naden vullen inbegrepen staat expliciet AAN. Neem het vullen en afwerken van de overeengekomen naden als een eigen regel op in work_scope.'
+    ? structuredControls.nadenVullenAfwerkingsniveau === 'schilderklaar'
+      ? 'Naden vullen staat expliciet AAN op afwerkingsniveau Q4 (schilderklaar). Neem het vullen en schilderklaar afwerken van de overeengekomen naden als een eigen regel op in work_scope.'
+      : 'Naden vullen staat expliciet AAN op afwerkingsniveau Q2 (behangklaar). Neem het vullen en behangklaar afwerken van de overeengekomen naden als een eigen regel op in work_scope.'
     : 'Naden vullen inbegrepen staat UIT. Neem het vullen of afwerken van naden niet op als inbegrepen werk.';
+  const screwHoleFillingRule = structuredControls.schroefgatenPlamurenInbegrepen
+    ? 'Schroefgaten plamuren staat expliciet AAN. Neem het plamuren van de schroefgaten als een eigen regel op in work_scope.'
+    : 'Schroefgaten plamuren staat UIT. Neem het plamuren of vullen van schroefgaten niet op als inbegrepen werk.';
   const electricalRule = structuredControls.electricalScope.enabled
     ? 'Elektrawerk inbegrepen staat expliciet AAN. Neem ieder concreet overeengekomen elektrisch onderdeel als een eigen regel op in work_scope. Zet elektrawerk niet onder included.'
     : 'Elektrawerk inbegrepen staat UIT. Neem elektrawerk niet op als inbegrepen werk.';
@@ -1307,6 +1352,7 @@ function buildPromptFromBody(body: RequestBody): string {
       notesRule,
       paintingRule,
       stuccoRule,
+      screwHoleFillingRule,
       electricalRule,
       wasteRemovalRule,
     ].filter(Boolean).join('\n\n');
@@ -1321,7 +1367,7 @@ function buildPromptFromBody(body: RequestBody): string {
     calculationContext ? `Calculatiedata uit Firestore:\n${calculationContext}` : '',
   ].filter(Boolean);
 
-  return [...parts, scopeRules, notesRule, paintingRule, stuccoRule, fillingRule, sealingRule, seamFillingRule, scaffoldRule, demolitionRule, electricalRule, wasteRemovalRule].filter(Boolean).join('\n');
+  return [...parts, scopeRules, notesRule, paintingRule, stuccoRule, fillingRule, sealingRule, seamFillingRule, screwHoleFillingRule, scaffoldRule, demolitionRule, electricalRule, wasteRemovalRule].filter(Boolean).join('\n');
 }
 
 export async function POST(request: Request) {
@@ -1416,7 +1462,7 @@ export async function POST(request: Request) {
 
     const directStructured = extractDirectStructured(result);
     if (directStructured && flattenStructuredWorkDescription(directStructured).length > 0) {
-      const structured = enforceRequiredMaatwerkCoverage(
+      const structured = finalizeNoteCoverage(
         enforceGenerationRules(
           sanitizeWorkDescriptionStructured(directStructured),
           bodyWithContext,
@@ -1438,7 +1484,7 @@ export async function POST(request: Request) {
 
     const directWerkbeschrijving = extractDirectWerkbeschrijving(result);
     if (directWerkbeschrijving.length > 0) {
-      const structured = enforceRequiredMaatwerkCoverage(
+      const structured = finalizeNoteCoverage(
         enforceGenerationRules(
           toStructuredWorkDescription({ werkbeschrijving: directWerkbeschrijving }),
           bodyWithContext,
@@ -1468,7 +1514,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Lege werkbeschrijving ontvangen.' }, { status: 502 });
     }
 
-    const structured = enforceRequiredMaatwerkCoverage(
+    const structured = finalizeNoteCoverage(
       enforceGenerationRules(
         toStructuredWorkDescription({ werkbeschrijving }),
         bodyWithContext,
