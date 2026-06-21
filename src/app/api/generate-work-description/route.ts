@@ -8,7 +8,13 @@ import {
   toStructuredWorkDescription,
   type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
-import { enforceRequiredNoteCoverage } from '@/lib/work-description-note-coverage';
+import {
+  enforceRequiredMaatwerkCoverage,
+  enforceRequiredNoteCoverage,
+  extractRequiredNoteRequirements,
+  formatRequiredNoteStep,
+  isNoteRequirementCovered,
+} from '@/lib/work-description-note-coverage';
 import {
   completeWorkDeliveryScope,
   enforceWorkDeliverySafety,
@@ -43,7 +49,46 @@ type RequestBody = {
   notesContext?: unknown;
   measurementsContext?: unknown;
   quoteCalculationContext?: unknown;
+  sourceJobs?: unknown;
+  noteJobs?: unknown;
 };
+
+interface WorkDescriptionNoteJobInput {
+  title: string;
+  notes: string;
+  dimensions: string[];
+}
+
+interface WorkDescriptionSourceJob {
+  id: string;
+  index: number;
+  title: string;
+  type: string;
+  description: string;
+  notes: string;
+  details: string[];
+  materials: string[];
+  dimensions: string[];
+}
+
+interface QuoteCalculationContext {
+  prompt: string;
+  jobs: WorkDescriptionSourceJob[];
+}
+
+function getNoteJobs(input: unknown): WorkDescriptionNoteJobInput[] {
+  if (!Array.isArray(input)) return [];
+  return input.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const row = item as Record<string, unknown>;
+    const title = safeString(row.title);
+    const notes = safeString(row.notes);
+    const dimensions = Array.isArray(row.dimensions)
+      ? row.dimensions.map((value) => safeString(value)).filter(Boolean)
+      : [];
+    return title || notes ? [{ title: title || 'Werkzaamheid', notes, dimensions }] : [];
+  });
+}
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -61,6 +106,29 @@ function truncateText(value: string, maxLength: number): string {
   return `${compact.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
 }
 
+function cleanProfessionalScopeText(value: string): string {
+  return value
+    .replace(/\s*\.?\s*moet\s+staan\s+in\s+de\s+werk\s*&\s*levering\s*/gi, '. Toegepast wordt ')
+    .replace(/\s*\.?\s*opnemen\s+in\s+de\s+werk\s*&\s*levering\s*/gi, '. Toegepast wordt ')
+    .replace(/\.{2,}/g, '.')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.;:])/g, '$1')
+    .replace(/\.\s*toegepast wordt\s+([a-z])/gi, (_, letter: string) => `. Toegepast wordt ${letter.toUpperCase()}`)
+    .trim();
+}
+
+function normalizeWasteSummary(summary: string, wasteIncluded: boolean): string {
+  const cleaned = summary
+    .replace(/\s*(?:afval\s*afvoer|afvalafvoer)\s+is\s+inbegrepen\.?/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[\s.]+$/g, '');
+  const base = cleaned ? `${cleaned}.` : '';
+  return wasteIncluded
+    ? [base, 'Afval afvoer is inbegrepen.'].filter(Boolean).join(' ')
+    : base;
+}
+
 function formatContextValue(value: unknown, depth = 0): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return truncateText(value, 120);
@@ -68,7 +136,7 @@ function formatContextValue(value: unknown, depth = 0): string {
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) {
     return value
-      .slice(0, 5)
+      .slice(0, 20)
       .map((item) => formatContextValue(item, depth + 1))
       .filter(Boolean)
       .join(' | ');
@@ -76,10 +144,10 @@ function formatContextValue(value: unknown, depth = 0): string {
   if (typeof value === 'object') {
     const record = value as Record<string, unknown>;
     if (typeof (record as { toDate?: unknown }).toDate === 'function') return '';
-    if (depth >= 2) return '';
+    if (depth >= 4) return '';
     return Object.entries(record)
       .filter(([key]) => !/^(id|createdAt|updatedAt|savedAt|savedByUid|uiState|visualisatie|visualisatieUrl|visualisatieSnapshots)$/i.test(key))
-      .slice(0, 12)
+      .slice(0, 30)
       .map(([key, nested]) => {
         const formatted = formatContextValue(nested, depth + 1);
         return formatted ? `${key}: ${formatted}` : '';
@@ -107,6 +175,110 @@ function formatContextEntries(input: unknown, maxRows = 12): string[] {
     })
     .filter(Boolean)
     .slice(0, maxRows);
+}
+
+const DIMENSION_KEY_PATTERN = /(lengte|breedte|hoogte|dikte|diepte|diameter|afstand|maat|radius|overspanning|hart.?op.?hart|h\.o\.h)/i;
+const NON_DIMENSION_KEY_PATTERN = /^(id|index|aantal|count|prijs|kosten|percentage|volgorde|x|y)$/i;
+const NUMBERED_GEOMETRY_KEY_PATTERN = /(?:lengte|breedte|hoogte|dikte|diepte)\d+$/i;
+
+function humanizeContextKey(value: string): string {
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function formatDimensionValue(key: string, value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return `${humanizeContextKey(key)} = ${value} mm`;
+  }
+  if (typeof value === 'string' && value.trim() && /\d/.test(value)) {
+    const compact = value.replace(/\s+/g, ' ').trim();
+    return `${humanizeContextKey(key)} = ${/\b(?:mm|cm|m|m2|m²)\b/i.test(compact) ? compact : `${compact} mm`}`;
+  }
+  return '';
+}
+
+function formatSegmentDimensionValue(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/\s*mm\s*$/i, '').trim();
+}
+
+function extractDimensionRows(input: unknown, jobTitle: string): string[] {
+  const rows: string[] = [];
+  const visit = (value: unknown, path: string[], depth: number) => {
+    if (!value || depth > 5) return;
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, [...path, String(index + 1)], depth + 1));
+      return;
+    }
+    if (typeof value !== 'object') return;
+
+    const record = value as Record<string, unknown>;
+    const label = safeString(record.label) || safeString(record.titel) || safeString(record.title);
+    const dimensions = Object.entries(record)
+      .filter(([key, nested]) => (
+        !NON_DIMENSION_KEY_PATTERN.test(key)
+        && !NUMBERED_GEOMETRY_KEY_PATTERN.test(key)
+        && DIMENSION_KEY_PATTERN.test(key)
+        && (typeof nested === 'number' || typeof nested === 'string')
+      ))
+      .map(([key, nested]) => formatDimensionValue(key, nested))
+      .filter(Boolean);
+
+    const segmentDimensions = new Map<number, Array<{ key: string; value: string }>>();
+    Object.entries(record).forEach(([key, nested]) => {
+      const match = key.match(/^(lengte|breedte|hoogte|dikte|diepte)(\d+)$/i);
+      if (!match) return;
+      const formatted = formatSegmentDimensionValue(nested);
+      if (!formatted) return;
+      const segment = Number(match[2]);
+      const values = segmentDimensions.get(segment) || [];
+      values.push({ key: match[1].toLowerCase(), value: formatted });
+      segmentDimensions.set(segment, values);
+    });
+
+    const segmentOrder = ['lengte', 'breedte', 'hoogte', 'dikte', 'diepte'];
+    Array.from(segmentDimensions.entries())
+      .sort(([left], [right]) => left - right)
+      .forEach(([segment, values]) => {
+        const orderedValues = values
+          .sort((left, right) => segmentOrder.indexOf(left.key) - segmentOrder.indexOf(right.key))
+          .map((item) => item.value);
+        if (orderedValues.length > 0) {
+          dimensions.push(`Deel ${segment} = ${orderedValues.join(' × ')} mm`);
+        }
+      });
+
+    if (dimensions.length > 0) {
+      const prefix = [jobTitle, label].filter(Boolean).join(' – ');
+      rows.push(`${prefix}: | ${dimensions.join(' | ')} |`);
+    }
+
+    Object.entries(record).forEach(([key, nested]) => {
+      if (['basis', 'items', 'toevoegingen', 'openings', 'afmetingen', 'measurements', 'maatvoering'].includes(key)) {
+        visit(nested, [...path, key], depth + 1);
+      }
+    });
+  };
+
+  visit(input, [], 0);
+  return Array.from(new Set(rows));
+}
+
+function extractNoteDimensionRows(notesContext: unknown): string[] {
+  if (typeof notesContext !== 'string') return [];
+  return notesContext.split(/\r?\n/).flatMap((rawLine) => {
+    const line = rawLine.replace(/^[-*•]\s*/, '').trim();
+    const match = line.match(/^(.*?)\s*[:=]\s*lengte\s*[:=]?\s*([^,|]+?)\s*[,|]\s*breedte\s*[:=]?\s*([^,|]+?)\s*[,|]\s*dikte\s*[:=]?\s*([^,|]+?)\s*$/i);
+    if (!match) return [];
+    const title = match[1].trim();
+    const clean = (value: string) => value.replace(/\s*mm\s*$/i, '').trim();
+    return [`${title}: | Lengte = ${clean(match[2])} mm | Breedte = ${clean(match[3])} mm | Dikte = ${clean(match[4])} mm |`];
+  });
 }
 
 function getMaterialNames(input: unknown): string[] {
@@ -147,7 +319,7 @@ function getMaterialNames(input: unknown): string[] {
     .slice(0, 20);
 }
 
-function buildJobCalculationContextLine(jobId: string, job: Record<string, unknown>, index: number): string {
+function buildSourceJob(jobId: string, job: Record<string, unknown>, index: number): WorkDescriptionSourceJob {
   const maatwerk = job.maatwerk && typeof job.maatwerk === 'object'
     ? job.maatwerk as Record<string, unknown>
     : {};
@@ -161,55 +333,71 @@ function buildJobCalculationContextLine(jobId: string, job: Record<string, unkno
   const title = safeString(meta.title) || safeString(job.title) || `Klus ${index + 1}`;
   const type = [safeString(meta.type), safeString(meta.slug)].filter(Boolean).join('/');
   const description = safeString(meta.description);
-  const basisRows = formatContextEntries(maatwerk.basis ?? maatwerk.items, 8);
-  const additionRows = formatContextEntries(maatwerk.toevoegingen, 8);
+  const basis = maatwerk.basis ?? maatwerk.items;
+  const additions = maatwerk.toevoegingen;
+  const basisRows = formatContextEntries(basis, 30);
+  const additionRows = formatContextEntries(additions, 30);
   const materialNames = getMaterialNames(materialen.materialen_lijst);
   const notes = safeString(maatwerk.notities) || safeString(job.material_notities) || safeString(job.notities);
   const workMethod = formatContextValue(job.werkwijze);
 
-  const parts = [
-    `Klus ${index + 1}: ${title}${type ? ` (${type})` : ''}${description ? ` - ${description}` : ''}`,
-    basisRows.length > 0 ? `Maatvoering/basis: ${basisRows.join('; ')}` : '',
-    additionRows.length > 0 ? `Toevoegingen: ${additionRows.join('; ')}` : '',
-    materialNames.length > 0 ? `Gekozen materialen: ${materialNames.join(', ')}` : '',
-    notes ? `Klusnotities: ${truncateText(notes, 400)}` : '',
-    workMethod ? `Werkwijze: ${workMethod}` : '',
-    `Firestore job id: ${jobId}`,
-  ].filter(Boolean);
-
-  return truncateText(parts.join('\n'), 2400);
+  return {
+    id: jobId,
+    index: index + 1,
+    title,
+    type,
+    description,
+    notes: truncateText(notes, 1200),
+    details: [
+      basisRows.length > 0 ? `Basis: ${basisRows.join('; ')}` : '',
+      additionRows.length > 0 ? `Toevoegingen: ${additionRows.join('; ')}` : '',
+      workMethod ? `Werkwijze: ${workMethod}` : '',
+    ].filter(Boolean),
+    materials: materialNames,
+    dimensions: extractDimensionRows([basis, additions], title),
+  };
 }
 
 async function buildQuoteCalculationContext(params: {
   quoteId: unknown;
   uid: string;
   firestore: Firestore;
-}): Promise<string> {
+}): Promise<QuoteCalculationContext> {
   const quoteId = safeString(params.quoteId);
-  if (!quoteId) return '';
+  if (!quoteId) return { prompt: '', jobs: [] };
 
   const quoteSnap = await params.firestore.collection('quotes').doc(quoteId).get();
-  if (!quoteSnap.exists) return '';
+  if (!quoteSnap.exists) return { prompt: '', jobs: [] };
 
   const quote = quoteSnap.data() || {};
-  if (quote.userId !== params.uid) return '';
+  if (quote.userId !== params.uid) return { prompt: '', jobs: [] };
 
   const klussen = quote.klussen && typeof quote.klussen === 'object'
     ? quote.klussen as Record<string, unknown>
     : {};
   const jobEntries = Object.entries(klussen)
     .filter(([, job]) => job && typeof job === 'object')
-    .slice(0, 12);
+    .sort(([, left], [, right]) => {
+      const leftOrder = Number((left as Record<string, unknown>).volgorde);
+      const rightOrder = Number((right as Record<string, unknown>).volgorde);
+      return (Number.isFinite(leftOrder) ? leftOrder : 0) - (Number.isFinite(rightOrder) ? rightOrder : 0);
+    })
+    .slice(0, 30);
 
   const quoteTitle = safeString(quote.titel) || safeString(quote.offerteNummer);
-  const jobLines = jobEntries.map(([jobId, job], index) => (
-    buildJobCalculationContextLine(jobId, job as Record<string, unknown>, index)
-  ));
+  const jobs = jobEntries.map(([jobId, job], index) => buildSourceJob(jobId, job as Record<string, unknown>, index));
+  const jobLines = jobs.map((job) => [
+    `Klus ${job.index} [${job.id}]: ${job.title}${job.type ? ` (${job.type})` : ''}${job.description ? ` - ${job.description}` : ''}`,
+    ...job.details,
+    job.materials.length > 0 ? `Gekozen materialen: ${job.materials.join(', ')}` : '',
+    job.notes ? `Klusnotities: ${job.notes}` : '',
+    job.dimensions.length > 0 ? `Maatvoering: ${job.dimensions.join(' | ')}` : '',
+  ].filter(Boolean).join('\n'));
 
-  return [
+  return { prompt: [
     quoteTitle ? `Offertetitel: ${quoteTitle}` : '',
     ...jobLines,
-  ].filter(Boolean).join('\n\n');
+  ].filter(Boolean).join('\n\n'), jobs };
 }
 
 function extractResponseText(payload: unknown): string {
@@ -431,65 +619,125 @@ function enforceWasteRemovalPreferences(
   };
 }
 
-function inferTitleFromNotes(notesContext: unknown): string {
-  const notes = safeString(notesContext).toLowerCase();
-  if (!notes) return '';
-
-  const hasRoofReplacementSignals = [
-    /golfplaten?\s+(weg\s+)?halen|oude\s+golfplaten?\s+(verwijderen|weg\s+halen)/,
-    /underlayment\s+platen?\s+leggen|underlayment\s+leggen/,
-    /\bepdm\s+leggen\b|\bepdm\b.*\bonderlayment\b/,
-  ].filter((pattern) => pattern.test(notes)).length;
-
-  if (hasRoofReplacementSignals >= 2) return 'Dak vervangen';
-  if (/\bdak\b/.test(notes) && /\bvervang/.test(notes)) return 'Dak vervangen';
-  return '';
-}
-
-function applyInferredTitle(
-  generated: WorkDescriptionStructured,
-  body: RequestBody | null,
-): WorkDescriptionStructured {
-  const inferredTitle = inferTitleFromNotes(body?.notesContext);
-  if (!inferredTitle) return generated;
-
-  const currentTitle = safeString(generated.title);
-  const titleLooksTooNarrow =
-    !currentTitle
-    || /boei|boeiboord|dakrand/i.test(currentTitle)
-    || currentTitle.length > 80;
-
-  if (!titleLooksTooNarrow && currentTitle.toLowerCase() === inferredTitle.toLowerCase()) {
-    return generated;
-  }
-
-  const activeIndex = Math.max(0, Math.min(generated.activeJobIndex || 0, Math.max(0, generated.jobs.length - 1)));
-  const jobs = generated.jobs.length > 0
-    ? generated.jobs.map((job, index) => (
-        index === activeIndex ? { ...job, title: inferredTitle } : job
-      ))
-    : generated.jobs;
-
-  return {
-    ...generated,
-    title: titleLooksTooNarrow ? inferredTitle : currentTitle,
-    jobs,
-  };
-}
-
 function enforceGenerationRules(
   generated: WorkDescriptionStructured,
   body: RequestBody | null,
 ): WorkDescriptionStructured {
   const completed = fillMissingGeneratedScope(generated, body);
-  const wasteFiltered = enforceWasteRemovalPreferences(completed, body?.structuredInput);
+  const noteJobs = getNoteJobs(body?.noteJobs);
+  if (noteJobs.length > 0) {
+    const controls = sanitizeWorkDescriptionStructured(body?.structuredInput);
+    const generatedRows = generated.jobs.length === noteJobs.length
+      ? generated.jobs.map((job) => job.work_scope.join(' '))
+      : generated.work_scope;
+    const jobs = noteJobs.map((source, index) => {
+      const requirement = [source.title, source.notes].filter(Boolean).join(' ');
+      const candidate = safeString(generatedRows[index]).replace(/^Klus\s+\d+\s*:\s*/i, '').trim();
+      const rawWorkRow = candidate && isNoteRequirementCovered(requirement, candidate)
+        ? candidate
+        : formatRequiredNoteStep(requirement);
+      const workRow = cleanProfessionalScopeText(rawWorkRow);
+      return {
+        ...completed.jobs[0],
+        title: source.title,
+        context: workRow,
+        summary: workRow,
+        work_scope: [workRow],
+        materials: [],
+        dimensions: source.dimensions,
+        included: [],
+        excluded: [],
+        internal_notes: [],
+        afvalAfvoeren: false,
+        schilderwerkInbegrepen: false,
+        stucwerkInbegrepen: false,
+        plamuurwerkInbegrepen: false,
+        kitwerkInbegrepen: false,
+        steigerInbegrepen: false,
+        sloopwerkInbegrepen: false,
+        nadenVullenInbegrepen: false,
+      };
+    });
+    if (getWasteRemovalPreferences(body?.structuredInput).active && jobs.length > 0) {
+      jobs[jobs.length - 1].work_scope.push('Afvoeren van vrijkomend afval en restmateriaal.');
+    }
+    const wasteIncluded = controls.afvalAfvoeren === true;
+    return sanitizeWorkDescriptionStructured({
+      ...completed,
+      title: safeString(generated.title).replace(/^Klus\s+\d+\s*:\s*/i, '') || 'Werk & Levering',
+      summary: normalizeWasteSummary(
+        cleanProfessionalScopeText(safeString(generated.summary).replace(/^Klus\s+\d+\s*:\s*/i, '') || jobs[0].summary),
+        wasteIncluded,
+      ),
+      work_scope: jobs[0].work_scope,
+      dimensions: jobs[0].dimensions,
+      jobs,
+      activeJobIndex: 0,
+      afvalAfvoeren: controls.afvalAfvoeren,
+      schilderwerkInbegrepen: controls.schilderwerkInbegrepen,
+      stucwerkInbegrepen: controls.stucwerkInbegrepen,
+      plamuurwerkInbegrepen: controls.plamuurwerkInbegrepen,
+      kitwerkInbegrepen: controls.kitwerkInbegrepen,
+      steigerInbegrepen: controls.steigerInbegrepen,
+      sloopwerkInbegrepen: controls.sloopwerkInbegrepen,
+      nadenVullenInbegrepen: controls.nadenVullenInbegrepen,
+      electricalScope: controls.electricalScope,
+      finishLevel: controls.finishLevel,
+      customFinishDescription: controls.customFinishDescription,
+    });
+  }
+  const sourceJobs = Array.isArray(body?.sourceJobs)
+    ? body.sourceJobs.filter((job): job is WorkDescriptionSourceJob => Boolean(job && typeof job === 'object'))
+    : [];
+  const allScopeRows = [
+    ...completed.work_scope,
+    ...completed.jobs.flatMap((job) => job.work_scope),
+  ];
+  const normalizeTokens = (value: string) => value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 4);
+  const missingSourceRows = sourceJobs.flatMap((sourceJob) => {
+    const identityTokens = normalizeTokens(`${sourceJob.title} ${sourceJob.type}`);
+    const covered = allScopeRows.some((row) => {
+      const normalizedRow = ` ${normalizeTokens(row).join(' ')} `;
+      return identityTokens.some((token) => normalizedRow.includes(` ${token} `));
+    });
+    if (covered) return [];
+    const materialText = sourceJob.materials.length > 0
+      ? ` met ${sourceJob.materials.slice(0, 3).join(', ')}`
+      : '';
+    return [`Uitvoeren van ${sourceJob.title.toLowerCase()} conform de opgegeven maatvoering${materialText}.`];
+  });
+  const activeIndexForCoverage = Math.max(0, Math.min(completed.activeJobIndex || 0, Math.max(0, completed.jobs.length - 1)));
+  const completedWithSourceJobs = sanitizeWorkDescriptionStructured({
+    ...completed,
+    work_scope: [...completed.work_scope, ...missingSourceRows],
+    jobs: completed.jobs.map((job, index) => index === activeIndexForCoverage
+      ? { ...job, work_scope: [...job.work_scope, ...missingSourceRows] }
+      : job),
+  });
+  const wasteFiltered = enforceWasteRemovalPreferences(completedWithSourceJobs, body?.structuredInput);
   const notesCovered = enforceRequiredNoteCoverage(wasteFiltered, body?.notesContext, isWasteRemovalRow);
-  const titled = applyInferredTitle(notesCovered, body);
-  const productChoicesCovered = enforceProductChoicesInScope(titled, body);
+  const sourceDimensions = sourceJobs.flatMap((job) => Array.isArray(job.dimensions) ? job.dimensions : []);
+  const noteDimensions = extractNoteDimensionRows(body?.notesContext);
+  const requiredDimensions = Array.from(new Set([...sourceDimensions, ...noteDimensions]));
+  const activeIndex = Math.max(0, Math.min(notesCovered.activeJobIndex || 0, Math.max(0, notesCovered.jobs.length - 1)));
+  const jobsWithDimensions = notesCovered.jobs.length > 0
+    ? notesCovered.jobs.map((job, index) => index === activeIndex
+      ? { ...job, dimensions: Array.from(new Set([...job.dimensions, ...requiredDimensions])) }
+      : job)
+    : notesCovered.jobs;
+  const withDimensions = sanitizeWorkDescriptionStructured({
+    ...notesCovered,
+    dimensions: Array.from(new Set([...notesCovered.dimensions, ...requiredDimensions])),
+    jobs: jobsWithDimensions,
+  });
   const withoutMaterialSection = {
-    ...productChoicesCovered,
+    ...withDimensions,
     materials: [],
-    jobs: productChoicesCovered.jobs.map((job) => ({ ...job, materials: [] })),
+    jobs: withDimensions.jobs.map((job) => ({ ...job, materials: [] })),
   };
   return enforceWasteRemovalPreferences(withoutMaterialSection, body?.structuredInput);
 }
@@ -516,69 +764,6 @@ function isCustomerRelevantProductChoice(value: string): boolean {
     return false;
   }
   return /(keralit|trespa|hpl|rockpanel|gevelbekleding|boeiboord|boeiboorden|epdm|underlayment|daktrim|dakbedekking|ral 7016|antraciet|anthracite)/i.test(normalized);
-}
-
-function formatProductChoiceScopeLine(value: string): string {
-  const material = sanitizeMaterialDescription(value);
-  const normalized = normalizeForMaterialComparison(material);
-
-  if (/\bepdm\b/i.test(normalized)) {
-    return 'De dakbedekking wordt uitgevoerd met EPDM.';
-  }
-  if (/underlayment/i.test(normalized)) {
-    return 'De dakopbouw wordt uitgevoerd met underlayment platen.';
-  }
-  if (/daktrim/i.test(normalized)) {
-    return /aluminium/i.test(normalized)
-      ? 'De dakrand wordt afgewerkt met aluminium daktrim.'
-      : 'De dakrand wordt afgewerkt met daktrim.';
-  }
-  if (/(keralit|trespa|hpl|rockpanel|gevelbekleding|boeiboord|boeiboorden)/i.test(normalized)) {
-    return `De zichtbare bekleding wordt uitgevoerd met ${material}.`;
-  }
-  return `Uitvoering met ${material}.`;
-}
-
-function productChoiceCovered(material: string, rows: string[]): boolean {
-  const normalizedRows = normalizeForMaterialComparison(rows.join(' '));
-  const normalizedMaterial = normalizeForMaterialComparison(material);
-  const importantTokens = normalizedMaterial
-    .split(/\s+/)
-    .filter((token) => (
-      token.length >= 4
-      && !/^(dikte|lengte|breedte|maat|ca|ral)$/.test(token)
-    ));
-  if (importantTokens.length === 0) return true;
-  return importantTokens.some((token) => normalizedRows.includes(token));
-}
-
-function enforceProductChoicesInScope(
-  generated: WorkDescriptionStructured,
-  body: RequestBody | null,
-): WorkDescriptionStructured {
-  const productChoices = getMaterialContextRows(body?.materialContext);
-  if (productChoices.length === 0) return generated;
-
-  const activeIndex = Math.max(0, Math.min(generated.activeJobIndex || 0, Math.max(0, generated.jobs.length - 1)));
-  const appendMissing = (rows: string[]) => {
-    const missingRows = productChoices
-      .filter((material) => !productChoiceCovered(material, rows))
-      .map(formatProductChoiceScopeLine);
-    return Array.from(new Set([...rows, ...missingRows]));
-  };
-
-  if (generated.jobs.length === 0) {
-    return { ...generated, work_scope: appendMissing(generated.work_scope) };
-  }
-
-  const jobs = generated.jobs.map((job, index) => (
-    index === activeIndex ? { ...job, work_scope: appendMissing(job.work_scope) } : job
-  ));
-  return {
-    ...generated,
-    jobs,
-    work_scope: jobs[activeIndex]?.work_scope || generated.work_scope,
-  };
 }
 
 function fillMissingGeneratedScope(
@@ -749,6 +934,24 @@ function hasStructuredContent(value: WorkDescriptionStructured): boolean {
     || value.sections.afwerking.length > 0
     || (value.legacyNotes?.length || 0) > 0
   );
+}
+
+function getMissingNoteRequirements(
+  structured: WorkDescriptionStructured | null,
+  notesContext: unknown,
+): string[] {
+  if (!structured) return extractRequiredNoteRequirements(notesContext);
+  const generatedRows = [
+    ...structured.work_scope,
+    ...structured.jobs.flatMap((job) => job.work_scope),
+  ].filter(Boolean);
+
+  return extractRequiredNoteRequirements(notesContext)
+    .filter((requirement) => !isWasteRemovalRow(requirement))
+    // A requirement is covered only when one coherent work row contains it.
+    // Combining unrelated words and measurements across the whole document
+    // previously produced false positives for omitted note scope.
+    .filter((requirement) => !generatedRows.some((row) => isNoteRequirementCovered(requirement, row)));
 }
 
 function extractDirectStructured(result: unknown): WorkDescriptionStructured | null {
@@ -1022,6 +1225,10 @@ function buildPromptFromBody(body: RequestBody): string {
     ? 'Afval afvoeren staat expliciet AAN. Neem de concrete afvalafvoer als een eigen, afzonderlijke regel op in work_scope. Zet deze niet onder included.'
     : WASTE_REMOVAL_DISABLED_RULE;
   const structuredControls = sanitizeWorkDescriptionStructured(body.structuredInput);
+  const sourceJobs = Array.isArray(body.sourceJobs)
+    ? body.sourceJobs.filter((job): job is WorkDescriptionSourceJob => Boolean(job && typeof job === 'object'))
+    : [];
+  const noteJobs = getNoteJobs(body.noteJobs);
   const paintingRule = structuredControls.schilderwerkInbegrepen
     ? 'Schilderwerk inbegrepen staat expliciet AAN. Neem het concrete schilderwerk als een eigen, afzonderlijke regel op in work_scope. Gebruik details uit de notities, bijvoorbeeld wat wordt geschilderd en een nog te kiezen kleur. Zet schilderwerk niet onder included of excluded.'
     : 'Schilderwerk inbegrepen staat UIT. Neem schilderwerk, sauswerk, aflakken of verven niet op als inbegrepen werk.';
@@ -1061,11 +1268,18 @@ function buildPromptFromBody(body: RequestBody): string {
     : '';
   const scopeRules = [
     'Geef uitsluitend geldige JSON terug met exact deze velden:',
-    '{"title":"","summary":"","work_scope":[],"materials":[],"dimensions":[],"included":[],"excluded":[],"internal_notes":[]}',
+    noteJobs.length > 0
+      ? '{"title":"","summary":"","jobs":[{"title":"","work_scope":[]}],"included":[],"excluded":[]}'
+      : '{"title":"","summary":"","work_scope":[],"materials":[],"dimensions":[],"included":[],"excluded":[],"internal_notes":[]}',
     'Schrijf geen stappenplan en geen uitvoeringsvolgorde.',
     'Gebruik nooit de secties Voorbereiding, Uitvoering of Afwerking.',
-    'Elke concrete werkzaamheid mag precies één keer in work_scope staan. Voeg geen parafrase toe van een bestaande regel, de title of de summary.',
-    'Voorbeeld: "Verwijderen van een kast en plaatsen van een wand" en "Kast verwijderen en daar een wand zetten" zijn dubbel; geef slechts één van deze regels terug.',
+    noteJobs.length > 0
+      ? `De notities bevatten ${noteJobs.length} klussen. Geef exact ${noteJobs.length} jobs terug, in dezelfde volgorde en met exact één professionele work_scope-regel per klus. Gebruik de notitietitel als jobtitel. Gebruik nooit labels zoals "Klus 1" of "Klus 2".`
+      : sourceJobs.length > 0
+      ? `De calculatie bevat ${sourceJobs.length} afzonderlijke klussen. Geef voor iedere genummerde Klus 1 t/m ${sourceJobs.length} precies één volledige, zelfstandige regel in work_scope, in dezelfde volgorde. Sla geen klus over en voeg verschillende klussen niet samen.`
+      : 'Geef iedere afzonderlijke klus als één volledige, zelfstandige regel in work_scope.',
+    'Combineer alle eigenschappen die bij dezelfde klus horen in die ene regel. Een verhoogde vloer en de gekozen vloerplaat zijn bijvoorbeeld eigenschappen van dezelfde vloerklus en worden geen dubbele vloerregels.',
+    'Gebruik de specifieke klussoort als onderwerp. Maak van boeiboorden, plafonds, wanden, vloeren, kozijnen en ander timmerwerk ieder een passende beschrijving; gebruik geen algemene vloertekst voor een andere klussoort.',
     'Verzin geen werkzaamheden, afwerkingsniveau, elektrawerk, sloopwerk of afvalafvoer.',
     'Beschrijf geen methode tenzij deze expliciet is aangeleverd.',
     'Gebruik niet de woorden eerst, vervolgens, daarna, stap 1 of stap 2.',
@@ -1074,17 +1288,19 @@ function buildPromptFromBody(body: RequestBody): string {
     'Gebruik materials altijd als lege array. Maak geen aparte materialen/productenlijst.',
     'Verwerk alleen klant-relevante productkeuzes in work_scope wanneer ze belangrijk zijn voor vertrouwen of afspraak, zoals Keralit, Trespa/HPL, Rockpanel, EPDM, underlayment of type/kleur gevelbekleding.',
     'Noem geen verbruiksartikelen of hulpmaterialen zoals lijm, kit, cleaner, ontvetter, schroeven, handschoenen, folie, tape, band of schuurpapier.',
-    'HARDE REGEL: "Extra kosten" is geen materiaal of product en mag nergens in Werk & Levering worden genoemd.',
-    'HARDE REGEL: vermeld NOOIT aantallen of bestelhoeveelheden van materialen. Schrijf dus geen "18 stuk", "2 platen", "3 rollen" of hoeveelheden tussen haakjes. Productafmetingen en productspecificaties mogen wel blijven staan.',
+    'Negeer administratieve regels met de naam "Extra kosten".',
+    'Noem geen bestelhoeveelheden van materialen; behoud wel werkhoeveelheden, productafmetingen en productspecificaties die de afspraak beschrijven.',
     'Plaats bij onduidelijkheid een veilige uitsluiting onder excluded of laat het onderdeel weg.',
     'Formuleer commercieel en bescherm tegen scope creep en onbetaald meerwerk.',
     'summary mag meerdere zinnen bevatten wanneer dat nodig is om de afgesproken scope duidelijk te maken.',
+    'Er geldt geen maximum van twee zinnen. Gebruik zoveel zinnen als nodig zijn om de klus volledig en begrijpelijk te beschrijven.',
   ].join(' ');
   if (directPrompt) {
     return [
       directPrompt,
-      calculationContext ? `CALCULATIEDATA UIT FIRESTORE:\n${calculationContext}` : '',
-      calculationContext
+      noteJobs.length > 0 ? `NOTITIEKLUSSEN (ENIGE BRON VOOR DE KLUSINDELING):\n${JSON.stringify(noteJobs)}` : '',
+      noteJobs.length === 0 && calculationContext ? `CALCULATIEDATA UIT FIRESTORE:\n${calculationContext}` : '',
+      noteJobs.length === 0 && calculationContext
         ? 'Gebruik deze calculatiedata als bron voor klussoort, plaatsing/montage, maatvoering, gekozen materialen en onderdelen. Neem geen prijzen op.'
         : '',
       scopeRules,
@@ -1127,17 +1343,18 @@ export async function POST(request: Request) {
     }
 
     const rawBody = (await request.json().catch(() => null)) as RequestBody | null;
-    const quoteCalculationContext = await buildQuoteCalculationContext({
+    const quoteCalculation = await buildQuoteCalculationContext({
       quoteId: rawBody?.quoteId,
       uid,
       firestore,
     }).catch((error) => {
       console.error('Kon Firestore calculatiedata niet laden voor Werk & Levering:', error);
-      return '';
+      return { prompt: '', jobs: [] } as QuoteCalculationContext;
     });
     const bodyWithContext: RequestBody = {
       ...(rawBody || {}),
-      quoteCalculationContext: quoteCalculationContext || rawBody?.quoteCalculationContext,
+      quoteCalculationContext: quoteCalculation.prompt || rawBody?.quoteCalculationContext,
+      sourceJobs: quoteCalculation.jobs,
     };
     const prompt = buildPromptFromBody(bodyWithContext);
 
@@ -1166,12 +1383,52 @@ export async function POST(request: Request) {
       );
     }
 
+    const expectedJobCount = getNoteJobs(bodyWithContext.noteJobs).length || quoteCalculation.jobs.length;
+    const firstStructured = extractDirectStructured(result);
+    const firstScopeCount = firstStructured?.jobs.length
+      ? firstStructured.jobs.reduce((count, job) => count + job.work_scope.length, 0)
+      : firstStructured?.work_scope.length || 0;
+    const firstMissingNotes = getMissingNoteRequirements(firstStructured, bodyWithContext.notesContext);
+    const calculationJobsMissing = expectedJobCount > 0 && firstScopeCount < expectedJobCount;
+    if (calculationJobsMissing || firstMissingNotes.length > 0) {
+      const correctionPrompt = [
+        prompt,
+        'CORRECTIE VAN HET VORIGE ANTWOORD:',
+        calculationJobsMissing
+          ? `Het vorige antwoord bevatte ${firstScopeCount} werkzaamheden voor ${expectedJobCount} opgegeven klussen en is daardoor onvolledig.`
+          : '',
+        firstMissingNotes.length > 0
+          ? `Deze expliciete gebruikersnotities ontbreken nog: ${firstMissingNotes.map((note) => `"${note}"`).join('; ')}`
+          : '',
+        `Geef opnieuw JSON met één volledige work_scope-regel voor iedere Klus 1 t/m ${expectedJobCount}, in dezelfde volgorde, plus iedere aanvullende concrete werkzaamheid uit de gebruikersnotities. Combineer kenmerken van dezelfde klus in één regel.`,
+        `Vorig antwoord: ${JSON.stringify(result)}`,
+      ].filter(Boolean).join('\n\n');
+      try {
+        result = await callOpenAiWorkDescription(apiKey, correctionPrompt);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Onbekende fout';
+        return NextResponse.json(
+          { error: `Werk & Levering was onvolledig en kon niet worden hersteld: ${message}` },
+          { status: 502 },
+        );
+      }
+    }
+
     const directStructured = extractDirectStructured(result);
     if (directStructured && flattenStructuredWorkDescription(directStructured).length > 0) {
-      const structured = enforceGenerationRules(
-        sanitizeWorkDescriptionStructured(directStructured),
-        bodyWithContext,
+      const structured = enforceRequiredMaatwerkCoverage(
+        enforceGenerationRules(
+          sanitizeWorkDescriptionStructured(directStructured),
+          bodyWithContext,
+        ),
+        bodyWithContext.notesContext,
       );
+      const missingNotes = getMissingNoteRequirements(structured, bodyWithContext.notesContext);
+      if (missingNotes.length > 0) {
+        return NextResponse.json({
+          error: `Werk & Levering is niet opgeslagen omdat gebruikersnotities ontbreken: ${missingNotes.join(' | ')}`,
+        }, { status: 502 });
+      }
       const flattened = flattenStructuredWorkDescription(structured);
       return NextResponse.json({
         werkbeschrijving: flattened,
@@ -1181,10 +1438,19 @@ export async function POST(request: Request) {
 
     const directWerkbeschrijving = extractDirectWerkbeschrijving(result);
     if (directWerkbeschrijving.length > 0) {
-      const structured = enforceGenerationRules(
-        toStructuredWorkDescription({ werkbeschrijving: directWerkbeschrijving }),
-        bodyWithContext,
+      const structured = enforceRequiredMaatwerkCoverage(
+        enforceGenerationRules(
+          toStructuredWorkDescription({ werkbeschrijving: directWerkbeschrijving }),
+          bodyWithContext,
+        ),
+        bodyWithContext.notesContext,
       );
+      const missingNotes = getMissingNoteRequirements(structured, bodyWithContext.notesContext);
+      if (missingNotes.length > 0) {
+        return NextResponse.json({
+          error: `Werk & Levering is niet opgeslagen omdat gebruikersnotities ontbreken: ${missingNotes.join(' | ')}`,
+        }, { status: 502 });
+      }
       const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
       return NextResponse.json({
         werkbeschrijving: filteredWerkbeschrijving,
@@ -1202,10 +1468,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Lege werkbeschrijving ontvangen.' }, { status: 502 });
     }
 
-    const structured = enforceGenerationRules(
-      toStructuredWorkDescription({ werkbeschrijving }),
-      bodyWithContext,
+    const structured = enforceRequiredMaatwerkCoverage(
+      enforceGenerationRules(
+        toStructuredWorkDescription({ werkbeschrijving }),
+        bodyWithContext,
+      ),
+      bodyWithContext.notesContext,
     );
+    const missingNotes = getMissingNoteRequirements(structured, bodyWithContext.notesContext);
+    if (missingNotes.length > 0) {
+      return NextResponse.json({
+        error: `Werk & Levering is niet opgeslagen omdat gebruikersnotities ontbreken: ${missingNotes.join(' | ')}`,
+      }, { status: 502 });
+    }
     const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
     return NextResponse.json({
       werkbeschrijving: filteredWerkbeschrijving,

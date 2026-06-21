@@ -111,14 +111,13 @@ function updateActiveJob(
   };
 }
 
-export function WorkDescriptionWorkspace({
+export function LegacyWorkDescriptionWorkspace({
   value,
   mode,
   onModeChange,
   onChange,
   onGenerate,
   isGenerating,
-  isAutoSaving,
 }: WorkDescriptionWorkspaceProps) {
   const jobs = useMemo(() => normalizeJobs(value), [value]);
   const [activeIndexLocal, setActiveIndexLocal] = useState(value.activeJobIndex || 0);
@@ -218,7 +217,6 @@ export function WorkDescriptionWorkspace({
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               Genereer
             </Button>
-            {isAutoSaving ? <span className="self-center text-xs text-muted-foreground">Opslaan...</span> : null}
           </div>
 
           {!validation.valid ? (
@@ -305,6 +303,151 @@ export function WorkDescriptionWorkspace({
         {renderRows('excluded', 'Niet inbegrepen', 'Expliciete uitsluiting')}
       </div>
 
+    </div>
+  );
+}
+
+export function WorkDescriptionWorkspace({
+  value,
+  mode,
+  onModeChange,
+  onChange,
+  onGenerate,
+  isGenerating,
+}: WorkDescriptionWorkspaceProps) {
+  const jobs = useMemo(() => normalizeJobs(value), [value]);
+  const combinedForFinish = useMemo(() => ({
+    ...value,
+    work_scope: jobs.flatMap((job) => job.work_scope),
+  }), [jobs, value]);
+  const automaticFinishLevel = useMemo(() => inferWorkDeliveryFinishLevel(combinedForFinish), [combinedForFinish]);
+  const validation = useMemo(() => validateWorkDeliveryScope({
+    ...value,
+    work_scope: jobs.flatMap((job) => job.work_scope),
+  }), [jobs, value]);
+
+  useEffect(() => {
+    if (mode === 'preview') onModeChange('edit');
+  }, [mode, onModeChange]);
+
+  useEffect(() => {
+    if (value.finishLevel === automaticFinishLevel) return;
+    onChange({ ...value, finishLevel: automaticFinishLevel });
+  }, [automaticFinishLevel, onChange, value]);
+
+  const setRootField = <K extends keyof WorkDescriptionStructured>(key: K, fieldValue: WorkDescriptionStructured[K]) => {
+    onChange({ ...value, [key]: fieldValue });
+  };
+
+  const setSafetyField = (key: 'afvalAfvoeren' | 'schilderwerkInbegrepen' | 'stucwerkInbegrepen' | 'plamuurwerkInbegrepen' | 'kitwerkInbegrepen' | 'steigerInbegrepen' | 'sloopwerkInbegrepen' | 'nadenVullenInbegrepen', checked: boolean) => {
+    const safe = enforceWorkDeliverySafety({ ...value, [key]: checked });
+    onChange({ ...value, ...safe, jobs });
+  };
+
+  const updateJob = (jobIndex: number, updater: (job: WorkDescriptionJob) => WorkDescriptionJob) => {
+    const nextJobs = jobs.map((job, index) => index === jobIndex ? updater(job) : job);
+    onChange({ ...value, jobs: nextJobs });
+  };
+
+  const renderJobRows = (job: WorkDescriptionJob, jobIndex: number, key: 'work_scope' | 'dimensions', title: string, placeholder: string) => (
+    <WorkDescriptionSectionEditor
+      title={title}
+      rows={ensureRows(rows(job[key]))}
+      placeholder={placeholder}
+      onChangeRow={(rowIndex, rowValue) => updateJob(jobIndex, (current) => {
+        const next = [...rows(current[key])];
+        next[rowIndex] = rowValue;
+        return { ...current, [key]: ensureRows(next) };
+      })}
+      onAddRow={() => updateJob(jobIndex, (current) => ({ ...current, [key]: [...rows(current[key]), ''] }))}
+      onRemoveRow={(rowIndex) => updateJob(jobIndex, (current) => ({ ...current, [key]: rows(current[key]).filter((_, index) => index !== rowIndex) }))}
+      onMoveRow={(rowIndex, direction) => updateJob(jobIndex, (current) => {
+        const next = [...rows(current[key])];
+        const target = direction === 'up' ? rowIndex - 1 : rowIndex + 1;
+        if (target < 0 || target >= next.length) return current;
+        [next[rowIndex], next[target]] = [next[target], next[rowIndex]];
+        return { ...current, [key]: next };
+      })}
+    />
+  );
+
+  const renderGlobalRows = (key: 'included' | 'excluded', title: string, placeholder: string) => (
+    <WorkDescriptionSectionEditor
+      title={title}
+      rows={ensureRows(rows(value[key]))}
+      placeholder={placeholder}
+      onChangeRow={(index, rowValue) => {
+        const next = [...rows(value[key])];
+        next[index] = rowValue;
+        setRootField(key, ensureRows(next));
+      }}
+      onAddRow={() => setRootField(key, [...rows(value[key]), ''])}
+      onRemoveRow={(index) => setRootField(key, rows(value[key]).filter((_, rowIndex) => rowIndex !== index))}
+      onMoveRow={(index, direction) => {
+        const next = [...rows(value[key])];
+        const target = direction === 'up' ? index - 1 : index + 1;
+        if (target < 0 || target >= next.length) return;
+        [next[index], next[target]] = [next[target], next[index]];
+        setRootField(key, next);
+      }}
+    />
+  );
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-border bg-card/50">
+        <CardHeader className="pb-3"><CardTitle className="text-base">Werk &amp; Levering</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="success" size="sm" onClick={() => onGenerate('full')} disabled={isGenerating}>
+              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              Genereer
+            </Button>
+          </div>
+          {!validation.valid ? (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+              <div className="mb-1 flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4" /> Nog niet gereed voor PDF of versturen</div>
+              <ul className="list-disc space-y-1 pl-5">{validation.errors.map((error) => <li key={error}>{error}</li>)}</ul>
+            </div>
+          ) : null}
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {([
+              ['afvalAfvoeren', 'Afval afvoeren'], ['schilderwerkInbegrepen', 'Schilderwerk'], ['stucwerkInbegrepen', 'Stucwerk'],
+              ['plamuurwerkInbegrepen', 'Plamuurwerk'], ['kitwerkInbegrepen', 'Kitwerk'], ['steigerInbegrepen', 'Steiger'],
+              ['sloopwerkInbegrepen', 'Sloopwerk'], ['nadenVullenInbegrepen', 'Naden vullen'],
+            ] as const).map(([key, label]) => (
+              <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+                <Label>{label}</Label><Switch checked={value[key] === true} onCheckedChange={(checked) => setSafetyField(key, checked)} />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border bg-card/50">
+        <CardContent className="grid gap-3 pt-6 md:grid-cols-2">
+          <div className="space-y-1"><Label>Titel</Label><Input value={value.title} onChange={(event) => setRootField('title', event.target.value)} /></div>
+          <div className="space-y-1"><Label>Afwerkingsniveau</Label><div className="flex h-10 items-center rounded-md border border-input bg-muted/30 px-3 text-sm">{getFinishLevelLabel(automaticFinishLevel)}</div></div>
+          <div className="space-y-1 md:col-span-2"><Label>Korte omschrijving</Label><Textarea value={value.summary} onChange={(event) => setRootField('summary', event.target.value)} rows={3} /></div>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-4">
+        {jobs.map((job, jobIndex) => (
+          <Card key={`${job.title}-${jobIndex}`} className="border-border bg-card/40">
+            <CardHeader className="pb-3">
+              <Input className="text-base font-semibold" value={job.title} onChange={(event) => updateJob(jobIndex, (current) => ({ ...current, title: event.target.value }))} />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {renderJobRows(job, jobIndex, 'work_scope', 'Werkzaamheden', 'Beschrijf de werkzaamheden voor deze klus')}
+              {renderJobRows(job, jobIndex, 'dimensions', 'Maatvoering', 'Bijv. Lengte = 4.200 mm | Hoogte = 2.600 mm')}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {renderGlobalRows('included', 'Inbegrepen', 'Expliciet inbegrepen onderdeel')}
+      {renderGlobalRows('excluded', 'Niet inbegrepen', 'Expliciete uitsluiting')}
     </div>
   );
 }

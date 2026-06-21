@@ -558,20 +558,20 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
         work_scope: activeJob ? [...activeJob.work_scope] : normalizeEditableWorkDescriptionItems(row.work_scope),
         materials: activeJob ? [...activeJob.materials] : normalizeEditableWorkDescriptionItems(row.materials),
         dimensions: activeJob ? [...activeJob.dimensions] : normalizeEditableWorkDescriptionItems(row.dimensions),
-        included: activeJob ? [...activeJob.included] : normalizeEditableWorkDescriptionItems(row.included),
-        excluded: activeJob ? [...activeJob.excluded] : normalizeEditableWorkDescriptionItems(row.excluded),
+        included: row.included !== undefined ? normalizeEditableWorkDescriptionItems(row.included) : (activeJob ? [...activeJob.included] : []),
+        excluded: row.excluded !== undefined ? normalizeEditableWorkDescriptionItems(row.excluded) : (activeJob ? [...activeJob.excluded] : []),
         internal_notes: activeJob ? [...activeJob.internal_notes] : normalizeEditableWorkDescriptionItems(row.internal_notes),
-        afvalAfvoeren: activeJob?.afvalAfvoeren === true,
-        schilderwerkInbegrepen: activeJob?.schilderwerkInbegrepen === true,
-        stucwerkInbegrepen: activeJob?.stucwerkInbegrepen === true,
-        plamuurwerkInbegrepen: activeJob?.plamuurwerkInbegrepen === true,
-        kitwerkInbegrepen: activeJob?.kitwerkInbegrepen === true,
-        steigerInbegrepen: activeJob?.steigerInbegrepen === true,
-        sloopwerkInbegrepen: activeJob?.sloopwerkInbegrepen === true,
-        nadenVullenInbegrepen: activeJob?.nadenVullenInbegrepen === true,
-        electricalScope: activeJob?.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE },
-        finishLevel: activeJob?.finishLevel || 'constructief_gereed',
-        customFinishDescription: activeJob?.customFinishDescription,
+        afvalAfvoeren: typeof row.afvalAfvoeren === 'boolean' ? row.afvalAfvoeren : activeJob?.afvalAfvoeren === true,
+        schilderwerkInbegrepen: typeof row.schilderwerkInbegrepen === 'boolean' ? row.schilderwerkInbegrepen : activeJob?.schilderwerkInbegrepen === true,
+        stucwerkInbegrepen: typeof row.stucwerkInbegrepen === 'boolean' ? row.stucwerkInbegrepen : activeJob?.stucwerkInbegrepen === true,
+        plamuurwerkInbegrepen: typeof row.plamuurwerkInbegrepen === 'boolean' ? row.plamuurwerkInbegrepen : activeJob?.plamuurwerkInbegrepen === true,
+        kitwerkInbegrepen: typeof row.kitwerkInbegrepen === 'boolean' ? row.kitwerkInbegrepen : activeJob?.kitwerkInbegrepen === true,
+        steigerInbegrepen: typeof row.steigerInbegrepen === 'boolean' ? row.steigerInbegrepen : activeJob?.steigerInbegrepen === true,
+        sloopwerkInbegrepen: typeof row.sloopwerkInbegrepen === 'boolean' ? row.sloopwerkInbegrepen : activeJob?.sloopwerkInbegrepen === true,
+        nadenVullenInbegrepen: typeof row.nadenVullenInbegrepen === 'boolean' ? row.nadenVullenInbegrepen : activeJob?.nadenVullenInbegrepen === true,
+        electricalScope: isObject(row.electricalScope) ? normalizeWorkDescriptionJob({ electricalScope: row.electricalScope }).electricalScope : (activeJob?.electricalScope || { ...DEFAULT_ELECTRICAL_SCOPE }),
+        finishLevel: normalizeWorkDescriptionText(row.finishLevel) as FinishLevel || activeJob?.finishLevel || 'constructief_gereed',
+        customFinishDescription: normalizeWorkDescriptionText(row.customFinishDescription) || activeJob?.customFinishDescription,
         sections: {
             voorbereiding: activeJob
                 ? [...activeJob.sections.voorbereiding]
@@ -613,10 +613,7 @@ export function completeStructuredWorkDescription(
         Math.min(structured.activeJobIndex || 0, Math.max(0, jobs.length - 1)),
     );
     const activeJob = jobs[activeIndex];
-    const completedRoot = completeWorkDeliveryScope(
-        activeJob || structured,
-        fallbackTitle,
-    );
+    const completedRoot = completeWorkDeliveryScope(structured, fallbackTitle);
 
     return {
         ...structured,

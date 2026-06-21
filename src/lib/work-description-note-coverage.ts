@@ -14,6 +14,7 @@ function normalizeForComparison(value: string): string {
     .replace(/\bweghalen\b/g, 'verwijderen')
     .replace(/\bverwijderd?\b/g, 'verwijderen')
     .replace(/\bbestaande\b/g, 'oude')
+    .replace(/(\d)\s*m(?=\s+(?:multiplex|underlayment|plaat|platen)\b)/g, '$1mm')
     .replace(/(\d)\s*[x×]\s*(\d)/g, '$1x$2')
     .replace(/(\d)[.,](\d)/g, '$1.$2')
     .replace(/[^a-z0-9.]+/g, ' ')
@@ -35,29 +36,140 @@ function isHeading(line: string): boolean {
   return !normalized || normalized === 'maatwerk' || normalized.startsWith('notitieblok');
 }
 
-function isMeasurementContinuation(line: string): boolean {
-  const words = line.trim().split(/\s+/);
-  if (words.length > 5 || !/\d/.test(line)) return false;
-  return !/(aanbrengen|afwerken|aansluiten|controleren|demonteren|herstellen|leiden|maken|monteren|opnieuw|plaatsen|terugleggen|vernieuwen|vervangen|zetten)/i.test(line);
+function isMaatwerkHeading(value: string): boolean {
+  return /^#*\s*maatwerk\b\s*:?\s*$/i.test(value.trim());
+}
+
+export function extractRequiredMaatwerkRequirements(notesContext: unknown): string[] {
+  if (typeof notesContext !== 'string' || !notesContext.trim()) return [];
+
+  const requirements: string[] = [];
+  let inMaatwerkBlock = false;
+
+  for (const rawLine of notesContext.split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    const noteMatch = trimmed.match(/^notitie:\s*(.*)$/i);
+    if (noteMatch) {
+      inMaatwerkBlock = isMaatwerkHeading(noteMatch[1]);
+      continue;
+    }
+
+    if (/^#{1,4}\s*/.test(trimmed)) {
+      inMaatwerkBlock = isMaatwerkHeading(trimmed.replace(/^#{1,4}\s*/, ''));
+      continue;
+    }
+
+    if (!inMaatwerkBlock || !trimmed) continue;
+    const cleaned = trimmed.replace(/^[-*•]\s*/, '').trim();
+    if (!cleaned || !/\d/.test(cleaned) || !/\b(?:lengte|breedte|dikte)\b/i.test(cleaned)) continue;
+    requirements.push(cleaned);
+  }
+
+  return Array.from(new Set(requirements));
 }
 
 export function extractRequiredNoteRequirements(notesContext: unknown): string[] {
   if (typeof notesContext !== 'string' || !notesContext.trim()) return [];
 
   const requirements: string[] = [];
-  for (const rawLine of notesContext.split(/\r?\n/)) {
-    if (isHeading(rawLine)) continue;
-    const line = rawLine.replace(/^[-*•]\s*/, '').replace(/^#+\s*/, '').trim();
-    if (/^maatwerk:\s*$/i.test(line)) continue;
+  let activeParts: string[] = [];
+  let inMaatwerkBlock = false;
+  const flushActive = () => {
+    const combined = activeParts.join(' ').replace(/\s+/g, ' ').trim();
+    if (combined && getSignificantTokens(combined).length > 0) requirements.push(combined);
+    activeParts = [];
+  };
 
-    if (isMeasurementContinuation(line) && requirements.length > 0) {
-      requirements[requirements.length - 1] = `${requirements[requirements.length - 1]}; ${line}`;
-    } else {
-      requirements.push(line);
+  for (const rawLine of notesContext.split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    const noteMatch = trimmed.match(/^notitie:\s*(.*)$/i);
+    if (noteMatch) {
+      flushActive();
+      const noteTitle = noteMatch[1].trim();
+      if (/^#+\s*maatwerk\b\s*:?\s*$/i.test(noteTitle) || /^maatwerk\b\s*:?\s*$/i.test(noteTitle)) {
+        inMaatwerkBlock = true;
+        continue;
+      }
+      inMaatwerkBlock = false;
+      if (noteTitle) activeParts.push(noteTitle);
+      continue;
     }
+    if (/^#{1,4}\s*maatwerk\b\s*:?\s*$/i.test(trimmed) || /^maatwerk:\s*$/i.test(trimmed)) {
+      inMaatwerkBlock = true;
+      continue;
+    }
+    if (
+      inMaatwerkBlock
+      && /\d/.test(trimmed)
+      && /\b(?:lengte|breedte|dikte)\b/i.test(trimmed)
+    ) {
+      const maatwerkLine = trimmed.replace(/^[-*•]\s*/, '').trim();
+      if (maatwerkLine) requirements.push(maatwerkLine);
+      continue;
+    }
+    if (isHeading(rawLine) || !trimmed) continue;
+    inMaatwerkBlock = false;
+    const line = rawLine
+      .replace(/^[-*•]\s*/, '')
+      .replace(/^#+\s*/, '')
+      .trim();
+    if (line) activeParts.push(line);
+  }
+  flushActive();
+
+  return Array.from(new Set([
+    ...requirements,
+    ...extractRequiredMaatwerkRequirements(notesContext),
+  ]));
+}
+
+export function enforceRequiredMaatwerkCoverage(
+  generated: WorkDescriptionStructured,
+  notesContext: unknown,
+): WorkDescriptionStructured {
+  const requirements = extractRequiredMaatwerkRequirements(notesContext);
+  if (requirements.length === 0) return generated;
+
+  const normalizeLine = (value: string) => normalizeForComparison(value);
+  const appendMissingDimensions = (dimensions: string[]) => {
+    const existing = new Set(dimensions.map(normalizeLine));
+    return [
+      ...dimensions,
+      ...requirements.filter((requirement) => !existing.has(normalizeLine(requirement))),
+    ];
+  };
+  const existingScope = [
+    ...generated.work_scope,
+    ...generated.jobs.flatMap((job) => job.work_scope),
+  ];
+  const maatwerkScope = `Uitvoeren van maatwerk voor ${requirements.length} ${requirements.length === 1 ? 'onderdeel' : 'onderdelen'} volgens de vastgelegde maatvoering.`;
+  const needsMaatwerkScope = !existingScope.some((row) => /\bmaatwerk\b/i.test(row));
+  const activeIndex = Math.max(0, Math.min(generated.activeJobIndex || 0, Math.max(0, generated.jobs.length - 1)));
+
+  if (generated.jobs.length === 0) {
+    return {
+      ...generated,
+      work_scope: needsMaatwerkScope ? [...generated.work_scope, maatwerkScope] : generated.work_scope,
+      dimensions: appendMissingDimensions(generated.dimensions),
+    };
   }
 
-  return requirements.filter((line) => getSignificantTokens(line).length > 0);
+  const jobs = generated.jobs.map((job, index) => index === activeIndex
+    ? {
+        ...job,
+        work_scope: needsMaatwerkScope ? [...job.work_scope, maatwerkScope] : job.work_scope,
+        dimensions: appendMissingDimensions(job.dimensions),
+      }
+    : job);
+  const activeJob = jobs[activeIndex];
+
+  return {
+    ...generated,
+    jobs,
+    activeJobIndex: activeIndex,
+    work_scope: activeJob.work_scope,
+    dimensions: activeJob.dimensions,
+  };
 }
 
 export function isNoteRequirementCovered(requirement: string, generatedText: string): boolean {
@@ -253,9 +365,17 @@ export function enforceRequiredNoteCoverage(
   notesContext: unknown,
   shouldExclude: (value: string) => boolean = () => false,
 ): WorkDescriptionStructured {
+  const scopeRows = [
+    ...generated.work_scope,
+    ...generated.jobs.flatMap((job) => job.work_scope),
+  ];
+  const missingRequirements = extractRequiredNoteRequirements(notesContext)
+    .filter((requirement) => !shouldExclude(requirement))
+    .filter((requirement) => !scopeRows.some((row) => isNoteRequirementCovered(requirement, row)))
+    .map(formatRequiredNoteStep);
   const totalFacts = extractExplicitTotalFacts(notesContext)
     .filter((fact) => !shouldExclude(fact));
-  if (totalFacts.length === 0) return generated;
+  if (totalFacts.length === 0 && missingRequirements.length === 0) return generated;
 
   const generatedText = [
     generated.title,
@@ -277,7 +397,6 @@ export function enforceRequiredNoteCoverage(
   ].join('\n');
 
   const missingTotalFacts = totalFacts.filter((fact) => !isNoteRequirementCovered(fact, generatedText));
-  if (missingTotalFacts.length === 0) return generated;
 
   const nextSummary = appendTotalFactsToSummary(generated.summary, missingTotalFacts);
 
@@ -287,6 +406,7 @@ export function enforceRequiredNoteCoverage(
       ...generated,
       context: nextSummary,
       summary: nextSummary,
+      work_scope: [...generated.work_scope, ...missingRequirements],
     };
   }
 
@@ -296,6 +416,7 @@ export function enforceRequiredNoteCoverage(
           ...job,
           context: appendTotalFactsToSummary(job.summary, missingTotalFacts),
           summary: appendTotalFactsToSummary(job.summary, missingTotalFacts),
+          work_scope: [...job.work_scope, ...missingRequirements],
         }
       : job
   ));

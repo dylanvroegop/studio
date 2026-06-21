@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useTransition, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, PlusCircle, Trash2, AlertCircle, Maximize2, Square, Slash, Triangle, CornerDownRight, ArrowDownToLine, Info, X, Search, ChevronDown, ChevronUp, Eye, EyeOff, ArrowDownUp } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Trash2, AlertCircle, Maximize2, Square, Slash, Triangle, CornerDownRight, ArrowDownToLine, Info, X, Search, ChevronDown, ChevronUp, Eye, EyeOff, ArrowDownUp, Copy } from 'lucide-react';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -29,6 +29,8 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -64,6 +66,11 @@ import {
   MeasurementOpeningIntent,
   takeMeasurementOpeningIntent,
 } from '@/lib/measurement-opening-intent';
+import {
+  assignCalculationMeasurementsToNoteJob,
+  buildCalculationMeasurementAssignments,
+  getQuoteNoteJobTitles,
+} from '@/lib/calculation-note-assignment';
 
 
 interface VakInputCardProps {
@@ -344,6 +351,12 @@ export default function GenericMeasurementPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [measurementAssignmentOpen, setMeasurementAssignmentOpen] = useState(false);
+  const [measurementAssignmentJob, setMeasurementAssignmentJob] = useState('');
+  const [measurementAssignmentNewTitle, setMeasurementAssignmentNewTitle] = useState('');
+  const [measurementAssignmentOptions, setMeasurementAssignmentOptions] = useState<string[]>([]);
+  const [pendingMeasurementLines, setPendingMeasurementLines] = useState<string[]>([]);
+  const [pendingQuoteNotes, setPendingQuoteNotes] = useState('');
   const [isPending, startTransition] = useTransition();
   const AUTOSAVE_DEBOUNCE_MS = 9000;
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -413,6 +426,8 @@ export default function GenericMeasurementPage() {
   const [materialenLijstSnapshot, setMaterialenLijstSnapshot] = useState<Record<string, any>>({});
   const [pendingOpeningIntent, setPendingOpeningIntent] = useState<MeasurementOpeningIntent | null>(null);
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
+  const [isCopyItemDialogOpen, setIsCopyItemDialogOpen] = useState(false);
+  const [copySourceIndexes, setCopySourceIndexes] = useState<Set<number>>(() => new Set());
   const [pendingDeleteOpening, setPendingDeleteOpening] = useState<{ itemIndex: number; openingIndex: number } | null>(null);
   const [missingFieldTarget, setMissingFieldTarget] = useState<{ itemIndex: number; fieldKey: string } | null>(null);
   const [expandedDrawingIndex, setExpandedDrawingIndex] = useState<number | null>(null);
@@ -2756,6 +2771,41 @@ export default function GenericMeasurementPage() {
     setItems(prev => [...prev, newItem]);
   };
 
+  const openCopyItemDialog = () => {
+    setCopySourceIndexes(items.length > 0 ? new Set([items.length - 1]) : new Set());
+    setIsCopyItemDialogOpen(true);
+  };
+
+  const toggleCopySource = (index: number) => {
+    setCopySourceIndexes((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  const copySelectedItems = () => {
+    const selectedIndexes = Array.from(copySourceIndexes).sort((a, b) => a - b);
+    if (selectedIndexes.length === 0) return;
+
+    shouldScrollToLatestAddedItemRef.current = true;
+    setItems((prev) => {
+      const clones = selectedIndexes
+        .map((index) => prev[index])
+        .filter(Boolean)
+        .map((source) => typeof structuredClone === 'function'
+          ? structuredClone(source)
+          : JSON.parse(JSON.stringify(source)));
+      return clones.length > 0 ? [...prev, ...clones] : prev;
+    });
+    setIsCopyItemDialogOpen(false);
+    toast({
+      title: `${selectedIndexes.length} ${selectedIndexes.length === 1 ? itemLabel : 'boeiboorden'} gekopieerd`,
+      description: 'De kopieën zijn apart toegevoegd en kunnen onafhankelijk worden aangepast.',
+    });
+  };
+
   useEffect(() => {
     itemContainerRefs.current = itemContainerRefs.current.slice(0, items.length);
   }, [items.length]);
@@ -4058,6 +4108,92 @@ export default function GenericMeasurementPage() {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [runAutosaveDraft]);
 
+  const generateDrawingSnapshotsInBackground = useCallback(async (): Promise<void> => {
+    if (!firestore || !jobConfig) return;
+
+    const drawableItems = (items || [])
+      .map((_, index) => ({ element: visualizerRefs.current[index], index }))
+      .filter((entry): entry is { element: HTMLDivElement; index: number } => Boolean(entry.element));
+    if (drawableItems.length === 0) return;
+
+    const quoteRef = doc(firestore, 'quotes', quoteId);
+    const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`${label} timeout na ${ms}ms`)), ms);
+        });
+        return await Promise.race([promise, timeoutPromise]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    };
+
+    // Start every DOM capture synchronously before navigation can unmount this page.
+    // The expensive render, conversion and upload then continue without blocking save.
+    const captureTasks = drawableItems.map(async ({ element, index }) => {
+      const captureWidth = Math.max(1, element.offsetWidth);
+      const captureHeight = Math.max(1, element.offsetHeight);
+      const maxScaleForSize = Math.sqrt(6_000_000 / (captureWidth * captureHeight));
+      const snapshotScale = Math.max(1.5, Math.min(2, maxScaleForSize));
+      const canvas = await withTimeout(
+        html2canvas(element, {
+          backgroundColor: '#ffffff',
+          scale: snapshotScale,
+          logging: false,
+          useCORS: true,
+          allowTaint: true,
+        }),
+        12000,
+        `html2canvas item ${index + 1}`,
+      );
+      const blob = await withTimeout(
+        new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Afbeelding maken mislukt')), 'image/png');
+        }),
+        8000,
+        `toBlob item ${index + 1}`,
+      );
+      const auth = getAuth();
+      const storage = getStorage(auth.app);
+      const storagePath = index === 0
+        ? `visualisaties/${quoteId}/${klusId}.png`
+        : `visualisaties/${quoteId}/${klusId}-${index + 1}.png`;
+      const storageRef = ref(storage, storagePath);
+      await withTimeout(uploadBytes(storageRef, blob, { contentType: 'image/png' }), 10000, `upload item ${index + 1}`);
+      const url = await withTimeout(getDownloadURL(storageRef), 6000, `downloadUrl item ${index + 1}`);
+      return {
+        url,
+        title: `${jobConfig.measurementLabel || jobConfig.title.split(' ')[0] || 'Onderdeel'} ${index + 1}`,
+        index,
+      };
+    });
+    const completedCaptures = Promise.all(captureTasks);
+
+    try {
+      await updateDoc(quoteRef, {
+        [`klussen.${klusId}.visualisatieStatus`]: 'processing',
+        [`klussen.${klusId}.visualisatieStatusUpdatedAt`]: serverTimestamp(),
+        [`klussen.${klusId}.visualisatieError`]: deleteField(),
+      });
+      const snapshots = await completedCaptures;
+      await updateDoc(quoteRef, {
+        [`klussen.${klusId}.visualisatieUrl`]: snapshots[0]?.url || deleteField(),
+        [`klussen.${klusId}.visualisatieSnapshots`]: snapshots,
+        [`klussen.${klusId}.visualisatieStatus`]: 'ready',
+        [`klussen.${klusId}.visualisatieStatusUpdatedAt`]: serverTimestamp(),
+        [`klussen.${klusId}.visualisatieError`]: deleteField(),
+      });
+    } catch (error) {
+      console.error('Achtergrondverwerking tekening mislukt:', error);
+      await updateDoc(quoteRef, {
+        [`klussen.${klusId}.visualisatieStatus`]: 'error',
+        [`klussen.${klusId}.visualisatieStatusUpdatedAt`]: serverTimestamp(),
+        [`klussen.${klusId}.visualisatieError`]: error instanceof Error ? error.message : 'Onbekende fout',
+      }).catch((statusError) => console.error('Tekeningstatus opslaan mislukt:', statusError));
+    }
+  }, [firestore, items, jobConfig, klusId, quoteId]);
+
   const handleSave = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (!firestore || !jobConfig) return;
@@ -4142,94 +4278,6 @@ export default function GenericMeasurementPage() {
 
     setSaving(true);
     try {
-      const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
-        let timer: ReturnType<typeof setTimeout> | null = null;
-        try {
-          const timeoutPromise = new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new Error(`${label} timeout na ${ms}ms`)), ms);
-          });
-          return await Promise.race([promise, timeoutPromise]);
-        } finally {
-          if (timer) clearTimeout(timer);
-        }
-      };
-
-      const snapshotItemLabel = jobConfig.measurementLabel || jobConfig.title.split(' ')[0] || 'Item';
-      let visualisatieUrl: string | null = null;
-      let visualisatieSnapshots: Array<{ url: string; title: string; index: number }> = [];
-
-      try {
-        const auth = getAuth();
-        const storage = getStorage(auth.app);
-        const captured: Array<{ url: string; title: string; index: number }> = [];
-        const expectedSnapshotCount = items.length;
-
-        for (let index = 0; index < items.length; index += 1) {
-          const visualizerElement = visualizerRefs.current[index];
-          if (!visualizerElement) continue;
-
-          const captureWidth = Math.max(1, visualizerElement.offsetWidth);
-          const captureHeight = Math.max(1, visualizerElement.offsetHeight);
-          const maxSnapshotPixels = 6_000_000;
-          const maxScaleForSize = Math.sqrt(maxSnapshotPixels / (captureWidth * captureHeight));
-          const snapshotScale = Math.max(1.5, Math.min(2, maxScaleForSize));
-
-          const canvas = await withTimeout(
-            html2canvas(visualizerElement, {
-              backgroundColor: '#ffffff',
-              scale: snapshotScale,
-              logging: false,
-              useCORS: true,
-              allowTaint: true,
-            }),
-            12000,
-            `html2canvas item ${index + 1}`
-          );
-
-          const blob = await withTimeout(
-            new Promise<Blob>((resolve, reject) => {
-              canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Failed to create blob')), 'image/png');
-            }),
-            8000,
-            `toBlob item ${index + 1}`
-          );
-
-          const storagePath = index === 0
-            ? `visualisaties/${quoteId}/${klusId}.png`
-            : `visualisaties/${quoteId}/${klusId}-${index + 1}.png`;
-          const storageRef = ref(storage, storagePath);
-          await withTimeout(
-            uploadBytes(storageRef, blob, { contentType: 'image/png' }),
-            10000,
-            `upload visualisatie item ${index + 1}`
-          );
-          const downloadUrl = await withTimeout(
-            getDownloadURL(storageRef),
-            6000,
-            `downloadUrl item ${index + 1}`
-          );
-
-          captured.push({
-            url: downloadUrl,
-            title: `${snapshotItemLabel} ${index + 1}`,
-            index,
-          });
-        }
-
-        // Prevent overwriting existing full snapshot sets with partial captures.
-        if (captured.length === expectedSnapshotCount && captured.length > 0) {
-          visualisatieSnapshots = captured;
-          visualisatieUrl = captured[0].url;
-        } else {
-          console.warn('Skipping visualisatie update due to partial capture', {
-            captured: captured.length,
-            expected: expectedSnapshotCount,
-          });
-        }
-      } catch (uploadError) {
-        console.error('Error capturing visualization(s):', uploadError);
-      }
-
         const quoteRef = doc(firestore, 'quotes', quoteId);
 
         // Prepare items
@@ -4523,6 +4571,11 @@ export default function GenericMeasurementPage() {
           }, { allowEmptyArrays: true }),
           [`klussen.${klusId}.components`]: deleteField(),
           [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
+          ...(visualizerRefs.current.some(Boolean) ? {
+            [`klussen.${klusId}.visualisatieStatus`]: 'pending',
+            [`klussen.${klusId}.visualisatieStatusUpdatedAt`]: serverTimestamp(),
+            [`klussen.${klusId}.visualisatieError`]: deleteField(),
+          } : {}),
 
           // CLEANUP: Remove old slug-specific key
           [`klussen.${klusId}.${maatwerkKey}`]: deleteField(),
@@ -4536,16 +4589,41 @@ export default function GenericMeasurementPage() {
           }
         }
 
-        if (visualisatieUrl) {
-          updateData[`klussen.${klusId}.visualisatieUrl`] = visualisatieUrl;
-        }
-
-        if (visualisatieSnapshots.length > 0) {
-          updateData[`klussen.${klusId}.visualisatieSnapshots`] = visualisatieSnapshots;
-        }
-
         await updateDoc(quoteRef, updateData);
-        router.push(`/offertes/${quoteId}/overzicht`);
+        if (visualizerRefs.current.some(Boolean)) {
+          void generateDrawingSnapshotsInBackground();
+        }
+
+        const assignments = buildCalculationMeasurementAssignments(
+          processedItems,
+          fields,
+          jobConfig.measurementLabel || jobConfig.title,
+        );
+        if (assignments.length === 0) {
+          router.push(`/offertes/${quoteId}/overzicht`);
+          return;
+        }
+
+        const latestQuote = await getDoc(quoteRef);
+        const quoteNotes = String(latestQuote.data()?.notities || '');
+        const noteJobTitles = getQuoteNoteJobTitles(quoteNotes);
+        const assignmentLines = assignments.map((assignment) => assignment.line);
+
+        if (noteJobTitles.length === 1) {
+          await updateDoc(quoteRef, {
+            notities: assignCalculationMeasurementsToNoteJob(quoteNotes, noteJobTitles[0], assignmentLines),
+            updatedAt: serverTimestamp(),
+          });
+          router.push(`/offertes/${quoteId}/overzicht`);
+          return;
+        }
+
+        setPendingQuoteNotes(quoteNotes);
+        setPendingMeasurementLines(assignmentLines);
+        setMeasurementAssignmentOptions(noteJobTitles);
+        setMeasurementAssignmentJob(noteJobTitles[0] || '__new__');
+        setMeasurementAssignmentNewTitle(noteJobTitles.length === 0 ? jobConfig.title : '');
+        setMeasurementAssignmentOpen(true);
 
     } catch (error: any) {
       console.error(error);
@@ -4553,6 +4631,35 @@ export default function GenericMeasurementPage() {
         variant: 'destructive',
         title: 'Opslaan mislukt',
         description: error?.message || 'Onbekende fout bij opslaan.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmMeasurementAssignment = async () => {
+    if (!firestore) return;
+    const title = measurementAssignmentJob === '__new__'
+      ? measurementAssignmentNewTitle.trim()
+      : measurementAssignmentJob;
+    if (!title) {
+      toast({ variant: 'destructive', title: 'Vul een titel voor de werkzaamheden in.' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await updateDoc(doc(firestore, 'quotes', quoteId), {
+        notities: assignCalculationMeasurementsToNoteJob(pendingQuoteNotes, title, pendingMeasurementLines),
+        updatedAt: serverTimestamp(),
+      });
+      setMeasurementAssignmentOpen(false);
+      router.push(`/offertes/${quoteId}/overzicht`);
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Maatvoering koppelen mislukt',
+        description: error?.message || 'Probeer het opnieuw.',
       });
     } finally {
       setSaving(false);
@@ -4577,6 +4684,21 @@ export default function GenericMeasurementPage() {
   const backUrl = `/offertes/${quoteId}/klus/${klusId}/${categorySlug}/${jobSlug}/materialen`;
   const expandedDrawingItem = expandedDrawingIndex !== null ? items[expandedDrawingIndex] : null;
   const expandedDrawingTitle = expandedDrawingIndex !== null ? `${itemLabel} ${expandedDrawingIndex + 1}` : 'Tekening';
+  const getCopyItemSummary = (item: Record<string, any>): string => {
+    const shapeLabels: Record<string, string> = {
+      rectangle: 'Recht',
+      slope: 'Driehoek',
+      gable: 'Punt',
+      'l-shape': 'L-vorm',
+      'u-shape': 'U-vorm',
+    };
+    const dimensions = [
+      item.lengte ? `${item.lengte} mm lang` : '',
+      item.hoogte ? `${item.hoogte} mm hoog` : '',
+      item.breedte && item.breedte !== item.lengte ? `${item.breedte} mm breed` : '',
+    ].filter(Boolean);
+    return [shapeLabels[item.shape || 'rectangle'] || 'Vorm', ...dimensions].join(' • ');
+  };
 
   const updateExpandedDrawingField = (key: string, value: any) => {
     if (expandedDrawingIndex === null) return;
@@ -7211,13 +7333,131 @@ export default function GenericMeasurementPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={measurementAssignmentOpen} onOpenChange={() => {}}>
+        <DialogContent className="max-w-lg rounded-2xl border-white/10 bg-zinc-950 text-zinc-100">
+          <DialogTitle>Bij welke werkzaamheden hoort deze maatvoering?</DialogTitle>
+          <p className="text-sm text-zinc-400">
+            De berekening is opgeslagen. Koppel de ingevulde maten aan de juiste werkzaamheden voor Werk &amp; Levering.
+          </p>
+
+          {measurementAssignmentOptions.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="measurement-job">Werkzaamheden</Label>
+              <Select value={measurementAssignmentJob} onValueChange={setMeasurementAssignmentJob}>
+                <SelectTrigger id="measurement-job" className="border-white/10 bg-white/5">
+                  <SelectValue placeholder="Selecteer werkzaamheden" />
+                </SelectTrigger>
+                <SelectContent>
+                  {measurementAssignmentOptions.map((title) => (
+                    <SelectItem key={title} value={title}>{title}</SelectItem>
+                  ))}
+                  <SelectItem value="__new__">Nieuwe werkzaamheden</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {(measurementAssignmentOptions.length === 0 || measurementAssignmentJob === '__new__') && (
+            <div className="space-y-2">
+              <Label htmlFor="measurement-new-job-title">Titel werkzaamheden</Label>
+              <Input
+                id="measurement-new-job-title"
+                value={measurementAssignmentNewTitle}
+                onChange={(event) => setMeasurementAssignmentNewTitle(event.target.value)}
+                placeholder="Bijv. Gipsplafond plaatsen"
+                className="border-white/10 bg-white/5"
+              />
+            </div>
+          )}
+
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Maatvoering uit berekening</p>
+            <div className="space-y-1 text-sm text-zinc-300">
+              {pendingMeasurementLines.map((line, index) => (
+                <p key={`${line}-${index}`}>{line.replace(/^-\s*/, '')}</p>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button variant="success" disabled={saving} onClick={confirmMeasurementAssignment}>
+              {saving ? 'Koppelen...' : 'Koppelen en doorgaan'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="mobile-calm-pane fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
         <div className="max-w-5xl mx-auto px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <Button variant="outline" asChild disabled={disabledAll} className="w-full sm:w-auto"><Link href={backUrl}>Terug</Link></Button>
-          <Button type="button" variant="outline" onClick={addItem} disabled={disabledAll} className="w-full sm:w-auto"><PlusCircle className="mr-2 h-4 w-4" />Extra {itemLabel} toevoegen</Button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button type="button" variant="outline" onClick={addItem} disabled={disabledAll} className="w-full sm:w-auto"><PlusCircle className="mr-2 h-4 w-4" />Extra {itemLabel} toevoegen</Button>
+            {isBoeiboord && (
+              <Button type="button" variant="outline" onClick={openCopyItemDialog} disabled={disabledAll || items.length === 0} className="w-full sm:w-auto">
+                <Copy className="mr-2 h-4 w-4" />Boeiboord kopiëren
+              </Button>
+            )}
+          </div>
           <Button type="submit" variant="success" disabled={disabledAll} onClick={handleSave} className="w-full sm:w-auto">{saving ? 'Opslaan...' : 'Opslaan'}</Button>
         </div>
       </div>
+
+      <Dialog open={isCopyItemDialogOpen} onOpenChange={setIsCopyItemDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <div className="space-y-2">
+            <DialogTitle>Welke boeiboorden wil je kopiëren?</DialogTitle>
+            <DialogDescription>
+              Kies één of meerdere bestaande boeiboorden. Iedere kopie wordt los toegevoegd en kan daarna apart worden aangepast.
+            </DialogDescription>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm text-muted-foreground">{copySourceIndexes.size} geselecteerd</span>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setCopySourceIndexes(new Set())} disabled={copySourceIndexes.size === 0}>
+                Selectie wissen
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setCopySourceIndexes(new Set(items.map((_, index) => index)))} disabled={copySourceIndexes.size === items.length}>
+                Alles selecteren
+              </Button>
+            </div>
+          </div>
+
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto py-2">
+            {items.map((item, index) => {
+              const isSelected = copySourceIndexes.has(index);
+              return (
+                <button
+                  key={`copy-source-${index}`}
+                  type="button"
+                  onClick={() => toggleCopySource(index)}
+                  aria-pressed={isSelected}
+                  className={cn(
+                    'w-full rounded-xl border p-3 text-left transition-colors',
+                    isSelected
+                      ? 'border-primary/60 bg-primary/10'
+                      : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/[0.07]'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-foreground">Boeiboord {index + 1}</span>
+                    {isSelected && <span className="text-xs font-medium text-primary">Geselecteerd</span>}
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{getCopyItemSummary(item)}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsCopyItemDialogOpen(false)}>Annuleren</Button>
+            <Button type="button" variant="success" onClick={copySelectedItems} disabled={copySourceIndexes.size === 0}>
+              <Copy className="mr-2 h-4 w-4" />
+              {copySourceIndexes.size === 1 ? 'Kopie toevoegen' : `${copySourceIndexes.size} kopieën toevoegen`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={pendingDeleteIndex !== null} onOpenChange={(open) => !open && setPendingDeleteIndex(null)}>
         <AlertDialogContent className="rounded-2xl">

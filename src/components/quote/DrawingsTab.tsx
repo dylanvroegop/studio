@@ -28,6 +28,13 @@ interface DrawingSnapshotEntry {
     index: number;
 }
 
+type DrawingStatus = 'pending' | 'processing' | 'ready' | 'error' | '';
+
+function getDrawingStatus(job: Job): DrawingStatus {
+    const value = String((job as Job & { visualisatieStatus?: unknown }).visualisatieStatus || '').trim().toLowerCase();
+    return ['pending', 'processing', 'ready', 'error'].includes(value) ? value as DrawingStatus : '';
+}
+
 function getJobMeta(job: Job): { type?: string; slug?: string } {
     const topMeta = (job as any).meta || {};
     const maatwerkMeta = (job.maatwerk as any)?.meta || {};
@@ -179,6 +186,14 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
         () => drawingJobs.filter((job) => getDrawingSnapshotEntries(job).length === 0),
         [drawingJobs],
     );
+    const processingJobs = useMemo(
+        () => drawingJobs.filter((job) => ['pending', 'processing'].includes(getDrawingStatus(job))),
+        [drawingJobs],
+    );
+    const failedJobs = useMemo(
+        () => drawingJobs.filter((job) => getDrawingStatus(job) === 'error'),
+        [drawingJobs],
+    );
 
     const convertUrlToBase64 = async (url: string): Promise<string | null> => {
         try {
@@ -321,13 +336,48 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
                     onClick={() => {
                         void handleExportDrawingsPdf();
                     }}
-                    disabled={isExportingPdf || snapshotEntries.length === 0}
+                    disabled={isExportingPdf || snapshotEntries.length === 0 || processingJobs.length > 0}
                     aria-label={isExportingPdf ? 'PDF genereren...' : 'Exporteer tekeningen als PDF'}
                     title={isExportingPdf ? 'PDF genereren...' : 'Exporteer tekeningen als PDF'}
                 >
                     {isExportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 </Button>
             </div>
+
+            {processingJobs.length > 0 && (
+                <Card className="border-amber-500/30 bg-amber-500/5">
+                    <CardContent className="flex items-start gap-3 p-4 sm:p-5">
+                        <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-amber-400" />
+                        <div>
+                            <h4 className="text-sm font-semibold text-amber-300">Tekeningen worden op de achtergrond verwerkt</h4>
+                            <p className="mt-1 text-xs text-amber-200/80">
+                                Je kunt ondertussen verder werken. Exporteren wordt beschikbaar zodra alle tekeningen gereed zijn.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {failedJobs.length > 0 && (
+                <Card className="border-red-500/30 bg-red-500/5">
+                    <CardContent className="p-4 sm:p-5">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-semibold text-red-300">Tekening verwerken mislukt</h4>
+                                <p className="text-xs text-red-200/80">Open de betreffende calculatie en sla opnieuw op om het opnieuw te proberen.</p>
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {failedJobs.map((job, index) => (
+                                        <Badge key={job.id || index} variant="outline" className="border-red-500/30 bg-transparent text-red-200">
+                                            {getJobTitle(job)}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {snapshotEntries.map((entry, i) => (
                 <SnapshotDrawingSection
@@ -340,18 +390,18 @@ export function DrawingsTab({ quote }: DrawingsTabProps) {
                 />
             ))}
 
-            {missingSnapshotJobs.length > 0 && (
+            {missingSnapshotJobs.filter((job) => !['pending', 'processing'].includes(getDrawingStatus(job))).length > 0 && (
                 <Card className="bg-amber-500/5 border-amber-500/20">
                     <CardContent className="p-4 sm:p-5">
                         <div className="flex items-start gap-3">
                             <AlertTriangle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
                             <div className="space-y-2">
-                                <h4 className="text-sm font-semibold text-amber-300">Geen snapshot beschikbaar voor {missingSnapshotJobs.length} klus(sen)</h4>
+                                <h4 className="text-sm font-semibold text-amber-300">Geen snapshot beschikbaar voor {missingSnapshotJobs.filter((job) => !['pending', 'processing'].includes(getDrawingStatus(job))).length} klus(sen)</h4>
                                 <p className="text-xs text-amber-200/80">
                                     Deze klus(sen) hebben nog geen opgeslagen visualisatie. Open de klus en sla op om de snapshot te genereren.
                                 </p>
                                 <div className="flex flex-wrap gap-2 pt-1">
-                                    {missingSnapshotJobs.map((job, idx) => (
+                                    {missingSnapshotJobs.filter((job) => !['pending', 'processing'].includes(getDrawingStatus(job))).map((job, idx) => (
                                         <Badge key={job.id || idx} variant="outline" className="border-amber-500/30 text-amber-200 bg-transparent">
                                             {getJobTitle(job)}
                                         </Badge>

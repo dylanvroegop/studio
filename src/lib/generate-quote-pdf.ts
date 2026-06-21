@@ -711,113 +711,113 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     );
 
     if (data.settings.showFullWerkbeschrijving && data.werkbeschrijvingFull && data.werkbeschrijvingFull.length > 0) {
-        const drawStepList = (rows: string[]) => {
+        const drawStepList = (rows: string[], x: number, width: number) => {
             rows.forEach((stap, index) => {
-                checkPageBreak(15);
                 const stepNumber = `${index + 1}.`;
-                const stepText = doc.splitTextToSize(stap, pageWidth - margin - 30);
+                const stepText = doc.splitTextToSize(stap, width - 12);
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(80, 80, 80);
-                doc.text(stepNumber, margin, y);
+                doc.text(stepNumber, x, y);
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(50, 50, 50);
-                doc.text(stepText, margin + 10, y);
+                doc.text(stepText, x + 10, y);
                 y += Math.max(stepText.length * 4.5, 6) + 2;
             });
         };
 
-        const drawScopeSection = (label: string, rows: string[]) => {
+        const drawScopeSection = (label: string, rows: string[], x: number, width: number) => {
             const cleanRows = rows.map((line) => String(line || '').trim()).filter(Boolean);
             if (cleanRows.length === 0) return;
-            checkPageBreak(18);
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
             doc.setTextColor(45, 45, 45);
-            doc.text(label, margin, y);
+            doc.text(label, x, y);
             y += 6;
             doc.setFontSize(9);
-            drawStepList(cleanRows);
+            drawStepList(cleanRows, x, width);
             y += 3;
         };
 
-        const drawJobScope = (job: typeof structuredJobs[number]) => {
-            drawScopeSection('WERKZAAMHEDEN', job.work_scope);
-            drawScopeSection('MAATVOERING', job.dimensions);
-            drawScopeSection('INBEGREPEN', job.included);
-            drawScopeSection('NIET INBEGREPEN', job.excluded);
+        const measureRows = (rows: string[], width: number): number => rows
+            .map((line) => String(line || '').trim())
+            .filter(Boolean)
+            .reduce((height, line) => height + Math.max(doc.splitTextToSize(line, width - 12).length * 4.5, 6) + 2, 0);
+
+        const measureScopeSection = (rows: string[], width: number): number => {
+            const cleanRows = rows.map((line) => String(line || '').trim()).filter(Boolean);
+            return cleanRows.length > 0 ? 9 + measureRows(cleanRows, width) : 0;
         };
 
-        if (hasStructuredWorkDescription && structuredJobs.length > 1) {
-            structuredJobs.forEach((job, jobIndex) => {
-                doc.addPage();
-                y = margin;
+        const cardX = margin;
+        const cardWidth = pageWidth - (margin * 2);
+        const cardContentX = cardX + 5;
+        const cardContentWidth = cardWidth - 10;
+        const globalIncluded = structuredWorkDescription.included;
+        const globalExcluded = structuredWorkDescription.excluded;
 
-                drawSectionPageHeader('WERK & LEVERING');
+        const measureJobCard = (job: typeof structuredJobs[number], includeGlobalScope: boolean): number => {
+            doc.setFontSize(13);
+            doc.setFont('helvetica', 'bold');
+            const titleLines = doc.splitTextToSize(String(job.title || 'Werkzaamheden'), cardContentWidth);
+            return 15
+                + titleLines.length * 5.2
+                + measureScopeSection(job.work_scope, cardContentWidth)
+                + measureScopeSection(job.dimensions, cardContentWidth)
+                + (includeGlobalScope ? measureScopeSection(globalIncluded, cardContentWidth) : 0)
+                + (includeGlobalScope ? measureScopeSection(globalExcluded, cardContentWidth) : 0);
+        };
 
-                const jobTitle = String(job.title || '').trim() || `Werkzaamheden ${jobIndex + 1}`;
-                doc.setFontSize(14);
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(35, 35, 35);
-                const titleLines = doc.splitTextToSize(jobTitle, pageWidth - (margin * 2));
-                doc.text(titleLines, margin, y);
-                y += titleLines.length * 5.3 + 3;
-
-                const jobContext = String(job.summary || job.context || '').trim();
-                if (jobContext) {
-                    doc.setFontSize(9);
-                    doc.setFont('helvetica', 'italic');
-                    doc.setTextColor(90, 90, 90);
-                    const contextLines = doc.splitTextToSize(jobContext, pageWidth - (margin * 2));
-                    doc.text(contextLines, margin, y);
-                    y += contextLines.length * 4.3 + 4;
-                }
-
-                drawLine(y);
-                y += 8;
-
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(9);
-                doc.setTextColor(50, 50, 50);
-                drawJobScope(job);
-            });
-        } else {
+        let jobsOnCurrentPage = 0;
+        const startWorkDescriptionPage = () => {
             doc.addPage();
             y = margin;
-
             drawSectionPageHeader('WERK & LEVERING');
+            jobsOnCurrentPage = 0;
+        };
 
-            const singleJob = structuredJobs[0];
-            const resolvedTitle = String(singleJob?.title || data.korteTitel || '').trim();
-            if (resolvedTitle) {
-                doc.setFontSize(11);
+        startWorkDescriptionPage();
+
+        if (hasStructuredWorkDescription) {
+            structuredJobs.forEach((job, jobIndex) => {
+                const isLastJob = jobIndex === structuredJobs.length - 1;
+                const cardHeight = measureJobCard(job, isLastJob);
+                if (jobsOnCurrentPage >= 2 || y + cardHeight > pageHeight - bottomMargin) {
+                    startWorkDescriptionPage();
+                }
+
+                const cardTop = y;
+                y += 6;
+
+                const jobTitle = String(job.title || '').trim() || `Werkzaamheden ${jobIndex + 1}`;
+                doc.setFontSize(13);
                 doc.setFont('helvetica', 'bold');
-                doc.setTextColor(40, 40, 40);
-                const titleLines = doc.splitTextToSize(resolvedTitle, pageWidth - (margin * 2));
-                doc.text(titleLines, margin, y);
-                y += titleLines.length * 5 + 4;
-            }
+                doc.setTextColor(35, 35, 35);
+                const titleLines = doc.splitTextToSize(jobTitle, cardContentWidth);
+                doc.text(titleLines, cardContentX, y);
+                y += titleLines.length * 5.2 + 3;
 
-            const resolvedContext = String(singleJob?.summary || singleJob?.context || data.korteBeschrijving || '').trim();
-            if (resolvedContext) {
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'italic');
-                doc.setTextColor(90, 90, 90);
-                const contextLines = doc.splitTextToSize(resolvedContext, pageWidth - (margin * 2));
-                doc.text(contextLines, margin, y);
-                y += contextLines.length * 4.3 + 4;
-            }
+                doc.setDrawColor(215, 218, 222);
+                doc.setLineWidth(0.25);
+                doc.line(cardContentX, y, cardX + cardWidth - 5, y);
+                y += 7;
 
-            doc.setFontSize(9);
-            doc.setTextColor(50, 50, 50);
-            doc.setFont('helvetica', 'normal');
-            if (hasStructuredWorkDescription) {
-                drawJobScope(singleJob);
-            }
+                drawScopeSection('WERKZAAMHEDEN', job.work_scope, cardContentX, cardContentWidth);
+                drawScopeSection('MAATVOERING', job.dimensions, cardContentX, cardContentWidth);
+                if (isLastJob) {
+                    drawScopeSection('INBEGREPEN', globalIncluded, cardContentX, cardContentWidth);
+                    drawScopeSection('NIET INBEGREPEN', globalExcluded, cardContentX, cardContentWidth);
+                }
 
-            y += 5;
-            drawLine(y);
-            y += 8;
+                const cardBottom = y + 2;
+                doc.setDrawColor(205, 210, 215);
+                doc.setLineWidth(0.35);
+                doc.roundedRect(cardX, cardTop, cardWidth, cardBottom - cardTop, 2, 2, 'S');
+                y = cardBottom + 7;
+                jobsOnCurrentPage += 1;
+            });
+        }
 
+        if (y + 10 < pageHeight - bottomMargin) {
             doc.setFontSize(8);
             doc.setTextColor(100, 100, 100);
             doc.setFont('helvetica', 'italic');

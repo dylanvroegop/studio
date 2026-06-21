@@ -346,7 +346,9 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     summary: isIgnoredWorkDeliveryMaterial(input.summary) ? '' : input.summary,
     work_scope: deduplicateWorkScopeRows(input.work_scope).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),
     materials: sanitizeMaterialRows(input.materials),
-    dimensions: unique(input.dimensions).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),
+    // Equal measurements can represent multiple separate walls/parts. Preserve
+    // multiplicity and ordering instead of treating equal rows as duplicates.
+    dimensions: input.dimensions.map((line) => line.trim()).filter((line) => line && !isIgnoredWorkDeliveryMaterial(line)),
     included: unique(input.included).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),
     excluded: unique(input.excluded).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),
     internal_notes: unique(input.internal_notes).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),

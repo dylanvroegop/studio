@@ -25,7 +25,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, CalendarClock, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, CalendarClock, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -283,7 +283,13 @@ const WORK_DESCRIPTION_AUTOSAVE_DEBOUNCE_MS = 500;
 const WORK_DESCRIPTION_SAVING_INDICATOR_DELAY_MS = 900;
 
 function truncatePromptText(value: string, maxLength: number): string {
-    const normalized = value.replace(/\s+/g, ' ').trim();
+    const normalized = value
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
     if (!normalized) return '';
     return normalized.length > maxLength
         ? `${normalized.slice(0, maxLength).trim()}...`
@@ -307,6 +313,12 @@ interface QuoteNoteSection {
         thickness: string;
     }>;
     notes: string;
+}
+
+interface WorkDescriptionNoteJobInput {
+    title: string;
+    notes: string;
+    dimensions: string[];
 }
 
 function createQuoteNoteSectionId(): string {
@@ -351,13 +363,15 @@ function parseQuoteNoteMaatwerkLine(line: string): QuoteNoteSection['maatwerkLin
     const title = titleMatch ? titleMatch[1].trim() : '';
     const dimensionText = titleMatch ? titleMatch[2].trim() : cleaned;
 
-    const labelledMatch = dimensionText.match(/lengte\s*:?\s*([^|,;x]+)(?:mm)?\s*[|,;]\s*breedte\s*:?\s*([^|,;x]+)(?:mm)?\s*[|,;]\s*dikte\s*:?\s*([^|,;x]+)(?:mm)?/i);
-    if (labelledMatch) {
+    const lengthMatch = dimensionText.match(/(?:^|[|,;])\s*lengte\s*:?\s*([^|,;]+)/i);
+    const widthMatch = dimensionText.match(/(?:^|[|,;])\s*breedte\s*:?\s*([^|,;]+)/i);
+    const thicknessMatch = dimensionText.match(/(?:^|[|,;])\s*dikte\s*:?\s*([^|,;]+)/i);
+    if (lengthMatch || widthMatch || thicknessMatch) {
         return createQuoteNoteMaatwerkLine({
             title,
-            length: normalizeMaatwerkDimension(labelledMatch[1]),
-            width: normalizeMaatwerkDimension(labelledMatch[2]),
-            thickness: normalizeMaatwerkDimension(labelledMatch[3]),
+            length: normalizeMaatwerkDimension(lengthMatch?.[1] || ''),
+            width: normalizeMaatwerkDimension(widthMatch?.[1] || ''),
+            thickness: normalizeMaatwerkDimension(thicknessMatch?.[1] || ''),
         });
     }
 
@@ -603,7 +617,11 @@ function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): strin
     return cleanedSections
         .map((section) => {
             const lines: string[] = [];
-            if (section.title.length > 0) lines.push(`### ${section.title}`);
+            // A title can itself contain the full scope (users often enter a short
+            // instruction here and leave the large notes field empty). Keep it as
+            // note content so generation and coverage checks cannot discard it as
+            // a markdown heading.
+            if (section.title.length > 0) lines.push(`Notitie: ${section.title}`);
             if (section.notes.length > 0) lines.push(section.notes);
             if (section.maatwerkLines.length > 0) {
                 lines.push('Maatwerk:');
@@ -615,6 +633,68 @@ function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): strin
             return lines.join('\n');
         })
         .join('\n\n');
+}
+
+function buildWorkDescriptionNoteJobs(sections: QuoteNoteSection[]): WorkDescriptionNoteJobInput[] {
+    const jobs: WorkDescriptionNoteJobInput[] = [];
+    const formatDimension = (line: QuoteNoteSection['maatwerkLines'][number]): string => {
+        const values = [
+            line.length ? `Lengte = ${normalizeMaatwerkDimension(line.length)} mm` : '',
+            line.width ? `Breedte = ${normalizeMaatwerkDimension(line.width)} mm` : '',
+            line.thickness ? `Dikte = ${normalizeMaatwerkDimension(line.thickness)} mm` : '',
+        ].filter(Boolean);
+        return values.length > 0 ? `${line.title || 'Maatwerk'}: | ${values.join(' | ')} |` : '';
+    };
+    const getSectionDimensions = (section: QuoteNoteSection): string[] => {
+        const structured = section.maatwerkLines.map(formatDimension).filter(Boolean);
+        const legacy = section.notes
+            .split(/\r?\n/)
+            .map(parseQuoteNoteMaatwerkLine)
+            .filter((line): line is QuoteNoteSection['maatwerkLines'][number] => line !== null)
+            .map(formatDimension)
+            .filter(Boolean);
+        return [...structured, ...legacy];
+    };
+    const getInlineDimensions = (value: string): string[] => {
+        const rows: string[] = [];
+        for (const match of value.matchAll(/(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\s+hoog\b/gi)) {
+            rows.push(`Hoogte = ${match[1]} ${match[2].toLowerCase()}`);
+        }
+        return Array.from(new Set(rows));
+    };
+
+    for (const section of sections) {
+        const title = section.title.trim();
+        if (/^#+\s*maatwerk\b/i.test(title) || /^maatwerk\b/i.test(title)) {
+            const previous = jobs[jobs.length - 1];
+            if (previous) previous.dimensions = [...previous.dimensions, ...getSectionDimensions(section)];
+            continue;
+        }
+        if (!title && !section.notes.trim()) continue;
+        jobs.push({
+            title: title || `Werkzaamheid ${jobs.length + 1}`,
+            notes: section.notes.trim(),
+            dimensions: [
+                ...getSectionDimensions(section),
+                ...getInlineDimensions(`${title} ${section.notes}`),
+            ],
+        });
+    }
+    for (const job of jobs) {
+        const totals = new Map<string, number>();
+        const seen = new Map<string, number>();
+        job.dimensions.forEach((row) => totals.set(row, (totals.get(row) || 0) + 1));
+        job.dimensions = job.dimensions.map((row) => {
+            if ((totals.get(row) || 0) < 2) return row;
+            const occurrence = (seen.get(row) || 0) + 1;
+            seen.set(row, occurrence);
+            const separator = row.indexOf(':');
+            return separator >= 0
+                ? `${row.slice(0, separator)} ${occurrence}${row.slice(separator)}`
+                : `${row} (${occurrence})`;
+        });
+    }
+    return jobs;
 }
 
 function isWasteRemovalRow(value: string): boolean {
@@ -751,7 +831,9 @@ export default function QuotePage() {
     const [isAutoSavingWorkDescription, setIsAutoSavingWorkDescription] = useState(false);
     const autoDistanceAttemptedRef = useRef<Set<string>>(new Set());
     const lastSyncedWerkbeschrijvingRef = useRef<string>('');
+    const pendingWerkbeschrijvingSaveRef = useRef<string | null>(null);
     const autoSaveWerkbeschrijvingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const activeWerkbeschrijvingSavesRef = useRef(0);
     const workDescriptionLastEditAtRef = useRef<number>(0);
     const workDescriptionDirtyRef = useRef<boolean>(false);
     const templateAutoAppliedRef = useRef(false);
@@ -2739,6 +2821,8 @@ export default function QuotePage() {
 
     const [isSplitQuoteOpen, setIsSplitQuoteOpen] = useState(false);
     const [isSplittingQuote, setIsSplittingQuote] = useState(false);
+    const [isDuplicateQuoteOpen, setIsDuplicateQuoteOpen] = useState(false);
+    const [isDuplicatingQuote, setIsDuplicatingQuote] = useState(false);
     const [splitQuoteDrafts, setSplitQuoteDrafts] = useState<SplitQuoteDraft[]>([]);
     const [splitMaterialAssignments, setSplitMaterialAssignments] = useState<Record<string, string>>({});
 
@@ -2927,6 +3011,47 @@ export default function QuotePage() {
             setIsSplittingQuote(false);
         }
     }, [combinedMaterialItems, id, normalizedData, router, splitMaterialAssignments, splitQuoteDrafts, toast, user]);
+
+    const handleDuplicateQuote = useCallback(async () => {
+        if (!user || !id || isDuplicatingQuote) return;
+
+        setIsDuplicatingQuote(true);
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/quotes/duplicate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    quoteId: id,
+                    dataJson: calculation?.data_json,
+                    notes: quoteNotes,
+                }),
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.ok || !payload?.quote?.id) {
+                throw new Error(payload?.message || 'Kon de offerte niet kopiëren.');
+            }
+
+            setIsDuplicateQuoteOpen(false);
+            toast({
+                title: 'Offerte gekopieerd',
+                description: `Offerte ${payload.quote.offerteNummer} staat klaar als nieuw concept.`,
+            });
+            router.push(`/offertes/${payload.quote.id}`);
+        } catch (error) {
+            console.error('Fout bij kopiëren offerte:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Kopiëren mislukt',
+                description: error instanceof Error ? error.message : 'Probeer het opnieuw.',
+            });
+        } finally {
+            setIsDuplicatingQuote(false);
+        }
+    }, [calculation?.data_json, id, isDuplicatingQuote, quoteNotes, router, toast, user]);
 
     const materialExportItems = useMemo<MaterialListExportItem[]>(() => {
         const mapItem = (item: MaterialItem, bron: string, index: number): MaterialListExportItem | null => {
@@ -4403,6 +4528,9 @@ export default function QuotePage() {
         }
 
         if (attachments.includeTekeningen) {
+            if (drawingStatus.processing) {
+                throw new Error('De tekeningen worden nog op de achtergrond verwerkt. Probeer het over enkele ogenblikken opnieuw.');
+            }
             const images = await captureDrawingsForPdf();
             if (images && images.length > 0) {
                 const tekeningenBlob = await generateDrawingsOnlyPdf(images, offerteNummer, projectTitel);
@@ -4971,6 +5099,24 @@ export default function QuotePage() {
     }, [workDescriptionStructured]);
 
     const showWerkbeschrijvingWarning = !loading && isWerkbeschrijvingEmpty;
+    const drawingStatus = useMemo(() => {
+        const quoteWithJobs = quote as (Quote & { klussen?: Record<string, Record<string, unknown>> }) | null;
+        const jobs = quoteWithJobs?.klussen && typeof quoteWithJobs.klussen === 'object'
+            ? Object.values(quoteWithJobs.klussen)
+            : [];
+        const statuses = jobs.map((job) => String(job.visualisatieStatus || '').toLowerCase());
+        return {
+            processing: statuses.some((status) => status === 'pending' || status === 'processing'),
+            error: statuses.some((status) => status === 'error'),
+        };
+    }, [quote]);
+    const showDrawingsWarning = !loading && (drawingStatus.processing || drawingStatus.error);
+    const areDrawingsReady = isDrawingsReady && !drawingStatus.processing;
+    useEffect(() => {
+        if (!drawingStatus.processing) return;
+        setIsDrawingsReady(false);
+        setCapturedDrawings([]);
+    }, [drawingStatus.processing]);
     const workDeliveryValidation = useMemo(
         () => {
             const scopes = workDescriptionStructured.jobs.length > 0
@@ -5063,7 +5209,10 @@ export default function QuotePage() {
             rows: parsedWerkbeschrijving,
         });
 
-        if (serializedParsed === lastSyncedWerkbeschrijvingRef.current) {
+        if (
+            serializedParsed === lastSyncedWerkbeschrijvingRef.current
+            || serializedParsed === pendingWerkbeschrijvingSaveRef.current
+        ) {
             return;
         }
 
@@ -5072,10 +5221,10 @@ export default function QuotePage() {
         }
 
         autoSaveWerkbeschrijvingTimerRef.current = setTimeout(() => {
-            let shouldHideIndicator = false;
+            pendingWerkbeschrijvingSaveRef.current = serializedParsed;
+            activeWerkbeschrijvingSavesRef.current += 1;
             const savingIndicatorTimer = window.setTimeout(() => {
                 setIsAutoSavingWorkDescription(true);
-                shouldHideIndicator = true;
             }, WORK_DESCRIPTION_SAVING_INDICATOR_DELAY_MS);
 
             const saveStartedAt = Date.now();
@@ -5101,7 +5250,14 @@ export default function QuotePage() {
                 })
                 .finally(() => {
                     window.clearTimeout(savingIndicatorTimer);
-                    if (shouldHideIndicator) {
+                    activeWerkbeschrijvingSavesRef.current = Math.max(
+                        0,
+                        activeWerkbeschrijvingSavesRef.current - 1,
+                    );
+                    if (pendingWerkbeschrijvingSaveRef.current === serializedParsed) {
+                        pendingWerkbeschrijvingSaveRef.current = null;
+                    }
+                    if (activeWerkbeschrijvingSavesRef.current === 0) {
                         setIsAutoSavingWorkDescription(false);
                     }
                 });
@@ -5162,7 +5318,8 @@ export default function QuotePage() {
         setIsGeneratingWorkDescription(true);
         try {
             const token = await user.getIdToken();
-            const notesContext = truncatePromptText(buildQuoteNotesContextWithoutLinks(quoteNoteSections), 1800);
+            const notesContext = truncatePromptText(buildQuoteNotesContextWithoutLinks(quoteNoteSections), 8000);
+            const noteJobs = buildWorkDescriptionNoteJobs(quoteNoteSections);
             const materialPromptLines = werkbeschrijvingMaterialContext.length > 0
                 ? [
                     'Klant-relevante productkeuzes uit de calculatie (geen aparte productenlijst maken):',
@@ -5187,36 +5344,18 @@ export default function QuotePage() {
                     werkbeschrijvingMeasurementsContext,
                 ]
                 : [];
-            const activeWorkDescriptionIndex = Math.max(
-                0,
-                Math.min(workDescriptionStructured.activeJobIndex || 0, Math.max(0, workDescriptionStructured.jobs.length - 1)),
-            );
-            const activeWorkDescriptionJob = workDescriptionStructured.jobs[activeWorkDescriptionIndex];
             const generationControlInput = {
-                afvalAfvoeren: activeWorkDescriptionJob?.afvalAfvoeren ?? workDescriptionStructured.afvalAfvoeren,
-                schilderwerkInbegrepen: activeWorkDescriptionJob?.schilderwerkInbegrepen ?? workDescriptionStructured.schilderwerkInbegrepen,
-                stucwerkInbegrepen: activeWorkDescriptionJob?.stucwerkInbegrepen ?? workDescriptionStructured.stucwerkInbegrepen,
-                plamuurwerkInbegrepen: activeWorkDescriptionJob?.plamuurwerkInbegrepen ?? workDescriptionStructured.plamuurwerkInbegrepen,
-                kitwerkInbegrepen: activeWorkDescriptionJob?.kitwerkInbegrepen ?? workDescriptionStructured.kitwerkInbegrepen,
-                steigerInbegrepen: activeWorkDescriptionJob?.steigerInbegrepen ?? workDescriptionStructured.steigerInbegrepen,
-                sloopwerkInbegrepen: activeWorkDescriptionJob?.sloopwerkInbegrepen ?? workDescriptionStructured.sloopwerkInbegrepen,
-                nadenVullenInbegrepen: activeWorkDescriptionJob?.nadenVullenInbegrepen ?? workDescriptionStructured.nadenVullenInbegrepen,
-                electricalScope: activeWorkDescriptionJob?.electricalScope ?? workDescriptionStructured.electricalScope,
-                finishLevel: activeWorkDescriptionJob?.finishLevel ?? workDescriptionStructured.finishLevel,
-                customFinishDescription: activeWorkDescriptionJob?.customFinishDescription ?? workDescriptionStructured.customFinishDescription,
-                jobs: [{
-                    afvalAfvoeren: activeWorkDescriptionJob?.afvalAfvoeren ?? workDescriptionStructured.afvalAfvoeren,
-                    schilderwerkInbegrepen: activeWorkDescriptionJob?.schilderwerkInbegrepen ?? workDescriptionStructured.schilderwerkInbegrepen,
-                    stucwerkInbegrepen: activeWorkDescriptionJob?.stucwerkInbegrepen ?? workDescriptionStructured.stucwerkInbegrepen,
-                    plamuurwerkInbegrepen: activeWorkDescriptionJob?.plamuurwerkInbegrepen ?? workDescriptionStructured.plamuurwerkInbegrepen,
-                    kitwerkInbegrepen: activeWorkDescriptionJob?.kitwerkInbegrepen ?? workDescriptionStructured.kitwerkInbegrepen,
-                    steigerInbegrepen: activeWorkDescriptionJob?.steigerInbegrepen ?? workDescriptionStructured.steigerInbegrepen,
-                    sloopwerkInbegrepen: activeWorkDescriptionJob?.sloopwerkInbegrepen ?? workDescriptionStructured.sloopwerkInbegrepen,
-                    nadenVullenInbegrepen: activeWorkDescriptionJob?.nadenVullenInbegrepen ?? workDescriptionStructured.nadenVullenInbegrepen,
-                    electricalScope: activeWorkDescriptionJob?.electricalScope ?? workDescriptionStructured.electricalScope,
-                    finishLevel: activeWorkDescriptionJob?.finishLevel ?? workDescriptionStructured.finishLevel,
-                    customFinishDescription: activeWorkDescriptionJob?.customFinishDescription ?? workDescriptionStructured.customFinishDescription,
-                }],
+                afvalAfvoeren: workDescriptionStructured.afvalAfvoeren,
+                schilderwerkInbegrepen: workDescriptionStructured.schilderwerkInbegrepen,
+                stucwerkInbegrepen: workDescriptionStructured.stucwerkInbegrepen,
+                plamuurwerkInbegrepen: workDescriptionStructured.plamuurwerkInbegrepen,
+                kitwerkInbegrepen: workDescriptionStructured.kitwerkInbegrepen,
+                steigerInbegrepen: workDescriptionStructured.steigerInbegrepen,
+                sloopwerkInbegrepen: workDescriptionStructured.sloopwerkInbegrepen,
+                nadenVullenInbegrepen: workDescriptionStructured.nadenVullenInbegrepen,
+                electricalScope: workDescriptionStructured.electricalScope,
+                finishLevel: workDescriptionStructured.finishLevel,
+                customFinishDescription: workDescriptionStructured.customFinishDescription,
             };
             const promptBase = [
                 `Actie: ${action}`,
@@ -5243,6 +5382,7 @@ export default function QuotePage() {
                     structuredInput: generationControlInput,
                     materialContext: werkbeschrijvingMaterialContext,
                     notesContext,
+                    noteJobs,
                     measurementsContext: werkbeschrijvingMeasurementsContext,
                 }),
             });
@@ -5754,6 +5894,16 @@ export default function QuotePage() {
                             <Button
                                 variant="outline"
                                 className="h-11 px-0"
+                                onClick={() => setIsDuplicateQuoteOpen(true)}
+                                disabled={isDuplicatingQuote}
+                                aria-label="Kopieer offerte"
+                                title="Kopieer offerte"
+                            >
+                                {isDuplicatingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy size={16} />}
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="h-11 px-0"
                                 onClick={() => setIsPlanningTypeDialogOpen(true)}
                                 aria-label="Inplannen"
                                 title="Inplannen"
@@ -5840,6 +5990,17 @@ export default function QuotePage() {
                                     title="Splits offerte"
                                 >
                                     <Scissors size={16} />
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-9 w-9 shrink-0"
+                                    onClick={() => setIsDuplicateQuoteOpen(true)}
+                                    disabled={isDuplicatingQuote}
+                                    aria-label="Kopieer offerte"
+                                    title="Kopieer offerte"
+                                >
+                                    {isDuplicatingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy size={16} />}
                                 </Button>
                                 {routeMapsUrl && (
                                     <Button
@@ -5991,7 +6152,11 @@ export default function QuotePage() {
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="tekeningen"
-                                        className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
+                                        className={cn(
+                                            "relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground",
+                                            drawingStatus.processing && "text-amber-400 data-[state=active]:text-amber-400",
+                                            drawingStatus.error && "text-red-400 data-[state=active]:text-red-400",
+                                        )}
                                         aria-label="Tekeningen"
                                         title="Tekeningen"
                                     >
@@ -6051,9 +6216,18 @@ export default function QuotePage() {
                                     <Euro size={16} />
                                     Overzicht
                                 </TabsTrigger>
-                                <TabsTrigger value="tekeningen" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger
+                                    value="tekeningen"
+                                    className={cn(
+                                        "relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground",
+                                        drawingStatus.processing && "text-amber-400 data-[state=active]:text-amber-400",
+                                        drawingStatus.error && "text-red-400 data-[state=active]:text-red-400",
+                                    )}
+                                >
                                     <PenTool size={16} />
                                     Tekeningen
+                                    {drawingStatus.processing && <Loader2 size={12} className="animate-spin text-amber-500" />}
+                                    {drawingStatus.error && <AlertCircle size={12} className="text-red-500" />}
                                 </TabsTrigger>
                                 <TabsTrigger value="pdf" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <FileText size={16} />
@@ -7106,7 +7280,7 @@ export default function QuotePage() {
                                     variant="outline"
                                     className="gap-2"
                                     onClick={() => setIsPdfFocusMode(true)}
-                                    disabled={showCalculationLoadingPanel || loading || !isDrawingsReady}
+                                    disabled={showCalculationLoadingPanel || loading || !areDrawingsReady}
                                 >
                                     <Maximize2 className="h-4 w-4" />
                                     Focusmodus
@@ -7115,9 +7289,15 @@ export default function QuotePage() {
 
                             {showCalculationLoadingPanel || loading ? (
                                 <LoadingPanel />
-                            ) : !isDrawingsReady ? (
+                            ) : !areDrawingsReady ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                    <div className="text-muted-foreground">PDF voorbereiden...</div>
+                                    <div className={cn("text-muted-foreground", showDrawingsWarning && "text-amber-300")}>
+                                        {drawingStatus.processing
+                                            ? 'Tekeningen worden op de achtergrond verwerkt...'
+                                            : drawingStatus.error
+                                                ? 'Een of meer tekeningen konden niet worden verwerkt.'
+                                                : 'PDF voorbereiden...'}
+                                    </div>
                                 </div>
                             ) : (
                                 <PDFPreview
@@ -7713,6 +7893,37 @@ export default function QuotePage() {
                         )}
                     </Tabs>
 
+                    <AlertDialog open={isDuplicateQuoteOpen} onOpenChange={(open) => {
+                        if (!isDuplicatingQuote) setIsDuplicateQuoteOpen(open);
+                    }}>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Offerte kopiëren?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Er wordt een nieuw concept met een nieuw offertenummer gemaakt. Alle maten,
+                                    klussen, materialen, calculatie-instellingen en notities blijven gelijk. Daarna
+                                    kun je in de kopie alleen de gewenste materialen aanpassen en opnieuw berekenen.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel disabled={isDuplicatingQuote}>Annuleren</AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        void handleDuplicateQuote();
+                                    }}
+                                    disabled={isDuplicatingQuote}
+                                    className="gap-2"
+                                >
+                                    {isDuplicatingQuote
+                                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                                        : <Copy className="h-4 w-4" />}
+                                    {isDuplicatingQuote ? 'Offerte kopiëren...' : 'Kopie maken'}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+
                     <Dialog open={isSplitQuoteOpen} onOpenChange={(open) => {
                         if (!isSplittingQuote) setIsSplitQuoteOpen(open);
                     }}>
@@ -8250,7 +8461,7 @@ export default function QuotePage() {
 
             {/* Hidden Drawing Generator - render when on PDF tab OR during download */}
             {
-                (activeTab === 'pdf' || isGeneratingPDF) && quote && !isDrawingsReady && (
+                (activeTab === 'pdf' || isGeneratingPDF) && quote && !drawingStatus.processing && !isDrawingsReady && (
                     <HiddenPDFDrawings
                         quote={quote}
                         onReady={handleDrawingsCaptured}
