@@ -33,6 +33,16 @@ service cloud.firestore {
       match /nacalculatie/{docId} {
         allow read, write: if isSignedIn() && get(/databases/$(database)/documents/quotes/$(quoteId)).data.userId == request.auth.uid;
       }
+
+      // Immutable disaster-recovery snapshots. These are intentionally excluded
+      // from all normal app access and can only be written/read through Admin tooling.
+      match /backup_notes/{backupId} {
+        allow read, write: if false;
+      }
+
+      match /backup_measurements/{backupId} {
+        allow read, write: if false;
+      }
     }
 
     // Rules for the 'invoices' collection (Facturen)

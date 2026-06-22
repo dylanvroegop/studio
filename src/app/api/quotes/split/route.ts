@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
@@ -79,6 +80,28 @@ function cleanObject<T>(value: T): T {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Internal Server Error';
+}
+
+async function createSplitSafetyBackup(
+  collection: FirebaseFirestore.CollectionReference,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const contentHash = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  try {
+    await collection.doc(contentHash).create({
+      backupOnly: true,
+      purpose: 'BACKUP_ONLY_DO_NOT_USE_IN_APP',
+      warning: 'Alleen voor herstel na gegevensverlies. Nooit gebruiken als normale app-data.',
+      schemaVersion: 1,
+      source: 'pre-split-safety-snapshot',
+      contentHash,
+      ...payload,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch (error: unknown) {
+    const code = (error as { code?: string | number })?.code;
+    if (code !== 6 && code !== '6' && code !== 'already-exists') throw error;
+  }
 }
 
 async function reserveQuoteNumberAdmin(firestore: FirebaseFirestore.Firestore, userId: string, startNumber = 260001): Promise<number> {
@@ -365,6 +388,27 @@ export async function POST(req: Request) {
     const sourceKlussen = sourceQuote.klussen && typeof sourceQuote.klussen === 'object'
       ? sourceQuote.klussen as Record<string, unknown>
       : {};
+    const sourceNotes = typeof sourceQuote.notities === 'string' ? sourceQuote.notities : '';
+    const sourceQuoteNotesSnapshot = await sourceRef.collection('quote_notes').get();
+
+    await Promise.all([
+      createSplitSafetyBackup(sourceRef.collection('backup_notes'), {
+        dataType: 'quote_notes',
+        quoteId,
+        userId: uid,
+        notes: sourceNotes,
+      }),
+      ...Object.entries(sourceKlussen).map(async ([klusId, rawKlus]) => {
+        const klus = rawKlus && typeof rawKlus === 'object' ? rawKlus as Record<string, unknown> : {};
+        await createSplitSafetyBackup(sourceRef.collection('backup_measurements'), {
+          dataType: 'calculation_measurements',
+          quoteId,
+          userId: uid,
+          klusId,
+          measurements: klus.maatwerk ?? null,
+        });
+      }),
+    ]);
 
     for (let index = 0; index < splitDrafts.length; index += 1) {
       const split = splitDrafts[index];
@@ -393,6 +437,9 @@ export async function POST(req: Request) {
       const allMaterials = [...grootmaterialen, ...verbruiksartikelen];
       const selectedWorkJob = getSelectedWorkJob(split, sourceDataJson);
       const splitNotes = pickSplitNotes(sourceQuote.notities, { ...split, title }, selectedWorkJob, index, splitDrafts.length);
+      // The retained source quote is the safety copy and must always keep every note.
+      // New quotes use their matching section when possible and fall back to all notes.
+      const notesForQuote = isPrimarySplit ? sourceNotes : (splitNotes || sourceNotes);
       const workDescription = buildSplitWorkDescription({ ...split, title }, sourceDataJson, allMaterials, splitNotes);
       const marginAmount = Math.max(0, toFiniteNumber(split?.marginAmount, 0));
       const sourceExtras = sourceDataJson.extras && typeof sourceDataJson.extras === 'object'
@@ -427,7 +474,7 @@ export async function POST(req: Request) {
         werkbeschrijving_structured: workDescription.structured,
         korteTitel: title,
         korteBeschrijving: workDescription.structured.summary || title,
-        interneNotities: splitNotes || undefined,
+        interneNotities: notesForQuote || undefined,
         splitVanOfferteId: quoteId,
         splitVanOfferteNummer: sourceQuote.offerteNummer || null,
       });
@@ -506,10 +553,10 @@ export async function POST(req: Request) {
       delete mutableQuotePayload.pdf_url;
       delete mutableQuotePayload.pdfUrl;
       delete mutableQuotePayload.calculationStartedAt;
-      if (splitNotes) {
-        mutableQuotePayload.notities = splitNotes;
-      } else {
-        delete mutableQuotePayload.notities;
+      if (Object.prototype.hasOwnProperty.call(sourceQuote, 'notities')) {
+        mutableQuotePayload.notities = notesForQuote || sourceQuote.notities;
+      } else if (notesForQuote) {
+        mutableQuotePayload.notities = notesForQuote;
       }
       if (selectedKlussenMap) {
         mutableQuotePayload.klussen = selectedKlussenMap;
@@ -518,6 +565,15 @@ export async function POST(req: Request) {
       }
 
       await targetQuoteRef.set(mutableQuotePayload);
+
+      if (!isPrimarySplit && !sourceQuoteNotesSnapshot.empty) {
+        await Promise.all(sourceQuoteNotesSnapshot.docs.map(async (sourceNoteDoc) => {
+          const noteData = { ...sourceNoteDoc.data() };
+          if (noteData.quoteId === quoteId) noteData.quoteId = targetQuoteRef.id;
+          if (noteData.quoteid === quoteId) noteData.quoteid = targetQuoteRef.id;
+          await targetQuoteRef.collection('quote_notes').doc(sourceNoteDoc.id).set(noteData);
+        }));
+      }
 
       const supabaseWrite = isPrimarySplit
         ? await supabaseAdmin

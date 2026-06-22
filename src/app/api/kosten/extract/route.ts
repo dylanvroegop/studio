@@ -563,12 +563,19 @@ async function uploadFileToOpenAi(params: {
   bytes: Buffer;
 }): Promise<string> {
   const form = new FormData();
+
   form.append('purpose', 'user_data');
-  form.append(
-    'file',
-    new Blob([params.bytes], { type: params.contentType || 'application/octet-stream' }),
-    params.filename
-  );
+
+  const arrayBuffer = params.bytes.buffer.slice(
+  params.bytes.byteOffset,
+  params.bytes.byteOffset + params.bytes.byteLength
+) as ArrayBuffer;
+
+const fileBlob = new Blob([arrayBuffer], {
+  type: params.contentType || 'application/octet-stream',
+});
+
+  form.append('file', fileBlob, params.filename);
 
   const response = await fetch('https://api.openai.com/v1/files', {
     method: 'POST',
@@ -579,15 +586,20 @@ async function uploadFileToOpenAi(params: {
   });
 
   const payload = await response.json().catch(() => ({}));
+
   if (!response.ok) {
-    const message = safeString((payload as { error?: { message?: unknown } }).error?.message) || 'OpenAI file upload mislukt.';
+    const message =
+      safeString((payload as { error?: { message?: unknown } }).error?.message) ||
+      'OpenAI file upload mislukt.';
     throw new Error(message);
   }
 
   const fileId = safeString((payload as { id?: unknown }).id);
+
   if (!fileId) {
     throw new Error('OpenAI gaf geen file-id terug.');
   }
+
   return fileId;
 }
 

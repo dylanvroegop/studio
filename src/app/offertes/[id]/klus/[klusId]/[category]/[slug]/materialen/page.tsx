@@ -110,6 +110,7 @@ import {
   clearMeasurementOpeningIntent,
   setMeasurementOpeningIntent,
 } from '@/lib/measurement-opening-intent';
+import { saveQuoteBackup } from '@/lib/quote-backup';
 
 // ==================================
 // CONSTANTS
@@ -5685,8 +5686,7 @@ export default function GenericMaterialsPageRedesigned() {
         );
       }
 
-      const updatePayload: any = {
-        [`klussen.${klusId}.maatwerk`]: JSON.parse(JSON.stringify({
+      const maatwerkSnapshot = JSON.parse(JSON.stringify({
           basis: syncedBaseItems,
           toevoegingen: mappedComponents.map((c: any) => ({
             id: c.id,
@@ -5697,7 +5697,9 @@ export default function GenericMaterialsPageRedesigned() {
           })),
           notities: notities ?? "",
           meta: (klus as any)?.maatwerk?.meta || undefined,
-        })),
+        }));
+      const updatePayload: any = {
+        [`klussen.${klusId}.maatwerk`]: maatwerkSnapshot,
         [`klussen.${klusId}.components`]: deleteField(),
         [`klussen.${klusId}.materialen.jobKey`]: JOB_KEY,
         [`klussen.${klusId}.materialen.materialen_lijst`]: JSON.parse(JSON.stringify(materialenLijst)),
@@ -5733,6 +5735,14 @@ export default function GenericMaterialsPageRedesigned() {
         updatePayload[`klussen.${klusId}.kleinMateriaal`] = cleanKlein;
       }
 
+      await saveQuoteBackup({
+        user,
+        quoteId,
+        kind: 'measurements',
+        klusId,
+        measurements: maatwerkSnapshot,
+        source: options.silent ? 'materials-measurements-autosave' : 'materials-measurements-save',
+      });
       await updateDoc(doc(firestore, 'quotes', quoteId), updatePayload);
 
       if (!options.silent) {

@@ -256,16 +256,8 @@ export function LegacyWorkDescriptionWorkspace({
               <Switch checked={activeJob.schilderwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('schilderwerkInbegrepen', checked)} />
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
-              <Label>Stucwerk</Label>
-              <Switch checked={activeJob.stucwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('stucwerkInbegrepen', checked)} />
-            </div>
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
               <Label>Plamuurwerk</Label>
               <Switch checked={activeJob.plamuurwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('plamuurwerkInbegrepen', checked)} />
-            </div>
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
-              <Label>Kitwerk</Label>
-              <Switch checked={activeJob.kitwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('kitwerkInbegrepen', checked)} />
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
               <Label>Steiger</Label>
@@ -463,8 +455,8 @@ export function WorkDescriptionWorkspace({
           ) : null}
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {([
-              ['afvalAfvoeren', 'Afval afvoeren'], ['schilderwerkInbegrepen', 'Schilderwerk'], ['stucwerkInbegrepen', 'Stucwerk'],
-              ['plamuurwerkInbegrepen', 'Plamuurwerk'], ['kitwerkInbegrepen', 'Kitwerk'], ['steigerInbegrepen', 'Steiger'],
+              ['afvalAfvoeren', 'Afval afvoeren'], ['schilderwerkInbegrepen', 'Schilderwerk'],
+              ['plamuurwerkInbegrepen', 'Plamuurwerk'], ['steigerInbegrepen', 'Steiger'],
               ['sloopwerkInbegrepen', 'Sloopwerk'],
               ['schroefgatenPlamurenInbegrepen', 'Schroefgaten plamuren'],
             ] as const).map(([key, label]) => (

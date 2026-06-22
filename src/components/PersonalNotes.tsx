@@ -41,6 +41,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore } from '@/firebase';
+import { saveQuoteBackup } from '@/lib/quote-backup';
 
 type Note = {
   id: string;
@@ -194,8 +195,16 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
       };
 
       const nextNotes = [newNote, ...notes];
+      const serializedNotes = serializeNotesToQuoteNotities(nextNotes);
+      await saveQuoteBackup({
+        user,
+        quoteId,
+        kind: 'notes',
+        notes: serializedNotes,
+        source: 'personal-notes-add',
+      });
       await updateDoc(doc(firestore, 'quotes', quoteId), {
-        notities: serializeNotesToQuoteNotities(nextNotes),
+        notities: serializedNotes,
         updatedAt: serverTimestamp(),
       } as any);
 
@@ -221,7 +230,7 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
 
   // Update note
   const handleUpdateNote = async () => {
-    if (!firestore || !editingNote || !editContent.trim()) return;
+    if (!user || !firestore || !editingNote || !editContent.trim()) return;
 
     setIsSaving(true);
     try {
@@ -230,8 +239,16 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
           ? { ...n, content: editContent.trim(), tags: [...editTags], updatedAt: new Date() }
           : n
       );
+      const serializedNotes = serializeNotesToQuoteNotities(nextNotes);
+      await saveQuoteBackup({
+        user,
+        quoteId,
+        kind: 'notes',
+        notes: serializedNotes,
+        source: 'personal-notes-update',
+      });
       await updateDoc(doc(firestore, 'quotes', quoteId), {
-        notities: serializeNotesToQuoteNotities(nextNotes),
+        notities: serializedNotes,
         updatedAt: serverTimestamp(),
       } as any);
 
@@ -259,12 +276,20 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
 
   // Delete note
   const handleDeleteNote = async (noteId: string) => {
-    if (!firestore) return;
+    if (!user || !firestore) return;
 
     try {
       const nextNotes = notes.filter(n => n.id !== noteId);
+      const serializedNotes = serializeNotesToQuoteNotities(nextNotes);
+      await saveQuoteBackup({
+        user,
+        quoteId,
+        kind: 'notes',
+        notes: serializedNotes,
+        source: 'personal-notes-delete',
+      });
       await updateDoc(doc(firestore, 'quotes', quoteId), {
-        notities: serializeNotesToQuoteNotities(nextNotes),
+        notities: serializedNotes,
         updatedAt: serverTimestamp(),
       } as any);
       setNotes(nextNotes);

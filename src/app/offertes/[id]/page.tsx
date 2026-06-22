@@ -85,6 +85,7 @@ import {
     redactMaterialPresentationPayload,
 } from '@/lib/material-presentations';
 import { createMaterialList, MATERIAL_LIST_STATUS_LABELS, type MaterialList } from '@/lib/material-lists';
+import { saveQuoteBackup } from '@/lib/quote-backup';
 
 interface GrootCompareQuoteColumn {
     quoteId: string;
@@ -1815,7 +1816,7 @@ export default function QuotePage() {
     }, [quote, quoteNotes]);
 
     useEffect(() => {
-        if (!firestore || !id || firebaseLoading) return;
+        if (!firestore || !user || !id || firebaseLoading) return;
         if (quoteNotes === lastSyncedQuoteNotesRef.current) return;
 
         if (quoteNotesSaveTimerRef.current) {
@@ -1826,6 +1827,13 @@ export default function QuotePage() {
             const saveStartedAt = Date.now();
             setIsAutoSavingQuoteNotes(true);
             try {
+                await saveQuoteBackup({
+                    user,
+                    quoteId: id,
+                    kind: 'notes',
+                    notes: quoteNotes,
+                    source: 'quote-notes-autosave',
+                });
                 await updateDoc(doc(firestore, 'quotes', id), {
                     notities: quoteNotes,
                     updatedAt: serverTimestamp(),
@@ -1854,7 +1862,7 @@ export default function QuotePage() {
                 quoteNotesSaveTimerRef.current = null;
             }
         };
-    }, [quoteNotes, firestore, id, firebaseLoading, toast]);
+    }, [quoteNotes, firestore, user, id, firebaseLoading, toast]);
 
     // Helper to update master price via API
     const updateMasterPrice = async (materiaalnaam: string, priceExclBtw: number, priceInclBtw: number, rowId?: string) => {
@@ -2834,31 +2842,46 @@ export default function QuotePage() {
     const [splitMaterialAssignments, setSplitMaterialAssignments] = useState<Record<string, string>>({});
     const [splitKlusAssignments, setSplitKlusAssignments] = useState<Record<string, string>>({});
 
-    const splitWorkJobOptions = useMemo(() => {
-        const jobs = Array.isArray(workDescriptionStructured.jobs) ? workDescriptionStructured.jobs : [];
-        return jobs.map((job, index) => ({
-            index,
-            title: String(job?.title || `Klus ${index + 1}`).trim() || `Klus ${index + 1}`,
-        }));
-    }, [workDescriptionStructured.jobs]);
-
     const splitCalculationJobOptions = useMemo<SplitCalculationJobOption[]>(() => {
         const quoteWithJobs = quote as (Quote & { klussen?: Record<string, Record<string, unknown>> }) | null;
         const jobs = quoteWithJobs?.klussen && typeof quoteWithJobs.klussen === 'object'
             ? Object.entries(quoteWithJobs.klussen)
             : [];
         return jobs.map(([jobId, job], index) => {
-            const title = String(job?.titel || job?.title || job?.naam || `Klus ${index + 1}`).trim() || `Klus ${index + 1}`;
-            const subtitle = String(job?.omschrijving || job?.description || job?.notities || '').trim();
+            const maatwerk = job?.maatwerk && typeof job.maatwerk === 'object'
+                ? job.maatwerk as Record<string, unknown>
+                : {};
+            const meta = maatwerk.meta && typeof maatwerk.meta === 'object'
+                ? maatwerk.meta as Record<string, unknown>
+                : {};
+            const title = String(meta.title || job?.titel || job?.title || job?.naam || `Klus ${index + 1}`).trim() || `Klus ${index + 1}`;
+            const subtitle = String(meta.description || job?.omschrijving || job?.description || job?.notities || '').trim();
             return {
                 id: jobId,
                 index,
-                label: `Job ${index + 1}`,
+                label: `Klus ${index + 1}`,
                 title,
                 subtitle,
             };
         });
     }, [quote]);
+
+    const splitWorkJobOptions = useMemo(() => {
+        const jobs = Array.isArray(workDescriptionStructured.jobs) ? workDescriptionStructured.jobs : [];
+        const optionCount = Math.max(jobs.length, splitCalculationJobOptions.length);
+        return Array.from({ length: optionCount }, (_, index) => {
+            const job = jobs[index];
+            const fallbackLabel = `Klus ${index + 1}`;
+            const workTitle = String(job?.title || '').trim();
+            const calculationTitle = splitCalculationJobOptions[index]?.title || '';
+            const title = calculationTitle || workTitle || fallbackLabel;
+            return {
+                index,
+                title,
+                displayLabel: title === fallbackLabel ? fallbackLabel : `${fallbackLabel} · ${title}`,
+            };
+        });
+    }, [splitCalculationJobOptions, workDescriptionStructured.jobs]);
 
     const createSplitDraftId = useCallback(() => (
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -3035,7 +3058,7 @@ export default function QuotePage() {
             const created = Array.isArray(payload.created) ? payload.created : [];
             toast({
                 title: 'Offerte gesplitst',
-                description: `${created.length} extra offerte(s) staan klaar. Deze offerte is bijgewerkt als Job 1.`,
+                description: `${created.length} extra offerte(s) staan klaar. Deze offerte is bijgewerkt als ${splitQuoteDrafts[0]?.title || 'de eerste deelofferte'}.`,
             });
             setIsSplitQuoteOpen(false);
             if (created[0]?.id) {
@@ -8074,7 +8097,7 @@ export default function QuotePage() {
                                                                 className="h-8"
                                                                 title={job.title}
                                                             >
-                                                                Job {job.index + 1}
+                                                                {job.displayLabel}
                                                             </Button>
                                                         ))}
                                                     </div>
@@ -8139,7 +8162,7 @@ export default function QuotePage() {
                                                                     className="h-8 min-w-16"
                                                                     title={draft.title || `Deelofferte ${draftIndex + 1}`}
                                                                 >
-                                                                    Job {draftIndex + 1}
+                                                                    {draft.title || `Deelofferte ${draftIndex + 1}`}
                                                                 </Button>
                                                             );
                                                         })}
@@ -8200,7 +8223,7 @@ export default function QuotePage() {
                                                                         className="h-8 min-w-16"
                                                                         title={draft.title || `Deelofferte ${draftIndex + 1}`}
                                                                     >
-                                                                        Job {draftIndex + 1}
+                                                                        {draft.title || `Deelofferte ${draftIndex + 1}`}
                                                                     </Button>
                                                                 );
                                                             })}

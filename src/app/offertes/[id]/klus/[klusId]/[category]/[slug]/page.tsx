@@ -71,6 +71,7 @@ import {
   buildCalculationMeasurementAssignments,
   getQuoteNoteJobTitles,
 } from '@/lib/calculation-note-assignment';
+import { saveQuoteBackup } from '@/lib/quote-backup';
 
 
 interface VakInputCardProps {
@@ -4021,7 +4022,7 @@ export default function GenericMeasurementPage() {
   };
 
   const runAutosaveDraft = useCallback(async () => {
-    if (!firestore || !jobConfig || loading || saving) return;
+    if (!firestore || !user || !jobConfig || loading || saving) return;
     if (autosaveInFlightRef.current) return;
 
     autosaveInFlightRef.current = true;
@@ -4048,6 +4049,14 @@ export default function GenericMeasurementPage() {
         autosave: true,
       }, { allowEmptyArrays: true });
 
+      await saveQuoteBackup({
+        user,
+        quoteId,
+        kind: 'measurements',
+        klusId,
+        measurements: draftPayload,
+        source: 'calculation-measurements-autosave',
+      });
       await updateDoc(quoteRef, {
         [`klussen.${klusId}.maatwerk`]: draftPayload,
         [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
@@ -4059,6 +4068,7 @@ export default function GenericMeasurementPage() {
     }
   }, [
     firestore,
+    user,
     jobConfig,
     loading,
     saving,
@@ -4196,7 +4206,7 @@ export default function GenericMeasurementPage() {
 
   const handleSave = async (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!firestore || !jobConfig) return;
+    if (!firestore || !user || !jobConfig) return;
 
     const hasValue = (val: unknown) => val !== undefined && val !== null && String(val).trim() !== '';
     const isFieldRelevantForShape = (item: any, fieldKey: string) => {
@@ -4556,19 +4566,20 @@ export default function GenericMeasurementPage() {
         };
 
         const maatwerkKey = `${jobSlug}_maatwerk`;
+        const maatwerkSnapshot = cleanFirestoreData({
+          basis: processedItems,
+          toevoegingen: components.map(c => ({
+            id: c.id,
+            type: c.type,
+            label: c.label,
+            slug: c.slug,
+            afmetingen: c.measurements || {}
+          })),
+          notities: notities,
+          meta: rawMeta,
+        }, { allowEmptyArrays: true });
         const updateData: Record<string, any> = {
-          [`klussen.${klusId}.maatwerk`]: cleanFirestoreData({
-            basis: processedItems,
-            toevoegingen: components.map(c => ({
-              id: c.id,
-              type: c.type,
-              label: c.label,
-              slug: c.slug,
-              afmetingen: c.measurements || {}
-            })),
-            notities: notities,
-            meta: rawMeta,
-          }, { allowEmptyArrays: true }),
+          [`klussen.${klusId}.maatwerk`]: maatwerkSnapshot,
           [`klussen.${klusId}.components`]: deleteField(),
           [`klussen.${klusId}.updatedAt`]: serverTimestamp(),
           ...(visualizerRefs.current.some(Boolean) ? {
@@ -4589,6 +4600,14 @@ export default function GenericMeasurementPage() {
           }
         }
 
+        await saveQuoteBackup({
+          user,
+          quoteId,
+          kind: 'measurements',
+          klusId,
+          measurements: maatwerkSnapshot,
+          source: 'calculation-measurements-save',
+        });
         await updateDoc(quoteRef, updateData);
         if (visualizerRefs.current.some(Boolean)) {
           void generateDrawingSnapshotsInBackground();
@@ -4610,8 +4629,16 @@ export default function GenericMeasurementPage() {
         const assignmentLines = assignments.map((assignment) => assignment.line);
 
         if (noteJobTitles.length === 1) {
+          const assignedNotes = assignCalculationMeasurementsToNoteJob(quoteNotes, noteJobTitles[0], assignmentLines);
+          await saveQuoteBackup({
+            user,
+            quoteId,
+            kind: 'notes',
+            notes: assignedNotes,
+            source: 'calculation-measurements-note-assignment',
+          });
           await updateDoc(quoteRef, {
-            notities: assignCalculationMeasurementsToNoteJob(quoteNotes, noteJobTitles[0], assignmentLines),
+            notities: assignedNotes,
             updatedAt: serverTimestamp(),
           });
           router.push(`/offertes/${quoteId}/overzicht`);
@@ -4638,7 +4665,7 @@ export default function GenericMeasurementPage() {
   };
 
   const confirmMeasurementAssignment = async () => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     const title = measurementAssignmentJob === '__new__'
       ? measurementAssignmentNewTitle.trim()
       : measurementAssignmentJob;
@@ -4649,8 +4676,16 @@ export default function GenericMeasurementPage() {
 
     setSaving(true);
     try {
+      const assignedNotes = assignCalculationMeasurementsToNoteJob(pendingQuoteNotes, title, pendingMeasurementLines);
+      await saveQuoteBackup({
+        user,
+        quoteId,
+        kind: 'notes',
+        notes: assignedNotes,
+        source: 'calculation-measurements-note-confirmation',
+      });
       await updateDoc(doc(firestore, 'quotes', quoteId), {
-        notities: assignCalculationMeasurementsToNoteJob(pendingQuoteNotes, title, pendingMeasurementLines),
+        notities: assignedNotes,
         updatedAt: serverTimestamp(),
       });
       setMeasurementAssignmentOpen(false);
