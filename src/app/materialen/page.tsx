@@ -9,6 +9,7 @@ import { useUser } from '@/firebase';
 
 import { cn, parsePriceToNumber } from '@/lib/utils';
 import { reportOperationalError } from '@/lib/report-operational-error';
+import { normalizeTaxonomyLabel } from '@/lib/material-taxonomy';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
@@ -761,7 +762,7 @@ export default function MaterialenPage() {
     setCustomNaam(material.materiaalnaam || '');
     setCustomEenheid(material.eenheid || 'stuk');
     setCustomPrijs(parsePriceToNumber(material.prijs)?.toString() || '');
-    setCustomSubsectie(material.subsectie || material.sub_categorie || material.categorie || '');
+    setCustomSubsectie(normalizeTaxonomyLabel(material.subsectie || material.sub_categorie || material.categorie));
     setCustomLeverancier(material.leverancier || '');
     setMaatUnit(material.unit || 'mm');
     setMaatLengte(material.lengte?.toString() || '');
@@ -883,7 +884,7 @@ export default function MaterialenPage() {
         }
       }
 
-      const categorie = customSubsectie.trim();
+      const categorie = normalizeTaxonomyLabel(customSubsectie);
       const leverancier = customLeverancier.trim();
 
       setSavingCustom(true);
@@ -1980,7 +1981,7 @@ export default function MaterialenPage() {
                       <div className="text-sm font-medium">Categorie (optioneel)</div>
                       <Input
                         value={customSubsectie}
-                        onChange={(e) => setCustomSubsectie(e.target.value)}
+                        onChange={(e) => setCustomSubsectie(normalizeTaxonomyLabel(e.target.value))}
                         placeholder="Bijv. Balkhout"
                       />
                     </div>

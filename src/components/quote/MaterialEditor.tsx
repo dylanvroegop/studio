@@ -170,8 +170,133 @@ function MaterialRow({
         : null;
     return (
         <>
-            <tr className={`group transition-all duration-200 ${needsPrice ? 'bg-amber-500/[0.03]' : 'hover:bg-zinc-800/20'}`}>
-                <td className="px-2 py-2 sm:px-6 sm:py-3">
+            <tr className="sm:hidden">
+                <td colSpan={totalColumns} className="px-2 py-2">
+                    <div className={`rounded-xl border p-3 ${needsPrice ? 'border-amber-500/35 bg-amber-500/[0.04]' : 'border-border/70 bg-zinc-900/20'}`}>
+                        <div className="space-y-2">
+                            <div className="flex items-start gap-2">
+                                <div className="min-w-0 flex-1 space-y-1">
+                                    {sourceCategoryLabel && (
+                                        <span className="inline-flex rounded-md border border-zinc-700/60 bg-zinc-900/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-400">
+                                            {sourceCategoryLabel}
+                                        </span>
+                                    )}
+                                    <input
+                                        type="text"
+                                        value={localProduct}
+                                        onChange={(e) => setLocalProduct(e.target.value.slice(0, MAX_INPUT_LENGTH))}
+                                        onBlur={handleProductBlur}
+                                        onKeyDown={handleKeyDown}
+                                        maxLength={MAX_INPUT_LENGTH}
+                                        className="w-full rounded-lg border border-zinc-700/60 bg-zinc-900/50 px-2.5 py-2 text-sm font-medium text-zinc-200 transition-all hover:border-zinc-600 hover:bg-zinc-800/50 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50"
+                                    />
+                                </div>
+                                {onRemoveItem && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setShowDeleteDialog(true)}
+                                        className="h-9 w-9 shrink-0 rounded-lg text-red-300/80 transition-all hover:bg-red-500/10 hover:text-red-300"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        <span className="sr-only">Verwijder materiaal</span>
+                                    </Button>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-2">
+                                <div className="rounded-lg border border-zinc-700/60 bg-zinc-900/35 p-2">
+                                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Aantal</div>
+                                    <div className="flex items-center gap-1">
+                                        <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="ghost"
+                                            onClick={() => handleAantalStep(-1)}
+                                            className="h-8 w-8 shrink-0 rounded border border-zinc-700/60 bg-zinc-900/40 text-zinc-300 hover:bg-zinc-800/60 hover:text-zinc-100"
+                                            aria-label="Verlaag aantal"
+                                        >
+                                            <Minus className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={localAantal}
+                                            onChange={(e) => setLocalAantal(e.target.value.slice(0, MAX_INPUT_LENGTH))}
+                                            onBlur={handleAantalBlur}
+                                            onKeyDown={(e) => {
+                                                if (DISALLOWED_NUMBER_KEYS.has(e.key)) {
+                                                    e.preventDefault();
+                                                }
+                                                handleKeyDown(e);
+                                            }}
+                                            onPaste={(e) => {
+                                                if (DISALLOWED_NUMBER_PASTE.test(e.clipboardData.getData('text'))) {
+                                                    e.preventDefault();
+                                                }
+                                            }}
+                                            placeholder="0"
+                                            className="h-8 min-w-0 flex-1 rounded border border-zinc-700/60 bg-zinc-900/40 px-2 text-center text-sm font-semibold text-zinc-100 transition-all [appearance:textfield] hover:border-zinc-600 hover:bg-zinc-800/50 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                        />
+                                        <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="ghost"
+                                            onClick={() => handleAantalStep(1)}
+                                            className="h-8 w-8 shrink-0 rounded border border-zinc-700/60 bg-zinc-900/40 text-zinc-300 hover:bg-zinc-800/60 hover:text-zinc-100"
+                                            aria-label="Verhoog aantal"
+                                        >
+                                            <Plus className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-lg border border-zinc-700/60 bg-zinc-900/35 p-2">
+                                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Eenheid</div>
+                                    <select
+                                        value={localEenheid}
+                                        onChange={(e) => handleEenheidChange(e.target.value)}
+                                        className="h-8 w-full rounded border border-zinc-700/60 bg-zinc-900/40 px-2 text-center text-xs font-medium text-zinc-300 transition-all hover:border-zinc-600 hover:bg-zinc-800/50 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50"
+                                    >
+                                        {UNITS.map(u => (
+                                            <option key={u} value={u}>{u}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                <label className={`rounded-lg border bg-zinc-900/35 p-2 transition-all focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/50 ${needsPrice ? 'border-amber-500/50' : 'border-zinc-700/60'}`}>
+                                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Prijs excl.</div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-sm text-zinc-400">€</span>
+                                        <input
+                                            type="text"
+                                            value={localPrijs}
+                                            onChange={(e) => setLocalPrijs(e.target.value.slice(0, MAX_INPUT_LENGTH))}
+                                            onBlur={handlePrijsBlur}
+                                            onKeyDown={handleKeyDown}
+                                            placeholder="0,00"
+                                            maxLength={MAX_INPUT_LENGTH}
+                                            className={`min-w-0 flex-1 border-none bg-transparent p-0 text-right font-mono text-sm focus:outline-none focus:ring-0 ${needsPrice ? 'font-bold text-amber-400 placeholder:text-zinc-600' : 'font-medium text-zinc-200 placeholder:text-zinc-600'}`}
+                                        />
+                                    </div>
+                                </label>
+
+                                <div className="rounded-lg border border-zinc-700/60 bg-zinc-900/35 p-2 text-right">
+                                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Totaal</div>
+                                    <div className="text-sm font-semibold text-zinc-200">{formatCurrency(itemTotal)}</div>
+                                    {showLineTotalInclBtw && (
+                                        <div className="mt-0.5 text-[11px] text-zinc-500">incl. {formatCurrency(itemTotal * (1 + vatRate / 100))}</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            <tr className={`group hidden transition-all duration-200 sm:table-row ${needsPrice ? 'bg-amber-500/[0.03]' : 'hover:bg-zinc-800/20'}`}>
+                <td className="px-2 py-2 sm:px-4 sm:py-3">
                     <div className="space-y-1">
                         {sourceCategoryLabel && (
                             <span className="inline-flex rounded-md border border-zinc-700/60 bg-zinc-900/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-400">
@@ -189,7 +314,7 @@ function MaterialRow({
                         />
                     </div>
                 </td>
-                <td className="px-2 py-2 sm:px-6 sm:py-3">
+                <td className="px-2 py-2 sm:px-2 sm:py-3">
                     <div className="flex items-center gap-1">
                         <Button
                             type="button"
@@ -233,7 +358,7 @@ function MaterialRow({
                         </Button>
                     </div>
                 </td>
-                <td className="px-2 py-2 text-right sm:px-6 sm:py-3">
+                <td className="px-2 py-2 text-right sm:px-2 sm:py-3">
                     <label className={`flex items-center justify-end w-24 bg-zinc-900/40 border rounded px-2 py-1 hover:bg-zinc-800/50 transition-all focus-within:ring-1 focus-within:ring-emerald-500/50 focus-within:border-emerald-500/50 hover:border-zinc-600 cursor-text sm:w-28 ${needsPrice ? 'border-amber-500/50' : 'border-zinc-700/60'}`}>
                         <div className="flex items-center gap-1.5">
                             <span className="text-zinc-400 text-sm pointer-events-none">€</span>
@@ -254,7 +379,7 @@ function MaterialRow({
                         {formatCurrency(itemTotal)}
                     </p>
                 </td>
-                <td className="px-2 py-2 sm:px-6 sm:py-3">
+                <td className="px-2 py-2 sm:px-2 sm:py-3">
                     <select
                         value={localEenheid}
                         onChange={(e) => handleEenheidChange(e.target.value)}
@@ -265,16 +390,16 @@ function MaterialRow({
                         ))}
                     </select>
                 </td>
-                <td className="hidden px-6 py-3 text-right text-zinc-300 text-sm sm:table-cell">
+                <td className="hidden px-2 py-3 text-right text-zinc-300 text-sm sm:table-cell">
                     {formatCurrency(itemTotal)}
                 </td>
                 {showLineTotalInclBtw && (
-                    <td className="hidden px-6 py-3 text-right text-zinc-400 text-sm font-medium sm:table-cell">
+                    <td className="hidden px-2 py-3 text-right text-zinc-400 text-sm font-medium sm:table-cell">
                         {formatCurrency(itemTotal * (1 + vatRate / 100))}
                     </td>
                 )}
                 {onRemoveItem && (
-                    <td className="px-2 py-2 text-right sm:px-6 sm:py-3">
+                    <td className="px-2 py-2 text-right sm:px-2 sm:py-3">
                         <Button
                             variant="ghost"
                             size="icon"
@@ -628,30 +753,30 @@ export function MaterialEditor({
 
             {/* Table */}
             <div className="overflow-x-hidden">
-                <table className="w-full table-fixed border-collapse sm:table-auto">
-                    <thead>
+                <table className="w-full table-fixed border-collapse">
+                    <thead className="hidden sm:table-header-group">
                         <tr className="bg-muted/20 text-left">
-                            <th className="px-2 py-2 text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:px-6 sm:py-3 sm:text-[11px]">
+                            <th className="px-2 py-2 text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:px-4 sm:py-3 sm:text-[11px]">
                                 Product
                             </th>
-                            <th className="w-12 px-2 py-2 text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:w-24 sm:px-6 sm:py-3 sm:text-[11px]">
+                            <th className="w-12 px-2 py-2 text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:w-32 sm:px-2 sm:py-3 sm:text-[11px]">
                                 Aantal
                             </th>
-                            <th className="w-28 px-2 py-2 text-right text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:w-36 sm:px-6 sm:py-3 sm:text-[11px]">
+                            <th className="w-28 px-2 py-2 text-right text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:w-32 sm:px-2 sm:py-3 sm:text-[11px]">
                                 Prijs <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(excl. btw)</span>
                             </th>
-                            <th className="w-14 px-2 py-2 text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:w-24 sm:px-6 sm:py-3 sm:text-[11px]">
+                            <th className="w-14 px-2 py-2 text-[10px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:w-20 sm:px-2 sm:py-3 sm:text-[11px]">
                                 Eenheid
                             </th>
-                            <th className="hidden w-32 px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:table-cell">
+                            <th className="hidden w-28 px-2 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:table-cell">
                                 Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(excl. btw)</span>
                             </th>
                             {showLineTotalInclBtw && (
-                                <th className="hidden w-32 px-6 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:table-cell">
+                                <th className="hidden w-28 px-2 py-3 text-right text-[11px] font-bold text-muted-foreground/90 uppercase tracking-wider sm:table-cell">
                                     Totaal <span className="text-[9px] font-normal text-zinc-400 lowercase ml-1">(incl. btw)</span>
                                 </th>
                             )}
-                            {onRemoveItem && <th className="w-10 px-2 py-2 sm:w-12 sm:px-6 sm:py-3" />}
+                            {onRemoveItem && <th className="w-10 px-2 py-2 sm:w-14 sm:px-2 sm:py-3" />}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -677,7 +802,7 @@ export function MaterialEditor({
                         {/* New Item Row */}
                         {isAdding && (
                             <tr className="bg-primary/[0.02] border-t border-border animate-in fade-in slide-in-from-top-1 duration-200">
-                                <td className="px-6 py-4">
+                                <td className="px-4 py-4">
                                     <input
                                         type="text"
                                         placeholder="Product naam"
@@ -687,7 +812,7 @@ export function MaterialEditor({
                                         className="w-full bg-muted border border-border focus:ring-1 focus:ring-primary/50 rounded px-2 py-1 text-foreground text-sm"
                                     />
                                 </td>
-                                <td className="px-6 py-4">
+                                <td className="px-2 py-4">
                                     <input
                                         type="number"
                                         min="1"
@@ -711,8 +836,8 @@ export function MaterialEditor({
                                         className="w-12 bg-muted border border-border focus:ring-1 focus:ring-primary/50 rounded px-2 py-1 text-foreground text-sm"
                                     />
                                 </td>
-                                <td className="px-6 py-4">
-                                    <label className="flex items-center justify-end w-36 bg-muted border border-border focus-within:ring-1 focus-within:ring-primary/50 rounded px-2 py-1 transition-all cursor-text">
+                                <td className="px-2 py-4">
+                                    <label className="flex w-28 items-center justify-end bg-muted border border-border focus-within:ring-1 focus-within:ring-primary/50 rounded px-2 py-1 transition-all cursor-text">
                                         <div className="flex items-center gap-1.5">
                                             <span className="text-muted-foreground text-xs pointer-events-none">€</span>
                                             <input
@@ -723,12 +848,12 @@ export function MaterialEditor({
                                                 onBlur={handleNewPrijsBlur}
                                                 onKeyDown={handleKeyDown}
                                                 maxLength={MAX_INPUT_LENGTH}
-                                                className="bg-transparent border-none focus:outline-none focus:ring-0 text-sm text-right text-foreground p-0 w-24"
+                                                className="w-20 bg-transparent border-none focus:outline-none focus:ring-0 text-sm text-right text-foreground p-0"
                                             />
                                         </div>
                                     </label>
                                 </td>
-                                <td className="px-6 py-4">
+                                <td className="px-2 py-4">
                                     <select
                                         value={newItem.eenheid || 'stuk'}
                                         onChange={(e) => setNewItem({ ...newItem, eenheid: e.target.value })}
@@ -740,7 +865,7 @@ export function MaterialEditor({
                                     </select>
                                 </td>
                                 <td colSpan={showLineTotalInclBtw ? 2 : 1} />
-                                <td className="px-6 py-4 flex justify-end gap-2">
+                                <td className="flex justify-end gap-1 px-2 py-4">
                                     <Button
                                         size="icon"
                                         variant="ghost"
@@ -781,7 +906,7 @@ export function MaterialEditor({
             <div className="border-t-2 border-border/80 bg-muted/10">
                 <div className="px-6 py-3 flex justify-end items-center">
                     <div className="flex items-center">
-                        <div className="text-right w-32 px-6">
+                        <div className="w-28 px-2 text-right">
                             <p className="text-primary font-bold tracking-tight">
                                 {formatCurrency(subtotal)}
                             </p>
@@ -790,7 +915,7 @@ export function MaterialEditor({
                             </p>
                         </div>
                         {showLineTotalInclBtw && (
-                            <div className="text-right w-32 px-6">
+                            <div className="w-28 px-2 text-right">
                                 <p className="text-primary font-bold tracking-tight">
                                     {formatCurrency(subtotalInclVAT)}
                                 </p>
@@ -799,7 +924,7 @@ export function MaterialEditor({
                                 </p>
                             </div>
                         )}
-                        {onRemoveItem && <div className="w-12" />}
+                        {onRemoveItem && <div className="w-14" />}
                     </div>
                 </div>
             </div>

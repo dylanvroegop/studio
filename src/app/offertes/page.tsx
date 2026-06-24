@@ -75,6 +75,15 @@ type QuoteRow = Quote & {
   title?: string;
 };
 
+type QuoteRowWithDetails = QuoteRow & {
+  data_json?: unknown;
+  korteTitel?: unknown;
+  klussen?: unknown;
+  jobs?: unknown;
+  werkbeschrijvingStructured?: unknown;
+  werkbeschrijving_jobs?: unknown;
+};
+
 type InvoiceSyncRow = {
   id: string;
   quoteId?: string;
@@ -98,6 +107,20 @@ type Client = {
   projectHuisnummer?: string;
   projectPostcode?: string;
   projectPlaats?: string;
+};
+
+type PlanningListEntry = {
+  id: string;
+  quoteId?: string;
+  planningType?: 'job' | 'werkbespreking';
+  startDate: Date | null;
+  endDate: Date | null;
+  scheduledHours?: number;
+  status?: string;
+  cache?: {
+    projectTitle?: string;
+    projectAddress?: string;
+  };
 };
 
 function isFilterMode(value: unknown): value is FilterMode {
@@ -171,6 +194,161 @@ function getHoofdtitel(q: QuoteRow): string | null {
   }
 
   return null;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseDataJsonValue(value: unknown): unknown {
+  if (!value) return null;
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function cleanDisplayText(value: unknown): string {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function stripPlanningPrefix(value: string): string {
+  return value.replace(/^(werkbespreking|klus)\s*[·:-]\s*/i, '').trim();
+}
+
+function addUniqueText(target: string[], value: unknown): void {
+  const text = stripPlanningPrefix(cleanDisplayText(value));
+  if (!text || text === '—') return;
+  if (!target.some((entry) => entry.toLowerCase() === text.toLowerCase())) {
+    target.push(text);
+  }
+}
+
+function addUniqueRawText(target: string[], value: unknown): void {
+  const text = cleanDisplayText(value);
+  if (!text || text === '—') return;
+  if (!target.some((entry) => entry.toLowerCase() === text.toLowerCase())) {
+    target.push(text);
+  }
+}
+
+function collectStructuredJobTitles(source: unknown, target: string[]): void {
+  if (!source) return;
+  const value = parseDataJsonValue(source);
+  if (!isPlainObject(value)) return;
+
+  const jobSources = [
+    value.jobs,
+    value.werkbeschrijving_jobs,
+    isPlainObject(value.werkbeschrijvingStructured) ? value.werkbeschrijvingStructured.jobs : null,
+  ];
+
+  jobSources.forEach((jobs) => {
+    if (!Array.isArray(jobs)) return;
+    jobs.forEach((job) => {
+      if (!isPlainObject(job)) return;
+      addUniqueText(target, job.title);
+      addUniqueText(target, job.korteTitel);
+      addUniqueText(target, job.summary);
+      addUniqueText(target, job.context);
+    });
+  });
+}
+
+function getQuoteJobSummary(q: QuoteRow): string | null {
+  const titles: string[] = [];
+  const detailedQuote = q as QuoteRowWithDetails;
+  const klussen = detailedQuote.klussen;
+
+  if (isPlainObject(klussen)) {
+    Object.values(klussen).forEach((job) => {
+      if (!isPlainObject(job)) return;
+      const info = isPlainObject(job.klusinformatie) ? job.klusinformatie : {};
+      addUniqueText(titles, info.title);
+      addUniqueText(titles, info.naam);
+      addUniqueText(titles, info.label);
+      addUniqueText(titles, info.type);
+      addUniqueText(titles, job.title);
+    });
+  }
+
+  const jobs = detailedQuote.jobs;
+  if (Array.isArray(jobs)) {
+    jobs.forEach((job) => {
+      if (!isPlainObject(job)) return;
+      const info = isPlainObject(job.klusinformatie) ? job.klusinformatie : {};
+      addUniqueText(titles, job.title);
+      addUniqueText(titles, info.title);
+      addUniqueText(titles, info.type);
+    });
+  }
+
+  collectStructuredJobTitles(detailedQuote.data_json, titles);
+  collectStructuredJobTitles(detailedQuote.werkbeschrijvingStructured, titles);
+  collectStructuredJobTitles({ jobs: detailedQuote.werkbeschrijving_jobs }, titles);
+
+  if (titles.length === 0) return null;
+  if (titles.length === 1) return titles[0];
+  const visible = titles.slice(0, 2).join('; ');
+  const extraCount = titles.length - 2;
+  return extraCount > 0 ? `${visible}; +${extraCount} klus${extraCount === 1 ? '' : 'sen'}` : visible;
+}
+
+function formatPlanningDateRange(entry: PlanningListEntry): string {
+  const start = entry.startDate;
+  if (!start) return '';
+
+  const dateLabel = format(start, 'd MMM yyyy', { locale: nl });
+  const startTime = format(start, 'HH:mm', { locale: nl });
+  const endTime = entry.endDate ? format(entry.endDate, 'HH:mm', { locale: nl }) : '';
+
+  if (entry.planningType === 'werkbespreking') {
+    return endTime ? `${dateLabel}, ${startTime}-${endTime}` : `${dateLabel}, ${startTime}`;
+  }
+
+  const hours = typeof entry.scheduledHours === 'number' && Number.isFinite(entry.scheduledHours)
+    ? `${entry.scheduledHours.toLocaleString('nl-NL')}u`
+    : '';
+  return [dateLabel, hours].filter(Boolean).join(' · ');
+}
+
+function getPlanningSummary(entries: PlanningListEntry[] | undefined): string | null {
+  if (!entries?.length) return null;
+
+  const activeEntries = entries
+    .filter((entry) => entry.status !== 'cancelled')
+    .sort((a, b) => {
+      const aTime = a.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const bTime = b.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      return aTime - bTime;
+    });
+
+  if (!activeEntries.length) return null;
+
+  const labels: string[] = [];
+  activeEntries.forEach((entry) => {
+    const typeLabel = entry.planningType === 'werkbespreking' ? 'Werkbespreking' : 'Klus';
+    const title = stripPlanningPrefix(cleanDisplayText(entry.cache?.projectTitle));
+    const dateRange = formatPlanningDateRange(entry);
+    const detail = [title, dateRange].filter(Boolean).join(' · ');
+    addUniqueRawText(labels, detail ? `${typeLabel}: ${detail}` : typeLabel);
+  });
+
+  if (!labels.length) return null;
+  if (labels.length === 1) return labels[0];
+  const visible = labels.slice(0, 2).join(' · ');
+  const extraCount = labels.length - 2;
+  return extraCount > 0 ? `${visible} · +${extraCount} planning${extraCount === 1 ? '' : 'en'}` : visible;
+}
+
+function getQuoteDetailSummary(q: QuoteRow, planningEntries?: PlanningListEntry[]): string | null {
+  const jobSummary = getQuoteJobSummary(q);
+  const planningSummary = getPlanningSummary(planningEntries);
+
+  if (jobSummary && planningSummary) return `${jobSummary} · ${planningSummary}`;
+  return jobSummary || planningSummary;
 }
 
 type OfferteStatusStyles = {
@@ -404,6 +582,7 @@ export default function OffertesPage() {
   const [error, setError] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
   const [hoofdtitelsByQuoteId, setHoofdtitelsByQuoteId] = useState<Record<string, string>>({});
+  const [planningEntriesByQuoteId, setPlanningEntriesByQuoteId] = useState<Record<string, PlanningListEntry[]>>({});
   const [isInitialHoofdtitelSyncDone, setIsInitialHoofdtitelSyncDone] = useState(false);
   const [invoices, setInvoices] = useState<InvoiceSyncRow[]>([]);
   const [search, setSearch] = useState('');
@@ -551,6 +730,52 @@ export default function OffertesPage() {
       },
       (err: any) => {
         console.warn('Fout bij ophalen factuurstatus voor offertes:', err);
+      }
+    );
+
+    return () => unsub();
+  }, [firestore, user]);
+
+  useEffect(() => {
+    if (!user || !firestore) return;
+
+    const ref = collection(firestore, 'planning_entries');
+    const q = query(ref, where('userId', '==', user.uid));
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const grouped: Record<string, PlanningListEntry[]> = {};
+
+        snapshot.docs.forEach((docSnap) => {
+          const raw = docSnap.data() as Record<string, unknown>;
+          const quoteId = cleanDisplayText(raw.quoteId);
+          if (!quoteId) return;
+          const cache = isPlainObject(raw.cache) ? raw.cache : null;
+
+          const entry: PlanningListEntry = {
+            id: docSnap.id,
+            quoteId,
+            planningType: raw.planningType === 'werkbespreking' ? 'werkbespreking' : 'job',
+            startDate: naarDate(raw.startDate),
+            endDate: naarDate(raw.endDate),
+            scheduledHours: Number(raw.scheduledHours),
+            status: cleanDisplayText(raw.status),
+            cache: cache
+              ? {
+                projectTitle: cleanDisplayText(cache.projectTitle),
+                projectAddress: cleanDisplayText(cache.projectAddress),
+              }
+              : undefined,
+          };
+
+          grouped[quoteId] = [...(grouped[quoteId] || []), entry];
+        });
+
+        setPlanningEntriesByQuoteId(grouped);
+      },
+      (err: unknown) => {
+        console.warn('Fout bij ophalen planninginformatie voor offertes:', err);
       }
     );
 
@@ -924,9 +1149,10 @@ export default function OffertesPage() {
       const klant = getKlantNaam(q).toLowerCase();
       const nr = typeof q.offerteNummer === 'number' ? String(q.offerteNummer) : '';
       const titel = (getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || getTitel(q)).toLowerCase();
-      return klant.includes(s) || nr.includes(s) || titel.includes(s);
+      const detail = (getQuoteDetailSummary(q, planningEntriesByQuoteId[q.id]) || '').toLowerCase();
+      return klant.includes(s) || nr.includes(s) || titel.includes(s) || detail.includes(s);
     });
-  }, [filter, quotesForSelectedYear, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId]);
+  }, [filter, quotesForSelectedYear, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId, planningEntriesByQuoteId]);
 
   const filteredClients = useMemo(() => {
     const s = clientSearch.trim().toLowerCase();
@@ -1138,6 +1364,15 @@ export default function OffertesPage() {
     { value: 'werkbespreking', label: 'Werkbespreking', count: filterCountsByMode.werkbespreking },
   ];
 
+  const mobileFilterOptions: Array<{ value: FilterMode; label: string; count: number }> = [
+    { value: 'werkbespreking', label: 'Werkbespreking', count: filterCountsByMode.werkbespreking },
+    { value: 'concept', label: 'Concept', count: filterCountsByMode.concept },
+    { value: 'geaccepteerd', label: 'Geaccepteerd', count: filterCountsByMode.geaccepteerd },
+    { value: 'alle', label: 'Alle', count: filterCountsByMode.alle },
+    { value: 'in_afwachting', label: 'Afwachten', count: filterCountsByMode.in_afwachting },
+    { value: 'verzonden', label: 'Verzonden', count: filterCountsByMode.verzonden },
+  ];
+
   const defaultFilterLabel = defaultFilter === 'geaccepteerd' ? 'Geaccepteerd' : 'Concept';
 
   function handleDefaultFilterSelect(nextDefaultFilter: DefaultFilterMode): void {
@@ -1182,50 +1417,16 @@ export default function OffertesPage() {
               />
             </div>
 
-            <div className="flex justify-end">
-              <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button type="button" variant="outline" className="h-9 rounded-md border-border/70 px-3 text-xs sm:text-sm">
-                      Standaard: {defaultFilterLabel}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel>Open offertes standaard op</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => handleDefaultFilterSelect('concept')}>
-                      Concept {defaultFilter === 'concept' ? '(actief)' : ''}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDefaultFilterSelect('geaccepteerd')}>
-                      Geaccepteerd {defaultFilter === 'geaccepteerd' ? '(actief)' : ''}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <select
-                  value={String(selectedYear)}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm text-foreground"
-                >
-                  {yearOptions.map((year) => (
-                    <option key={`mobile-year-${year}`} value={year}>
-                      Jaar {year}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="-mx-1 overflow-x-auto pb-1">
-              <div className="flex w-max items-center gap-2 px-1">
-                {filterOptions.map((option) => (
+            <div className="-mx-4 overflow-x-auto pb-1">
+              <div className="flex w-max items-center gap-2 px-4">
+                {mobileFilterOptions.map((option) => (
                   <Button
                     key={`mobile-${option.value}`}
                     type="button"
                     variant={filter === option.value ? 'default' : 'ghost'}
                     onClick={() => setFilter(option.value)}
                     className={cn(
-                      'h-9 rounded-full px-4 transition-all duration-200 active:scale-[0.98]',
+                      'h-9 shrink-0 rounded-full px-4 text-sm transition-all duration-200 active:scale-[0.98]',
                       filter === option.value
                         ? 'bg-cyan-500/90 text-white hover:bg-cyan-400'
                         : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
@@ -1442,6 +1643,8 @@ export default function OffertesPage() {
                 const klant = getKlantNaam(q);
                 const hoofdTitel = getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || null;
                 const fallbackTitel = getTitel(q);
+                const detailSummary = getQuoteDetailSummary(q, planningEntriesByQuoteId[q.id]);
+                const rowDescription = detailSummary || hoofdTitel || (fallbackTitel !== '—' ? fallbackTitel : null);
                 const isArchived = !!q.archived;
                 const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
                 const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
@@ -1453,7 +1656,7 @@ export default function OffertesPage() {
                   <div
                     key={`mobile-${q.id}`}
                     className={cn(
-                      'group relative cursor-pointer rounded-xl border border-l-[3px] border-border/80 px-4 py-3.5 shadow-sm transition-all duration-150 active:scale-[0.995]',
+                      'group relative cursor-pointer rounded-xl border border-l-[3px] border-border/80 px-3.5 py-3 shadow-sm transition-all duration-150 active:scale-[0.995]',
                       statusStyles.sideBorderClass,
                       statusStyles.rowTintClass
                     )}
@@ -1467,25 +1670,20 @@ export default function OffertesPage() {
                       }
                     }}
                   >
-                    <div className="relative z-10 space-y-3">
+                    <div className="relative z-10 space-y-2.5">
                       <div className="flex min-w-0 items-center gap-2">
                         <div className="truncate text-base font-bold text-foreground">{klant}</div>
-                        <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium', statusStyles.badgeClass)}>
-                          {statusStyles.label}
-                        </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground/70">
                         <span className="truncate">{nrLabel}</span>
                         <span className="opacity-40">•</span>
                         <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
                       </div>
-                      {hoofdTitel ? (
-                        <div className="truncate text-xs text-muted-foreground/90">{hoofdTitel}</div>
-                      ) : fallbackTitel !== '—' ? (
-                        <div className="truncate text-xs text-muted-foreground/90">{fallbackTitel}</div>
+                      {rowDescription ? (
+                        <div className="truncate text-xs text-muted-foreground/90">{rowDescription}</div>
                       ) : null}
-                      <div className="flex items-end justify-between gap-2">
-                        <div className={cn('text-xl font-bold tabular-nums', showUncalculatedPlaceholder ? 'text-emerald-300' : 'text-emerald-400')}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={cn('min-w-0 truncate text-lg font-bold tabular-nums', showUncalculatedPlaceholder ? 'text-emerald-300' : 'text-emerald-400')}>
                           {showUncalculatedPlaceholder ? (
                             <span className="inline-flex items-center gap-2">
                               <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
@@ -1496,20 +1694,6 @@ export default function OffertesPage() {
                           )}
                         </div>
                         <div className="relative z-20 flex items-center gap-1">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="h-9 gap-2 border border-emerald-400/40 bg-emerald-500/25 px-3 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.22)] transition-all duration-150 hover:bg-emerald-500/35 hover:text-white active:scale-[0.98]"
-                            aria-label="Open offerte"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              router.push(`/offertes/${q.id}`);
-                            }}
-                          >
-                            Bekijk
-                          </Button>
-
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -1612,6 +1796,8 @@ export default function OffertesPage() {
                 const klant = getKlantNaam(q);
                 const hoofdTitel = getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || null;
                 const fallbackTitel = getTitel(q);
+                const detailSummary = getQuoteDetailSummary(q, planningEntriesByQuoteId[q.id]);
+                const rowDescription = detailSummary || hoofdTitel || (fallbackTitel !== '—' ? fallbackTitel : null);
                 const isArchived = !!q.archived;
                 const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
                 const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
@@ -1658,10 +1844,8 @@ export default function OffertesPage() {
                           <span className="opacity-40">•</span>
                           <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
                         </div>
-                        {hoofdTitel ? (
-                          <div className="mt-1 truncate text-xs text-muted-foreground/90">{hoofdTitel}</div>
-                        ) : fallbackTitel !== '—' ? (
-                          <div className="mt-1 truncate text-xs text-muted-foreground/90">{fallbackTitel}</div>
+                        {rowDescription ? (
+                          <div className="mt-1 truncate text-xs text-muted-foreground/90">{rowDescription}</div>
                         ) : null}
                         <div className={cn('sm:hidden', amountMobileClass)}>
                           {showUncalculatedPlaceholder ? (

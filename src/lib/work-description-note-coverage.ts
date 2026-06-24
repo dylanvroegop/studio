@@ -22,6 +22,46 @@ function normalizeForComparison(value: string): string {
     .trim();
 }
 
+export function getMeasurementRowIdentity(value: string): string {
+  const source = String(value || '').trim();
+  const firstLabel = source.search(/\b(?:lengte|breedte|hoogte|dikte)\b/i);
+  if (firstLabel < 0) return normalizeForComparison(source);
+
+  const title = normalizeForComparison(
+    source.slice(0, firstLabel).replace(/[|:=\-]+\s*$/, '').trim(),
+  );
+  const measurements = new Map<string, string>();
+  const labels = /\b(lengte|breedte|hoogte|dikte)\b\s*(?:[:=]\s*)?([^|,;]*?)(?=\s*(?:[|,;]|\b(?:lengte|breedte|hoogte|dikte)\b|$))/gi;
+
+  for (const match of source.matchAll(labels)) {
+    const rawValue = match[2]
+      .toLowerCase()
+      .replace(',', '.')
+      .replace(/\s+/g, '')
+      .trim();
+    if (!/\d/.test(rawValue)) continue;
+    measurements.set(match[1].toLowerCase(), rawValue);
+  }
+
+  if (measurements.size === 0) return normalizeForComparison(source);
+  return [
+    title,
+    ...['lengte', 'breedte', 'hoogte', 'dikte']
+      .filter((label) => measurements.has(label))
+      .map((label) => `${label}:${measurements.get(label)}`),
+  ].join('|');
+}
+
+export function deduplicateMeasurementRows(rows: string[]): string[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const identity = getMeasurementRowIdentity(row);
+    if (!identity || seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
+
 function getSignificantTokens(value: string): string[] {
   return normalizeForComparison(value)
     .split(/\s+/)
@@ -66,7 +106,7 @@ export function extractRequiredMaatwerkRequirements(notesContext: unknown): stri
     requirements.push(cleaned);
   }
 
-  return Array.from(new Set(requirements));
+  return deduplicateMeasurementRows(requirements);
 }
 
 export function extractRequiredNoteRequirements(notesContext: unknown): string[] {
@@ -145,13 +185,11 @@ export function enforceRequiredMaatwerkCoverage(
   const requirements = extractRequiredMaatwerkRequirements(notesContext);
   if (requirements.length === 0) return generated;
 
-  const normalizeLine = (value: string) => normalizeForComparison(value);
   const appendMissingDimensions = (dimensions: string[]) => {
-    const existing = new Set(dimensions.map(normalizeLine));
-    return [
+    return deduplicateMeasurementRows([
       ...dimensions,
-      ...requirements.filter((requirement) => !existing.has(normalizeLine(requirement))),
-    ];
+      ...requirements,
+    ]);
   };
   const existingScope = [
     ...generated.work_scope,

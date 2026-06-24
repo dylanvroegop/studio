@@ -25,7 +25,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, CalendarClock, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -65,7 +65,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn, parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
 import { buildAddressString, buildGoogleMapsDirectionsUrl, hasMinimalAddress } from '@/lib/maps';
 import { reportOperationalError } from '@/lib/report-operational-error';
-import { repairCopiedNoteBlobs } from '@/lib/work-description-note-coverage';
+import { deduplicateMeasurementRows, repairCopiedNoteBlobs } from '@/lib/work-description-note-coverage';
 import {
     defaultQuotePdfTextSettings,
     sanitizeQuotePdfTextSettings,
@@ -86,6 +86,51 @@ import {
 } from '@/lib/material-presentations';
 import { createMaterialList, MATERIAL_LIST_STATUS_LABELS, type MaterialList } from '@/lib/material-lists';
 import { saveQuoteBackup } from '@/lib/quote-backup';
+
+function forceSummaryIntoWorkScope(value: WorkDescriptionStructured): WorkDescriptionStructured {
+    const activeIndex = Math.max(
+        0,
+        Math.min(value.activeJobIndex || 0, Math.max(0, value.jobs.length - 1)),
+    );
+    const rootWorkScope = Array.isArray(value.work_scope) ? value.work_scope : [];
+    const activeJobWorkScope = Array.isArray(value.jobs[activeIndex]?.work_scope)
+        ? value.jobs[activeIndex].work_scope
+        : [];
+    const rootSummary = String(value.summary || value.context || '').trim();
+    const activeJobSummary = String(
+        value.jobs[activeIndex]?.summary || value.jobs[activeIndex]?.context || '',
+    ).trim();
+    const workScope = rootWorkScope.length > 0
+        ? rootWorkScope
+        : activeJobWorkScope.length > 0
+            ? activeJobWorkScope
+            : rootSummary || activeJobSummary
+                ? [rootSummary || activeJobSummary]
+                : [];
+    const summary = rootSummary || activeJobSummary || workScope.join('\n\n');
+    const jobs = value.jobs.map((job) => {
+        const jobWorkScope = Array.isArray(job.work_scope) && job.work_scope.length > 0
+            ? job.work_scope
+            : job.summary || job.context
+                ? [String(job.summary || job.context)]
+                : [];
+        const jobText = String(job.summary || job.context || jobWorkScope.join('\n\n')).trim();
+        return {
+            ...job,
+            context: jobText || job.context,
+            summary: jobText || job.summary,
+            work_scope: jobWorkScope,
+        };
+    });
+
+    return {
+        ...value,
+        context: summary,
+        summary,
+        work_scope: workScope,
+        jobs,
+    };
+}
 
 interface GrootCompareQuoteColumn {
     quoteId: string;
@@ -280,8 +325,6 @@ function withRodeVoorwaardenByMode(
 
 const CALCULATION_ESTIMATE_SECONDS = 300;
 const CALCULATION_STUCK_SECONDS = 20 * 60;
-const WORK_DESCRIPTION_AUTOSAVE_DEBOUNCE_MS = 500;
-const WORK_DESCRIPTION_SAVING_INDICATOR_DELAY_MS = 900;
 
 function truncatePromptText(value: string, maxLength: number): string {
     const normalized = value
@@ -311,6 +354,7 @@ interface QuoteNoteSection {
         title: string;
         length: string;
         width: string;
+        height: string;
         thickness: string;
     }>;
     notes: string;
@@ -335,12 +379,67 @@ function createQuoteNoteMaatwerkLine(overrides?: Partial<QuoteNoteSection['maatw
         title: overrides?.title ?? '',
         length: overrides?.length ?? '',
         width: overrides?.width ?? '',
+        height: overrides?.height ?? '',
         thickness: overrides?.thickness ?? '',
     };
 }
 
 function normalizeMaatwerkDimension(value: string): string {
     return value.replace(/\bmm\b/gi, '').trim();
+}
+
+function extractMaatwerkDimensionFromTitle(title: string, label: 'hoogte' | 'breedte' | 'dikte' | 'lengte'): { title: string; value: string } {
+    let extractedValue = '';
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const nextLabelPattern = '(?:lengte|breedte|hoogte|dikte|balkafstand|hartafstand|h\\.o\\.h\\.)';
+    const pattern = new RegExp(
+        `(?:^|[\\s(;,-])${escapedLabel}\\s*[:=]?\\s*([0-9]+(?:[,.][0-9]+)?\\s*(?:mm|cm|m)?)\\b`,
+        'i',
+    );
+
+    const nextTitle = title
+        .replace(pattern, (match, value: string) => {
+            extractedValue = extractedValue || normalizeMaatwerkDimension(value);
+            const prefix = match.match(/^[\s(;,-]+/)?.[0] || '';
+            return prefix.includes('(') ? '(' : prefix.includes(';') ? '; ' : ' ';
+        })
+        .replace(new RegExp(`\\(\\s*;?\\s*(?=${nextLabelPattern}\\b)`, 'i'), '(')
+        .replace(/\(\s*[;,\s]*\)/g, '')
+        .replace(/\(\s*[;,\s]*/g, '(')
+        .replace(/[;,\s]+\)/g, ')')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+    return { title: nextTitle, value: extractedValue };
+}
+
+function getQuoteNoteMaatwerkLineIdentity(line: Pick<QuoteNoteSection['maatwerkLines'][number], 'title' | 'length' | 'width' | 'height' | 'thickness'>): string {
+    return [
+        line.title,
+        normalizeMaatwerkDimension(line.length),
+        normalizeMaatwerkDimension(line.width),
+        normalizeMaatwerkDimension(line.height),
+        normalizeMaatwerkDimension(line.thickness),
+    ]
+        .map((value) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase())
+        .join('|');
+}
+
+function deduplicateQuoteNoteMaatwerkLines(
+    lines: QuoteNoteSection['maatwerkLines'],
+): QuoteNoteSection['maatwerkLines'] {
+    const seen = new Set<string>();
+    const result: QuoteNoteSection['maatwerkLines'] = [];
+
+    for (const line of lines) {
+        const identity = getQuoteNoteMaatwerkLineIdentity(line);
+        if (!identity.replace(/\|/g, '').trim()) continue;
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        result.push(line);
+    }
+
+    return result;
 }
 
 function createQuoteNoteSection(index: number, overrides?: Partial<QuoteNoteSection>): QuoteNoteSection {
@@ -350,7 +449,7 @@ function createQuoteNoteSection(index: number, overrides?: Partial<QuoteNoteSect
         linksTitle: overrides?.linksTitle ?? '',
         links: Array.isArray(overrides?.links) ? overrides.links : [],
         maatwerkLines: Array.isArray(overrides?.maatwerkLines) && overrides.maatwerkLines.length > 0
-            ? overrides.maatwerkLines
+            ? deduplicateQuoteNoteMaatwerkLines(overrides.maatwerkLines)
             : [createQuoteNoteMaatwerkLine()],
         notes: overrides?.notes ?? '',
     };
@@ -361,32 +460,177 @@ function parseQuoteNoteMaatwerkLine(line: string): QuoteNoteSection['maatwerkLin
     if (!cleaned) return null;
 
     const titleMatch = cleaned.match(/^(.*?)\s*=\s*(.+)$/);
-    const title = titleMatch ? titleMatch[1].trim() : '';
+    let title = titleMatch ? titleMatch[1].trim() : '';
     const dimensionText = titleMatch ? titleMatch[2].trim() : cleaned;
 
     const lengthMatch = dimensionText.match(/(?:^|[|,;])\s*lengte\s*:?\s*([^|,;]+)/i);
     const widthMatch = dimensionText.match(/(?:^|[|,;])\s*breedte\s*:?\s*([^|,;]+)/i);
+    const heightMatch = dimensionText.match(/(?:^|[|,;])\s*hoogte\s*:?\s*([^|,;]+)/i);
     const thicknessMatch = dimensionText.match(/(?:^|[|,;])\s*dikte\s*:?\s*([^|,;]+)/i);
-    if (lengthMatch || widthMatch || thicknessMatch) {
+    if (lengthMatch || widthMatch || heightMatch || thicknessMatch) {
+        const embeddedHeight = extractMaatwerkDimensionFromTitle(title, 'hoogte');
+        title = embeddedHeight.title;
         return createQuoteNoteMaatwerkLine({
             title,
             length: normalizeMaatwerkDimension(lengthMatch?.[1] || ''),
             width: normalizeMaatwerkDimension(widthMatch?.[1] || ''),
+            height: normalizeMaatwerkDimension(heightMatch?.[1] || embeddedHeight.value || ''),
             thickness: normalizeMaatwerkDimension(thicknessMatch?.[1] || ''),
         });
     }
 
-    const dimensionMatch = dimensionText.match(/^([^x×]+)\s*[x×]\s*([^x×]+)\s*[x×]\s*([^x×]+)$/i);
+    const dimensionMatch = dimensionText.match(/^([^x×]+)\s*[x×]\s*([^x×]+)\s*[x×]\s*([^x×]+)(?:\s*[x×]\s*([^x×]+))?$/i);
     if (dimensionMatch) {
         return createQuoteNoteMaatwerkLine({
             title,
             length: normalizeMaatwerkDimension(dimensionMatch[1]),
             width: normalizeMaatwerkDimension(dimensionMatch[2]),
-            thickness: normalizeMaatwerkDimension(dimensionMatch[3]),
+            height: dimensionMatch[4] ? normalizeMaatwerkDimension(dimensionMatch[3]) : '',
+            thickness: normalizeMaatwerkDimension(dimensionMatch[4] || dimensionMatch[3]),
+        });
+    }
+
+    const twoDimensionMatch = dimensionText.match(/^([^x×]+)\s*[x×]\s*([^x×]+)$/i);
+    if (twoDimensionMatch) {
+        return createQuoteNoteMaatwerkLine({
+            title,
+            length: normalizeMaatwerkDimension(twoDimensionMatch[1]),
+            width: normalizeMaatwerkDimension(twoDimensionMatch[2]),
         });
     }
 
     return null;
+}
+
+function extractQuoteNoteMaatwerkLinesFromNotes(notes: string): QuoteNoteSection['maatwerkLines'] {
+    const rows: QuoteNoteSection['maatwerkLines'] = [];
+    let pendingTitle = '';
+
+    for (const rawLine of notes.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line) {
+            pendingTitle = '';
+            continue;
+        }
+
+        const parsed = parseQuoteNoteMaatwerkLine(line);
+        if (parsed) {
+            rows.push(createQuoteNoteMaatwerkLine({
+                ...parsed,
+                title: parsed.title || pendingTitle,
+            }));
+            continue;
+        }
+
+        if (!/^https?:\/\//i.test(line) && !/^links?\b/i.test(line)) {
+            pendingTitle = line.replace(/[:=]\s*$/g, '').trim();
+        }
+    }
+
+    return deduplicateQuoteNoteMaatwerkLines(rows);
+}
+
+type ParsedQuoteNoteSection = {
+    title: string;
+    linksTitle: string;
+    links: Array<{ title: string; url: string }>;
+    maatwerkLines: QuoteNoteSection['maatwerkLines'];
+    notesLines: string[];
+};
+
+function getQuoteNoteAuxiliaryTitle(title: string): 'links' | 'maatwerk' | null {
+    const normalized = title.replace(/^#+\s*/, '').trim();
+    if (/^links?\b\s*:?\s*$/i.test(normalized)) return 'links';
+    if (/^maatwerk\b\s*:?\s*$/i.test(normalized)) return 'maatwerk';
+    return null;
+}
+
+function createParsedQuoteNoteSection(title = ''): ParsedQuoteNoteSection {
+    return { title, linksTitle: '', links: [], maatwerkLines: [], notesLines: [] };
+}
+
+function applyQuoteNoteLinkLine(target: ParsedQuoteNoteSection, rawLine: string): boolean {
+    const line = rawLine.trim();
+    if (!line) return true;
+
+    const linksTitleMatch = line.match(/^titel\s*:\s*(.*)$/i);
+    if (linksTitleMatch) {
+        const value = linksTitleMatch[1].trim();
+        const urlMatch = value.match(/https?:\/\/\S+/i);
+        if (urlMatch) {
+            target.links.push({ title: '', url: urlMatch[0].trim() });
+        } else if (value) {
+            target.linksTitle = value;
+        }
+        return true;
+    }
+
+    const markdownLinkMatch = line.match(/^-+\s*\[(.+?)\]\((https?:\/\/[^\s)]+)\)\s*$/i);
+    if (markdownLinkMatch) {
+        target.links.push({
+            title: markdownLinkMatch[1].trim(),
+            url: markdownLinkMatch[2].trim(),
+        });
+        return true;
+    }
+
+    const titledLinkMatch = line.match(/^-+\s*(.*?)\s*\|\s*(https?:\/\/\S+)\s*$/i);
+    if (titledLinkMatch) {
+        target.links.push({
+            title: titledLinkMatch[1].trim(),
+            url: titledLinkMatch[2].trim(),
+        });
+        return true;
+    }
+
+    const rawLinkMatch = line.match(/^-+\s*(https?:\/\/\S+)\s*$/i) || line.match(/^(https?:\/\/\S+)\s*$/i);
+    if (rawLinkMatch) {
+        target.links.push({
+            title: '',
+            url: rawLinkMatch[1].trim(),
+        });
+        return true;
+    }
+
+    return false;
+}
+
+function mergeAuxiliaryQuoteNoteSections(sections: ParsedQuoteNoteSection[]): ParsedQuoteNoteSection[] {
+    const merged: ParsedQuoteNoteSection[] = [];
+
+    for (const section of sections) {
+        const auxiliaryTitle = getQuoteNoteAuxiliaryTitle(section.title);
+        if (!auxiliaryTitle) {
+            merged.push(section);
+            continue;
+        }
+
+        const target = merged[merged.length - 1] || createParsedQuoteNoteSection('');
+        if (merged.length === 0) merged.push(target);
+
+        if (auxiliaryTitle === 'links') {
+            if (section.linksTitle && !target.linksTitle) target.linksTitle = section.linksTitle;
+            target.links.push(...section.links);
+            for (const line of section.notesLines) {
+                if (!applyQuoteNoteLinkLine(target, line)) {
+                    target.notesLines.push(line);
+                }
+            }
+            continue;
+        }
+
+        target.maatwerkLines.push(...section.maatwerkLines);
+        for (const line of section.notesLines) {
+            const parsedMaatwerkLine = parseQuoteNoteMaatwerkLine(line);
+            if (parsedMaatwerkLine) {
+                target.maatwerkLines.push(parsedMaatwerkLine);
+            } else if (line.trim()) {
+                target.notesLines.push(line);
+            }
+        }
+    }
+
+    return merged;
 }
 
 function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
@@ -396,28 +640,57 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
     }
 
     const lines = normalized.split('\n');
-    const sections: Array<{
-        title: string;
-        linksTitle: string;
-        links: Array<{ title: string; url: string }>;
-        maatwerkLines: QuoteNoteSection['maatwerkLines'];
-        notesLines: string[];
-    }> = [];
-    let activeSection: {
-        title: string;
-        linksTitle: string;
-        links: Array<{ title: string; url: string }>;
-        maatwerkLines: QuoteNoteSection['maatwerkLines'];
-        notesLines: string[];
-    } | null = null;
+    const sections: ParsedQuoteNoteSection[] = [];
+    let activeSection: ParsedQuoteNoteSection | null = null;
     let inLinksSection = false;
     let inMaatwerkSection = false;
 
     for (const line of lines) {
+        const standaloneMaatwerkHeader = line.match(/^#{1,4}\s*maatwerk\b\s*:?\s*$/i);
+        if (standaloneMaatwerkHeader) {
+            if (!activeSection) {
+                activeSection = createParsedQuoteNoteSection('');
+                sections.push(activeSection);
+            }
+            inMaatwerkSection = true;
+            inLinksSection = false;
+            continue;
+        }
+
+        const standaloneLinksHeader = line.match(/^#{1,4}\s*links?\b\s*:?\s*$/i);
+        if (standaloneLinksHeader) {
+            if (!activeSection) {
+                activeSection = createParsedQuoteNoteSection('');
+                sections.push(activeSection);
+            }
+            inLinksSection = true;
+            inMaatwerkSection = false;
+            continue;
+        }
+
         const titleMatch = line.match(/^###\s*(.*)$/);
         if (titleMatch) {
             const title = titleMatch[1].trim();
-            activeSection = { title, linksTitle: '', links: [], maatwerkLines: [], notesLines: [] };
+            const normalizedTitle = title.replace(/^#+\s*/, '').trim();
+            if (/^maatwerk\b\s*:?\s*$/i.test(normalizedTitle)) {
+                if (!activeSection) {
+                    activeSection = createParsedQuoteNoteSection('');
+                    sections.push(activeSection);
+                }
+                inMaatwerkSection = true;
+                inLinksSection = false;
+                continue;
+            }
+            if (/^links?\b\s*:?\s*$/i.test(normalizedTitle)) {
+                if (!activeSection) {
+                    activeSection = createParsedQuoteNoteSection('');
+                    sections.push(activeSection);
+                }
+                inLinksSection = true;
+                inMaatwerkSection = false;
+                continue;
+            }
+            activeSection = createParsedQuoteNoteSection(title);
             sections.push(activeSection);
             inLinksSection = false;
             inMaatwerkSection = false;
@@ -425,7 +698,7 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
         }
 
         if (!activeSection) {
-            activeSection = { title: '', linksTitle: '', links: [], maatwerkLines: [], notesLines: [] };
+            activeSection = createParsedQuoteNoteSection('');
             sections.push(activeSection);
         }
 
@@ -471,36 +744,7 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
         }
 
         if (inLinksSection) {
-            const linksTitleMatch = line.match(/^titel\s*:\s*(.*)$/i);
-            if (linksTitleMatch) {
-                activeSection.linksTitle = linksTitleMatch[1].trim();
-                continue;
-            }
-
-            const markdownLinkMatch = line.match(/^-+\s*\[(.+?)\]\((https?:\/\/[^\s)]+)\)\s*$/i);
-            if (markdownLinkMatch) {
-                activeSection.links.push({
-                    title: markdownLinkMatch[1].trim(),
-                    url: markdownLinkMatch[2].trim(),
-                });
-                continue;
-            }
-
-            const titledLinkMatch = line.match(/^-+\s*(.*?)\s*\|\s*(https?:\/\/\S+)\s*$/i);
-            if (titledLinkMatch) {
-                activeSection.links.push({
-                    title: titledLinkMatch[1].trim(),
-                    url: titledLinkMatch[2].trim(),
-                });
-                continue;
-            }
-
-            const rawLinkMatch = line.match(/^-+\s*(https?:\/\/\S+)\s*$/i);
-            if (rawLinkMatch) {
-                activeSection.links.push({
-                    title: '',
-                    url: rawLinkMatch[1].trim(),
-                });
+            if (applyQuoteNoteLinkLine(activeSection, line)) {
                 continue;
             }
 
@@ -514,7 +758,8 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
         activeSection.notesLines.push(line);
     }
 
-    const mapped = sections.map((section, index) =>
+    const mergedSections = mergeAuxiliaryQuoteNoteSections(sections);
+    const mapped = mergedSections.map((section, index) =>
         createQuoteNoteSection(index, {
             title: section.title,
             linksTitle: section.linksTitle,
@@ -532,7 +777,47 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
 }
 
 function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
-    const cleanedSections = sections
+    const normalizedSections = sections.reduce<QuoteNoteSection[]>((result, section) => {
+        const auxiliaryTitle = getQuoteNoteAuxiliaryTitle(section.title);
+        if (!auxiliaryTitle) {
+            result.push(section);
+            return result;
+        }
+
+        const targetIndex = result.length - 1;
+        const target = targetIndex >= 0 ? result[targetIndex] : createQuoteNoteSection(0);
+        if (targetIndex < 0) result.push(target);
+
+        if (auxiliaryTitle === 'links') {
+            const links = [...target.links];
+            let linksTitle = target.linksTitle;
+            if (section.linksTitle && !linksTitle) linksTitle = section.linksTitle;
+            for (const link of section.links) links.push(link);
+            for (const rawLine of section.notes.split(/\r?\n/)) {
+                const parsed = createParsedQuoteNoteSection('');
+                if (applyQuoteNoteLinkLine(parsed, rawLine)) {
+                    if (parsed.linksTitle && !linksTitle) linksTitle = parsed.linksTitle;
+                    links.push(...parsed.links.map((link) => ({
+                        id: createQuoteNoteSectionId(),
+                        title: link.title,
+                        url: link.url,
+                    })));
+                }
+            }
+            result[targetIndex < 0 ? 0 : targetIndex] = { ...target, linksTitle, links };
+            return result;
+        }
+
+        const maatwerkLines = deduplicateQuoteNoteMaatwerkLines([
+            ...target.maatwerkLines,
+            ...section.maatwerkLines,
+            ...extractQuoteNoteMaatwerkLinesFromNotes(section.notes),
+        ]);
+        result[targetIndex < 0 ? 0 : targetIndex] = { ...target, maatwerkLines };
+        return result;
+    }, []);
+
+    const cleanedSections = normalizedSections
         .map((section) => ({
             title: section.title.trim(),
             linksTitle: section.linksTitle.trim(),
@@ -542,14 +827,15 @@ function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
                     url: link.url.trim(),
                 }))
                 .filter((link) => link.title.length > 0 || link.url.length > 0),
-            maatwerkLines: section.maatwerkLines
+            maatwerkLines: deduplicateQuoteNoteMaatwerkLines(section.maatwerkLines)
                 .map((maatwerkLine) => ({
                     title: maatwerkLine.title.trim(),
                     length: normalizeMaatwerkDimension(maatwerkLine.length),
                     width: normalizeMaatwerkDimension(maatwerkLine.width),
+                    height: normalizeMaatwerkDimension(maatwerkLine.height),
                     thickness: normalizeMaatwerkDimension(maatwerkLine.thickness),
                 }))
-                .filter((maatwerkLine) => maatwerkLine.title.length > 0 || maatwerkLine.length.length > 0 || maatwerkLine.width.length > 0 || maatwerkLine.thickness.length > 0),
+                .filter((maatwerkLine) => maatwerkLine.title.length > 0 || maatwerkLine.length.length > 0 || maatwerkLine.width.length > 0 || maatwerkLine.height.length > 0 || maatwerkLine.thickness.length > 0),
             notes: section.notes.trim(),
         }))
         .filter((section) => section.title.length > 0 || section.linksTitle.length > 0 || section.links.length > 0 || section.maatwerkLines.length > 0 || section.notes.length > 0);
@@ -572,7 +858,7 @@ function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
                 blockLines.push('#### Maatwerk');
                 for (const maatwerkLine of section.maatwerkLines) {
                     const prefix = maatwerkLine.title ? `${maatwerkLine.title} = ` : '';
-                    blockLines.push(`- ${prefix}Lengte: ${maatwerkLine.length} mm | Breedte: ${maatwerkLine.width} mm | Dikte: ${maatwerkLine.thickness} mm`);
+                    blockLines.push(`- ${prefix}Lengte: ${maatwerkLine.length} mm | Breedte: ${maatwerkLine.width} mm | Hoogte: ${maatwerkLine.height} mm | Dikte: ${maatwerkLine.thickness} mm`);
                 }
             }
 
@@ -598,7 +884,12 @@ function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
 }
 
 function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): string {
+    const isLinksOnlySection = (section: QuoteNoteSection): boolean => {
+        const title = section.title.trim().replace(/^#+\s*/, '').trim();
+        return /^links?\b/i.test(title);
+    };
     const cleanedSections = sections
+        .filter((section) => !isLinksOnlySection(section))
         .map((section) => ({
             title: section.title.trim(),
             notes: section.notes.trim(),
@@ -607,9 +898,10 @@ function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): strin
                     title: maatwerkLine.title.trim(),
                     length: normalizeMaatwerkDimension(maatwerkLine.length),
                     width: normalizeMaatwerkDimension(maatwerkLine.width),
+                    height: normalizeMaatwerkDimension(maatwerkLine.height),
                     thickness: normalizeMaatwerkDimension(maatwerkLine.thickness),
                 }))
-                .filter((maatwerkLine) => maatwerkLine.title.length > 0 || maatwerkLine.length.length > 0 || maatwerkLine.width.length > 0 || maatwerkLine.thickness.length > 0),
+                .filter((maatwerkLine) => maatwerkLine.title.length > 0 || maatwerkLine.length.length > 0 || maatwerkLine.width.length > 0 || maatwerkLine.height.length > 0 || maatwerkLine.thickness.length > 0),
         }))
         .filter((section) => section.title.length > 0 || section.notes.length > 0 || section.maatwerkLines.length > 0);
 
@@ -628,7 +920,7 @@ function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): strin
                 lines.push('Maatwerk:');
                 for (const maatwerkLine of section.maatwerkLines) {
                     const prefix = maatwerkLine.title ? `${maatwerkLine.title}: ` : '';
-                    lines.push(`- ${prefix}lengte ${maatwerkLine.length} mm, breedte ${maatwerkLine.width} mm, dikte ${maatwerkLine.thickness} mm`);
+                    lines.push(`- ${prefix}lengte ${maatwerkLine.length} mm, breedte ${maatwerkLine.width} mm, hoogte ${maatwerkLine.height} mm, dikte ${maatwerkLine.thickness} mm`);
                 }
             }
             return lines.join('\n');
@@ -638,10 +930,15 @@ function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): strin
 
 function buildWorkDescriptionNoteJobs(sections: QuoteNoteSection[]): WorkDescriptionNoteJobInput[] {
     const jobs: WorkDescriptionNoteJobInput[] = [];
+    const isLinksOnlySection = (section: QuoteNoteSection): boolean => {
+        const title = section.title.trim().replace(/^#+\s*/, '').trim();
+        return /^links?\b/i.test(title);
+    };
     const formatDimension = (line: QuoteNoteSection['maatwerkLines'][number]): string => {
         const values = [
             line.length ? `Lengte = ${normalizeMaatwerkDimension(line.length)} mm` : '',
             line.width ? `Breedte = ${normalizeMaatwerkDimension(line.width)} mm` : '',
+            line.height ? `Hoogte = ${normalizeMaatwerkDimension(line.height)} mm` : '',
             line.thickness ? `Dikte = ${normalizeMaatwerkDimension(line.thickness)} mm` : '',
         ].filter(Boolean);
         return values.length > 0 ? `${line.title || 'Maatwerk'}: | ${values.join(' | ')} |` : '';
@@ -654,7 +951,7 @@ function buildWorkDescriptionNoteJobs(sections: QuoteNoteSection[]): WorkDescrip
             .filter((line): line is QuoteNoteSection['maatwerkLines'][number] => line !== null)
             .map(formatDimension)
             .filter(Boolean);
-        return [...structured, ...legacy];
+        return deduplicateMeasurementRows([...structured, ...legacy]);
     };
     const getInlineDimensions = (value: string): string[] => {
         const rows: string[] = [];
@@ -665,6 +962,7 @@ function buildWorkDescriptionNoteJobs(sections: QuoteNoteSection[]): WorkDescrip
     };
 
     for (const section of sections) {
+        if (isLinksOnlySection(section)) continue;
         const title = section.title.trim();
         if (/^#+\s*maatwerk\b/i.test(title) || /^maatwerk\b/i.test(title)) {
             const previous = jobs[jobs.length - 1];
@@ -681,20 +979,7 @@ function buildWorkDescriptionNoteJobs(sections: QuoteNoteSection[]): WorkDescrip
             ],
         });
     }
-    for (const job of jobs) {
-        const totals = new Map<string, number>();
-        const seen = new Map<string, number>();
-        job.dimensions.forEach((row) => totals.set(row, (totals.get(row) || 0) + 1));
-        job.dimensions = job.dimensions.map((row) => {
-            if ((totals.get(row) || 0) < 2) return row;
-            const occurrence = (seen.get(row) || 0) + 1;
-            seen.set(row, occurrence);
-            const separator = row.indexOf(':');
-            return separator >= 0
-                ? `${row.slice(0, separator)} ${occurrence}${row.slice(separator)}`
-                : `${row} (${occurrence})`;
-        });
-    }
+    for (const job of jobs) job.dimensions = deduplicateMeasurementRows(job.dimensions);
     return jobs;
 }
 
@@ -717,15 +1002,17 @@ function isCustomerRelevantWorkDeliveryProduct(value: string, type?: 'groot' | '
     const normalized = String(value || '').toLowerCase();
     if (!normalized || isIgnoredWorkDeliveryMaterial(normalized)) return false;
 
-    if (/(schroef|schroeven|lijm|contactlijm|kit\b|ms-polymeer|cleaner|ontvetter|handschoen|folie|tape|butylband|schuurpapier|poetsdoek|doek|neopreen|aansluitkit|bevestig)/i.test(normalized)) {
+    const isScopeRelevantMembrane = /(damprem|dampdicht|dampopen|klimaatfolie|miofol|spinvlies|waterkerend|luchtdicht|vochtwer)/i.test(normalized);
+    if (/(schroef|schroeven|lijm|contactlijm|kit\b|ms-polymeer|cleaner|ontvetter|handschoen|tape|butylband|schuurpapier|poetsdoek|doek|neopreen|aansluitkit|bevestig)/i.test(normalized)) {
         return false;
     }
+    if (/\bfolie\b/i.test(normalized) && !isScopeRelevantMembrane) return false;
 
-    if (/(keralit|trespa|hpl|rockpanel|gevelbekleding|boeiboord|boeiboorden|epdm|underlayment|daktrim|dakbedekking|ral\s*7016|antraciet|anthracite)/i.test(normalized)) {
+    if (/(keralit|trespa|hpl|rockpanel|gevelbekleding|boeiboord|boeiboorden|epdm|underlayment|daktrim|dakbedekking|ral\s*7016|antraciet|anthracite|isolatie|glaswol|steenwol|minerale wol|acoustifit|enotherm|enertherm|pir\b|eps\b|xps\b|rd\s*[,.\d]|damprem|dampdicht|dampopen|klimaatfolie|miofol|waterkerend|luchtdicht)/i.test(normalized)) {
         return true;
     }
 
-    return type === 'groot' && /(plaat|panelen|dak|gevel|trim|rand|bekleding)/i.test(normalized);
+    return type === 'groot' && /(plaat|panelen|dak|gevel|trim|rand|bekleding|isolatie|wol|folie)/i.test(normalized);
 }
 
 function getMaterialPackageSummary(pkg: QuoteMaterialPackage): string {
@@ -829,13 +1116,11 @@ export default function QuotePage() {
     const [workDescriptionStructured, setWorkDescriptionStructured] = useState<WorkDescriptionStructured>(() => toStructuredWorkDescription(null));
     const [isGeneratingWorkDescription, setIsGeneratingWorkDescription] = useState(false);
     const [isGeneratingDistanceDev, setIsGeneratingDistanceDev] = useState(false);
-    const [isAutoSavingWorkDescription, setIsAutoSavingWorkDescription] = useState(false);
+    const [organizingMaatwerkSectionId, setOrganizingMaatwerkSectionId] = useState<string | null>(null);
+    const [isSavingWorkDescription, setIsSavingWorkDescription] = useState(false);
+    const [hasUnsavedWorkDescription, setHasUnsavedWorkDescription] = useState(false);
     const autoDistanceAttemptedRef = useRef<Set<string>>(new Set());
     const lastSyncedWerkbeschrijvingRef = useRef<string>('');
-    const pendingWerkbeschrijvingSaveRef = useRef<string | null>(null);
-    const autoSaveWerkbeschrijvingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const activeWerkbeschrijvingSavesRef = useRef(0);
-    const workDescriptionLastEditAtRef = useRef<number>(0);
     const workDescriptionDirtyRef = useRef<boolean>(false);
     const templateAutoAppliedRef = useRef(false);
     const [isPdfSettingsOpen, setIsPdfSettingsOpen] = useState(false);
@@ -914,6 +1199,9 @@ export default function QuotePage() {
     // State for Material Selection Modal
     const [alleMaterialen, setAlleMaterialen] = useState<any[]>([]);
     const [activeCategory, setActiveCategory] = useState<'groot' | 'verbruik' | null>(null);
+    const [droppedMaterialImage, setDroppedMaterialImage] = useState<File | null>(null);
+    const [isQuoteImageDragActive, setIsQuoteImageDragActive] = useState(false);
+    const quoteImageDragDepthRef = useRef(0);
     const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
     const [materialPackages, setMaterialPackages] = useState<QuoteMaterialPackage[]>([]);
     const [selectedMaterialPackageId, setSelectedMaterialPackageId] = useState<string>('NIEUW');
@@ -929,6 +1217,20 @@ export default function QuotePage() {
     const [defaultMaterialSupplierId, setDefaultMaterialSupplierId] = useState('');
     const [materialEmailTemplate, setMaterialEmailTemplate] = useState('');
     const [isSavingMaterialPackage, setIsSavingMaterialPackage] = useState(false);
+
+    useEffect(() => {
+        const resetQuoteImageDrag = () => {
+            quoteImageDragDepthRef.current = 0;
+            setIsQuoteImageDragActive(false);
+        };
+
+        window.addEventListener('drop', resetQuoteImageDrag, true);
+        window.addEventListener('dragend', resetQuoteImageDrag, true);
+        return () => {
+            window.removeEventListener('drop', resetQuoteImageDrag, true);
+            window.removeEventListener('dragend', resetQuoteImageDrag, true);
+        };
+    }, []);
 
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
     const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
@@ -1655,7 +1957,7 @@ export default function QuotePage() {
     const handleQuoteNoteMaatwerkLineChange = useCallback((
         sectionId: string,
         lineId: string,
-        field: 'length' | 'width' | 'thickness',
+        field: 'length' | 'width' | 'height' | 'thickness',
         value: string,
     ) => {
         const nextSections = quoteNoteSections.map((section) => {
@@ -1704,6 +2006,84 @@ export default function QuotePage() {
         });
         syncQuoteNoteSectionsToQuoteNotes(nextSections);
     }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
+
+    const handleOrganizeQuoteNoteMaatwerkLines = useCallback(async (sectionId: string) => {
+        if (!user) {
+            toast({
+                variant: 'destructive',
+                title: 'Inloggen vereist',
+                description: 'Log opnieuw in om maten te organiseren.',
+            });
+            return;
+        }
+
+        const section = quoteNoteSections.find((item) => item.id === sectionId);
+        if (!section) return;
+        if (!section.title.trim() && !section.notes.trim()) {
+            toast({
+                variant: 'destructive',
+                title: 'Geen notitie om te organiseren',
+                description: 'Vul eerst een titel of notitie in.',
+            });
+            return;
+        }
+
+        setOrganizingMaatwerkSectionId(sectionId);
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/quote-notes/organize-measurements', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    title: section.title,
+                    notes: section.notes,
+                }),
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(typeof payload?.error === 'string' ? payload.error : 'Maten organiseren mislukt.');
+            }
+
+            const aiRows = Array.isArray(payload?.rows) ? payload.rows : [];
+            const extractedLines = aiRows.flatMap((row: unknown) => {
+                if (!row || typeof row !== 'object') return [];
+                const item = row as Record<string, unknown>;
+                const line = createQuoteNoteMaatwerkLine({
+                    title: typeof item.title === 'string' ? item.title.trim() : '',
+                    length: normalizeMaatwerkDimension(typeof item.length === 'string' ? item.length : ''),
+                    width: normalizeMaatwerkDimension(typeof item.width === 'string' ? item.width : ''),
+                    height: normalizeMaatwerkDimension(typeof item.height === 'string' ? item.height : ''),
+                    thickness: normalizeMaatwerkDimension(typeof item.thickness === 'string' ? item.thickness : ''),
+                });
+                const hasContent = line.title || line.length || line.width || line.height || line.thickness;
+                return hasContent ? [line] : [];
+            });
+
+            const nextLines = deduplicateQuoteNoteMaatwerkLines(extractedLines);
+
+            const nextSections = quoteNoteSections.map((item) => (
+                item.id === sectionId
+                    ? {
+                        ...item,
+                        maatwerkLines: nextLines.length > 0 ? nextLines : [createQuoteNoteMaatwerkLine()],
+                    }
+                    : item
+            ));
+            syncQuoteNoteSectionsToQuoteNotes(nextSections);
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: 'Maten organiseren mislukt',
+                description: error instanceof Error ? error.message : 'Onbekende fout.',
+            });
+        } finally {
+            setOrganizingMaatwerkSectionId(null);
+        }
+    }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes, toast, user]);
 
     const handleRemoveQuoteNoteMaatwerkLine = useCallback((sectionId: string, lineId: string) => {
         const nextSections = quoteNoteSections.map((section) => {
@@ -3574,6 +3954,7 @@ export default function QuotePage() {
         const pdfHourlyRate = quoteSettings?.uurTariefExclBtw ?? 0;
         const pdfMarginPercentage = quoteSettings?.extras?.winstMarge?.percentage ?? 0;
         const pdfMarginBasis = quoteSettings?.extras?.winstMarge?.basis ?? 'totaal';
+        const pdfWorkDescription = forceSummaryIntoWorkScope(workDescriptionStructured);
 
         return {
             offerteNummer: (quote as any)?.offerteNummer || 'CONCEPT',
@@ -3626,11 +4007,11 @@ export default function QuotePage() {
                 : klantInfo
                     ? `${klantInfo.straat || ''} ${klantInfo.huisnummer || ''}, ${klantInfo.plaats || ''}`.trim().replace(/^,|,$/g, '')
                     : '',
-            korteTitel: workDescriptionStructured.title || normalizedData?.korteTitel,
-            korteBeschrijving: workDescriptionStructured.summary || normalizedData?.korteBeschrijving,
-            werkbeschrijving: workDescriptionStructured.summary || generateWorkSummary(normalizedData?.werkbeschrijving, 800),
-            werkbeschrijvingFull: flattenStructuredWorkDescription(workDescriptionStructured),
-            werkbeschrijvingStructured: workDescriptionStructured,
+            korteTitel: pdfWorkDescription.title || normalizedData?.korteTitel,
+            korteBeschrijving: pdfWorkDescription.summary || normalizedData?.korteBeschrijving,
+            werkbeschrijving: pdfWorkDescription.summary || generateWorkSummary(normalizedData?.werkbeschrijving, 800),
+            werkbeschrijvingFull: flattenStructuredWorkDescription(pdfWorkDescription),
+            werkbeschrijvingStructured: pdfWorkDescription,
             grootmaterialen: materials.groot.map(m => ({
                 aantal: m.aantal,
                 product: m.product,
@@ -5085,7 +5466,22 @@ export default function QuotePage() {
                 buildQuoteNotesContextWithoutLinks(quoteNoteSections),
                 isWasteRemovalRow,
             );
-            return completeStructuredWorkDescription(repaired, quote?.titel);
+            const completed = completeStructuredWorkDescription(repaired, quote?.titel);
+            const jobs = completed.jobs.map((job) => ({
+                ...job,
+                dimensions: deduplicateMeasurementRows(job.dimensions),
+            }));
+            const activeIndex = Math.max(0, Math.min(
+                completed.activeJobIndex || 0,
+                Math.max(0, jobs.length - 1),
+            ));
+            return forceSummaryIntoWorkScope({
+                ...completed,
+                jobs,
+                dimensions: jobs[activeIndex]
+                    ? [...jobs[activeIndex].dimensions]
+                    : deduplicateMeasurementRows(completed.dimensions),
+            });
         },
         [normalizedData, quote?.titel, quoteNoteSections],
     );
@@ -5215,7 +5611,7 @@ export default function QuotePage() {
                 | ((prev: WorkDescriptionStructured) => WorkDescriptionStructured)
         ) => {
             workDescriptionDirtyRef.current = true;
-            workDescriptionLastEditAtRef.current = Date.now();
+            setHasUnsavedWorkDescription(true);
             setWorkDescriptionStructured(next);
         },
         [],
@@ -5254,102 +5650,24 @@ export default function QuotePage() {
         }
 
         setWorkDescriptionStructured(next);
+        workDescriptionDirtyRef.current = shouldAutoApplyTemplate;
+        setHasUnsavedWorkDescription(shouldAutoApplyTemplate);
         lastSyncedWerkbeschrijvingRef.current = JSON.stringify({
             structured: next,
             rows: flattenStructuredWorkDescription(next),
         });
     }, [currentWerkbeschrijvingStructured, detectedWorkDescriptionTemplate]);
 
-    useEffect(() => {
-        if (!calculation?.data_json) return;
-
-        const parsedStructured = toStructuredWorkDescription({
-            werkbeschrijving_structured: workDescriptionStructured,
-            korteTitel: workDescriptionStructured.title,
-            korteBeschrijving: workDescriptionStructured.context,
-        });
-        const parsedWerkbeschrijving = flattenStructuredWorkDescription(parsedStructured);
-        const serializedParsed = JSON.stringify({
-            structured: parsedStructured,
-            rows: parsedWerkbeschrijving,
-        });
-
-        if (
-            serializedParsed === lastSyncedWerkbeschrijvingRef.current
-            || serializedParsed === pendingWerkbeschrijvingSaveRef.current
-        ) {
-            return;
-        }
-
-        if (autoSaveWerkbeschrijvingTimerRef.current) {
-            clearTimeout(autoSaveWerkbeschrijvingTimerRef.current);
-        }
-
-        autoSaveWerkbeschrijvingTimerRef.current = setTimeout(() => {
-            pendingWerkbeschrijvingSaveRef.current = serializedParsed;
-            activeWerkbeschrijvingSavesRef.current += 1;
-            const savingIndicatorTimer = window.setTimeout(() => {
-                setIsAutoSavingWorkDescription(true);
-            }, WORK_DESCRIPTION_SAVING_INDICATOR_DELAY_MS);
-
-            const saveStartedAt = Date.now();
-            updateDataJsonPatch({
-                korteTitel: parsedStructured.title,
-                korteBeschrijving: parsedStructured.summary || parsedStructured.context,
-                werkbeschrijving: parsedWerkbeschrijving,
-                werkbeschrijving_jobs: parsedStructured.jobs,
-                werkbeschrijving_structured: parsedStructured,
-            })
-                .then(() => {
-                    lastSyncedWerkbeschrijvingRef.current = serializedParsed;
-                    if (workDescriptionLastEditAtRef.current <= saveStartedAt) {
-                        workDescriptionDirtyRef.current = false;
-                    }
-                })
-                .catch((err: any) => {
-                    toast({
-                        variant: 'destructive',
-                        title: 'Automatisch opslaan mislukt',
-                        description: err?.message || 'Kon Werk & Levering niet opslaan.',
-                    });
-                })
-                .finally(() => {
-                    window.clearTimeout(savingIndicatorTimer);
-                    activeWerkbeschrijvingSavesRef.current = Math.max(
-                        0,
-                        activeWerkbeschrijvingSavesRef.current - 1,
-                    );
-                    if (pendingWerkbeschrijvingSaveRef.current === serializedParsed) {
-                        pendingWerkbeschrijvingSaveRef.current = null;
-                    }
-                    if (activeWerkbeschrijvingSavesRef.current === 0) {
-                        setIsAutoSavingWorkDescription(false);
-                    }
-                });
-        }, WORK_DESCRIPTION_AUTOSAVE_DEBOUNCE_MS);
-
-        return () => {
-            if (autoSaveWerkbeschrijvingTimerRef.current) {
-                clearTimeout(autoSaveWerkbeschrijvingTimerRef.current);
-            }
-        };
-    }, [workDescriptionStructured, calculation?.data_json, updateDataJsonPatch, toast]);
-
-    const persistGeneratedWorkDescription = useCallback(async (next: WorkDescriptionStructured) => {
+    const saveWorkDescriptionNow = useCallback(async (next: WorkDescriptionStructured = workDescriptionStructured) => {
         if (!calculation?.data_json) {
             throw new Error('Nog geen offerte-data beschikbaar.');
         }
 
-        if (autoSaveWerkbeschrijvingTimerRef.current) {
-            clearTimeout(autoSaveWerkbeschrijvingTimerRef.current);
-            autoSaveWerkbeschrijvingTimerRef.current = null;
-        }
-
-        const parsedStructured = toStructuredWorkDescription({
-            werkbeschrijving_structured: next,
-            korteTitel: next.title,
-            korteBeschrijving: next.summary || next.context,
-        });
+        const parsedStructured = forceSummaryIntoWorkScope(toStructuredWorkDescription({
+                werkbeschrijving_structured: next,
+                korteTitel: next.title,
+                korteBeschrijving: next.summary || next.context,
+            }));
         const parsedWerkbeschrijving = flattenStructuredWorkDescription(parsedStructured);
         const serialized = JSON.stringify({
             structured: parsedStructured,
@@ -5365,8 +5683,28 @@ export default function QuotePage() {
 
         lastSyncedWerkbeschrijvingRef.current = serialized;
         workDescriptionDirtyRef.current = false;
+        setHasUnsavedWorkDescription(false);
         setWorkDescriptionStructured(parsedStructured);
-    }, [calculation?.data_json, updateDataJsonPatch]);
+    }, [calculation?.data_json, updateDataJsonPatch, workDescriptionStructured]);
+
+    const handleSaveWorkDescription = useCallback(async () => {
+        setIsSavingWorkDescription(true);
+        try {
+            await saveWorkDescriptionNow();
+            toast({
+                title: 'Werk & Levering opgeslagen',
+                description: 'Je wijzigingen zijn bewaard.',
+            });
+        } catch (err: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Opslaan mislukt',
+                description: err?.message || 'Kon Werk & Levering niet opslaan.',
+            });
+        } finally {
+            setIsSavingWorkDescription(false);
+        }
+    }, [saveWorkDescriptionNow, toast]);
 
     const handleGenerateWorkDescription = async (action: 'full' | 'uitvoering-only' | 'improve') => {
         if (!user) return;
@@ -5385,15 +5723,24 @@ export default function QuotePage() {
             const token = await user.getIdToken();
             const notesContext = truncatePromptText(buildQuoteNotesContextWithoutLinks(quoteNoteSections), 8000);
             const noteJobs = buildWorkDescriptionNoteJobs(quoteNoteSections);
-            const materialPromptLines = werkbeschrijvingMaterialContext.length > 0
+            const formatMaterialPromptLine = (item: (typeof werkbeschrijvingMaterialContext)[number]) => {
+                const quantity = Number.isFinite(item.quantity)
+                    ? Number.isInteger(item.quantity) ? String(item.quantity) : item.quantity.toFixed(2).replace(/\.?0+$/, '')
+                    : '';
+                const amount = [quantity, item.unit].filter(Boolean).join(' ');
+                const kind = item.type === 'groot' ? 'grootmateriaal' : 'verbruiksmateriaal';
+                return [item.name, amount ? `(${amount}, ${kind})` : `(${kind})`].join(' ');
+            };
+            const materialPromptLines = werkbeschrijvingMaterialContext.length > 0 && noteJobs.length === 0
                 ? [
-                    'Klant-relevante productkeuzes uit de calculatie (geen aparte productenlijst maken):',
-                    ...werkbeschrijvingMaterialContext.map((item) => `- ${item.name}`),
-                    'Verwerk alleen belangrijke keuzes in normale zinnen onder Werkzaamheden, bijvoorbeeld type gevelbekleding, HPL/Trespa/Keralit, EPDM of underlayment.',
-                    'Noem geen aantallen, bestelhoeveelheden, kleine montagemiddelen, lijm, kit, cleaner, schroeven, tape, folie of werkgereedschap.',
+                    'Klant-relevante productkeuzes uit de calculatie (gebruik als scope-signalen, geen aparte productenlijst maken):',
+                    ...werkbeschrijvingMaterialContext.map((item) => `- ${formatMaterialPromptLine(item)}`),
+                    'Leid hieruit concrete scope af wanneer logisch: isolatie/glaswol/PIR betekent isoleren, dampremmende of waterkerende folie betekent folie/membraan aanbrengen, gipsplaat/plaatmateriaal betekent beplaten.',
+                    'Verwerk alleen belangrijke keuzes in normale zinnen onder Werkzaamheden, bijvoorbeeld isolatie, dampremmende folie, type gevelbekleding, HPL/Trespa/Keralit, EPDM, underlayment of gipsplaat.',
+                    'Noem geen aantallen, bestelhoeveelheden, kleine montagemiddelen, lijm, kit, cleaner, schroeven, tape, generieke folie of werkgereedschap.',
                 ]
                 : [];
-            const notesPromptLines = notesContext
+            const notesPromptLines = notesContext && noteJobs.length === 0
                 ? [
                     'VERPLICHTE SCOPE UIT GEBRUIKERSNOTITIES:',
                     'Gebruik alle concrete feiten hieronder als bron. Combineer verwante notities tot professionele werkzaamheden en kopieer ruwe notitieregels niet letterlijk.',
@@ -5403,7 +5750,7 @@ export default function QuotePage() {
                     notesContext,
                 ]
                 : [];
-            const measurementPromptLines = werkbeschrijvingMeasurementsContext
+            const measurementPromptLines = werkbeschrijvingMeasurementsContext && noteJobs.length === 0
                 ? [
                     'Beschikbare maatvoering uit offerte-data (gebruik waar relevant):',
                     werkbeschrijvingMeasurementsContext,
@@ -5462,11 +5809,11 @@ export default function QuotePage() {
             }
 
             const generatedStructured = payload?.werkbeschrijvingStructured
-                ? toStructuredWorkDescription({ werkbeschrijving_structured: payload.werkbeschrijvingStructured })
+                ? forceSummaryIntoWorkScope(toStructuredWorkDescription({ werkbeschrijving_structured: payload.werkbeschrijvingStructured }))
                 : null;
 
             if (generatedStructured && flattenStructuredWorkDescription(generatedStructured).length > 0) {
-                await persistGeneratedWorkDescription(generatedStructured);
+                await saveWorkDescriptionNow(generatedStructured);
                 toast({
                     title: 'Werk & Levering bijgewerkt',
                     description: 'AI-output is verwerkt en opgeslagen.',
@@ -5485,53 +5832,49 @@ export default function QuotePage() {
             }
 
             if (action === 'uitvoering-only') {
-                applyLocalWorkDescriptionUpdate((prev) => ({
-                    ...(() => {
-                        const normalizedPrev = toStructuredWorkDescription({ werkbeschrijving_structured: prev });
-                        const jobs = Array.isArray(normalizedPrev.jobs) && normalizedPrev.jobs.length > 0
-                            ? normalizedPrev.jobs
-                            : [{
-                                ...normalizedPrev,
-                                title: normalizedPrev.title,
-                                context: normalizedPrev.context,
-                                sections: normalizedPrev.sections,
-                                legacyNotes: normalizedPrev.legacyNotes || [],
-                            }];
-                        const activeIndex = Math.max(0, Math.min(normalizedPrev.activeJobIndex || 0, jobs.length - 1));
-                        const nextJobs = jobs.map((job, idx) => idx === activeIndex
-                            ? {
-                                ...job,
-                                sections: {
-                                    ...job.sections,
-                                    uitvoering: generated,
-                                },
-                            }
-                            : job
-                        );
-                        const active = nextJobs[activeIndex];
-                        return {
-                            ...normalizedPrev,
-                            title: active.title,
-                            context: active.context,
-                            sections: active.sections,
-                            legacyNotes: active.legacyNotes,
-                            jobs: nextJobs,
-                            activeJobIndex: activeIndex,
-                        };
-                    })(),
-                }));
+                const normalizedPrev = toStructuredWorkDescription({ werkbeschrijving_structured: workDescriptionStructured });
+                const jobs = Array.isArray(normalizedPrev.jobs) && normalizedPrev.jobs.length > 0
+                    ? normalizedPrev.jobs
+                    : [{
+                        ...normalizedPrev,
+                        title: normalizedPrev.title,
+                        context: normalizedPrev.context,
+                        sections: normalizedPrev.sections,
+                        legacyNotes: normalizedPrev.legacyNotes || [],
+                    }];
+                const activeIndex = Math.max(0, Math.min(normalizedPrev.activeJobIndex || 0, jobs.length - 1));
+                const nextJobs = jobs.map((job, idx) => idx === activeIndex
+                    ? {
+                        ...job,
+                        sections: {
+                            ...job.sections,
+                            uitvoering: generated,
+                        },
+                    }
+                    : job
+                );
+                const active = nextJobs[activeIndex];
+                await saveWorkDescriptionNow({
+                    ...normalizedPrev,
+                    title: active.title,
+                    context: active.context,
+                    sections: active.sections,
+                    legacyNotes: active.legacyNotes,
+                    jobs: nextJobs,
+                    activeJobIndex: activeIndex,
+                });
             } else {
-                const inferred = toStructuredWorkDescription({
+                const inferred = forceSummaryIntoWorkScope(toStructuredWorkDescription({
                     werkbeschrijving: generated,
                     korteTitel: workDescriptionStructured.title,
                     korteBeschrijving: workDescriptionStructured.context,
-                });
-                applyLocalWorkDescriptionUpdate(inferred);
+                }));
+                await saveWorkDescriptionNow(inferred);
             }
 
             toast({
                 title: 'Werk & Levering bijgewerkt',
-                description: 'AI-output is verwerkt in de structuur.',
+                description: 'AI-output is verwerkt en opgeslagen.',
             });
         } catch (err: any) {
             toast({
@@ -5733,6 +6076,9 @@ export default function QuotePage() {
 
             const distanceKmOneWay = Number(payload?.distanceKmOneWay || 0);
             const distanceKmRoundTrip = Number(payload?.distanceKmRoundTrip || (distanceKmOneWay * 2));
+            if (!(distanceKmOneWay > 0 || distanceKmRoundTrip > 0)) {
+                throw new Error('Distance API gaf 0 km terug. Transport is niet opgeslagen; probeer opnieuw of controleer de adressen.');
+            }
             const durationMinOneWay = Math.max(0, Math.round(Number(payload?.durationMinOneWay || 0)));
             const durationText = `${durationMinOneWay} min`;
             const prijsPerKm = Number(quoteSettings?.extras?.transport?.prijsPerKm || 0);
@@ -5792,9 +6138,14 @@ export default function QuotePage() {
         if (!routeOriginAddress || !routeDestinationAddress) return;
         if (hasTransportDistance) return;
         if (isGeneratingDistanceDev) return;
-        if (autoDistanceAttemptedRef.current.has(id)) return;
+        const attemptKey = [
+            id,
+            routeOriginAddress.trim().toLowerCase(),
+            routeDestinationAddress.trim().toLowerCase(),
+        ].join('|');
+        if (autoDistanceAttemptedRef.current.has(attemptKey)) return;
 
-        autoDistanceAttemptedRef.current.add(id);
+        autoDistanceAttemptedRef.current.add(attemptKey);
         void runDistanceGeneration({ source: 'auto_manual_quote', notify: false });
     }, [
         calculation?.data_json,
@@ -5889,7 +6240,57 @@ export default function QuotePage() {
     }, [firestore, id, isCreatingLinkedMaterialList, klantInfo, linkedMaterialLists.length, quote, router, toast, user]);
 
     return (
-        <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
+        <div
+            className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30"
+            onDragEnter={(event) => {
+                if (!event.dataTransfer.types.includes('Files')) return;
+                event.preventDefault();
+                quoteImageDragDepthRef.current += 1;
+                setIsQuoteImageDragActive(true);
+            }}
+            onDragOver={(event) => {
+                if (!event.dataTransfer.types.includes('Files')) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+                if (!isQuoteImageDragActive) setIsQuoteImageDragActive(true);
+            }}
+            onDragLeave={(event) => {
+                if (!event.dataTransfer.types.includes('Files')) return;
+                event.preventDefault();
+                quoteImageDragDepthRef.current = Math.max(0, quoteImageDragDepthRef.current - 1);
+                if (quoteImageDragDepthRef.current === 0) setIsQuoteImageDragActive(false);
+            }}
+            onDrop={(event) => {
+                if (!event.dataTransfer.types.includes('Files')) return;
+                event.preventDefault();
+                quoteImageDragDepthRef.current = 0;
+                setIsQuoteImageDragActive(false);
+
+                const imageFile = Array.from(event.dataTransfer.files).find((file) => (
+                    file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)
+                ));
+                if (!imageFile) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Geen afbeelding gevonden',
+                        description: 'Gebruik een JPG, PNG, WEBP of HEIC screenshot.',
+                    });
+                    return;
+                }
+
+                setDroppedMaterialImage(imageFile);
+                setActiveCategory((current) => current ?? 'groot');
+            }}
+        >
+            {isQuoteImageDragActive && (
+                <div className="pointer-events-none fixed inset-0 z-[130] flex items-center justify-center bg-background/85 p-6 backdrop-blur-sm">
+                    <div className="rounded-xl border-2 border-dashed border-emerald-500 bg-card px-8 py-10 text-center shadow-2xl">
+                        <Upload className="mx-auto mb-3 h-8 w-8 text-emerald-500" />
+                        <div className="text-lg font-semibold text-foreground">Laat screenshot los om materiaal toe te voegen</div>
+                        <p className="mt-1 text-sm text-muted-foreground">De AI analyseert de afbeelding en opent daarna het controleformulier.</p>
+                    </div>
+                </div>
+            )}
             <AppNavigation />
             {/* Header */}
             <header className="sticky top-0 z-50 border-b border-border bg-background/40 px-4 py-3 backdrop-blur-md sm:px-6 sm:py-4">
@@ -5950,48 +6351,6 @@ export default function QuotePage() {
                             <Button
                                 variant="outline"
                                 className="h-11 px-0"
-                                onClick={handleOpenSplitQuoteDialog}
-                                disabled={combinedMaterialItems.length === 0 && Number(normalizedData?.totaal_uren || 0) <= 0}
-                                aria-label="Splits offerte"
-                                title="Splits offerte"
-                            >
-                                <Scissors size={16} />
-                            </Button>
-                            <Button
-                                variant="outline"
-                                className="h-11 px-0"
-                                onClick={() => setIsDuplicateQuoteOpen(true)}
-                                disabled={isDuplicatingQuote}
-                                aria-label="Kopieer offerte"
-                                title="Kopieer offerte"
-                            >
-                                {isDuplicatingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy size={16} />}
-                            </Button>
-                            <Button
-                                variant="outline"
-                                className="h-11 px-0"
-                                onClick={() => setIsPlanningTypeDialogOpen(true)}
-                                aria-label="Inplannen"
-                                title="Inplannen"
-                            >
-                                <CalendarClock size={16} />
-                            </Button>
-                            {routeMapsUrl && (
-                                <Button
-                                    variant="outline"
-                                    className="h-11 px-0"
-                                    onClick={() => {
-                                        window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
-                                    }}
-                                    aria-label="Route openen"
-                                    title={routeDestinationAddress}
-                                >
-                                    <Navigation size={16} />
-                                </Button>
-                            )}
-                            <Button
-                                variant="outline"
-                                className="h-11 px-0"
                                 onClick={() => {
                                     void handleDownloadPDF();
                                 }}
@@ -6001,17 +6360,20 @@ export default function QuotePage() {
                             >
                                 {isGeneratingPDF ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download size={16} />}
                             </Button>
-                            {hasDeveloperWhatsAppAccess && (
-                                <Button
-                                    variant="outline"
-                                    className="h-11 px-0"
-                                    onClick={() => setIsWhatsAppModalOpen(true)}
-                                    aria-label="Versturen via WhatsApp"
-                                    title="Versturen via WhatsApp"
-                                >
-                                    <MessageCircle size={16} />
-                                </Button>
-                            )}
+                            <Button
+                                variant="outline"
+                                className="h-11 px-0"
+                                onClick={() => {
+                                    if (routeMapsUrl) {
+                                        window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
+                                    }
+                                }}
+                                disabled={!routeMapsUrl}
+                                aria-label="Route openen"
+                                title={routeMapsUrl ? routeDestinationAddress : 'Geen adres'}
+                            >
+                                <Navigation size={16} />
+                            </Button>
                             <Button
                                 variant="outline"
                                 className="h-11 px-0"
@@ -6020,15 +6382,6 @@ export default function QuotePage() {
                                 title="Naar calculatie"
                             >
                                 <PenTool size={16} />
-                            </Button>
-                            <Button
-                                variant="outline"
-                                className="h-11 px-0"
-                                onClick={() => setIsPdfSettingsOpen(true)}
-                                aria-label="PDF instellingen"
-                                title="PDF instellingen"
-                            >
-                                <Settings size={16} />
                             </Button>
                         </div>
                     )}
@@ -6999,52 +7352,6 @@ export default function QuotePage() {
                                 </div>
                             ) : (
                                 <>
-                                    <div className="space-y-3 pb-8 mb-8 border-b border-border/60">
-                                        <div
-                                            className="grid w-full items-stretch grid-cols-[minmax(0,1fr)_auto] gap-2"
-                                        >
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="h-10 rounded-xl border-border/70 bg-card/40 text-foreground hover:bg-muted/40 hover:border-border justify-between px-3"
-                                                onClick={() => setIsMaterialPackagePickerOpen(true)}
-                                            >
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <Box className="h-4 w-4 text-muted-foreground shrink-0" />
-                                                    <div className="min-w-0 text-left flex items-center gap-2">
-                                                        <span className="text-sm font-semibold text-foreground truncate">
-                                                            {selectedMaterialPackageId === 'NIEUW'
-                                                                ? 'Nieuw'
-                                                                : (selectedMaterialPackage?.naam || 'Werkpakket')}
-                                                        </span>
-                                                        <span className="text-xs text-muted-foreground truncate">
-                                                            •
-                                                        </span>
-                                                        <span className="text-xs text-muted-foreground truncate">
-                                                            {selectedMaterialPackageId === 'NIEUW'
-                                                                ? 'Start zonder werkpakket'
-                                                                : 'Klik om werkpakket te kiezen'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                                </div>
-                                            </Button>
-
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="h-10 min-w-[88px] rounded-xl border-border/70 bg-card/40 px-3 text-foreground hover:bg-muted/40 hover:border-border font-semibold sm:min-w-[108px]"
-                                                onClick={handleRequestResetMaterialPackageToNieuw}
-                                            >
-                                                <Sparkles className="mr-2 hidden h-4 w-4 text-muted-foreground sm:inline-block" />
-                                                Nieuw
-                                            </Button>
-
-                                        </div>
-                                    </div>
-
                                     {!quoteSettings ? (
                                         <div className="bg-card rounded-lg border border-border p-12 text-center">
                                             <Clock size={48} className="mx-auto text-muted mb-4" />
@@ -7387,17 +7694,40 @@ export default function QuotePage() {
                                     </p>
                                 </div>
                             ) : (
-                                <WorkDescriptionWorkspace
-                                    value={workDescriptionStructured}
-                                    mode={workDescriptionMode}
-                                    onModeChange={setWorkDescriptionMode}
-                                    onChange={handleWorkDescriptionChange}
-                                    onGenerate={(action) => { void handleGenerateWorkDescription(action); }}
-                                    isGenerating={isGeneratingWorkDescription}
-                                    isAutoSaving={isAutoSavingWorkDescription}
-                                    templateLabel={detectedWorkDescriptionTemplate?.label || null}
-                                    onApplyTemplate={detectedWorkDescriptionTemplate ? handleApplyWorkDescriptionTemplate : undefined}
-                                />
+                                <div className="space-y-4 pb-32">
+                                    <WorkDescriptionWorkspace
+                                        value={workDescriptionStructured}
+                                        mode={workDescriptionMode}
+                                        onModeChange={setWorkDescriptionMode}
+                                        onChange={handleWorkDescriptionChange}
+                                        onGenerate={(action) => { void handleGenerateWorkDescription(action); }}
+                                        isGenerating={isGeneratingWorkDescription}
+                                        templateLabel={detectedWorkDescriptionTemplate?.label || null}
+                                        onApplyTemplate={detectedWorkDescriptionTemplate ? handleApplyWorkDescriptionTemplate : undefined}
+                                    />
+                                    <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6">
+                                        <div className="mx-auto flex max-w-7xl flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-lg sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="text-sm font-medium text-foreground">
+                                                    {hasUnsavedWorkDescription ? 'Niet-opgeslagen wijzigingen' : 'Werk & Levering is opgeslagen'}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Wijzigingen worden pas opgeslagen wanneer je op opslaan drukt.
+                                                </p>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="success"
+                                                className="gap-2 sm:min-w-36"
+                                                disabled={!hasUnsavedWorkDescription || isSavingWorkDescription}
+                                                onClick={() => { void handleSaveWorkDescription(); }}
+                                            >
+                                                {isSavingWorkDescription ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                                Opslaan
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
                             )}
                         </TabsContent>
 
@@ -7512,7 +7842,9 @@ export default function QuotePage() {
                                                 capture="environment"
                                                 className="hidden"
                                                 onChange={(event) => {
-                                                    const file = event.target.files?.[0];
+                                                    const input = event.currentTarget;
+                                                    const file = input.files?.[0];
+                                                    input.value = '';
                                                     if (!file) return;
                                                     void handleUploadPhoto(file);
                                                 }}
@@ -7523,7 +7855,9 @@ export default function QuotePage() {
                                                 accept="image/*"
                                                 className="hidden"
                                                 onChange={(event) => {
-                                                    const file = event.target.files?.[0];
+                                                    const input = event.currentTarget;
+                                                    const file = input.files?.[0];
+                                                    input.value = '';
                                                     if (!file) return;
                                                     void handleUploadPhoto(file);
                                                 }}
@@ -7743,21 +8077,36 @@ export default function QuotePage() {
                                                             <Box className="h-3.5 w-3.5" />
                                                             Maatwerk
                                                         </p>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="h-8 gap-2 self-start sm:self-auto"
-                                                            onClick={() => handleAddQuoteNoteMaatwerkLine(section.id)}
-                                                        >
-                                                            <Plus className="h-4 w-4" />
-                                                            Lijn toevoegen
-                                                        </Button>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-8 gap-2"
+                                                                disabled={organizingMaatwerkSectionId === section.id}
+                                                                onClick={() => handleOrganizeQuoteNoteMaatwerkLines(section.id)}
+                                                            >
+                                                                {organizingMaatwerkSectionId === section.id
+                                                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    : <ClipboardList className="h-4 w-4" />}
+                                                                Maten organiseren
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-8 gap-2"
+                                                                onClick={() => handleAddQuoteNoteMaatwerkLine(section.id)}
+                                                            >
+                                                                <Plus className="h-4 w-4" />
+                                                                Lijn toevoegen
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                     {section.maatwerkLines.length > 0 && (
                                                         <div className="space-y-2">
                                                             {section.maatwerkLines.map((maatwerkLine) => (
-                                                                <div key={maatwerkLine.id} className="grid gap-2 sm:grid-cols-[1.2fr_1fr_1fr_1fr_auto]">
+                                                                <div key={maatwerkLine.id} className="grid gap-2 sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr_auto]">
                                                                     <div className="space-y-1">
                                                                         <Label className="text-[11px] text-muted-foreground">Titel</Label>
                                                                         <Input
@@ -7782,6 +8131,16 @@ export default function QuotePage() {
                                                                         <Input
                                                                             value={maatwerkLine.width}
                                                                             onChange={(e) => handleQuoteNoteMaatwerkLineChange(section.id, maatwerkLine.id, 'width', e.target.value)}
+                                                                            placeholder="mm"
+                                                                            inputMode="decimal"
+                                                                            className="h-9"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1">
+                                                                        <Label className="text-[11px] text-muted-foreground">Hoogte</Label>
+                                                                        <Input
+                                                                            value={maatwerkLine.height}
+                                                                            onChange={(e) => handleQuoteNoteMaatwerkLineChange(section.id, maatwerkLine.id, 'height', e.target.value)}
                                                                             placeholder="mm"
                                                                             inputMode="decimal"
                                                                             className="h-9"
@@ -8313,21 +8672,6 @@ export default function QuotePage() {
                     </>
                 )}
 
-                {!error && !loading && activeTab !== 'materialen' && (
-                    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:hidden">
-                        <Button
-                            variant="success"
-                            className="h-12 w-full justify-center text-base font-semibold"
-                            onClick={() => {
-                                if (requireValidWorkDelivery()) setIsSendModalOpen(true);
-                            }}
-                        >
-                            <Mail className="mr-2 h-4 w-4" />
-                            Versturen offerte
-                        </Button>
-                    </div>
-                )}
-
                 {isPdfFocusMode && (
                     <div className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-sm">
                         <div className="flex h-screen w-screen flex-col overflow-hidden">
@@ -8409,8 +8753,12 @@ export default function QuotePage() {
                 <MaterialSelectionModal
                     open
                     onOpenChange={(open) => {
-                        if (!open) setActiveCategory(null);
+                        if (!open) {
+                            setActiveCategory(null);
+                            setDroppedMaterialImage(null);
+                        }
                     }}
+                    initialAiImage={droppedMaterialImage}
                     existingMaterials={alleMaterialen}
                     onSelectExisting={handleSelectMaterial}
                     onMaterialAdded={handleSelectMaterial} // Handle custom created materials same way

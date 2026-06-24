@@ -155,8 +155,11 @@ Regels:
 - Leverancier: detecteer merk/winkel als duidelijk (bijv. Bouwmaat).
 - Leverancier: kies bij voorkeur uit onderstaande leverancierslijst. Gebruik zichtbare URL/tabtitel/logo/merknaam als primaire hint (bijv. bouwmaat.nl => Bouwmaat).
 - Leverancier: als de webshop niet in de leverancierslijst staat maar de URL zichtbaar is, gebruik alleen de basis-URL t/m de domeinextensie (bijv. https://www.kunststofbouwmateriaal.nl/) en laat productpad/query weg.
-- Categorie/subsectie: kies ALLEEN uit onderstaande lijsten als een duidelijke match bestaat, anders leeg.
-- Als "Actieve categorie" is meegegeven, gebruik die categorie als standaardkeuze.
+- Categorie/subsectie: hergebruik bij een duidelijke inhoudelijke match exact de schrijfwijze uit onderstaande lijsten.
+- Voorbeeld: herkenbaar SLS-, ribben- of constructiehout hoort bij "Balkhout" wanneer die categorie beschikbaar is.
+- Maak nooit een nieuwe hoofdlettervariant van een bestaande categorie (bijv. niet "balkhout" naast "Balkhout").
+- Bij twijfel: laat categorie/subsectie leeg; forceer geen zwakke overeenkomst.
+- Als "Actieve categorie" is meegegeven, gebruik die alleen als het product daar inhoudelijk bij past.
 - Subsectie MOET passen binnen de categorie->subsectie mapping als die beschikbaar is.
 
 Beschikbare categorieen:

@@ -145,6 +145,55 @@ function toStableSortTime(value: any): number {
   return Number.MAX_SAFE_INTEGER;
 }
 
+function toStableSortNumber(value: any): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+function getJobExplicitOrder(job: any): number | null {
+  const candidates = [
+    job?.sortIndex,
+    job?.order,
+    job?.volgorde,
+    job?.index,
+    job?.nummer,
+    job?.meta?.sortIndex,
+    job?.meta?.order,
+    job?.klusinformatie?.sortIndex,
+    job?.klusinformatie?.order,
+    job?.maatwerk?.meta?.sortIndex,
+    job?.maatwerk?.meta?.order,
+  ];
+
+  for (const candidate of candidates) {
+    const n = toStableSortNumber(candidate);
+    if (n !== null) return n;
+  }
+
+  return null;
+}
+
+function compareJobsByStableIdentity(a: any, b: any): number {
+  const oa = getJobExplicitOrder(a);
+  const ob = getJobExplicitOrder(b);
+  if (oa !== null || ob !== null) {
+    if (oa === null) return 1;
+    if (ob === null) return -1;
+    if (oa !== ob) return oa - ob;
+  }
+
+  const ta = toStableSortTime(a?.createdAt);
+  const tb = toStableSortTime(b?.createdAt);
+  if (ta !== tb) return ta - tb; // oldest first
+
+  const la = toStableSortNumber(a?.__loadIndex);
+  const lb = toStableSortNumber(b?.__loadIndex);
+  if (la !== null && lb !== null && la !== lb) return la - lb;
+
+  return String(a?.id ?? '').localeCompare(String(b?.id ?? ''));
+}
+
 function jobHasPendingMaterial(job: any): boolean {
   const materialenLijst = job?.materialen?.materialen_lijst;
   const pendingFromMaterialList =
@@ -220,17 +269,7 @@ function extractJobsFromQuoteData(data: any, quoteId: string): any[] {
     }
   }
 
-  return [...extractedJobs]
-    .sort((a: any, b: any) => {
-      const ta = toStableSortTime(a?.createdAt);
-      const tb = toStableSortTime(b?.createdAt);
-      if (ta !== tb) return ta - tb; // oldest first
-      return (a?.__loadIndex ?? 0) - (b?.__loadIndex ?? 0); // fallback: original read order
-    })
-    .map((j: any) => {
-      const { __loadIndex, ...rest } = j;
-      return rest;
-    });
+  return [...extractedJobs].sort(compareJobsByStableIdentity);
 }
 
 function jobIsComplete(job: any): boolean {
@@ -1971,12 +2010,7 @@ export default function OverzichtPage() {
     }
 
     for (const [baseTitle, list] of Object.entries(grouped)) {
-      const sorted = [...list].sort((a: any, b: any) => {
-        const ta = toStableSortTime(a?.createdAt);
-        const tb = toStableSortTime(b?.createdAt);
-        if (ta !== tb) return ta - tb;
-        return String(a?.id ?? '').localeCompare(String(b?.id ?? ''));
-      });
+      const sorted = [...list].sort(compareJobsByStableIdentity);
 
       if (sorted.length === 1) {
         result[sorted[0].id] = baseTitle;

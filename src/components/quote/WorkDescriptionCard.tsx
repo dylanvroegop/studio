@@ -30,7 +30,6 @@ export function WorkDescriptionCard({ werkbeschrijving, structured }: WorkDescri
                 WERK &amp; LEVERING
             </h3>
 
-            {job?.summary ? <p className="mb-4 text-sm text-foreground/80">{job.summary}</p> : null}
             <div className="space-y-5">
                 {(hasStructuredRows ? sections : [['', werkbeschrijving] as [string, string[]]]).map(([label, rows]) => rows.length > 0 ? (
                     <section key={label || 'scope'}>

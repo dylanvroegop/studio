@@ -66,16 +66,6 @@ export const SEAM_FILLING_Q2_INCLUDED_TEXT = 'Afwerkingsniveau: Q2 (Behangklaar)
 export const SEAM_FILLING_Q4_INCLUDED_TEXT = 'Afwerkingsniveau: Q4 (Schilderklaar).';
 export const SCREW_HOLE_FILLING_EXCLUDED_TEXT = 'Schroefgaten plamuren niet inbegrepen.';
 export const SCREW_HOLE_FILLING_INCLUDED_TEXT = 'Schroefgaten plamuren inbegrepen zoals overeengekomen.';
-export const WASTE_WORK_SCOPE_TEXT = 'Afvoeren van vrijkomend afval en restmateriaal.';
-export const PAINTING_WORK_SCOPE_TEXT = 'Schilderen van de overeengekomen onderdelen.';
-export const STUCCO_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen stucwerk.';
-export const FILLING_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen plamuurwerk.';
-export const SEALING_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen kitwerk.';
-export const SEAM_FILLING_WORK_SCOPE_TEXT = 'Vullen en afwerken van de overeengekomen naden.';
-export const SCREW_HOLE_FILLING_WORK_SCOPE_TEXT = 'Plamuren van de schroefgaten.';
-export const ELECTRICAL_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen elektrawerk.';
-export const SCAFFOLD_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen steigerwerk.';
-export const DEMOLITION_WORK_SCOPE_TEXT = 'Uitvoeren van het overeengekomen sloopwerk.';
 
 export const DEFAULT_ELECTRICAL_SCOPE: ElectricalScope = {
   enabled: false,
@@ -112,14 +102,13 @@ const ELECTRICAL_PATTERN = /elektra|elektrisch|kabel|stopcontact|schakelaar|mete
 const PAINTING_PATTERN = /schilder|sauswerk|sausen|aflak|verven/i;
 const STUCCO_PATTERN = /stuc/i;
 const FILLING_PATTERN = /plamuur/i;
-const SEALING_PATTERN = /kitwerk|kitten/i;
 const SEAM_FILLING_PATTERN = /nad(?:en|e)\s+(?:vullen|afwerken)|voeg(?:en)?\s+(?:vullen|afwerken)/i;
 const SCREW_HOLE_FILLING_PATTERN = /schroefgat(?:en)?\s+(?:plamuren|vullen|afwerken)|(?:plamuren|vullen|afwerken)\s+van\s+(?:de\s+)?schroefgat(?:en)?/i;
 const SCAFFOLD_PATTERN = /steiger|steigerwerk|steigerhuur/i;
 const DEMOLITION_PATTERN = /sloopwerk|slopen|demonteren/i;
 const FINISH_PATTERNS: Partial<Record<FinishLevel, RegExp>> = {
-  constructief_gereed: /schilder|stuc|plamuur|kitwerk|kitten|sauswerk|sausen|aflak|verven/i,
-  plaatmateriaal_gemonteerd: /schilder|stuc|plamuur|kitwerk|kitten|sauswerk|sausen|aflak|verven/i,
+  constructief_gereed: /schilder|plamuur|sauswerk|sausen|aflak|verven/i,
+  plaatmateriaal_gemonteerd: /schilder|plamuur|sauswerk|sausen|aflak|verven/i,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -145,20 +134,6 @@ function rows(value: unknown): string[] {
 
 function unique(input: string[]): string[] {
   return Array.from(new Set(input.map((item) => item.trim()).filter(Boolean)));
-}
-
-function ensureWorkScopeRows(
-  scope: WorkDeliveryScope,
-  pattern: RegExp,
-  preferredRows: string[],
-  fallback: string,
-): void {
-  if (scope.work_scope.some((line) => pattern.test(line))) return;
-  const rowsToAdd = unique(preferredRows.filter((line) => pattern.test(line)));
-  scope.work_scope = deduplicateWorkScopeRows([
-    ...scope.work_scope,
-    ...(rowsToAdd.length > 0 ? rowsToAdd : [fallback]),
-  ]);
 }
 
 const MANAGED_INCLUDED_TEXTS = [
@@ -208,21 +183,31 @@ function isLegacyManagedFinishExclusion(value: string): boolean {
   return parts.length > 0 && parts.every((part) => managedParts.has(part));
 }
 
+export function isRemovedLegacyToggleText(value: string): boolean {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[.]$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized === 'stucwerk niet inbegrepen'
+    || normalized === 'stucwerk inbegrepen zoals overeengekomen'
+    || normalized === 'kitwerk niet inbegrepen'
+    || normalized === 'kitwerk inbegrepen zoals overeengekomen';
+}
+
 function synchronizeToggleLists(scope: WorkDeliveryScope): void {
   const managedIncluded = new Set(MANAGED_INCLUDED_TEXTS);
   const managedExcluded = new Set(MANAGED_EXCLUDED_TEXTS);
-  scope.included = scope.included.filter((line) => !managedIncluded.has(line));
+  scope.included = scope.included.filter((line) => !managedIncluded.has(line) && !isRemovedLegacyToggleText(line));
   scope.excluded = scope.excluded.filter((line) => (
-    !managedExcluded.has(line) && !isLegacyManagedFinishExclusion(line)
+    !managedExcluded.has(line) && !isLegacyManagedFinishExclusion(line) && !isRemovedLegacyToggleText(line)
   ));
 
   const rules = [
     { enabled: scope.afvalAfvoeren, included: WASTE_INCLUDED_TEXT, excluded: WASTE_EXCLUDED_TEXT },
     { enabled: scope.electricalScope.enabled, included: ELECTRICAL_INCLUDED_TEXT, excluded: ELECTRICAL_EXCLUDED_TEXT },
     { enabled: scope.schilderwerkInbegrepen, included: PAINTING_INCLUDED_TEXT, excluded: PAINTING_EXCLUDED_TEXT },
-    { enabled: scope.stucwerkInbegrepen, included: STUCCO_INCLUDED_TEXT, excluded: STUCCO_EXCLUDED_TEXT },
     { enabled: scope.plamuurwerkInbegrepen, included: FILLING_INCLUDED_TEXT, excluded: FILLING_EXCLUDED_TEXT },
-    { enabled: scope.kitwerkInbegrepen, included: SEALING_INCLUDED_TEXT, excluded: SEALING_EXCLUDED_TEXT },
     { enabled: scope.steigerInbegrepen, included: SCAFFOLD_INCLUDED_TEXT, excluded: '' },
     { enabled: scope.sloopwerkInbegrepen, included: DEMOLITION_INCLUDED_TEXT, excluded: DEMOLITION_EXCLUDED_TEXT },
     {
@@ -426,9 +411,9 @@ export function sanitizeWorkDeliveryScope(input: unknown): WorkDeliveryScope {
     ]),
     afvalAfvoeren: input.afvalAfvoeren === true,
     schilderwerkInbegrepen: input.schilderwerkInbegrepen === true,
-    stucwerkInbegrepen: input.stucwerkInbegrepen === true,
+    stucwerkInbegrepen: false,
     plamuurwerkInbegrepen: input.plamuurwerkInbegrepen === true || input.plamuurEnKitwerkInbegrepen === true,
-    kitwerkInbegrepen: input.kitwerkInbegrepen === true || input.plamuurEnKitwerkInbegrepen === true,
+    kitwerkInbegrepen: false,
     steigerInbegrepen: input.steigerInbegrepen === true,
     sloopwerkInbegrepen: input.sloopwerkInbegrepen === true,
     nadenVullenInbegrepen: input.nadenVullenInbegrepen === true,
@@ -447,10 +432,11 @@ export function sanitizeWorkDeliveryScope(input: unknown): WorkDeliveryScope {
 export function completeWorkDeliveryScope(
   input: unknown,
   fallbackTitle?: string,
+  options?: { deriveSummary?: boolean },
 ): WorkDeliveryScope {
   const scope = sanitizeWorkDeliveryScope(input);
   const title = scope.title || deriveTitleFromScope(scope, fallbackTitle);
-  const summary = scope.summary || deriveSummaryFromScope(scope);
+  const summary = scope.summary || (options?.deriveSummary ? deriveSummaryFromScope(scope) : '');
   return enforceWorkDeliverySafety({ ...scope, title, summary });
 }
 
@@ -464,8 +450,8 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     // Equal measurements can represent multiple separate walls/parts. Preserve
     // multiplicity and ordering instead of treating equal rows as duplicates.
     dimensions: input.dimensions.map((line) => line.trim()).filter((line) => line && !isIgnoredWorkDeliveryMaterial(line)),
-    included: unique(input.included).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),
-    excluded: unique(input.excluded).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),
+    included: unique(input.included).filter((line) => !isIgnoredWorkDeliveryMaterial(line) && !isRemovedLegacyToggleText(line)),
+    excluded: unique(input.excluded).filter((line) => !isIgnoredWorkDeliveryMaterial(line) && !isRemovedLegacyToggleText(line)),
     internal_notes: unique(input.internal_notes).filter((line) => !isIgnoredWorkDeliveryMaterial(line)),
     electricalScope: normalizeElectricalScope(input.electricalScope),
   };
@@ -479,10 +465,8 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     if (WASTE_PATTERN.test(scope.title)) scope.title = '';
     scope.excluded = unique([...scope.excluded, WASTE_EXCLUDED_TEXT]);
   } else {
-    const wasteRows = scope.included.filter((line) => WASTE_PATTERN.test(line) && line !== WASTE_INCLUDED_TEXT);
     scope.included = scope.included.filter((line) => !WASTE_PATTERN.test(line));
     scope.excluded = scope.excluded.filter((line) => !WASTE_PATTERN.test(line));
-    ensureWorkScopeRows(scope, WASTE_PATTERN, wasteRows, WASTE_WORK_SCOPE_TEXT);
     scope.included = unique([...scope.included, WASTE_INCLUDED_TEXT]);
   }
 
@@ -492,36 +476,28 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     if (ELECTRICAL_PATTERN.test(scope.title)) scope.title = '';
     scope.excluded = unique([...scope.excluded, ELECTRICAL_EXCLUDED_TEXT]);
   } else {
-    const electricalRows = [
-      ...scope.included.filter((line) => ELECTRICAL_PATTERN.test(line)),
-      scope.electricalScope.description,
-      ...scope.electricalScope.includedItems,
-    ];
     scope.materials = scope.materials.filter((line) => !ELECTRICAL_PATTERN.test(line));
     scope.dimensions = scope.dimensions.filter((line) => !ELECTRICAL_PATTERN.test(line));
     scope.included = scope.included.filter((line) => !ELECTRICAL_PATTERN.test(line));
     scope.excluded = unique([...scope.excluded.filter((line) => line !== ELECTRICAL_EXCLUDED_TEXT), ...scope.electricalScope.excludedItems]);
-    ensureWorkScopeRows(scope, ELECTRICAL_PATTERN, electricalRows, ELECTRICAL_WORK_SCOPE_TEXT);
     scope.included = unique([
       ...scope.included,
       ELECTRICAL_INCLUDED_TEXT,
       ...scope.electricalScope.includedItems,
     ]);
-    scope.work_scope = unique([
-      ...scope.work_scope,
-      Number.isFinite(scope.electricalScope.maxLengthMeters)
-        ? `Kabellengte maximaal ${scope.electricalScope.maxLengthMeters} meter.`
-        : '',
-    ]);
+    if (Number.isFinite(scope.electricalScope.maxLengthMeters)) {
+      scope.included = unique([
+        ...scope.included,
+        `Kabellengte maximaal ${scope.electricalScope.maxLengthMeters} meter.`,
+      ]);
+    }
   }
 
   const finishPattern = FINISH_PATTERNS[scope.finishLevel];
   if (finishPattern) {
     const disallowedFinishSources = [
       !scope.schilderwerkInbegrepen ? PAINTING_PATTERN.source : '',
-      !scope.stucwerkInbegrepen ? STUCCO_PATTERN.source : '',
       !scope.plamuurwerkInbegrepen ? FILLING_PATTERN.source : '',
-      !scope.kitwerkInbegrepen ? SEALING_PATTERN.source : '',
       !scope.nadenVullenInbegrepen ? SEAM_FILLING_PATTERN.source : '',
       !scope.schroefgatenPlamurenInbegrepen ? SCREW_HOLE_FILLING_PATTERN.source : '',
     ].filter(Boolean);
@@ -537,9 +513,7 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     scope.excluded = scope.excluded.filter((line) => !finishPattern.test(line));
     const excludedFinishParts = [
       !scope.schilderwerkInbegrepen ? 'schilderwerk en sauswerk' : '',
-      !scope.stucwerkInbegrepen ? 'stucwerk' : '',
       !scope.plamuurwerkInbegrepen ? 'overig plamuurwerk' : '',
-      !scope.kitwerkInbegrepen ? 'kitwerk' : '',
       !scope.nadenVullenInbegrepen ? 'naden vullen' : '',
       !scope.schroefgatenPlamurenInbegrepen ? 'schroefgaten plamuren' : '',
     ].filter(Boolean);
@@ -553,61 +527,35 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
   }
 
   if (scope.schilderwerkInbegrepen) {
-    const paintingRows = scope.included.filter((line) => PAINTING_PATTERN.test(line) && line !== PAINTING_INCLUDED_TEXT);
     scope.included = scope.included.filter((line) => !PAINTING_PATTERN.test(line));
     scope.excluded = scope.excluded.filter((line) => !PAINTING_PATTERN.test(line));
-    ensureWorkScopeRows(scope, PAINTING_PATTERN, paintingRows, PAINTING_WORK_SCOPE_TEXT);
     scope.included = unique([...scope.included, PAINTING_INCLUDED_TEXT]);
   }
 
-  if (scope.stucwerkInbegrepen) {
-    const stuccoRows = scope.included.filter((line) => STUCCO_PATTERN.test(line) && line !== STUCCO_INCLUDED_TEXT);
-    scope.included = scope.included.filter((line) => !STUCCO_PATTERN.test(line));
-    scope.excluded = scope.excluded.filter((line) => !STUCCO_PATTERN.test(line));
-    ensureWorkScopeRows(scope, STUCCO_PATTERN, stuccoRows, STUCCO_WORK_SCOPE_TEXT);
-    scope.included = unique([...scope.included, STUCCO_INCLUDED_TEXT]);
-  }
-
   if (scope.plamuurwerkInbegrepen) {
-    const fillingRows = scope.included.filter((line) => FILLING_PATTERN.test(line));
     scope.included = scope.included.filter((line) => !FILLING_PATTERN.test(line));
     scope.excluded = scope.excluded.filter((line) => !FILLING_PATTERN.test(line));
-    ensureWorkScopeRows(scope, FILLING_PATTERN, fillingRows, FILLING_WORK_SCOPE_TEXT);
     scope.included = unique([...scope.included, FILLING_INCLUDED_TEXT]);
   }
 
-  if (scope.kitwerkInbegrepen) {
-    const sealingRows = scope.included.filter((line) => SEALING_PATTERN.test(line));
-    scope.included = scope.included.filter((line) => !SEALING_PATTERN.test(line));
-    scope.excluded = scope.excluded.filter((line) => !SEALING_PATTERN.test(line));
-    ensureWorkScopeRows(scope, SEALING_PATTERN, sealingRows, SEALING_WORK_SCOPE_TEXT);
-    scope.included = unique([...scope.included, SEALING_INCLUDED_TEXT]);
-  }
-
   if (scope.nadenVullenInbegrepen) {
-    const seamRows = scope.included.filter((line) => SEAM_FILLING_PATTERN.test(line));
     scope.included = scope.included.filter((line) => !SEAM_FILLING_PATTERN.test(line));
     scope.excluded = scope.excluded.filter((line) => !SEAM_FILLING_PATTERN.test(line));
-    ensureWorkScopeRows(scope, SEAM_FILLING_PATTERN, seamRows, SEAM_FILLING_WORK_SCOPE_TEXT);
   }
 
   if (scope.schroefgatenPlamurenInbegrepen) {
-    const screwHoleRows = scope.included.filter((line) => SCREW_HOLE_FILLING_PATTERN.test(line));
     scope.included = scope.included.filter((line) => !SCREW_HOLE_FILLING_PATTERN.test(line));
     scope.excluded = scope.excluded.filter((line) => !SCREW_HOLE_FILLING_PATTERN.test(line));
-    ensureWorkScopeRows(scope, SCREW_HOLE_FILLING_PATTERN, screwHoleRows, SCREW_HOLE_FILLING_WORK_SCOPE_TEXT);
     scope.included = unique([...scope.included, SCREW_HOLE_FILLING_INCLUDED_TEXT]);
   }
 
   if (scope.steigerInbegrepen) {
     scope.excluded = scope.excluded.filter((line) => !SCAFFOLD_PATTERN.test(line));
-    ensureWorkScopeRows(scope, SCAFFOLD_PATTERN, scope.included, SCAFFOLD_WORK_SCOPE_TEXT);
     scope.included = unique([...scope.included, SCAFFOLD_INCLUDED_TEXT]);
   }
 
   if (scope.sloopwerkInbegrepen) {
     scope.excluded = scope.excluded.filter((line) => !DEMOLITION_PATTERN.test(line));
-    ensureWorkScopeRows(scope, DEMOLITION_PATTERN, scope.included, DEMOLITION_WORK_SCOPE_TEXT);
     scope.included = unique([...scope.included, DEMOLITION_INCLUDED_TEXT]);
   }
 
@@ -646,9 +594,7 @@ export function validateWorkDeliveryScope(
   const hasDisabledToggle = !scope.afvalAfvoeren
     || !scope.electricalScope.enabled
     || !scope.schilderwerkInbegrepen
-    || !scope.stucwerkInbegrepen
     || !scope.plamuurwerkInbegrepen
-    || !scope.kitwerkInbegrepen
     || !scope.sloopwerkInbegrepen
     || !scope.nadenVullenInbegrepen
     || !scope.schroefgatenPlamurenInbegrepen;
@@ -679,9 +625,7 @@ export function validateWorkDeliveryScope(
     finishPattern
     && (
       (!scope.schilderwerkInbegrepen && PAINTING_PATTERN.test(finishValidationText))
-      || (!scope.stucwerkInbegrepen && STUCCO_PATTERN.test(finishValidationText))
       || (!scope.plamuurwerkInbegrepen && FILLING_PATTERN.test(generalFillingValidationText))
-      || (!scope.kitwerkInbegrepen && SEALING_PATTERN.test(finishValidationText))
       || (!scope.nadenVullenInbegrepen && SEAM_FILLING_PATTERN.test(finishValidationText))
     )
   ) {

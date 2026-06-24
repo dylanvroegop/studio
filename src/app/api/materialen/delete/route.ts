@@ -68,6 +68,7 @@ async function hasOwnedMaterialRow(rowId: string, uid: string): Promise<boolean>
     .select('row_id')
     .eq('row_id', rowId)
     .eq('gebruikerid', uid)
+    .eq('is_active', true)
     .maybeSingle();
 
   if (error) throw new Error(error.message || 'Kon materiaal niet valideren voor verwijderen.');
@@ -80,6 +81,7 @@ async function deleteOwnedMaterialRow(rowId: string, uid: string): Promise<boole
     .delete()
     .eq('row_id', rowId)
     .eq('gebruikerid', uid)
+    .eq('is_active', true)
     .select('row_id')
     .maybeSingle();
 

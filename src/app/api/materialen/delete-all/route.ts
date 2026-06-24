@@ -28,7 +28,8 @@ export async function POST(req: Request) {
     const { count: totalBeforeDelete, error: countError } = await supabaseAdmin
       .from('main_material_list')
       .select('row_id', { count: 'exact', head: true })
-      .eq('gebruikerid', uid);
+      .eq('gebruikerid', uid)
+      .eq('is_active', true);
 
     if (countError) {
       return NextResponse.json(
@@ -40,7 +41,8 @@ export async function POST(req: Request) {
     const { error: deleteError } = await supabaseAdmin
       .from('main_material_list')
       .delete()
-      .eq('gebruikerid', uid);
+      .eq('gebruikerid', uid)
+      .eq('is_active', true);
 
     if (deleteError) {
       return NextResponse.json(

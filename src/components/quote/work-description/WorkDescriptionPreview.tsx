@@ -22,7 +22,6 @@ export function WorkDescriptionPreview({ value, activeJobIndex = 0 }: WorkDescri
     <div className="space-y-4 rounded-xl border border-border/80 bg-card/60 p-5">
       <div className="space-y-1 border-b border-border/60 pb-4">
         <h3 className="text-lg font-semibold text-foreground">{job.title || 'Werk & Levering'}</h3>
-        {job.summary ? <p className="text-sm leading-relaxed text-muted-foreground">{job.summary}</p> : null}
       </div>
       {sections.map(([label, rows]) => rows.length > 0 ? (
         <section key={label} className="space-y-2">

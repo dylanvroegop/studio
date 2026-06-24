@@ -44,21 +44,36 @@ export async function GET(req: Request) {
     const { data: ownData, error: ownError } = await supabaseAdmin
       .from('main_material_list')
       .select('*')
-      .eq('gebruikerid', uid);
+      .eq('gebruikerid', uid)
+      .eq('is_active', true);
 
     if (ownError) throw ownError;
 
     console.log(`[Materialen API] ownData length: ${ownData?.length}`);
     let data = [...(ownData || [])];
 
-    // First-login/self-heal: ensure the user has a personal catalog from template defaults.
-    if (data.length === 0 && hasDefaultTemplateConfig()) {
+    // First-login/self-heal applies only when the user has never had a catalog.
+    // An intentionally archived catalog must remain empty until new active rows are added.
+    let hasAnyOwnedCatalogRows = data.length > 0;
+    if (!hasAnyOwnedCatalogRows) {
+      const { data: anyOwnedRow, error: anyOwnedRowError } = await supabaseAdmin
+        .from('main_material_list')
+        .select('row_id')
+        .eq('gebruikerid', uid)
+        .limit(1)
+        .maybeSingle();
+      if (anyOwnedRowError) throw anyOwnedRowError;
+      hasAnyOwnedCatalogRows = Boolean(anyOwnedRow);
+    }
+
+    if (!hasAnyOwnedCatalogRows && hasDefaultTemplateConfig()) {
       try {
         await bootstrapDefaultCatalogForUser(uid, { ignoreCompletionMarker: true });
         const { data: refetchedOwnData, error: refetchError } = await supabaseAdmin
           .from('main_material_list')
           .select('*')
           .eq('gebruikerid', uid)
+          .eq('is_active', true)
           .order('order_id', { ascending: true })
           .range(0, 5000);
         if (refetchError) throw refetchError;

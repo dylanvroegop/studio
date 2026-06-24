@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { PriceImportRequestForm } from '@/components/PriceImportRequestForm';
 import { cn } from '@/lib/utils';
 import { reportOperationalError } from '@/lib/report-operational-error';
+import { normalizeTaxonomyLabel, uniqueTaxonomyLabels } from '@/lib/material-taxonomy';
 import { useToast } from '@/hooks/use-toast';
 
 type InlineDialogContextValue = {
@@ -625,6 +626,7 @@ export type ExistingMaterial = {
 interface MaterialSelectionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialAiImage?: File | null;
   quoteId?: string;
   klusId?: string;
   existingMaterials?: ExistingMaterial[];
@@ -648,6 +650,7 @@ interface MaterialSelectionModalProps {
 export function MaterialSelectionModal({
   open,
   onOpenChange,
+  initialAiImage,
   quoteId,
   klusId,
   existingMaterials = [],
@@ -679,7 +682,7 @@ export function MaterialSelectionModal({
     ].some((candidateId) => candidateId.length > 0 && candidateId === selectedId);
   }, [selectedMaterialId]);
 
-  const [step, setStep] = useState<'search' | 'choice' | 'form'>('search');
+  const [step, setStep] = useState<'search' | 'choice' | 'form'>(initialAiImage ? 'form' : 'search');
   const [savingCustom, setSavingCustom] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -738,6 +741,7 @@ export function MaterialSelectionModal({
   const [showAllLeverancierOptions, setShowAllLeverancierOptions] = useState(false);
   const pendingExtensionImportRef = useRef<ExtensionMaterialImportPayload | null>(null);
   const pendingVisualImportRef = useRef<ExtensionMaterialImportPayload | null>(null);
+  const processedInitialAiImageRef = useRef<File | null>(null);
   const clearLegacyExtensionToasts = useCallback(() => {
     if (typeof document === 'undefined') return;
 
@@ -790,7 +794,7 @@ export function MaterialSelectionModal({
       })();
 
       // 1. Reset UI Flow
-      setStep('search');
+      setStep(initialAiImage ? 'form' : 'search');
       setError(null);
       setSearchTerm('');
       setCategoryFilter(defaultCategory || 'all');
@@ -841,7 +845,7 @@ export function MaterialSelectionModal({
       // 4. Reset Edit State
       setEditingMaterialId(null);
     }
-  }, [clearLegacyExtensionToasts, open, defaultCategory, initialWastePercentage, favoriteSubCategoryKey]);
+  }, [clearLegacyExtensionToasts, open, defaultCategory, initialWastePercentage, favoriteSubCategoryKey, initialAiImage]);
 
   useEffect(() => {
     setDisplayLimit(50);
@@ -862,12 +866,9 @@ export function MaterialSelectionModal({
       "Keylite", "Lichtkoepels", "Daktoebehoren", "Ubbink"
     ];
 
-    const cats = new Set(
-      existingMaterials
-        .map((m) => getMaterialMainCategory(m))
-        .filter((value) => value.length > 0)
+    const list = uniqueTaxonomyLabels(
+      existingMaterials.map((material) => getMaterialMainCategory(material))
     );
-    const list = Array.from(cats) as string[];
 
     return list.sort((a, b) => {
       const idxA = CATEGORY_ORDER.indexOf(a);
@@ -1607,6 +1608,11 @@ export function MaterialSelectionModal({
     return !savingCustom && isNaamOk && isPrijsOk && isEenheidOk;
   }, [savingCustom, isNaamOk, isPrijsOk, isEenheidOk]);
 
+  const hasMeasurementReview = useMemo(
+    () => [customLengte, customBreedte, customHoogte, customDikte].some((value) => value.trim().length > 0),
+    [customLengte, customBreedte, customHoogte, customDikte]
+  );
+
   const handleGenerateMaterialFromImage = async (fileOverride?: File | null) => {
     if (isAiExtracting || isAiBulkExtracting) return;
 
@@ -1887,6 +1893,23 @@ export function MaterialSelectionModal({
       void handleGenerateMaterialFromImage(file);
     }
   };
+  const handleAiFilePickedRef = useRef(handleAiFilePicked);
+  handleAiFilePickedRef.current = handleAiFilePicked;
+
+  useEffect(() => {
+    if (!open || !initialAiImage) return;
+    if (processedInitialAiImageRef.current === initialAiImage) return;
+
+    const trigger = window.setTimeout(() => {
+      if (processedInitialAiImageRef.current === initialAiImage) return;
+      processedInitialAiImageRef.current = initialAiImage;
+      setEditingMaterialId(null);
+      setStep('form');
+      handleAiFilePickedRef.current(initialAiImage, { autoAnalyze: true });
+    }, 0);
+
+    return () => window.clearTimeout(trigger);
+  }, [initialAiImage, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -1987,8 +2010,8 @@ export function MaterialSelectionModal({
           payload.verbruik_per_m2 = verbruikPerM2Value;
         }
       }
-      const categorie = customCategorie.trim();
-      const subsectie = customSubsectie.trim();
+      const categorie = normalizeTaxonomyLabel(customCategorie);
+      const subsectie = normalizeTaxonomyLabel(customSubsectie);
       const leverancier = customLeverancier.trim();
       const lengte = customLengte.trim();
       const breedte = customBreedte.trim();
@@ -2189,8 +2212,8 @@ export function MaterialSelectionModal({
     setCustomPrijs(formatPriceInput(priceIncl));
     setCustomPrijsExclBtw(formatPriceInput(priceExcl));
 
-    setCustomCategorie(mat.categorie || '');
-    setCustomSubsectie(mat.subsectie || (mat as any).sub_categorie || '');
+    setCustomCategorie(normalizeTaxonomyLabel(mat.categorie));
+    setCustomSubsectie(normalizeTaxonomyLabel(mat.subsectie || (mat as any).sub_categorie));
     setCustomLeverancier(mat.leverancier || '');
     setCustomLengte((mat as any).lengte || '');
     setCustomBreedte((mat as any).breedte || '');
@@ -2953,7 +2976,7 @@ export function MaterialSelectionModal({
                       <Input
                         value={customCategorie}
                         onChange={(e) => {
-                          setCustomCategorie(e.target.value);
+                          setCustomCategorie(normalizeTaxonomyLabel(e.target.value));
                           setShowAllCategorieOptions(false);
                         }}
                         onFocus={() => {
@@ -3013,7 +3036,7 @@ export function MaterialSelectionModal({
                       <Input
                         value={customSubsectie}
                         onChange={(e) => {
-                          setCustomSubsectie(e.target.value);
+                          setCustomSubsectie(normalizeTaxonomyLabel(e.target.value));
                           setShowAllSubsectieOptions(false);
                         }}
                         onFocus={() => {
@@ -3131,25 +3154,76 @@ export function MaterialSelectionModal({
 
               </div>
 
-              <DialogFooter className="border-t border-muted/60 bg-muted/5 px-6 py-4 sm:justify-end gap-3 shrink-0">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setStep('search')}
-                  className="h-11"
-                >
-                  Vorige
-                </Button>
-                <Button
-                  type="button"
-                  className={cn("h-11 gap-2 px-8 text-sm font-bold shadow-lg", POSITIVE_BTN_SOFT)}
-                  onClick={() => void saveCustomMaterial()}
-                  disabled={!canSaveCustom || savingCustom}
-                >
-                  {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingMaterialId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />)}
-                  {editingMaterialId ? "Opslaan" : "Materiaal toevoegen"}
-                </Button>
-              </DialogFooter>
+              <div className="shrink-0 border-t border-muted/60 bg-muted/5">
+                <DialogFooter className="px-6 py-4 sm:justify-end gap-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setStep('search')}
+                    className="h-11"
+                  >
+                    Vorige
+                  </Button>
+                  <Button
+                    type="button"
+                    className={cn("h-11 gap-2 px-8 text-sm font-bold shadow-lg", POSITIVE_BTN_SOFT)}
+                    onClick={() => void saveCustomMaterial()}
+                    disabled={!canSaveCustom || savingCustom}
+                  >
+                    {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingMaterialId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />)}
+                    {editingMaterialId ? "Opslaan" : "Materiaal toevoegen"}
+                  </Button>
+                </DialogFooter>
+
+                {hasMeasurementReview && (
+                  <div className="border-t border-muted/60 px-6 py-4">
+                    <div className="mb-3">
+                      <div className="text-sm font-medium">Maatvoering controleren</div>
+                      <p className="text-xs text-muted-foreground">
+                        Deze waarden worden in de genoemde Supabase-kolommen opgeslagen. Pas ze aan als de AI iets verkeerd heeft gelezen.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <label htmlFor="materiaal-lengte" className="space-y-1.5">
+                        <span className="text-xs text-muted-foreground">Lengte · kolom: lengte</span>
+                        <Input
+                          id="materiaal-lengte"
+                          value={customLengte}
+                          onChange={(event) => setCustomLengte(event.target.value)}
+                          placeholder="Niet gevonden"
+                        />
+                      </label>
+                      <label htmlFor="materiaal-breedte" className="space-y-1.5">
+                        <span className="text-xs text-muted-foreground">Breedte · kolom: breedte</span>
+                        <Input
+                          id="materiaal-breedte"
+                          value={customBreedte}
+                          onChange={(event) => setCustomBreedte(event.target.value)}
+                          placeholder="Niet gevonden"
+                        />
+                      </label>
+                      <label htmlFor="materiaal-hoogte" className="space-y-1.5">
+                        <span className="text-xs text-muted-foreground">Hoogte · kolom: hoogte</span>
+                        <Input
+                          id="materiaal-hoogte"
+                          value={customHoogte}
+                          onChange={(event) => setCustomHoogte(event.target.value)}
+                          placeholder="Niet gevonden"
+                        />
+                      </label>
+                      <label htmlFor="materiaal-dikte" className="space-y-1.5">
+                        <span className="text-xs text-muted-foreground">Dikte · kolom: dikte</span>
+                        <Input
+                          id="materiaal-dikte"
+                          value={customDikte}
+                          onChange={(event) => setCustomDikte(event.target.value)}
+                          placeholder="Niet gevonden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>

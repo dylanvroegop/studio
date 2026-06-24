@@ -7,6 +7,7 @@ import { parsePriceToNumber } from '@/lib/utils';
 import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { isFeatureEnabled } from '@/lib/feature-flags';
+import { findExistingTaxonomyLabel } from '@/lib/material-taxonomy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -675,11 +676,31 @@ export async function POST(req: Request) {
     const eenheid = normalizeString(body.eenheid);
     const { prijsExcl: prijsExclNum, prijsIncl: prijsInclNum } = resolveCanonicalPrices(body);
 
-    const categorie = normalizeString(body.categorie);
-    const subsectie =
+    const categorieInput = normalizeString(body.categorie);
+    const subsectieInput =
       normalizeString(body.subsectie) ??
       normalizeString(body.sub_categorie);
-    const effectiveCategorie = categorie ?? subsectie;
+
+    const { data: activeTaxonomyRows, error: activeTaxonomyError } = await supabaseAdmin
+      .from('main_material_list')
+      .select('categorie, sub_categorie')
+      .eq('gebruikerid', uid)
+      .eq('is_active', true);
+    if (activeTaxonomyError) {
+      return jsonFail(activeTaxonomyError.message || 'Kon bestaande categorieën niet ophalen.', 500);
+    }
+
+    const existingCategories = (activeTaxonomyRows || [])
+      .map((row) => normalizeString(row.categorie))
+      .filter((value): value is string => Boolean(value));
+    const existingSubsections = (activeTaxonomyRows || [])
+      .map((row) => normalizeString(row.sub_categorie))
+      .filter((value): value is string => Boolean(value));
+    const effectiveCategorie = findExistingTaxonomyLabel(
+      categorieInput ?? subsectieInput,
+      existingCategories
+    );
+    const subsectie = findExistingTaxonomyLabel(subsectieInput, existingSubsections);
 
     const leverancier = normalizeString(body.leverancier);
     const lengte = normalizeString(body.lengte);
@@ -851,9 +872,10 @@ export async function POST(req: Request) {
 
         const existingByName = await supabaseAdmin
           .from('main_material_list')
-          .select('row_id')
+          .select('row_id, is_active')
           .eq('gebruikerid', uid)
           .eq('materiaalnaam', naam)
+          .order('is_active', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -865,7 +887,7 @@ export async function POST(req: Request) {
         if (existingByName.data?.row_id) {
           const updByName = await supabaseAdmin
             .from('main_material_list')
-            .update(dbPayload)
+            .update({ ...dbPayload, is_active: true })
             .eq('row_id', existingByName.data.row_id)
             .eq('gebruikerid', uid)
             .select('*')
@@ -977,6 +999,24 @@ export async function POST(req: Request) {
           );
         }
       }
+    }
+
+    // A newly added material may resolve to an archived exact-name match,
+    // including through the optional n8n flow. Adding it means it belongs in
+    // the current catalog again, so always reactivate the resolved row.
+    if (!incomingRowId && realRowId && (data as any)?.is_active !== true) {
+      const activation = await supabaseAdmin
+        .from('main_material_list')
+        .update({ is_active: true })
+        .eq('row_id', realRowId)
+        .eq('gebruikerid', uid)
+        .select('*')
+        .maybeSingle();
+
+      if (activation.error) {
+        return jsonFail(activation.error.message || 'Materiaal kon niet worden geactiveerd.', 500);
+      }
+      if (activation.data) data = activation.data;
     }
 
     // Defensive repair: if n8n returned/stored only incl. btw, patch row to always include excl. btw.

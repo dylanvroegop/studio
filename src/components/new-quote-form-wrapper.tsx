@@ -12,6 +12,7 @@ import {
   collection,
   addDoc,
   serverTimestamp,
+  Timestamp,
   query,
   where,
   getDocs,
@@ -67,6 +68,33 @@ function formatPostcode(value: string) {
   const clean = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   if (clean.length === 6) return `${clean.slice(0, 4)} ${clean.slice(4)}`;
   return clean;
+}
+
+function normalizeAppointmentDate(value: unknown): string {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  const [year, month, day] = raw.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) return '';
+  return raw;
+}
+
+function normalizeAppointmentTime(value: unknown): string {
+  const raw = typeof value === 'string' ? value.trim().replace(';', ':').replace('.', ':') : '';
+  const match = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (!match) return '';
+  return `${match[1].padStart(2, '0')}:${match[2]}`;
+}
+
+function buildAddressLine(parts: {
+  straat?: string;
+  huisnummer?: string;
+  postcode?: string;
+  plaats?: string;
+}) {
+  const line1 = [parts.straat, parts.huisnummer].map((part) => String(part || '').trim()).filter(Boolean).join(' ');
+  const line2 = [parts.postcode, parts.plaats].map((part) => String(part || '').trim()).filter(Boolean).join(' ');
+  return [line1, line2].filter(Boolean).join(', ');
 }
 
 // function schoonObject removed in favor of cleanFirestoreData
@@ -273,10 +301,177 @@ export function NewQuoteForm({
       projectHuisnummer: get('projectHuisnummer'),
       projectPostcode: formatPostcode(get('projectPostcode')),
       projectPlaats: formatCapitalize(get('projectPlaats')),
+      afspraakAanwezig: rawClient.afspraakAanwezig === true || get('afspraakAanwezig').toLowerCase() === 'true' || get('afspraakAanwezig').toLowerCase() === 'ja',
+      afspraakDatum: normalizeAppointmentDate(rawClient.afspraakDatum),
+      afspraakTijd: normalizeAppointmentTime(rawClient.afspraakTijd),
+      afspraakOmschrijving: get('afspraakOmschrijving'),
     };
 
     return normalized;
   }, []);
+
+  const syncPlanningEntryToGoogleCalendar = useCallback(async (payload: {
+    action: 'upsert';
+    entryId: string;
+    googleCalendarEventId?: string | null;
+    quoteId: string;
+    startDate: Date;
+    endDate: Date;
+    notes?: string;
+    cache: {
+      clientName: string;
+      projectTitle: string;
+      projectAddress: string;
+    };
+  }) => {
+    if (!user) return;
+    const token = await user.getIdToken().catch(() => null);
+    if (!token) return;
+
+    const response = await fetch('/api/google-calendar/sync-entry', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: payload.action,
+        entryId: payload.entryId,
+        googleCalendarEventId: payload.googleCalendarEventId,
+        quoteId: payload.quoteId,
+        planningType: 'werkbespreking',
+        startDate: payload.startDate.toISOString(),
+        endDate: payload.endDate.toISOString(),
+        notes: payload.notes || '',
+        cache: payload.cache,
+      }),
+    });
+
+    if (!response.ok) {
+      const result = await response.json().catch(() => null) as { error?: string } | null;
+      throw new Error(result?.error || 'Google Calendar synchronisatie mislukt.');
+    }
+
+    const result = await response.json().catch(() => null) as {
+      ok?: boolean;
+      skipped?: boolean;
+      reason?: string;
+      error?: string;
+    } | null;
+    if (result?.skipped) {
+      throw new Error(
+        result.reason === 'calendar_not_connected'
+          ? 'Google Calendar is niet gekoppeld. De afspraak is NIET in Google Calendar gezet.'
+          : 'Google Calendar synchronisatie is overgeslagen. De afspraak is NIET in Google Calendar gezet.'
+      );
+    }
+    if (!result?.ok) {
+      throw new Error(result?.error || 'Google Calendar synchronisatie mislukt. De afspraak is NIET in Google Calendar gezet.');
+    }
+  }, [user]);
+
+  const upsertExtractedWorkMeeting = useCallback(async (clientData: ReturnType<typeof normalizeExtractedClientData>) => {
+    if (!quoteId || !firestore || !user) return null;
+    if (!clientData.afspraakAanwezig || !clientData.afspraakDatum || !clientData.afspraakTijd) return null;
+
+    const startDate = new Date(`${clientData.afspraakDatum}T${clientData.afspraakTijd}:00`);
+    if (!Number.isFinite(startDate.getTime())) return null;
+    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+    const clientName = clientData.bedrijfsnaam || `${clientData.voornaam || ''} ${clientData.achternaam || ''}`.trim() || 'Onbekend';
+    const projectAddress = clientData.afwijkendProjectadres
+      ? buildAddressLine({
+          straat: clientData.projectStraat,
+          huisnummer: clientData.projectHuisnummer,
+          postcode: clientData.projectPostcode,
+          plaats: clientData.projectPlaats,
+        })
+      : buildAddressLine({
+          straat: clientData.straat,
+          huisnummer: clientData.huisnummer,
+          postcode: clientData.postcode,
+          plaats: clientData.plaats,
+        });
+    const cache = {
+      clientName,
+      projectTitle: 'Werkbespreking',
+      projectAddress,
+      totalQuoteHours: 1,
+      totalQuoteAmount: 0,
+      totalQuoteEarnings: 0,
+    };
+    const notes = clientData.afspraakOmschrijving || 'Werkbespreking uit screenshot';
+
+    const existingSnapshot = await getDocs(query(
+      collection(firestore, 'planning_entries'),
+      where('userId', '==', user.uid),
+      where('quoteId', '==', quoteId)
+    ));
+    const existingMeeting = existingSnapshot.docs.find((planningDoc) => {
+      const data = planningDoc.data();
+      return data?.planningType === 'werkbespreking' && data?.status !== 'cancelled';
+    });
+
+    let entryId = existingMeeting?.id || '';
+    const googleCalendarEventId = typeof existingMeeting?.data()?.googleCalendarEventId === 'string'
+      ? existingMeeting.data().googleCalendarEventId
+      : null;
+
+    if (existingMeeting) {
+      await updateDoc(existingMeeting.ref, {
+        startDate: Timestamp.fromDate(startDate),
+        endDate: Timestamp.fromDate(endDate),
+        scheduledHours: 1,
+        planningType: 'werkbespreking',
+        isAutoSplit: false,
+        status: 'scheduled',
+        notes,
+        cache,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      const entryRef = await addDoc(collection(firestore, 'planning_entries'), {
+        userId: user.uid,
+        quoteId,
+        startDate: Timestamp.fromDate(startDate),
+        endDate: Timestamp.fromDate(endDate),
+        scheduledHours: 1,
+        planningType: 'werkbespreking',
+        isAutoSplit: false,
+        parentEntryId: null,
+        status: 'scheduled',
+        notes,
+        cache,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      entryId = entryRef.id;
+    }
+
+    await updateDoc(doc(firestore, 'quotes', quoteId), {
+      status: startDate.getTime() <= Date.now() ? 'concept' : 'werkbespreking',
+      updatedAt: serverTimestamp(),
+    });
+
+    await syncPlanningEntryToGoogleCalendar({
+      action: 'upsert',
+      entryId,
+      googleCalendarEventId,
+      quoteId,
+      startDate,
+      endDate,
+      notes,
+      cache,
+    });
+
+    return {
+      entryId,
+      date: clientData.afspraakDatum,
+      time: clientData.afspraakTijd,
+      clientName,
+      projectAddress,
+      notes,
+    };
+  }, [firestore, quoteId, syncPlanningEntryToGoogleCalendar, user]);
 
   const handleAutoSave = async (field: string, value: any) => {
     if (!quoteId || !firestore) return;
@@ -516,6 +711,7 @@ export function NewQuoteForm({
         variant: 'destructive',
         title: sourceImages.length > 2 ? 'Selecteer maximaal 2 afbeeldingen.' : 'Selecteer minimaal 1 afbeelding.',
       });
+      setIsAiExtracting(false);
       return;
     }
 
@@ -545,6 +741,7 @@ export function NewQuoteForm({
       }
 
       const normalized = normalizeExtractedClientData(payload.client);
+      const plannedWorkMeeting = await upsertExtractedWorkMeeting(normalized);
       const nextKlanttype = normalized.klanttype === 'Zakelijk' ? 'zakelijk' : 'particulier';
       const hasProjectAddress = Boolean(
         normalized.afwijkendProjectadres
@@ -569,12 +766,18 @@ export function NewQuoteForm({
       setIsAiDialogOpen(false);
       setAiSourceImages([]);
       toast({
-        title: 'Klantgegevens ingevuld',
-        description: `Velden zijn ingevuld met ${payload.model || 'gpt-5.2'}. Controleer alles nog even.`,
+        title: plannedWorkMeeting ? 'Klantgegevens en Google Calendar-afspraak ingevuld' : 'Klantgegevens ingevuld',
+        description: plannedWorkMeeting
+          ? `Werkbespreking staat in Google Calendar op ${plannedWorkMeeting.date} om ${plannedWorkMeeting.time}.`
+          : `Velden zijn ingevuld met ${payload.model || 'gpt-5.2'}. Controleer alles nog even.`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Kon klantgegevens niet genereren.';
-      toast({ variant: 'destructive', title: message });
+      toast({
+        variant: 'destructive',
+        title: message.includes('Google Calendar') ? 'Afspraak niet in Google Calendar gezet' : message,
+        description: message.includes('Google Calendar') ? message : undefined,
+      });
     } finally {
       setIsAiExtracting(false);
     }
@@ -617,7 +820,7 @@ export function NewQuoteForm({
                   <DialogHeader>
                     <DialogTitle>Klantgegevens genereren</DialogTitle>
                     <DialogDescription>
-                      Upload 1 of 2 screenshots of foto's met klantgegevens. Gegevens uit beide afbeeldingen worden gecombineerd met AI (gpt-5.2).
+                      Upload 1 of 2 screenshots of foto&apos;s met klantgegevens. Gegevens uit beide afbeeldingen worden gecombineerd met AI (gpt-5.2).
                     </DialogDescription>
                   </DialogHeader>
 

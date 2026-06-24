@@ -14,6 +14,7 @@ import {
   enforceWorkDeliverySafety,
   getFinishLevelLabel,
   inferWorkDeliveryFinishLevel,
+  isRemovedLegacyToggleText,
   sanitizeMaterialDescription,
   sanitizeWorkDeliveryScope,
   validateWorkDeliveryScope,
@@ -31,7 +32,7 @@ interface WorkDescriptionWorkspaceProps {
   onChange: (next: WorkDescriptionStructured) => void;
   onGenerate: (action: AiAction) => void;
   isGenerating: boolean;
-  isAutoSaving: boolean;
+  isAutoSaving?: boolean;
   templateLabel?: string | null;
   onApplyTemplate?: () => void;
 }
@@ -40,8 +41,44 @@ function rows(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item ?? '')) : [];
 }
 
+function removeRemovedLegacyRows(value: unknown): string[] {
+  return rows(value).filter((line) => !isRemovedLegacyToggleText(line));
+}
+
 function ensureRows(value: string[]): string[] {
   return value.length > 0 ? value : [''];
+}
+
+function stripRemovedWorkDeliveryToggles(value: WorkDescriptionStructured): WorkDescriptionStructured {
+  return {
+    ...value,
+    included: removeRemovedLegacyRows(value.included),
+    excluded: removeRemovedLegacyRows(value.excluded),
+    stucwerkInbegrepen: false,
+    kitwerkInbegrepen: false,
+    jobs: Array.isArray(value.jobs) && value.jobs.length > 0
+      ? value.jobs.map((job) => ({
+        ...job,
+        included: removeRemovedLegacyRows(job.included),
+        excluded: removeRemovedLegacyRows(job.excluded),
+        stucwerkInbegrepen: false,
+        kitwerkInbegrepen: false,
+      }))
+      : value.jobs,
+  };
+}
+
+function hasRemovedWorkDeliveryToggles(value: WorkDescriptionStructured): boolean {
+  return value.stucwerkInbegrepen === true
+    || value.kitwerkInbegrepen === true
+    || rows(value.included).some(isRemovedLegacyToggleText)
+    || rows(value.excluded).some(isRemovedLegacyToggleText)
+    || value.jobs.some((job) => (
+      job.stucwerkInbegrepen === true
+      || job.kitwerkInbegrepen === true
+      || rows(job.included).some(isRemovedLegacyToggleText)
+      || rows(job.excluded).some(isRemovedLegacyToggleText)
+    ));
 }
 
 function normalizeJobs(value: WorkDescriptionStructured): WorkDescriptionJob[] {
@@ -126,7 +163,8 @@ export function LegacyWorkDescriptionWorkspace({
   onGenerate,
   isGenerating,
 }: WorkDescriptionWorkspaceProps) {
-  const jobs = useMemo(() => normalizeJobs(value), [value]);
+  const cleanedValue = useMemo(() => stripRemovedWorkDeliveryToggles(value), [value]);
+  const jobs = useMemo(() => normalizeJobs(cleanedValue), [cleanedValue]);
   const [activeIndexLocal, setActiveIndexLocal] = useState(value.activeJobIndex || 0);
   const activeIndex = clamp(activeIndexLocal, jobs.length);
   const activeJob = jobs[activeIndex];
@@ -138,24 +176,38 @@ export function LegacyWorkDescriptionWorkspace({
   }, [mode, onModeChange]);
 
   useEffect(() => {
+    if (hasRemovedWorkDeliveryToggles(value)) onChange(cleanedValue);
+  }, [cleanedValue, onChange, value]);
+
+  useEffect(() => {
     if (activeJob.finishLevel === automaticFinishLevel) return;
-    onChange(updateActiveJob(value, activeIndex, (job) => ({ ...job, finishLevel: automaticFinishLevel })));
-  }, [activeIndex, activeJob.finishLevel, automaticFinishLevel, onChange, value]);
+    onChange(updateActiveJob(cleanedValue, activeIndex, (job) => ({ ...job, finishLevel: automaticFinishLevel })));
+  }, [activeIndex, activeJob.finishLevel, automaticFinishLevel, cleanedValue, onChange]);
 
   const changeJob = (index: number) => {
     setActiveIndexLocal(index);
-    onChange(updateActiveJob(value, index, (job) => job));
+    onChange(updateActiveJob(cleanedValue, index, (job) => job));
   };
 
   const setField = <K extends keyof WorkDescriptionJob>(key: K, fieldValue: WorkDescriptionJob[K]) => {
-    onChange(updateActiveJob(value, activeIndex, (job) => ({ ...job, [key]: fieldValue })));
+    onChange(updateActiveJob(cleanedValue, activeIndex, (job) => {
+      const updated = { ...job, [key]: fieldValue };
+      if (key !== 'summary') return updated;
+      const summary = String(fieldValue ?? '').trim();
+      return {
+        ...updated,
+        context: summary,
+        summary,
+        work_scope: summary ? [summary] : [],
+      };
+    }));
   };
 
   const setSafetyField = <K extends 'afvalAfvoeren' | 'schilderwerkInbegrepen' | 'stucwerkInbegrepen' | 'plamuurwerkInbegrepen' | 'kitwerkInbegrepen' | 'steigerInbegrepen' | 'sloopwerkInbegrepen' | 'nadenVullenInbegrepen' | 'schroefgatenPlamurenInbegrepen' | 'electricalScope'>(
     key: K,
     fieldValue: WorkDescriptionJob[K],
   ) => {
-    onChange(updateActiveJob(value, activeIndex, (job) => {
+    onChange(updateActiveJob(cleanedValue, activeIndex, (job) => {
       const updated = {
         ...job,
         [key]: fieldValue,
@@ -175,7 +227,7 @@ export function LegacyWorkDescriptionWorkspace({
   };
 
   const setNadenVullenLevel = (level: 'behangklaar' | 'schilderklaar', checked: boolean) => {
-    onChange(updateActiveJob(value, activeIndex, (job) => {
+    onChange(updateActiveJob(cleanedValue, activeIndex, (job) => {
       const updated = {
         ...job,
         nadenVullenInbegrepen: checked,
@@ -310,10 +362,6 @@ export function LegacyWorkDescriptionWorkspace({
                 <div className="flex h-10 items-center rounded-md border border-input bg-muted/30 px-3 text-sm">{getFinishLevelLabel(automaticFinishLevel)}</div>
               </div>
             </div>
-            <div className="space-y-1">
-              <Label>Korte omschrijving</Label>
-              <Textarea value={activeJob.summary} onChange={(event) => setField('summary', event.target.value)} rows={2} placeholder="Beschrijf alleen het afgesproken eindresultaat." />
-            </div>
             {activeJob.electricalScope.enabled ? (
               <div className="grid gap-3 rounded-lg border border-border/70 p-3 md:grid-cols-2">
                 <div className="space-y-1 md:col-span-2"><Label>Expliciete omschrijving elektrawerk</Label><Input value={activeJob.electricalScope.description} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, description: event.target.value })} /></div>
@@ -341,55 +389,106 @@ export function WorkDescriptionWorkspace({
   onGenerate,
   isGenerating,
 }: WorkDescriptionWorkspaceProps) {
-  const jobs = useMemo(() => normalizeJobs(value), [value]);
+  const cleanedValue = useMemo(() => stripRemovedWorkDeliveryToggles(value), [value]);
+  const jobs = useMemo(() => normalizeJobs(cleanedValue), [cleanedValue]);
   const combinedForFinish = useMemo(() => ({
-    ...value,
+    ...cleanedValue,
     work_scope: jobs.flatMap((job) => job.work_scope),
-  }), [jobs, value]);
+  }), [cleanedValue, jobs]);
   const automaticFinishLevel = useMemo(() => inferWorkDeliveryFinishLevel(combinedForFinish), [combinedForFinish]);
   const validation = useMemo(() => validateWorkDeliveryScope({
-    ...value,
+    ...cleanedValue,
     work_scope: jobs.flatMap((job) => job.work_scope),
-  }), [jobs, value]);
+  }), [cleanedValue, jobs]);
 
   useEffect(() => {
     if (mode === 'preview') onModeChange('edit');
   }, [mode, onModeChange]);
 
   useEffect(() => {
-    if (value.finishLevel === automaticFinishLevel) return;
-    onChange({ ...value, finishLevel: automaticFinishLevel });
-  }, [automaticFinishLevel, onChange, value]);
+    if (hasRemovedWorkDeliveryToggles(value)) onChange(cleanedValue);
+  }, [cleanedValue, onChange, value]);
+
+  useEffect(() => {
+    if (cleanedValue.finishLevel === automaticFinishLevel) return;
+    onChange({ ...cleanedValue, finishLevel: automaticFinishLevel });
+  }, [automaticFinishLevel, cleanedValue, onChange]);
 
   const setRootField = <K extends keyof WorkDescriptionStructured>(key: K, fieldValue: WorkDescriptionStructured[K]) => {
-    onChange({ ...value, [key]: fieldValue });
+    if (key === 'summary') {
+      const summary = String(fieldValue ?? '').trim();
+      const activeIndex = Math.max(0, Math.min(cleanedValue.activeJobIndex || 0, Math.max(0, jobs.length - 1)));
+      const nextJobs = jobs.length > 0
+        ? jobs.map((job, index) => index === activeIndex
+          ? {
+              ...job,
+              context: summary,
+              summary,
+              work_scope: summary ? [summary] : [],
+            }
+          : job)
+        : cleanedValue.jobs;
+      onChange({
+        ...cleanedValue,
+        context: summary,
+        summary,
+        work_scope: summary ? [summary] : [],
+        jobs: nextJobs,
+      });
+      return;
+    }
+    onChange({ ...cleanedValue, [key]: fieldValue });
   };
 
   const setSafetyField = (key: 'afvalAfvoeren' | 'schilderwerkInbegrepen' | 'stucwerkInbegrepen' | 'plamuurwerkInbegrepen' | 'kitwerkInbegrepen' | 'steigerInbegrepen' | 'sloopwerkInbegrepen' | 'nadenVullenInbegrepen' | 'schroefgatenPlamurenInbegrepen', checked: boolean) => {
-    const safe = enforceWorkDeliverySafety({ ...value, [key]: checked });
-    onChange({ ...value, ...safe, jobs });
+    const safe = enforceWorkDeliverySafety({ ...cleanedValue, [key]: checked });
+    onChange({ ...cleanedValue, ...safe, jobs });
   };
 
   const setNadenVullenLevel = (level: 'behangklaar' | 'schilderklaar', checked: boolean) => {
     const safe = enforceWorkDeliverySafety({
-      ...value,
+      ...cleanedValue,
       nadenVullenInbegrepen: checked,
       nadenVullenAfwerkingsniveau: checked ? level : undefined,
     });
-    onChange({ ...value, ...safe, jobs });
+    onChange({ ...cleanedValue, ...safe, jobs });
   };
 
   const setElectricalEnabled = (enabled: boolean) => {
     const safe = enforceWorkDeliverySafety({
-      ...value,
-      electricalScope: { ...value.electricalScope, enabled },
+      ...cleanedValue,
+      electricalScope: { ...cleanedValue.electricalScope, enabled },
     });
-    onChange({ ...value, ...safe, jobs });
+    onChange({ ...cleanedValue, ...safe, jobs });
   };
 
   const updateJob = (jobIndex: number, updater: (job: WorkDescriptionJob) => WorkDescriptionJob) => {
     const nextJobs = jobs.map((job, index) => index === jobIndex ? updater(job) : job);
-    onChange({ ...value, jobs: nextJobs });
+    onChange({ ...cleanedValue, jobs: nextJobs });
+  };
+
+  const updateJobWorkText = (jobIndex: number, text: string) => {
+    const workScope = text.trim() ? [text] : [];
+    const nextJobs = jobs.map((job, index) => index === jobIndex
+      ? {
+          ...job,
+          context: text,
+          summary: text,
+          work_scope: workScope,
+        }
+      : job);
+    const activeIndex = Math.max(0, Math.min(cleanedValue.activeJobIndex || 0, Math.max(0, jobs.length - 1)));
+    onChange({
+      ...cleanedValue,
+      ...(jobIndex === activeIndex
+        ? {
+            context: text,
+            summary: text,
+            work_scope: workScope,
+          }
+        : {}),
+      jobs: nextJobs,
+    });
   };
 
   const renderJobRows = (job: WorkDescriptionJob, jobIndex: number, key: 'work_scope' | 'dimensions', title: string, placeholder: string) => (
@@ -414,20 +513,33 @@ export function WorkDescriptionWorkspace({
     />
   );
 
+  const renderWorkScopeParagraph = (job: WorkDescriptionJob, jobIndex: number) => (
+    <div className="space-y-3 rounded-xl border border-border/80 bg-card/80 p-4">
+      <Label className="text-sm font-semibold text-foreground">Werkzaamheden</Label>
+      <Textarea
+        value={rows(job.work_scope).join('\n\n')}
+        onChange={(event) => updateJobWorkText(jobIndex, event.target.value)}
+        placeholder="Beschrijf de werkzaamheden voor deze klus"
+        rows={6}
+        className="min-h-40"
+      />
+    </div>
+  );
+
   const renderGlobalRows = (key: 'included' | 'excluded', title: string, placeholder: string) => (
     <WorkDescriptionSectionEditor
       title={title}
-      rows={ensureRows(rows(value[key]))}
+      rows={ensureRows(rows(cleanedValue[key]))}
       placeholder={placeholder}
       onChangeRow={(index, rowValue) => {
-        const next = [...rows(value[key])];
+        const next = [...rows(cleanedValue[key])];
         next[index] = rowValue;
         setRootField(key, ensureRows(next));
       }}
-      onAddRow={() => setRootField(key, [...rows(value[key]), ''])}
-      onRemoveRow={(index) => setRootField(key, rows(value[key]).filter((_, rowIndex) => rowIndex !== index))}
+      onAddRow={() => setRootField(key, [...rows(cleanedValue[key]), ''])}
+      onRemoveRow={(index) => setRootField(key, rows(cleanedValue[key]).filter((_, rowIndex) => rowIndex !== index))}
       onMoveRow={(index, direction) => {
-        const next = [...rows(value[key])];
+        const next = [...rows(cleanedValue[key])];
         const target = direction === 'up' ? index - 1 : index + 1;
         if (target < 0 || target >= next.length) return;
         [next[index], next[target]] = [next[target], next[index]];
@@ -461,27 +573,27 @@ export function WorkDescriptionWorkspace({
               ['schroefgatenPlamurenInbegrepen', 'Schroefgaten plamuren'],
             ] as const).map(([key, label]) => (
               <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
-                <Label>{label}</Label><Switch checked={value[key] === true} onCheckedChange={(checked) => setSafetyField(key, checked)} />
+                <Label>{label}</Label><Switch checked={cleanedValue[key] === true} onCheckedChange={(checked) => setSafetyField(key, checked)} />
               </div>
             ))}
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
               <Label>Naden vullen – Behangklaar</Label>
               <Switch
-                checked={value.nadenVullenInbegrepen === true && value.nadenVullenAfwerkingsniveau !== 'schilderklaar'}
+                checked={cleanedValue.nadenVullenInbegrepen === true && cleanedValue.nadenVullenAfwerkingsniveau !== 'schilderklaar'}
                 onCheckedChange={(checked) => setNadenVullenLevel('behangklaar', checked)}
               />
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
               <Label>Naden vullen – Schilderklaar</Label>
               <Switch
-                checked={value.nadenVullenInbegrepen === true && value.nadenVullenAfwerkingsniveau === 'schilderklaar'}
+                checked={cleanedValue.nadenVullenInbegrepen === true && cleanedValue.nadenVullenAfwerkingsniveau === 'schilderklaar'}
                 onCheckedChange={(checked) => setNadenVullenLevel('schilderklaar', checked)}
               />
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
               <Label>Elektrawerk</Label>
               <Switch
-                checked={value.electricalScope.enabled}
+                checked={cleanedValue.electricalScope.enabled}
                 onCheckedChange={setElectricalEnabled}
               />
             </div>
@@ -491,20 +603,16 @@ export function WorkDescriptionWorkspace({
 
       <Card className="border-border bg-card/50">
         <CardContent className="grid gap-3 pt-6 md:grid-cols-2">
-          <div className="space-y-1"><Label>Titel</Label><Input value={value.title} onChange={(event) => setRootField('title', event.target.value)} /></div>
+          <div className="space-y-1"><Label>Titel</Label><Input value={cleanedValue.title} onChange={(event) => setRootField('title', event.target.value)} /></div>
           <div className="space-y-1"><Label>Afwerkingsniveau</Label><div className="flex h-10 items-center rounded-md border border-input bg-muted/30 px-3 text-sm">{getFinishLevelLabel(automaticFinishLevel)}</div></div>
-          <div className="space-y-1 md:col-span-2"><Label>Korte omschrijving</Label><Textarea value={value.summary} onChange={(event) => setRootField('summary', event.target.value)} rows={3} /></div>
         </CardContent>
       </Card>
 
       <div className="space-y-4">
         {jobs.map((job, jobIndex) => (
           <Card key={`${job.title}-${jobIndex}`} className="border-border bg-card/40">
-            <CardHeader className="pb-3">
-              <Input className="text-base font-semibold" value={job.title} onChange={(event) => updateJob(jobIndex, (current) => ({ ...current, title: event.target.value }))} />
-            </CardHeader>
             <CardContent className="space-y-4">
-              {renderJobRows(job, jobIndex, 'work_scope', 'Werkzaamheden', 'Beschrijf de werkzaamheden voor deze klus')}
+              {renderWorkScopeParagraph(job, jobIndex)}
               {renderJobRows(job, jobIndex, 'dimensions', 'Maatvoering', 'Bijv. Lengte = 4.200 mm | Hoogte = 2.600 mm')}
             </CardContent>
           </Card>

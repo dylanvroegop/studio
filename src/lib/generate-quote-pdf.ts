@@ -87,6 +87,59 @@ export interface PDFQuoteData {
     algemeneVoorwaardenTitel?: string;
 }
 
+function hasPrintableWorkDescription(input: WorkDescriptionStructured | undefined): boolean {
+    const structured = forceSummaryIntoPdfWorkScope(sanitizeWorkDescriptionStructured(input));
+    const hasRows = (rows: unknown[]): boolean => rows.some((row) => String(row || '').trim().length > 0);
+
+    if (structured.jobs.length === 0) {
+        return hasRows([
+            ...structured.work_scope,
+            ...structured.dimensions,
+            ...structured.included,
+            ...structured.excluded,
+        ]);
+    }
+
+    const jobsHaveRows = structured.jobs.some((job) => hasRows([
+        ...job.work_scope,
+        ...job.dimensions,
+    ]));
+    const globalScopeHasRows = hasRows([
+        ...structured.included,
+        ...structured.excluded,
+    ]);
+
+    return jobsHaveRows || globalScopeHasRows;
+}
+
+function forceSummaryIntoPdfWorkScope(
+    input: WorkDescriptionStructured,
+    fallbackSummary = '',
+): WorkDescriptionStructured {
+    const summary = String(
+        input.summary
+        || input.context
+        || input.jobs[0]?.summary
+        || input.jobs[0]?.context
+        || fallbackSummary
+        || '',
+    ).replace(/\s+/g, ' ').trim();
+    const workScope = summary ? [summary] : [];
+
+    return {
+        ...input,
+        summary,
+        context: summary,
+        work_scope: workScope.length > 0 ? workScope : input.work_scope,
+        jobs: input.jobs.map((job) => ({
+            ...job,
+            summary,
+            context: summary,
+            work_scope: workScope.length > 0 ? workScope : job.work_scope,
+        })),
+    };
+}
+
 /**
  * Converts an image URL to base64 data URL for jsPDF
  * Uses server-side API route to bypass CORS issues with Firebase Storage
@@ -550,10 +603,9 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFontSize(9);
     doc.setTextColor(50, 50, 50);
 
+    const hasPrintableFullWorkDescription = hasPrintableWorkDescription(data.werkbeschrijvingStructured);
     const shouldShowDescriptionOnSummaryPage = !(
-        data.settings.showFullWerkbeschrijving &&
-        Array.isArray(data.werkbeschrijvingFull) &&
-        data.werkbeschrijvingFull.length > 0
+        data.settings.showFullWerkbeschrijving && hasPrintableFullWorkDescription
     );
     if (shouldShowDescriptionOnSummaryPage) {
         const descriptionContent = data.korteBeschrijving || data.werkbeschrijving;
@@ -677,7 +729,10 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     // PAGE 2: FULL WERK & LEVERING (if enabled)
     // ═══════════════════════════════════════════════════════════════
 
-    const structuredWorkDescription = sanitizeWorkDescriptionStructured(data.werkbeschrijvingStructured);
+    const structuredWorkDescription = forceSummaryIntoPdfWorkScope(
+        sanitizeWorkDescriptionStructured(data.werkbeschrijvingStructured),
+        data.korteBeschrijving || data.werkbeschrijving,
+    );
     const structuredJobs = structuredWorkDescription.jobs.length > 0
         ? structuredWorkDescription.jobs
         : [{
@@ -705,14 +760,9 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             sections: structuredWorkDescription.sections,
             legacyNotes: structuredWorkDescription.legacyNotes || [],
         }];
-    const hasStructuredWorkDescription = structuredJobs.some((job) =>
-        job.work_scope.length > 0
-        || job.dimensions.length > 0
-        || job.included.length > 0
-        || job.excluded.length > 0
-    );
+    const hasStructuredWorkDescription = hasPrintableFullWorkDescription;
 
-    if (data.settings.showFullWerkbeschrijving && data.werkbeschrijvingFull && data.werkbeschrijvingFull.length > 0) {
+    if (data.settings.showFullWerkbeschrijving && hasPrintableFullWorkDescription) {
         const drawStepList = (rows: string[], x: number, width: number) => {
             rows.forEach((stap, index) => {
                 const stepNumber = `${index + 1}.`;

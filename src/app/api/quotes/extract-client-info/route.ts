@@ -7,6 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const OPENAI_MODEL = 'gpt-5.2';
+const AMSTERDAM_TIME_ZONE = 'Europe/Amsterdam';
 
 const EXTRACTION_PROMPT = `
 Je extraheert klantgegevens uit maximaal twee Nederlandse screenshots/foto's. De afbeeldingen horen bij dezelfde klant. Combineer de informatie uit alle afbeeldingen tot één klantrecord; contactgegevens kunnen op de ene afbeelding staan en het adres op de andere.
@@ -28,7 +29,11 @@ Geef ALTIJD exact 1 JSON object terug (geen markdown, geen uitleg) met deze veld
   "projectStraat": string,
   "projectHuisnummer": string,
   "projectPostcode": string,
-  "projectPlaats": string
+  "projectPlaats": string,
+  "afspraakAanwezig": boolean,
+  "afspraakDatum": string,
+  "afspraakTijd": string,
+  "afspraakOmschrijving": string
 }
 
 Regels:
@@ -39,6 +44,10 @@ Regels:
 - Als er expliciet een apart projectadres/werkadres staat: zet afwijkendProjectadres=true en vul project* velden.
 - Postcode in NL formaat als mogelijk (bijv. "1234 AB").
 - Contactpersoon alleen invullen bij zakelijk, anders leeg laten tenzij expliciet genoemd.
+- Vul afspraakAanwezig=true alleen als er een concreet afgesproken werkbespreking/afspraakmoment staat dat door beide kanten bevestigd lijkt.
+- Vul afspraakDatum als YYYY-MM-DD en afspraakTijd als HH:mm. Zet beide leeg als datum of tijd niet betrouwbaar te bepalen is.
+- Interpreteer Nederlandse relatieve datums zoals vandaag, morgen, overmorgen en weekdagen zoals vrijdag ten opzichte van de huidige datum in Europe/Amsterdam die hieronder staat.
+- Als alleen een voorstel zichtbaar is zonder bevestiging van de klant, zet afspraakAanwezig=false.
 `;
 
 function extractBearerToken(authHeader: string | null): string | null {
@@ -146,7 +155,36 @@ function normalizeBoolean(value: unknown): boolean {
   return raw === 'true' || raw === '1' || raw === 'ja';
 }
 
+function getAmsterdamDateLabel(date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: AMSTERDAM_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'long',
+  }).format(date);
+}
+
+function normalizeDateOnly(value: unknown): string {
+  const raw = safeString(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  const [year, month, day] = raw.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) return '';
+  return raw;
+}
+
+function normalizeTime(value: unknown): string {
+  const raw = safeString(value).replace(';', ':').replace('.', ':');
+  const match = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (!match) return '';
+  return `${match[1].padStart(2, '0')}:${match[2]}`;
+}
+
 function normalizeClientPayload(input: Record<string, unknown>): Record<string, unknown> {
+  const afspraakDatum = normalizeDateOnly(input.afspraakDatum);
+  const afspraakTijd = normalizeTime(input.afspraakTijd);
+  const afspraakAanwezig = normalizeBoolean(input.afspraakAanwezig) && Boolean(afspraakDatum && afspraakTijd);
   const payload = {
     klanttype: normalizeKlantType(input.klanttype),
     bedrijfsnaam: safeString(input.bedrijfsnaam),
@@ -164,6 +202,10 @@ function normalizeClientPayload(input: Record<string, unknown>): Record<string, 
     projectHuisnummer: safeString(input.projectHuisnummer),
     projectPostcode: safeString(input.projectPostcode),
     projectPlaats: safeString(input.projectPlaats),
+    afspraakAanwezig,
+    afspraakDatum: afspraakAanwezig ? afspraakDatum : '',
+    afspraakTijd: afspraakAanwezig ? afspraakTijd : '',
+    afspraakOmschrijving: afspraakAanwezig ? safeString(input.afspraakOmschrijving) : '',
   };
 
   if (!payload.afwijkendProjectadres) {
@@ -193,7 +235,10 @@ async function callOpenAiExtraction(params: {
         {
           role: 'user',
           content: [
-            { type: 'input_text', text: EXTRACTION_PROMPT },
+            {
+              type: 'input_text',
+              text: `${EXTRACTION_PROMPT}\nHuidige datum in Europe/Amsterdam: ${getAmsterdamDateLabel()}.`,
+            },
             ...params.imageDataUrls.map((imageDataUrl) => ({
               type: 'input_image' as const,
               image_url: imageDataUrl,

@@ -175,6 +175,7 @@ export default function GenericSubCategoryPage() {
                     slug: item.slug // Job slug
                   }
                 },
+                createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
               }
             }

@@ -242,6 +242,7 @@ export function AppNavigation() {
     const isMobile = useIsMobile();
     const hideNavigation = pathname === '/login' || pathname === '/';
     const [menuOpen, setMenuOpen] = useState(false);
+    const [isHoveringDesktopNav, setIsHoveringDesktopNav] = useState(false);
     const [isReady, setIsReady] = useState(false);
 
     useEffect(() => {
@@ -261,16 +262,22 @@ export function AppNavigation() {
     useEffect(() => {
         if (hideNavigation || !isMobile) return;
         setMenuOpen(false);
+        setIsHoveringDesktopNav(false);
     }, [pathname, hideNavigation, isMobile]);
 
     const handleMenuOpenChange = (open: boolean) => {
         setMenuOpen(open);
+        if (open) {
+            setIsHoveringDesktopNav(false);
+        }
         window.localStorage.setItem('app_navigation_open', String(open));
     };
 
     if (hideNavigation) {
         return null;
     }
+
+    const desktopNavVisible = menuOpen || isHoveringDesktopNav;
 
     return (
         <>
@@ -306,7 +313,7 @@ export function AppNavigation() {
             ) : (
                 <>
                     <div className="fixed left-4 top-4 z-[80]">
-                        {!menuOpen && (
+                        {!desktopNavVisible && (
                             <Button
                                 size="icon"
                                 variant="outline"
@@ -319,16 +326,30 @@ export function AppNavigation() {
                         )}
                     </div>
 
+                    {!menuOpen && (
+                        <div
+                            className="fixed inset-y-0 left-0 z-[65] w-5"
+                            aria-hidden="true"
+                            onMouseEnter={() => setIsHoveringDesktopNav(true)}
+                        />
+                    )}
+
                     <aside
                         className={cn(
                             'fixed inset-y-0 left-0 z-[70] w-[15.84rem] transform transition-transform duration-200 ease-out pointer-events-auto',
-                            menuOpen ? 'translate-x-0' : '-translate-x-full'
+                            desktopNavVisible ? 'translate-x-0' : '-translate-x-full',
+                            !menuOpen && 'shadow-2xl'
                         )}
+                        onMouseEnter={() => !menuOpen && setIsHoveringDesktopNav(true)}
+                        onMouseLeave={() => !menuOpen && setIsHoveringDesktopNav(false)}
                     >
                         {isReady && (
                             <NavigationContent
                                 pathname={pathname}
-                                onClose={() => handleMenuOpenChange(false)}
+                                onClose={() => {
+                                    setIsHoveringDesktopNav(false);
+                                    handleMenuOpenChange(false);
+                                }}
                             />
                         )}
                     </aside>

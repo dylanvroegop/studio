@@ -122,9 +122,12 @@ function renderTelegramText(payload: {
   user: UserProfile;
 }): string {
   const show = (value: string | null) => (value && value.trim() ? value : '-');
+  const label = payload.severity === 'critical' || payload.severity === 'error'
+    ? '[ERROR] OfferteHulp'
+    : '[MELDING] OfferteHulp';
 
   return [
-    '[ERROR] OfferteHulp',
+    label,
     `Titel: ${payload.title}`,
     `Bron: ${payload.source}`,
     `Severity: ${payload.severity}`,

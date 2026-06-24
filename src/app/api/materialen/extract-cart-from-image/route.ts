@@ -173,8 +173,11 @@ Regels:
   - Als niet zichtbaar of niet betrouwbaar leesbaar: lege string "".
   - Zet geen afmetingen om naar andere eenheden; neem exact over zoals zichtbaar.
 - Leverancier: kies ALLEEN uit onderstaande leverancierslijst. Gebruik zichtbare URL/tabtitel/logo/merknaam als primaire hint (bijv. bouwmaat.nl => Bouwmaat).
-- Categorie/subsectie: kies ALLEEN uit onderstaande lijsten als een duidelijke match bestaat, anders leeg.
-- Als "Actieve categorie" is meegegeven, gebruik die categorie als standaardkeuze.
+- Categorie/subsectie: hergebruik bij een duidelijke inhoudelijke match exact de schrijfwijze uit onderstaande lijsten.
+- Voorbeeld: herkenbaar SLS-, ribben- of constructiehout hoort bij "Balkhout" wanneer die categorie beschikbaar is.
+- Maak nooit een nieuwe hoofdlettervariant van een bestaande categorie (bijv. niet "balkhout" naast "Balkhout").
+- Bij twijfel: laat categorie/subsectie leeg; forceer geen zwakke overeenkomst.
+- Als "Actieve categorie" is meegegeven, gebruik die alleen als het product daar inhoudelijk bij past.
 - Subsectie MOET passen binnen de categorie->subsectie mapping als die beschikbaar is.
 
 Beschikbare categorieen:

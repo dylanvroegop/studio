@@ -12,6 +12,8 @@ env:
     secret: N8N_GENERATE_EMAIL_WEBHOOK_URL
   - variable: N8N_FEEDBACK_WEBHOOK_URL
     secret: N8N_FEEDBACK_WEBHOOK_URL
+  - variable: N8N_ERROR_WEBHOOK_URL
+    secret: N8N_ERROR_WEBHOOK_URL
   - variable: N8N_HEADER_SECRET
     secret: N8N_HEADER_SECRET
   - variable: CALVORA_USER_ID

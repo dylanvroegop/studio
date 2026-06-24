@@ -4,7 +4,6 @@ import {
     DEFAULT_ELECTRICAL_SCOPE,
     DEFAULT_WORK_DELIVERY_SCOPE,
     completeWorkDeliveryScope,
-    enforceWorkDeliverySafety,
     flattenWorkDeliveryScope,
     sanitizeWorkDeliveryScope,
     type ElectricalScope,
@@ -272,18 +271,38 @@ function isObject(v: any): v is AnyObject {
 }
 
 function normalizeWorkDescriptionText(value: unknown): string {
-    return typeof value === 'string' ? value.trim() : '';
+    if (typeof value !== 'string') return '';
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    const parsed = safeJsonParseWorkDescriptionPrefix(trimmed);
+    if (parsed !== trimmed && isObject(parsed)) {
+        return normalizeWorkDescriptionText(
+            parsed.summary
+            ?? parsed.context
+            ?? parsed.korteBeschrijving
+            ?? parsed.korte_beschrijving
+            ?? parsed.description
+            ?? parsed.text
+        );
+    }
+    return trimmed;
 }
 
-function hasWasteRemovalText(rows: string[]): boolean {
-    return rows.some((line) => {
-        const normalized = String(line || '').toLowerCase();
-        return (
-            (normalized.includes('afval') && (normalized.includes('afvoer') || normalized.includes('meenem') || normalized.includes('take away')))
-            || normalized.includes('puin afvoer')
-            || normalized.includes('werkplek schoon')
-        );
-    });
+function normalizeWorkScopeRows(workScope: unknown, summary?: unknown): string[] {
+    const summaryText = normalizeWorkDescriptionText(summary);
+    return summaryText ? [summaryText] : normalizeEditableWorkDescriptionItems(workScope);
+}
+
+function isRemovedLegacyWorkDeliveryToggleText(value: string): boolean {
+    const normalized = value
+        .toLowerCase()
+        .replace(/[.]$/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return normalized === 'stucwerk niet inbegrepen'
+        || normalized === 'stucwerk inbegrepen zoals overeengekomen'
+        || normalized === 'kitwerk niet inbegrepen'
+        || normalized === 'kitwerk inbegrepen zoals overeengekomen';
 }
 
 function normalizeWorkDescriptionItems(value: unknown): string[] {
@@ -292,7 +311,7 @@ function normalizeWorkDescriptionItems(value: unknown): string[] {
         if (typeof input === 'string') {
             const trimmed = input.trim();
             if (!trimmed) return [];
-            const parsed = safeJsonParse(trimmed);
+            const parsed = safeJsonParseWorkDescriptionPrefix(trimmed);
             if (parsed !== trimmed) {
                 return flattenValue(parsed, depth + 1);
             }
@@ -336,7 +355,19 @@ function normalizeWorkDescriptionItems(value: unknown): string[] {
 
 function normalizeEditableWorkDescriptionItems(value: unknown): string[] {
     if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
-        return value.map((item) => String(item ?? ''));
+        return value.flatMap((item) => {
+            const text = String(item ?? '').trim();
+            if (!text) return [''];
+            const parsed = safeJsonParseWorkDescriptionPrefix(text);
+            if (parsed !== text) {
+                const structured = sanitizeWorkDescriptionStructured(parsed);
+                if (structured.jobs.length > 0 || structured.work_scope.length > 0 || structured.summary) {
+                    return flattenStructuredWorkDescription(structured);
+                }
+                return normalizeWorkDescriptionItems(parsed);
+            }
+            return [String(item ?? '')];
+        });
     }
     return normalizeWorkDescriptionItems(value);
 }
@@ -369,11 +400,13 @@ function parseSectionHeader(line: string): WorkDescriptionSectionKey | null {
 }
 
 function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStructured {
+    const summary = normalizeWorkDescriptionText(value.summary || value.context);
+    const workScope = normalizeWorkScopeRows(value.work_scope, summary);
     return {
         title: value.title,
-        context: value.context,
-        summary: value.summary,
-        work_scope: [...value.work_scope],
+        context: summary,
+        summary,
+        work_scope: workScope,
         materials: [...value.materials],
         dimensions: [...value.dimensions],
         included: [...value.included],
@@ -381,9 +414,9 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
         internal_notes: [...value.internal_notes],
         afvalAfvoeren: value.afvalAfvoeren,
         schilderwerkInbegrepen: value.schilderwerkInbegrepen,
-        stucwerkInbegrepen: value.stucwerkInbegrepen,
+        stucwerkInbegrepen: false,
         plamuurwerkInbegrepen: value.plamuurwerkInbegrepen,
-        kitwerkInbegrepen: value.kitwerkInbegrepen,
+        kitwerkInbegrepen: false,
         steigerInbegrepen: value.steigerInbegrepen,
         sloopwerkInbegrepen: value.sloopwerkInbegrepen,
         nadenVullenInbegrepen: value.nadenVullenInbegrepen,
@@ -404,19 +437,21 @@ function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStruc
         jobs: Array.isArray(value.jobs)
             ? value.jobs.map((job) => ({
                 title: normalizeWorkDescriptionText(job?.title),
-                context: normalizeWorkDescriptionText(job?.context),
+                context: normalizeWorkDescriptionText(job?.summary || job?.context),
                 summary: normalizeWorkDescriptionText(job?.summary || job?.context),
-                work_scope: normalizeEditableWorkDescriptionItems(job?.work_scope),
+                work_scope: normalizeWorkScopeRows(job?.work_scope, job?.summary || job?.context),
                 materials: normalizeEditableWorkDescriptionItems(job?.materials),
                 dimensions: normalizeEditableWorkDescriptionItems(job?.dimensions),
-                included: normalizeEditableWorkDescriptionItems(job?.included),
-                excluded: normalizeEditableWorkDescriptionItems(job?.excluded),
+                included: normalizeEditableWorkDescriptionItems(job?.included)
+                    .filter((line) => !isRemovedLegacyWorkDeliveryToggleText(line)),
+                excluded: normalizeEditableWorkDescriptionItems(job?.excluded)
+                    .filter((line) => !isRemovedLegacyWorkDeliveryToggleText(line)),
                 internal_notes: normalizeEditableWorkDescriptionItems(job?.internal_notes),
                 afvalAfvoeren: Boolean(job?.afvalAfvoeren),
                 schilderwerkInbegrepen: Boolean(job?.schilderwerkInbegrepen),
-                stucwerkInbegrepen: Boolean(job?.stucwerkInbegrepen),
+                stucwerkInbegrepen: false,
                 plamuurwerkInbegrepen: Boolean(job?.plamuurwerkInbegrepen),
-                kitwerkInbegrepen: Boolean(job?.kitwerkInbegrepen),
+                kitwerkInbegrepen: false,
                 steigerInbegrepen: Boolean(job?.steigerInbegrepen),
                 sloopwerkInbegrepen: Boolean(job?.sloopwerkInbegrepen),
                 nadenVullenInbegrepen: Boolean(job?.nadenVullenInbegrepen),
@@ -495,10 +530,13 @@ function normalizeWorkDescriptionJob(input: unknown): WorkDescriptionJob {
             : undefined,
         schroefgatenPlamurenInbegrepen: row.schroefgatenPlamurenInbegrepen === true,
     });
+    const workScope = normalizeWorkScopeRows(delivery.work_scope, delivery.summary);
 
     return {
         ...delivery,
         context: delivery.summary,
+        summary: delivery.summary,
+        work_scope: workScope,
         sections: {
             voorbereiding,
             uitvoering: uitvoering.length > 0 ? uitvoering : fallbackRows,
@@ -509,6 +547,11 @@ function normalizeWorkDescriptionJob(input: unknown): WorkDescriptionJob {
 }
 
 export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescriptionStructured {
+    if (typeof input === 'string') {
+        const parsed = safeJsonParseWorkDescriptionPrefix(input);
+        if (parsed !== input) return sanitizeWorkDescriptionStructured(parsed);
+    }
+
     if (!isObject(input)) {
         return cloneStructured(EMPTY_WORK_DESCRIPTION_STRUCTURED);
     }
@@ -572,19 +615,36 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
 
     const normalized: WorkDescriptionStructured = {
         title: normalizeWorkDescriptionText(row.title) || activeJob?.title || '',
-        context: normalizeWorkDescriptionText(row.context) || activeJob?.context || '',
-        summary: normalizeWorkDescriptionText(row.summary) || activeJob?.summary || activeJob?.context || '',
-        work_scope: activeJob ? [...activeJob.work_scope] : normalizeEditableWorkDescriptionItems(row.work_scope),
+        context: normalizeWorkDescriptionText(row.summary)
+            || normalizeWorkDescriptionText(row.context)
+            || activeJob?.summary
+            || activeJob?.context
+            || '',
+        summary: normalizeWorkDescriptionText(row.summary)
+            || normalizeWorkDescriptionText(row.context)
+            || activeJob?.summary
+            || activeJob?.context
+            || '',
+        work_scope: normalizeWorkScopeRows(
+            activeJob ? activeJob.work_scope : row.work_scope,
+            normalizeWorkDescriptionText(row.summary)
+                || normalizeWorkDescriptionText(row.context)
+                || activeJob?.summary
+                || activeJob?.context
+                || '',
+        ),
         materials: activeJob ? [...activeJob.materials] : normalizeEditableWorkDescriptionItems(row.materials),
         dimensions: activeJob ? [...activeJob.dimensions] : normalizeEditableWorkDescriptionItems(row.dimensions),
-        included: row.included !== undefined ? normalizeEditableWorkDescriptionItems(row.included) : (activeJob ? [...activeJob.included] : []),
-        excluded: row.excluded !== undefined ? normalizeEditableWorkDescriptionItems(row.excluded) : (activeJob ? [...activeJob.excluded] : []),
+        included: (row.included !== undefined ? normalizeEditableWorkDescriptionItems(row.included) : (activeJob ? [...activeJob.included] : []))
+            .filter((line) => !isRemovedLegacyWorkDeliveryToggleText(line)),
+        excluded: (row.excluded !== undefined ? normalizeEditableWorkDescriptionItems(row.excluded) : (activeJob ? [...activeJob.excluded] : []))
+            .filter((line) => !isRemovedLegacyWorkDeliveryToggleText(line)),
         internal_notes: activeJob ? [...activeJob.internal_notes] : normalizeEditableWorkDescriptionItems(row.internal_notes),
         afvalAfvoeren: typeof row.afvalAfvoeren === 'boolean' ? row.afvalAfvoeren : activeJob?.afvalAfvoeren === true,
         schilderwerkInbegrepen: typeof row.schilderwerkInbegrepen === 'boolean' ? row.schilderwerkInbegrepen : activeJob?.schilderwerkInbegrepen === true,
-        stucwerkInbegrepen: typeof row.stucwerkInbegrepen === 'boolean' ? row.stucwerkInbegrepen : activeJob?.stucwerkInbegrepen === true,
+        stucwerkInbegrepen: false,
         plamuurwerkInbegrepen: typeof row.plamuurwerkInbegrepen === 'boolean' ? row.plamuurwerkInbegrepen : activeJob?.plamuurwerkInbegrepen === true,
-        kitwerkInbegrepen: typeof row.kitwerkInbegrepen === 'boolean' ? row.kitwerkInbegrepen : activeJob?.kitwerkInbegrepen === true,
+        kitwerkInbegrepen: false,
         steigerInbegrepen: typeof row.steigerInbegrepen === 'boolean' ? row.steigerInbegrepen : activeJob?.steigerInbegrepen === true,
         sloopwerkInbegrepen: typeof row.sloopwerkInbegrepen === 'boolean' ? row.sloopwerkInbegrepen : activeJob?.sloopwerkInbegrepen === true,
         nadenVullenInbegrepen: typeof row.nadenVullenInbegrepen === 'boolean' ? row.nadenVullenInbegrepen : activeJob?.nadenVullenInbegrepen === true,
@@ -629,10 +689,13 @@ export function completeStructuredWorkDescription(
     const structured = sanitizeWorkDescriptionStructured(input);
     const jobs = structured.jobs.map((job) => {
         const completed = completeWorkDeliveryScope(job, fallbackTitle);
+        const summary = normalizeWorkDescriptionText(job.summary || job.context);
         return {
             ...job,
             ...completed,
-            context: completed.summary,
+            context: summary,
+            summary,
+            work_scope: normalizeWorkScopeRows(completed.work_scope, summary),
         };
     });
     const activeIndex = Math.max(
@@ -641,11 +704,14 @@ export function completeStructuredWorkDescription(
     );
     const activeJob = jobs[activeIndex];
     const completedRoot = completeWorkDeliveryScope(structured, fallbackTitle);
+    const rootSummary = normalizeWorkDescriptionText(structured.summary || structured.context);
 
     return {
         ...structured,
         ...completedRoot,
-        context: completedRoot.summary,
+        context: rootSummary,
+        summary: rootSummary,
+        work_scope: normalizeWorkScopeRows(completedRoot.work_scope, rootSummary),
         sections: activeJob?.sections || structured.sections,
         legacyNotes: activeJob?.legacyNotes || structured.legacyNotes,
         jobs,
@@ -683,13 +749,17 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
         if (hasStructuredContent) {
             const merged = cloneStructured(directStructured);
             if (!merged.title) merged.title = normalizeWorkDescriptionText(row.korteTitel ?? row.korte_titel);
-            if (!merged.summary) merged.summary = normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving);
-            merged.context = merged.summary;
+            const legacySummary = normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving ?? row.context);
+            if (legacySummary) {
+                merged.summary = merged.summary || legacySummary;
+                merged.context = merged.summary;
+            }
             return merged;
         }
 
         base.title = normalizeWorkDescriptionText(row.korteTitel ?? row.korte_titel ?? row.title);
-        base.summary = normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving ?? row.context);
+        const legacySummary = normalizeWorkDescriptionText(row.korteBeschrijving ?? row.korte_beschrijving ?? row.context);
+        base.summary = legacySummary;
         base.context = base.summary;
 
         const legacyRaw = row.werkbeschrijving ?? row.description ?? row.text ?? row.output ?? input;
@@ -732,9 +802,9 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
 
         base.jobs = [{
             title: base.title,
-            context: base.context,
+            context: base.summary,
             summary: base.summary,
-            work_scope: [],
+            work_scope: base.summary ? [base.summary] : [],
             materials: [],
             dimensions: [],
             included: [...base.included],
@@ -778,9 +848,9 @@ export function toStructuredWorkDescription(input: unknown): WorkDescriptionStru
     base.internal_notes = [...lines];
     base.jobs = [{
         title: base.title,
-        context: base.context,
+        context: base.summary,
         summary: base.summary,
-        work_scope: [],
+        work_scope: base.summary ? [base.summary] : [],
         materials: [],
         dimensions: [],
         included: [...base.included],
@@ -862,6 +932,48 @@ function safeJsonParse(value: any): any {
     } catch {
         return value;
     }
+}
+
+function safeJsonParseWorkDescriptionPrefix(value: string): any {
+    const trimmed = value.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return value;
+
+    const direct = safeJsonParse(trimmed);
+    if (direct !== trimmed) return direct;
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    const opener = trimmed[0];
+    const closer = opener === '{' ? '}' : ']';
+
+    for (let index = 0; index < trimmed.length; index += 1) {
+        const char = trimmed[index];
+        if (inString) {
+            if (escaped) {
+                escaped = false;
+            } else if (char === '\\') {
+                escaped = true;
+            } else if (char === '"') {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (char === '"') {
+            inString = true;
+            continue;
+        }
+        if (char === opener) depth += 1;
+        if (char === closer) depth -= 1;
+        if (depth === 0) {
+            const candidate = trimmed.slice(0, index + 1);
+            const parsed = safeJsonParse(candidate);
+            return parsed !== candidate ? parsed : value;
+        }
+    }
+
+    return value;
 }
 
 export function unwrapRoot(payload: any): any {

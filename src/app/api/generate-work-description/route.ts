@@ -9,10 +9,9 @@ import {
   type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
 import {
+  deduplicateMeasurementRows,
   enforceRequiredMaatwerkCoverage,
-  enforceRequiredNoteCoverage,
   extractRequiredNoteRequirements,
-  formatRequiredNoteStep,
   isNoteRequirementCovered,
 } from '@/lib/work-description-note-coverage';
 import {
@@ -28,8 +27,8 @@ export const dynamic = 'force-dynamic';
 
 const OPENAI_MODEL = process.env.OPENAI_WORK_DESCRIPTION_MODEL?.trim()
   || process.env.OPENAI_MODEL?.trim()
-  || 'gpt-4.1-mini';
-const OPENAI_TIMEOUT_MS = 60_000;
+  || 'gpt-5.5';
+const OPENAI_TIMEOUT_MS = 300_000;
 const WASTE_REMOVAL_DISABLED_RULE = [
   'HARDE REGEL: GEEN AFVAL AFVOEREN.',
   'Neem geen stap op over afval, puin of restmateriaal afvoeren, meenemen, storten of in een container plaatsen.',
@@ -76,6 +75,11 @@ interface QuoteCalculationContext {
   jobs: WorkDescriptionSourceJob[];
 }
 
+interface OpenAiWorkDescriptionResult {
+  rawOutput: string;
+  parsed: unknown;
+}
+
 function getNoteJobs(input: unknown): WorkDescriptionNoteJobInput[] {
   if (!Array.isArray(input)) return [];
   return input.flatMap((item) => {
@@ -83,6 +87,8 @@ function getNoteJobs(input: unknown): WorkDescriptionNoteJobInput[] {
     const row = item as Record<string, unknown>;
     const title = safeString(row.title);
     const notes = safeString(row.notes);
+    const normalizedTitle = title.replace(/^#+\s*/, '').trim();
+    if (/^links?\b/i.test(normalizedTitle)) return [];
     const dimensions = Array.isArray(row.dimensions)
       ? row.dimensions.map((value) => safeString(value)).filter(Boolean)
       : [];
@@ -98,6 +104,53 @@ function extractBearerToken(authHeader: string | null): string | null {
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function splitRawOutputByNoteTitles(rawOutput: string, noteJobs: WorkDescriptionNoteJobInput[]): string[] {
+  const raw = safeString(rawOutput);
+  if (!raw || noteJobs.length === 0) return [];
+
+  const matches = noteJobs
+    .map((job, index) => {
+      const title = safeString(job.title);
+      if (!title) return null;
+      const match = new RegExp(`(^|\\n|\\r|\\s)${escapeRegExp(title)}\\s*:`, 'i').exec(raw);
+      if (!match || match.index < 0) return null;
+      const prefixLength = match[1]?.length || 0;
+      return {
+        index,
+        start: match.index + prefixLength,
+      };
+    })
+    .filter((item): item is { index: number; start: number } => Boolean(item))
+    .sort((left, right) => left.start - right.start);
+
+  if (matches.length > 0) {
+    const rows = Array(noteJobs.length).fill('');
+    matches.forEach((match, position) => {
+      const end = matches[position + 1]?.start ?? raw.length;
+      rows[match.index] = raw.slice(match.start, end).trim();
+    });
+    return rows;
+  }
+
+  const paragraphs = raw
+    .split(/\n\s*\n/g)
+    .map((row) => row.trim())
+    .filter(Boolean);
+  if (paragraphs.length >= noteJobs.length) return paragraphs.slice(0, noteJobs.length);
+
+  const lines = raw
+    .split(/\r?\n/g)
+    .map((row) => row.trim())
+    .filter(Boolean);
+  if (lines.length >= noteJobs.length) return lines.slice(0, noteJobs.length);
+
+  return [raw];
 }
 
 function truncateText(value: string, maxLength: number): string {
@@ -127,6 +180,157 @@ function normalizeWasteSummary(summary: string, wasteIncluded: boolean): string 
   return wasteIncluded
     ? [base, 'Afval afvoer is inbegrepen.'].filter(Boolean).join(' ')
     : base;
+}
+
+function extractCandidateWorkText(row: string, jobIndex: number): string {
+  const text = safeString(row);
+  if (!text) return '';
+
+  const parsed = text.startsWith('{') || text.startsWith('[')
+    ? parseJsonDeep(text) ?? parseJsonPrefix(text)
+    : null;
+  if (parsed && parsed !== text && typeof parsed === 'object') {
+    const structured = sanitizeWorkDescriptionStructured(parsed);
+    const job = structured.jobs[jobIndex] || structured.jobs[0];
+    return safeString(job?.summary)
+      || safeString(job?.context)
+      || safeString(job?.work_scope?.[0])
+      || safeString(structured.summary)
+      || safeString(structured.context)
+      || safeString(structured.work_scope[0]);
+  }
+
+  return text;
+}
+
+function normalizeCandidateText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function getDimensionTitles(dimensions: string[]): string {
+  return dimensions
+    .map((dimension) => safeString(dimension).split(':')[0] || '')
+    .filter(Boolean)
+    .join(' ');
+}
+
+function normalizeFactToken(value: string): string {
+  return normalizeCandidateText(value)
+    .replace(/\bdennen\s+groen\b/g, 'dennengroen')
+    .replace(/\bzijde?s?\b/g, 'zijde')
+    .replace(/\bkozijn\b/g, 'kozijnen')
+    .replace(/\bdraairaam\b/g, 'draairamen');
+}
+
+function extractMandatoryJobFacts(source: WorkDescriptionNoteJobInput): string[] {
+  const facts = new Set<string>();
+  const sourceText = [source.title, source.notes, source.dimensions.join(' ')].filter(Boolean).join('\n');
+
+  for (const match of sourceText.matchAll(/\b(\d+)\s*x\s+([a-zA-ZÀ-ÿ][^,\n;.|]*)/gi)) {
+    const amount = match[1];
+    const subject = normalizeFactToken(match[2] || '')
+      .split(/\s+/)
+      .filter((token) => token.length >= 4)
+      .slice(0, 3)
+      .join(' ');
+    if (amount && subject) facts.add(`${amount} ${subject}`);
+  }
+
+  for (const match of sourceText.matchAll(/\b(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\b/gi)) {
+    facts.add(`${String(match[1]).replace(',', '.')} ${String(match[2]).toLowerCase()}`);
+  }
+
+  for (const match of sourceText.matchAll(/\b(\d+)\s+zijdes?\b/gi)) {
+    facts.add(`${match[1]} zijde`);
+  }
+
+  [
+    'dennen groen',
+    'dennengroen',
+    'wit',
+    'dakkapel',
+    'binnendeur',
+    'buitenlak',
+    'hpl',
+    'trespa',
+    'zijslabben',
+    'sneldek',
+    'raamkozijn',
+  ].forEach((term) => {
+    if (new RegExp(`\\b${term.replace(/\s+/g, '\\s+')}\\b`, 'i').test(sourceText)) {
+      facts.add(normalizeFactToken(term));
+    }
+  });
+
+  return Array.from(facts);
+}
+
+function generatedTextContainsFact(generated: string, fact: string): boolean {
+  const normalizedGenerated = normalizeFactToken(generated);
+  const normalizedFact = normalizeFactToken(fact);
+  const parts = normalizedFact.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return true;
+
+  const number = parts.find((part) => /^\d+(?:\.\d+)?$/.test(part));
+  if (number && !normalizedGenerated.includes(number)) return false;
+
+  return parts
+    .filter((part) => !/^\d+(?:\.\d+)?$/.test(part) && !/^(mm|cm|m)$/.test(part))
+    .every((part) => normalizedGenerated.includes(part));
+}
+
+function getMissingMandatoryJobFacts(source: WorkDescriptionNoteJobInput, generated: string): string[] {
+  return extractMandatoryJobFacts(source)
+    .filter((fact) => !generatedTextContainsFact(generated, fact));
+}
+
+function isGeneratedCandidateRelevant(source: WorkDescriptionNoteJobInput, candidate: string): boolean {
+  if (!candidate.trim()) return false;
+  const candidateWithDimensions = [candidate, source.dimensions.join(' ')].filter(Boolean).join(' ');
+  if (getMissingMandatoryJobFacts(source, candidateWithDimensions).length > 0) return false;
+  return true;
+}
+
+function parseJsonPrefix(input: string): unknown | null {
+  const trimmed = input.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  const opener = trimmed[0];
+  const closer = opener === '{' ? '}' : ']';
+
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const char = trimmed[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === opener) depth += 1;
+    if (char === closer) depth -= 1;
+    if (depth === 0) {
+      return parseJsonString(trimmed.slice(0, index + 1));
+    }
+  }
+
+  return null;
 }
 
 function formatContextValue(value: unknown, depth = 0): string {
@@ -273,11 +477,12 @@ function extractNoteDimensionRows(notesContext: unknown): string[] {
   if (typeof notesContext !== 'string') return [];
   return notesContext.split(/\r?\n/).flatMap((rawLine) => {
     const line = rawLine.replace(/^[-*•]\s*/, '').trim();
-    const match = line.match(/^(.*?)\s*[:=]\s*lengte\s*[:=]?\s*([^,|]+?)\s*[,|]\s*breedte\s*[:=]?\s*([^,|]+?)\s*[,|]\s*dikte\s*[:=]?\s*([^,|]+?)\s*$/i);
+    const match = line.match(/^(.*?)\s*[:=]\s*lengte\s*[:=]?\s*([^,|]+?)\s*[,|]\s*breedte\s*[:=]?\s*([^,|]+?)(?:\s*[,|]\s*hoogte\s*[:=]?\s*([^,|]+?))?\s*[,|]\s*dikte\s*[:=]?\s*([^,|]+?)\s*$/i);
     if (!match) return [];
     const title = match[1].trim();
     const clean = (value: string) => value.replace(/\s*mm\s*$/i, '').trim();
-    return [`${title}: | Lengte = ${clean(match[2])} mm | Breedte = ${clean(match[3])} mm | Dikte = ${clean(match[4])} mm |`];
+    const height = clean(match[4] || '');
+    return [`${title}: | Lengte = ${clean(match[2])} mm | Breedte = ${clean(match[3])} mm |${height ? ` Hoogte = ${height} mm |` : ''} Dikte = ${clean(match[5])} mm |`];
   });
 }
 
@@ -427,7 +632,7 @@ function extractResponseText(payload: unknown): string {
   return '';
 }
 
-async function callOpenAiWorkDescription(apiKey: string, prompt: string): Promise<unknown> {
+async function callOpenAiWorkDescription(apiKey: string, prompt: string): Promise<OpenAiWorkDescriptionResult> {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
@@ -436,7 +641,6 @@ async function callOpenAiWorkDescription(apiKey: string, prompt: string): Promis
     },
     body: JSON.stringify({
       model: OPENAI_MODEL,
-      temperature: 0.1,
       input: [
         {
           role: 'system',
@@ -445,7 +649,7 @@ async function callOpenAiWorkDescription(apiKey: string, prompt: string): Promis
             text: [
               'Je bent een Nederlandse Werk & Levering-generator voor offertes in de bouw.',
               'Je zet gebruikersnotities om naar zakelijke, concrete scope.',
-              'Geef uitsluitend geldig JSON terug. Geen markdown, geen uitleg.',
+              'Geef uitsluitend platte tekst terug. Geen JSON, geen markdown, geen uitleg.',
               'Gebruik alleen scope die expliciet in de aangeleverde context staat.',
             ].join('\n'),
           }],
@@ -470,7 +674,10 @@ async function callOpenAiWorkDescription(apiKey: string, prompt: string): Promis
     throw new Error('OpenAI gaf geen leesbare output terug.');
   }
 
-  return parseJsonDeep(outputText) ?? outputText;
+  return {
+    rawOutput: outputText,
+    parsed: parseJsonDeep(outputText) ?? outputText,
+  };
 }
 
 function isWasteRemovalRow(value: string): boolean {
@@ -537,15 +744,11 @@ function enforceWasteRemovalPreferences(
     const schilderwerkInbegrepen = controls.schilderwerkInbegrepen === true
       || rawControls.schilderwerkInbegrepen === true
       || inputStructured.schilderwerkInbegrepen === true;
-    const stucwerkInbegrepen = controls.stucwerkInbegrepen === true
-      || rawControls.stucwerkInbegrepen === true
-      || inputStructured.stucwerkInbegrepen === true;
+    const stucwerkInbegrepen = false;
     const plamuurwerkInbegrepen = controls.plamuurwerkInbegrepen === true
       || rawControls.plamuurwerkInbegrepen === true
       || inputStructured.plamuurwerkInbegrepen === true;
-    const kitwerkInbegrepen = controls.kitwerkInbegrepen === true
-      || rawControls.kitwerkInbegrepen === true
-      || inputStructured.kitwerkInbegrepen === true;
+    const kitwerkInbegrepen = false;
     const steigerInbegrepen = controls.steigerInbegrepen === true
       || rawControls.steigerInbegrepen === true
       || inputStructured.steigerInbegrepen === true;
@@ -607,15 +810,11 @@ function enforceWasteRemovalPreferences(
     schilderwerkInbegrepen: activeJob
       ? activeJob.schilderwerkInbegrepen === true
       : rawControls.schilderwerkInbegrepen === true || inputStructured.schilderwerkInbegrepen === true,
-    stucwerkInbegrepen: activeJob
-      ? activeJob.stucwerkInbegrepen === true
-      : rawControls.stucwerkInbegrepen === true || inputStructured.stucwerkInbegrepen === true,
+    stucwerkInbegrepen: false,
     plamuurwerkInbegrepen: activeJob
       ? activeJob.plamuurwerkInbegrepen === true
       : rawControls.plamuurwerkInbegrepen === true || inputStructured.plamuurwerkInbegrepen === true,
-    kitwerkInbegrepen: activeJob
-      ? activeJob.kitwerkInbegrepen === true
-      : rawControls.kitwerkInbegrepen === true || inputStructured.kitwerkInbegrepen === true,
+    kitwerkInbegrepen: false,
     steigerInbegrepen: activeJob
       ? activeJob.steigerInbegrepen === true
       : rawControls.steigerInbegrepen === true || inputStructured.steigerInbegrepen === true,
@@ -651,16 +850,43 @@ function enforceGenerationRules(
   const noteJobs = getNoteJobs(body?.noteJobs);
   if (noteJobs.length > 0) {
     const controls = sanitizeWorkDescriptionStructured(body?.structuredInput);
-    const generatedRows = generated.jobs.length === noteJobs.length
-      ? generated.jobs.map((job) => job.work_scope.join(' '))
-      : generated.work_scope;
+    const acceptedWorkRows = new Set<string>();
+    const generatedRows = noteJobs.map((_, index) => {
+      const generatedJob = generated.jobs[index];
+      const completedJob = completed.jobs[index];
+      return [
+        ...(generatedJob?.work_scope || []),
+        safeString(generatedJob?.summary),
+        safeString(generatedJob?.context),
+        ...(completedJob?.work_scope || []),
+        safeString(completedJob?.summary),
+        safeString(completedJob?.context),
+        safeString(generated.work_scope[index]),
+      ]
+        .map((row) => extractCandidateWorkText(row, index))
+        .filter(Boolean);
+    });
     const jobs = noteJobs.map((source, index) => {
-      const requirement = [source.title, source.notes].filter(Boolean).join(' ');
-      const candidate = safeString(generatedRows[index]).replace(/^Klus\s+\d+\s*:\s*/i, '').trim();
-      const rawWorkRow = candidate && isNoteRequirementCovered(requirement, candidate)
-        ? candidate
-        : formatRequiredNoteStep(requirement);
-      const workRow = cleanProfessionalScopeText(rawWorkRow);
+      const candidates = generatedRows[index]
+        .map((row) => row.replace(/^Klus\s+\d+\s*:\s*/i, '').trim())
+        .filter(Boolean);
+      const candidate = candidates.find((row) => {
+        const key = row.toLowerCase().replace(/\s+/g, ' ').trim();
+        return !acceptedWorkRows.has(key) && isGeneratedCandidateRelevant(source, row);
+      });
+      if (!candidate) {
+        const missingFacts = candidates[0]
+          ? getMissingMandatoryJobFacts(source, [candidates[0], source.dimensions.join(' ')].filter(Boolean).join(' '))
+          : [];
+        throw new Error([
+          `Werk & Levering generatie ongeldig voor "${source.title}".`,
+          missingFacts.length > 0 ? `Ontbrekende verplichte feiten: ${missingFacts.join(', ')}.` : 'Geen geldige tekst ontvangen voor deze notitieklus.',
+        ].join(' '));
+      }
+      const workRow = cleanProfessionalScopeText(candidate);
+      if (workRow) acceptedWorkRows.add(workRow.toLowerCase().replace(/\s+/g, ' ').trim());
+      const generatedJob = generated.jobs[index];
+      const completedJob = completed.jobs[index];
       return {
         ...completed.jobs[0],
         title: source.title,
@@ -668,10 +894,14 @@ function enforceGenerationRules(
         summary: workRow,
         work_scope: [workRow],
         materials: [],
-        dimensions: source.dimensions,
-        included: [],
-        excluded: [],
-        internal_notes: [],
+        dimensions: deduplicateMeasurementRows([
+          ...(generatedJob?.dimensions || []),
+          ...(completedJob?.dimensions || []),
+          ...source.dimensions,
+        ]),
+        included: generatedJob?.included || [],
+        excluded: generatedJob?.excluded || [],
+        internal_notes: generatedJob?.internal_notes || [],
         afvalAfvoeren: false,
         schilderwerkInbegrepen: false,
         stucwerkInbegrepen: false,
@@ -717,49 +947,23 @@ function enforceGenerationRules(
   const sourceJobs = Array.isArray(body?.sourceJobs)
     ? body.sourceJobs.filter((job): job is WorkDescriptionSourceJob => Boolean(job && typeof job === 'object'))
     : [];
-  const allScopeRows = [
-    ...completed.work_scope,
-    ...completed.jobs.flatMap((job) => job.work_scope),
-  ];
-  const normalizeTokens = (value: string) => value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .split(/\s+/)
-    .filter((token) => token.length >= 4);
-  const missingSourceRows = sourceJobs.flatMap((sourceJob) => {
-    const identityTokens = normalizeTokens(`${sourceJob.title} ${sourceJob.type}`);
-    const covered = allScopeRows.some((row) => {
-      const normalizedRow = ` ${normalizeTokens(row).join(' ')} `;
-      return identityTokens.some((token) => normalizedRow.includes(` ${token} `));
-    });
-    if (covered) return [];
-    const materialText = sourceJob.materials.length > 0
-      ? ` met ${sourceJob.materials.slice(0, 3).join(', ')}`
-      : '';
-    return [`Uitvoeren van ${sourceJob.title.toLowerCase()} conform de opgegeven maatvoering${materialText}.`];
-  });
-  const activeIndexForCoverage = Math.max(0, Math.min(completed.activeJobIndex || 0, Math.max(0, completed.jobs.length - 1)));
-  const completedWithSourceJobs = sanitizeWorkDescriptionStructured({
-    ...completed,
-    work_scope: [...completed.work_scope, ...missingSourceRows],
-    jobs: completed.jobs.map((job, index) => index === activeIndexForCoverage
-      ? { ...job, work_scope: [...job.work_scope, ...missingSourceRows] }
-      : job),
-  });
+  const completedWithSourceJobs = sanitizeWorkDescriptionStructured(completed);
   const wasteFiltered = enforceWasteRemovalPreferences(completedWithSourceJobs, body?.structuredInput);
-  const notesCovered = enforceRequiredNoteCoverage(wasteFiltered, body?.notesContext, isWasteRemovalRow);
+  // Free-form notes guide generation, but are not a schema. Do not mechanically
+  // copy every unmatched fragment into customer-facing work scope.
+  const notesCovered = wasteFiltered;
   const sourceDimensions = sourceJobs.flatMap((job) => Array.isArray(job.dimensions) ? job.dimensions : []);
   const noteDimensions = extractNoteDimensionRows(body?.notesContext);
-  const requiredDimensions = Array.from(new Set([...sourceDimensions, ...noteDimensions]));
+  const requiredDimensions = deduplicateMeasurementRows([...sourceDimensions, ...noteDimensions]);
   const activeIndex = Math.max(0, Math.min(notesCovered.activeJobIndex || 0, Math.max(0, notesCovered.jobs.length - 1)));
   const jobsWithDimensions = notesCovered.jobs.length > 0
     ? notesCovered.jobs.map((job, index) => index === activeIndex
-      ? { ...job, dimensions: Array.from(new Set([...job.dimensions, ...requiredDimensions])) }
+      ? { ...job, dimensions: deduplicateMeasurementRows([...job.dimensions, ...requiredDimensions]) }
       : job)
     : notesCovered.jobs;
   const withDimensions = sanitizeWorkDescriptionStructured({
     ...notesCovered,
-    dimensions: Array.from(new Set([...notesCovered.dimensions, ...requiredDimensions])),
+    dimensions: deduplicateMeasurementRows([...notesCovered.dimensions, ...requiredDimensions]),
     jobs: jobsWithDimensions,
   });
   const withoutMaterialSection = {
@@ -777,7 +981,12 @@ function getMaterialContextRows(input: unknown): string[] {
     const row = item as Record<string, unknown>;
     const name = sanitizeMaterialDescription(safeString(row.name));
     if (!name || isIgnoredWorkDeliveryMaterial(name) || !isCustomerRelevantProductChoice(name)) return [];
-    return [name];
+    const quantity = Number(row.quantity);
+    const unit = safeString(row.unit) || 'stuk';
+    const amount = Number.isFinite(quantity) && quantity > 0
+      ? `${Number.isInteger(quantity) ? String(quantity) : quantity.toFixed(2).replace(/\.?0+$/, '')} ${unit}`.trim()
+      : '';
+    return [amount ? `${name} (${amount})` : name];
   });
 }
 
@@ -788,10 +997,12 @@ function normalizeForMaterialComparison(value: string): string {
 function isCustomerRelevantProductChoice(value: string): boolean {
   const normalized = normalizeForMaterialComparison(value);
   if (!normalized) return false;
-  if (/(schroef|schroeven|lijm|contactlijm|kit\b|ms polymeer|cleaner|ontvetter|handschoen|folie|tape|butylband|schuurpapier|poetsdoek|doek|neopreen|aansluitkit|bevestig)/i.test(normalized)) {
+  const isScopeRelevantMembrane = /(damprem|dampdicht|dampopen|klimaatfolie|miofol|spinvlies|waterkerend|luchtdicht|vochtwer)/i.test(normalized);
+  if (/(schroef|schroeven|lijm|contactlijm|kit\b|ms polymeer|cleaner|ontvetter|handschoen|tape|butylband|schuurpapier|poetsdoek|doek|neopreen|aansluitkit|bevestig)/i.test(normalized)) {
     return false;
   }
-  return /(keralit|trespa|hpl|rockpanel|gevelbekleding|boeiboord|boeiboorden|epdm|underlayment|daktrim|dakbedekking|ral 7016|antraciet|anthracite)/i.test(normalized);
+  if (/\bfolie\b/i.test(normalized) && !isScopeRelevantMembrane) return false;
+  return /(keralit|trespa|hpl|rockpanel|gevelbekleding|boeiboord|boeiboorden|epdm|underlayment|daktrim|dakbedekking|ral 7016|antraciet|anthracite|isolatie|glaswol|steenwol|minerale wol|acoustifit|enotherm|enertherm|pir\b|eps\b|xps\b|rd\s*[,.\d]|damprem|dampdicht|dampopen|klimaatfolie|miofol|waterkerend|luchtdicht)/i.test(normalized);
 }
 
 function fillMissingGeneratedScope(
@@ -816,9 +1027,7 @@ function fillMissingGeneratedScope(
       ...job,
       title: job.title || fallback.title || safeString(body?.title),
       summary,
-      work_scope: job.work_scope.length > 0
-        ? job.work_scope
-        : (fallback.work_scope.length > 0 ? fallback.work_scope : (summary ? [summary] : [])),
+      work_scope: summaryToWorkScopeRows(summary),
       materials: job.materials.length > 0
         ? job.materials
         : (fallback.materials.length > 0 ? fallback.materials : approvedMaterials),
@@ -964,6 +1173,61 @@ function hasStructuredContent(value: WorkDescriptionStructured): boolean {
   );
 }
 
+function countWorkScopeRows(value: WorkDescriptionStructured | null): number {
+  if (!value) return 0;
+  if (value.jobs.length > 0) {
+    return value.jobs.reduce((count, job) => (
+      count + job.work_scope.filter((row) => safeString(row).length > 0).length
+    ), 0);
+  }
+  return value.work_scope.filter((row) => safeString(row).length > 0).length;
+}
+
+function hasWorkScopeRows(value: WorkDescriptionStructured | null): boolean {
+  return countWorkScopeRows(value) > 0;
+}
+
+function summaryToWorkScopeRows(value: string): string[] {
+  const compact = safeString(value).replace(/\s+/g, ' ');
+  if (!compact) return [];
+  const cleaned = cleanProfessionalScopeText(compact);
+  return [/[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`];
+}
+
+function copyGeneratedSummaryToWorkScope(value: WorkDescriptionStructured): WorkDescriptionStructured {
+  const rootSummaryRows = summaryToWorkScopeRows(value.summary || value.context);
+
+  if (value.jobs.length > 0) {
+    const activeIndex = Math.max(0, Math.min(value.activeJobIndex || 0, value.jobs.length - 1));
+    return {
+      ...value,
+      work_scope: rootSummaryRows.length > 0 ? rootSummaryRows : value.work_scope,
+      jobs: value.jobs.map((job, index) => {
+        const jobRows = summaryToWorkScopeRows(job.summary || job.context);
+        const rows = jobRows.length > 0
+          ? jobRows
+          : (index === activeIndex && rootSummaryRows.length > 0 ? rootSummaryRows : job.work_scope);
+        return { ...job, work_scope: rows };
+      }),
+    };
+  }
+
+  return {
+    ...value,
+    work_scope: rootSummaryRows.length > 0 ? rootSummaryRows : value.work_scope,
+  };
+}
+
+function forceWorkScopeFromText(value: WorkDescriptionStructured, fallbackText: string): WorkDescriptionStructured {
+  const text = safeString(value.summary || value.context || fallbackText);
+  if (!text) return value;
+  return copyGeneratedSummaryToWorkScope({
+    ...value,
+    summary: value.summary || text,
+    context: value.context || text,
+  });
+}
+
 function getMissingNoteRequirements(
   structured: WorkDescriptionStructured | null,
   notesContext: unknown,
@@ -988,10 +1252,9 @@ function finalizeNoteCoverage(
   structured: WorkDescriptionStructured,
   notesContext: unknown,
 ): WorkDescriptionStructured {
-  return enforceRequiredMaatwerkCoverage(
-    enforceRequiredNoteCoverage(structured, notesContext, isWasteRemovalRow),
-    notesContext,
-  );
+  // Structured maatwerk dimensions remain authoritative. Other free-form notes
+  // are prompt context and must never block or mechanically rewrite the result.
+  return enforceRequiredMaatwerkCoverage(structured, notesContext);
 }
 
 function extractDirectStructured(result: unknown): WorkDescriptionStructured | null {
@@ -1262,7 +1525,7 @@ function buildPromptFromBody(body: RequestBody): string {
   const calculationContext = safeString(body.quoteCalculationContext);
   const preferences = getWasteRemovalPreferences(body.structuredInput);
   const wasteRemovalRule = preferences.active
-    ? 'Afval afvoeren staat expliciet AAN. Neem de concrete afvalafvoer als een eigen, afzonderlijke regel op in work_scope. Zet deze niet onder included.'
+    ? 'Afval afvoeren staat expliciet AAN. Verwerk dit in de professionele klanttekst wanneer het onderdeel van de afspraak is. Zet deze niet onder included.'
     : WASTE_REMOVAL_DISABLED_RULE;
   const structuredControls = sanitizeWorkDescriptionStructured(body.structuredInput);
   const sourceJobs = Array.isArray(body.sourceJobs)
@@ -1270,40 +1533,40 @@ function buildPromptFromBody(body: RequestBody): string {
     : [];
   const noteJobs = getNoteJobs(body.noteJobs);
   const paintingRule = structuredControls.schilderwerkInbegrepen
-    ? 'Schilderwerk inbegrepen staat expliciet AAN. Neem het concrete schilderwerk als een eigen, afzonderlijke regel op in work_scope. Gebruik details uit de notities, bijvoorbeeld wat wordt geschilderd en een nog te kiezen kleur. Zet schilderwerk niet onder included of excluded.'
+    ? 'Schilderwerk inbegrepen staat expliciet AAN. Verwerk het concrete schilderwerk in de professionele klanttekst. Gebruik details uit de notities, bijvoorbeeld wat wordt geschilderd en een nog te kiezen kleur. Zet schilderwerk niet onder included of excluded.'
     : 'Schilderwerk inbegrepen staat UIT. Neem schilderwerk, sauswerk, aflakken of verven niet op als inbegrepen werk.';
   const stuccoRule = structuredControls.stucwerkInbegrepen
-    ? 'Stucwerk inbegrepen staat expliciet AAN. Behoud alle expliciete stucwerkzaamheden, aantallen en maatvoering en neem het concrete stucwerk als een eigen, afzonderlijke regel op in work_scope. Zet stucwerk niet onder included.'
-    : 'Stucwerk inbegrepen staat UIT. Neem stucwerk niet op als inbegrepen werk.';
+    ? 'Stucwerk inbegrepen staat expliciet AAN. Behoud alle expliciete stucwerkzaamheden, aantallen en maatvoering en verwerk het concrete stucwerk in de professionele klanttekst. Zet stucwerk niet onder included.'
+    : 'Stucwerk heeft geen aparte aan/uit-schakelaar. Neem stucwerk alleen op wanneer het concreet in de notities, brongegevens of werkzaamheden staat; voeg geen automatische uitsluiting voor stucwerk toe.';
   const fillingRule = structuredControls.plamuurwerkInbegrepen
-    ? 'Plamuurwerk inbegrepen staat expliciet AAN. Neem het concrete overeengekomen plamuurwerk als een eigen regel op in work_scope. Zet dit werk niet onder included of excluded.'
+    ? 'Plamuurwerk inbegrepen staat expliciet AAN. Verwerk het concrete overeengekomen plamuurwerk in de professionele klanttekst. Zet dit werk niet onder included of excluded.'
     : 'Plamuurwerk inbegrepen staat UIT. Neem plamuurwerk niet op als inbegrepen werk.';
   const sealingRule = structuredControls.kitwerkInbegrepen
-    ? 'Kitwerk inbegrepen staat expliciet AAN. Neem het concrete overeengekomen kitwerk als een eigen regel op in work_scope. Zet dit werk niet onder included of excluded.'
-    : 'Kitwerk inbegrepen staat UIT. Neem kitwerk niet op als inbegrepen werk.';
+    ? 'Kitwerk inbegrepen staat expliciet AAN. Verwerk het concrete overeengekomen kitwerk in de professionele klanttekst. Zet dit werk niet onder included of excluded.'
+    : 'Kitwerk heeft geen aparte aan/uit-schakelaar. Neem kitwerk alleen op wanneer het concreet in de notities, brongegevens of werkzaamheden staat; voeg geen automatische uitsluiting voor kitwerk toe.';
   const scaffoldRule = structuredControls.steigerInbegrepen
-    ? 'Steiger inbegrepen staat expliciet AAN. Neem het concrete overeengekomen steigerwerk als een eigen regel op in work_scope.'
+    ? 'Steiger inbegrepen staat expliciet AAN. Verwerk het concrete overeengekomen steigerwerk in de professionele klanttekst.'
     : 'Steiger inbegrepen staat UIT. Neem geen steiger, steigerhuur of steigerwerk op als inbegrepen werk.';
   const demolitionRule = structuredControls.sloopwerkInbegrepen
-    ? 'Sloopwerk inbegrepen staat expliciet AAN. Neem het concrete overeengekomen sloopwerk als een eigen regel op in work_scope.'
+    ? 'Sloopwerk inbegrepen staat expliciet AAN. Verwerk het concrete overeengekomen sloopwerk in de professionele klanttekst.'
     : 'Sloopwerk inbegrepen staat UIT. Neem geen sloopwerk op als inbegrepen werk.';
   const seamFillingRule = structuredControls.nadenVullenInbegrepen
     ? structuredControls.nadenVullenAfwerkingsniveau === 'schilderklaar'
-      ? 'Naden vullen staat expliciet AAN op afwerkingsniveau Q4 (schilderklaar). Neem het vullen en schilderklaar afwerken van de overeengekomen naden als een eigen regel op in work_scope.'
-      : 'Naden vullen staat expliciet AAN op afwerkingsniveau Q2 (behangklaar). Neem het vullen en behangklaar afwerken van de overeengekomen naden als een eigen regel op in work_scope.'
+      ? 'Naden vullen staat expliciet AAN op afwerkingsniveau Q4 (schilderklaar). Verwerk het vullen en schilderklaar afwerken van de overeengekomen naden in de professionele klanttekst.'
+      : 'Naden vullen staat expliciet AAN op afwerkingsniveau Q2 (behangklaar). Verwerk het vullen en behangklaar afwerken van de overeengekomen naden in de professionele klanttekst.'
     : 'Naden vullen inbegrepen staat UIT. Neem het vullen of afwerken van naden niet op als inbegrepen werk.';
   const screwHoleFillingRule = structuredControls.schroefgatenPlamurenInbegrepen
-    ? 'Schroefgaten plamuren staat expliciet AAN. Neem het plamuren van de schroefgaten als een eigen regel op in work_scope.'
+    ? 'Schroefgaten plamuren staat expliciet AAN. Verwerk het plamuren van de schroefgaten in de professionele klanttekst.'
     : 'Schroefgaten plamuren staat UIT. Neem het plamuren of vullen van schroefgaten niet op als inbegrepen werk.';
   const electricalRule = structuredControls.electricalScope.enabled
-    ? 'Elektrawerk inbegrepen staat expliciet AAN. Neem ieder concreet overeengekomen elektrisch onderdeel als een eigen regel op in work_scope. Zet elektrawerk niet onder included.'
+    ? 'Elektrawerk inbegrepen staat expliciet AAN. Verwerk ieder concreet overeengekomen elektrisch onderdeel in de professionele klanttekst. Zet elektrawerk niet onder included.'
     : 'Elektrawerk inbegrepen staat UIT. Neem elektrawerk niet op als inbegrepen werk.';
-  const notesRule = safeString(body.notesContext)
+  const notesRule = safeString(body.notesContext) && noteJobs.length === 0
     ? [
         'REGELS VOOR GEBRUIKERSNOTITIES:',
         'Gebruik iedere concrete werkzaamheid en keuze uit de gebruikersnotities als bron, maar kopieer ruwe notitieregels niet letterlijk.',
-        'Combineer verwante notities tot één professionele regel en beschrijf iedere concrete werkzaamheid precies één keer.',
-        'Zet losse afmetingen en maatopsommingen in dimensions. Herhaal ze alleen in work_scope wanneer de maat nodig is om de werkzaamheid ondubbelzinnig te beschrijven.',
+        'Combineer verwante notities tot één professionele klanttekst en beschrijf iedere concrete werkzaamheid precies één keer.',
+        'Zet losse afmetingen en maatopsommingen in dimensions. Herhaal ze alleen in de klanttekst wanneer de maat nodig is om de werkzaamheid ondubbelzinnig te beschrijven.',
         'Behoud expliciete aantallen en berekende eindtotalen exact, maar vermeld ieder feit op één logische plaats.',
         'De offerte is definitief: gebruik uitsluitend concrete, professionele formuleringen.',
         'Verwijder onzekere taal zoals "eventueel", "mogelijk", "iets anders", "indien nodig" en "in overleg".',
@@ -1312,18 +1575,29 @@ function buildPromptFromBody(body: RequestBody): string {
       ].join(' ')
     : '';
   const scopeRules = [
-    'Geef uitsluitend geldige JSON terug met exact deze velden:',
-    noteJobs.length > 0
-      ? '{"title":"","summary":"","jobs":[{"title":"","work_scope":[]}],"included":[],"excluded":[]}'
-      : '{"title":"","summary":"","work_scope":[],"materials":[],"dimensions":[],"included":[],"excluded":[],"internal_notes":[]}',
+    'Geef uitsluitend platte tekst terug. Geen JSON. Geen markdown. Geen codeblok. Geen velden zoals title, summary, jobs, work_scope, dimensions, included of excluded.',
     'Schrijf geen stappenplan en geen uitvoeringsvolgorde.',
     'Gebruik nooit de secties Voorbereiding, Uitvoering of Afwerking.',
     noteJobs.length > 0
-      ? `De notities bevatten ${noteJobs.length} klussen. Geef exact ${noteJobs.length} jobs terug, in dezelfde volgorde en met exact één professionele work_scope-regel per klus. Gebruik de notitietitel als jobtitel. Gebruik nooit labels zoals "Klus 1" of "Klus 2".`
+      ? [
+          `De notities bevatten ${noteJobs.length} klussen. Schrijf voor iedere notitieklus één eigen alinea in dezelfde volgorde.`,
+          'Begin iedere alinea met de notitietitel gevolgd door een dubbele punt en daarna de professionele klanttekst.',
+          'Plaats exact één lege regel tussen de alinea’s van verschillende notitieklussen.',
+          'Elke alinea mag uitsluitend informatie gebruiken uit zijn eigen object in NOTITIEKLUSSEN: title, notes en dimensions.',
+          'Verplaats nooit feiten, aantallen, maatvoering, materialen, kleuren, locaties, inbegrepen werk of schilderwerk van de ene job naar een andere job.',
+          'Alle aantallen, hoeveelheden, kleuren, materialen, locaties, inbegrepen werkzaamheden en uitsluitingen zijn contractuele feiten en moeten in dezelfde alinea blijven staan.',
+          'Gebruik dimensions alleen om te begrijpen waar de klus over gaat. Kopieer de losse maatvoeringsregels uit dimensions niet letterlijk in de klanttekst.',
+          'Maak nooit een jobtekst die alleen uit maatvoering bestaat. De klanttekst moet altijd een echte werkzaamheid beschrijven: wat wordt gecontroleerd, vervangen, geplaatst, vernieuwd, geschilderd of uitgevoerd.',
+          'Als notes leeg is maar title en dimensions bestaan, schrijf dan een korte professionele klanttekst op basis van de title als werkzaamheid; herhaal de losse maatvoering niet.',
+          'Als notes concrete tekst bevat, gebruik die tekst als hoofdbron voor de werkzaamheid; gebruik dimensions alleen als aparte maatvoering.',
+          'Vat aantallen nooit samen tot algemene meervouden: "9x houten kozijn" moet in de output staan als "9 houten kozijnen"; "9x houten draairaam" als "9 houten draairamen"; "2 zijdes" als "2 zijden" of "twee zijden".',
+          'Laat geen notitieklus leeg. Als er weinig informatie is, schrijf dan toch een korte zakelijke zin op basis van de titel.',
+          'Gebruik nooit labels zoals "Klus 1" of "Klus 2".',
+        ].join(' ')
       : sourceJobs.length > 0
-      ? `De calculatie bevat ${sourceJobs.length} afzonderlijke klussen. Geef voor iedere genummerde Klus 1 t/m ${sourceJobs.length} precies één volledige, zelfstandige regel in work_scope, in dezelfde volgorde. Sla geen klus over en voeg verschillende klussen niet samen.`
-      : 'Geef iedere afzonderlijke klus als één volledige, zelfstandige regel in work_scope.',
-    'Combineer alle eigenschappen die bij dezelfde klus horen in die ene regel. Een verhoogde vloer en de gekozen vloerplaat zijn bijvoorbeeld eigenschappen van dezelfde vloerklus en worden geen dubbele vloerregels.',
+      ? `De calculatie bevat ${sourceJobs.length} afzonderlijke klussen. Schrijf voor iedere klus één eigen alinea in dezelfde volgorde als de calculatiedata. Kopieer nooit dezelfde algemene tekst naar meerdere klussen.`
+      : 'Maak één professionele klanttekst voor de afgesproken werkzaamheden.',
+    'Combineer alle eigenschappen die bij dezelfde klus horen in dezelfde klanttekst. Een verhoogde vloer en de gekozen vloerplaat zijn bijvoorbeeld eigenschappen van dezelfde vloerklus en worden geen dubbele vloerregels.',
     'Gebruik de specifieke klussoort als onderwerp. Maak van boeiboorden, plafonds, wanden, vloeren, kozijnen en ander timmerwerk ieder een passende beschrijving; gebruik geen algemene vloertekst voor een andere klussoort.',
     'Verzin geen werkzaamheden, afwerkingsniveau, elektrawerk, sloopwerk of afvalafvoer.',
     'Beschrijf geen methode tenzij deze expliciet is aangeleverd.',
@@ -1331,13 +1605,20 @@ function buildPromptFromBody(body: RequestBody): string {
     'Neem alleen scope over die expliciet blijkt uit notities, maatvoering of calculatiedata.',
     'Expliciete aantallen, aantallen per woning/object en eindtotalen uit notities zijn essentiële feiten en mogen nooit worden verkort of impliciet geformuleerd.',
     'Gebruik materials altijd als lege array. Maak geen aparte materialen/productenlijst.',
-    'Verwerk alleen klant-relevante productkeuzes in work_scope wanneer ze belangrijk zijn voor vertrouwen of afspraak, zoals Keralit, Trespa/HPL, Rockpanel, EPDM, underlayment of type/kleur gevelbekleding.',
+    'Verwerk alleen klant-relevante productkeuzes in de klanttekst wanneer ze belangrijk zijn voor vertrouwen of afspraak, zoals Keralit, Trespa/HPL, Rockpanel, EPDM, underlayment of type/kleur gevelbekleding.',
     'Noem geen verbruiksartikelen of hulpmaterialen zoals lijm, kit, cleaner, ontvetter, schroeven, handschoenen, folie, tape, band of schuurpapier.',
     'Negeer administratieve regels met de naam "Extra kosten".',
     'Noem geen bestelhoeveelheden van materialen; behoud wel werkhoeveelheden, productafmetingen en productspecificaties die de afspraak beschrijven.',
+    noteJobs.length > 0
+      ? 'Bij NOTITIEKLUSSEN: herhaal geen individuele maatvoeringsregels uit dimensions in de klanttekst; die staan al onder Maatvoering en mogen niet dubbel worden beschreven.'
+      : '',
     'Plaats bij onduidelijkheid een veilige uitsluiting onder excluded of laat het onderdeel weg.',
     'Formuleer commercieel en bescherm tegen scope creep en onbetaald meerwerk.',
-    'summary mag meerdere zinnen bevatten wanneer dat nodig is om de afgesproken scope duidelijk te maken.',
+    noteJobs.length > 0
+      ? 'Maak per NOTITIEKLUS één eigen professionele klanttekst die alleen de scope van die specifieke notitieklus beschrijft.'
+      : sourceJobs.length > 0
+      ? 'Maak per job één eigen professionele klanttekst die alleen de scope van die specifieke job beschrijft.'
+      : 'Maak één professionele klanttekst die de volledige afgesproken scope beschrijft.',
     'Er geldt geen maximum van twee zinnen. Gebruik zoveel zinnen als nodig zijn om de klus volledig en begrijpelijk te beschrijven.',
   ].join(' ');
   if (directPrompt) {
@@ -1352,7 +1633,12 @@ function buildPromptFromBody(body: RequestBody): string {
       notesRule,
       paintingRule,
       stuccoRule,
+      fillingRule,
+      sealingRule,
+      seamFillingRule,
       screwHoleFillingRule,
+      scaffoldRule,
+      demolitionRule,
       electricalRule,
       wasteRemovalRule,
     ].filter(Boolean).join('\n\n');
@@ -1362,7 +1648,7 @@ function buildPromptFromBody(body: RequestBody): string {
     safeString(body.title) ? `Titel: ${safeString(body.title)}` : '',
     safeString(body.context) ? `Context: ${safeString(body.context)}` : '',
     safeString(body.category) ? `Categorie: ${safeString(body.category)}` : '',
-    safeString(body.notesContext) ? `Notities: ${safeString(body.notesContext)}` : '',
+    safeString(body.notesContext) && noteJobs.length === 0 ? `Notities: ${safeString(body.notesContext)}` : '',
     safeString(body.measurementsContext) ? `Maatvoering: ${safeString(body.measurementsContext)}` : '',
     calculationContext ? `Calculatiedata uit Firestore:\n${calculationContext}` : '',
   ].filter(Boolean);
@@ -1413,9 +1699,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'OPENAI_API_KEY is niet geconfigureerd.' }, { status: 500 });
     }
 
-    let result: unknown;
+    let aiResult: OpenAiWorkDescriptionResult;
     try {
-      result = await callOpenAiWorkDescription(apiKey, prompt);
+      aiResult = await callOpenAiWorkDescription(apiKey, prompt);
     } catch (error) {
       const isTimeout = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
       const message = error instanceof Error ? error.message : 'Onbekende fout';
@@ -1429,108 +1715,54 @@ export async function POST(request: Request) {
       );
     }
 
-    const expectedJobCount = getNoteJobs(bodyWithContext.noteJobs).length || quoteCalculation.jobs.length;
-    const firstStructured = extractDirectStructured(result);
-    const firstScopeCount = firstStructured?.jobs.length
-      ? firstStructured.jobs.reduce((count, job) => count + job.work_scope.length, 0)
-      : firstStructured?.work_scope.length || 0;
-    const firstMissingNotes = getMissingNoteRequirements(firstStructured, bodyWithContext.notesContext);
-    const calculationJobsMissing = expectedJobCount > 0 && firstScopeCount < expectedJobCount;
-    if (calculationJobsMissing || firstMissingNotes.length > 0) {
-      const correctionPrompt = [
-        prompt,
-        'CORRECTIE VAN HET VORIGE ANTWOORD:',
-        calculationJobsMissing
-          ? `Het vorige antwoord bevatte ${firstScopeCount} werkzaamheden voor ${expectedJobCount} opgegeven klussen en is daardoor onvolledig.`
-          : '',
-        firstMissingNotes.length > 0
-          ? `Deze expliciete gebruikersnotities ontbreken nog: ${firstMissingNotes.map((note) => `"${note}"`).join('; ')}`
-          : '',
-        `Geef opnieuw JSON met één volledige work_scope-regel voor iedere Klus 1 t/m ${expectedJobCount}, in dezelfde volgorde, plus iedere aanvullende concrete werkzaamheid uit de gebruikersnotities. Combineer kenmerken van dezelfde klus in één regel.`,
-        `Vorig antwoord: ${JSON.stringify(result)}`,
-      ].filter(Boolean).join('\n\n');
-      try {
-        result = await callOpenAiWorkDescription(apiKey, correctionPrompt);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Onbekende fout';
-        return NextResponse.json(
-          { error: `Werk & Levering was onvolledig en kon niet worden hersteld: ${message}` },
-          { status: 502 },
-        );
-      }
-    }
-
-    const directStructured = extractDirectStructured(result);
-    if (directStructured && flattenStructuredWorkDescription(directStructured).length > 0) {
-      const structured = finalizeNoteCoverage(
-        enforceGenerationRules(
-          sanitizeWorkDescriptionStructured(directStructured),
-          bodyWithContext,
-        ),
-        bodyWithContext.notesContext,
-      );
-      const missingNotes = getMissingNoteRequirements(structured, bodyWithContext.notesContext);
-      if (missingNotes.length > 0) {
-        return NextResponse.json({
-          error: `Werk & Levering is niet opgeslagen omdat gebruikersnotities ontbreken: ${missingNotes.join(' | ')}`,
-        }, { status: 502 });
-      }
-      const flattened = flattenStructuredWorkDescription(structured);
+    const noteJobs = getNoteJobs(bodyWithContext.noteJobs);
+    const existingStructuredInput = sanitizeWorkDescriptionStructured(bodyWithContext.structuredInput);
+    if (noteJobs.length > 0) {
+      const jobTexts = splitRawOutputByNoteTitles(aiResult.rawOutput, noteJobs);
+      const jobs = noteJobs.map((noteJob, index) => {
+        const text = safeString(jobTexts[index]);
+        const existingJob = existingStructuredInput.jobs[index] || existingStructuredInput;
+        return {
+          ...existingJob,
+          title: noteJob.title,
+          context: text,
+          summary: text,
+          work_scope: text ? [text] : [],
+          dimensions: noteJob.dimensions,
+        };
+      });
+      const firstText = jobs.find((job) => safeString(job.summary))?.summary || aiResult.rawOutput;
+      const structured = toStructuredWorkDescription({
+        werkbeschrijving_structured: {
+          ...existingStructuredInput,
+          title: safeString(bodyWithContext.title),
+          summary: firstText,
+          work_scope: [firstText],
+          jobs,
+          activeJobIndex: 0,
+        },
+      });
       return NextResponse.json({
-        werkbeschrijving: flattened,
+        werkbeschrijving: flattenStructuredWorkDescription(structured),
         werkbeschrijvingStructured: structured,
+        noteCoverageWarnings: [],
+        rawAiOutput: aiResult.rawOutput,
       });
     }
 
-    const directWerkbeschrijving = extractDirectWerkbeschrijving(result);
-    if (directWerkbeschrijving.length > 0) {
-      const structured = finalizeNoteCoverage(
-        enforceGenerationRules(
-          toStructuredWorkDescription({ werkbeschrijving: directWerkbeschrijving }),
-          bodyWithContext,
-        ),
-        bodyWithContext.notesContext,
-      );
-      const missingNotes = getMissingNoteRequirements(structured, bodyWithContext.notesContext);
-      if (missingNotes.length > 0) {
-        return NextResponse.json({
-          error: `Werk & Levering is niet opgeslagen omdat gebruikersnotities ontbreken: ${missingNotes.join(' | ')}`,
-        }, { status: 502 });
-      }
-      const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
-      return NextResponse.json({
-        werkbeschrijving: filteredWerkbeschrijving,
-        werkbeschrijvingStructured: structured,
-      });
-    }
-
-    const aiOutput = extractAiOutput(result);
-    if (!aiOutput) {
-      return NextResponse.json({ error: 'Geen output ontvangen uit workflow.' }, { status: 502 });
-    }
-
-    const werkbeschrijving = parseWorkDescription(aiOutput);
-    if (werkbeschrijving.length === 0) {
-      return NextResponse.json({ error: 'Lege werkbeschrijving ontvangen.' }, { status: 502 });
-    }
-
-    const structured = finalizeNoteCoverage(
-      enforceGenerationRules(
-        toStructuredWorkDescription({ werkbeschrijving }),
-        bodyWithContext,
-      ),
-      bodyWithContext.notesContext,
-    );
-    const missingNotes = getMissingNoteRequirements(structured, bodyWithContext.notesContext);
-    if (missingNotes.length > 0) {
-      return NextResponse.json({
-        error: `Werk & Levering is niet opgeslagen omdat gebruikersnotities ontbreken: ${missingNotes.join(' | ')}`,
-      }, { status: 502 });
-    }
-    const filteredWerkbeschrijving = flattenStructuredWorkDescription(structured);
+    const structured = toStructuredWorkDescription({
+      werkbeschrijving_structured: {
+        ...existingStructuredInput,
+        title: safeString(bodyWithContext.title),
+        summary: aiResult.rawOutput,
+        work_scope: [aiResult.rawOutput],
+      },
+    });
     return NextResponse.json({
-      werkbeschrijving: filteredWerkbeschrijving,
+      werkbeschrijving: [aiResult.rawOutput],
       werkbeschrijvingStructured: structured,
+      noteCoverageWarnings: [],
+      rawAiOutput: aiResult.rawOutput,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Werkbeschrijving genereren mislukt';

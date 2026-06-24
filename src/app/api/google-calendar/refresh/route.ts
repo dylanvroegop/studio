@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Timestamp } from 'firebase-admin/firestore';
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { reportGoogleCalendarAlert } from '@/lib/google-calendar-alerts';
 import { getCalendarClient, isGoogleInvalidGrantError } from '@/lib/integrations/google-calendar';
 
 export const runtime = 'nodejs';
@@ -18,6 +19,10 @@ function getGoogleErrorStatus(error: unknown): number | null {
   const row = error as { code?: unknown; response?: { status?: unknown } };
   const status = Number(row.response?.status ?? row.code);
   return Number.isFinite(status) ? status : null;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error || 'Onbekende fout');
 }
 
 export async function POST(request: Request) {
@@ -44,6 +49,16 @@ export async function POST(request: Request) {
     const integration = userData?.integrations?.googleCalendar;
 
     if (!integration?.connected || !integration.refreshToken) {
+      await reportGoogleCalendarAlert({
+        firestore,
+        userRef,
+        decoded,
+        source: 'google-calendar/refresh',
+        title: 'Google Calendar verversen mislukt',
+        message: 'Google Calendar is niet gekoppeld of mist een refresh token.',
+        code: 'calendar_not_connected',
+        severity: 'warning',
+      });
       return NextResponse.json(
         { error: 'Google Calendar is niet gekoppeld.', code: 'calendar_not_connected' },
         { status: 409 },
@@ -156,7 +171,8 @@ export async function POST(request: Request) {
         const { auth, firestore } = initFirebaseAdmin();
         const decoded = await auth.verifyIdToken(token).catch(() => null);
         if (decoded?.uid) {
-          await firestore.collection('users').doc(decoded.uid).set({
+          const userRef = firestore.collection('users').doc(decoded.uid);
+          await userRef.set({
             integrations: {
               googleCalendar: {
                 connected: false,
@@ -167,12 +183,41 @@ export async function POST(request: Request) {
               },
             },
           }, { merge: true }).catch(() => null);
+          await reportGoogleCalendarAlert({
+            firestore,
+            userRef,
+            decoded,
+            source: 'google-calendar/refresh',
+            title: 'Google Calendar moet opnieuw gekoppeld worden',
+            message: 'Google heeft de Calendar refresh token geweigerd. Koppel Google Calendar opnieuw in instellingen.',
+            code: 'google_calendar_reconnect_required',
+            severity: 'critical',
+            context: { error: errorMessage(error) },
+          });
         }
       }
       return NextResponse.json(
         { error: 'Google Calendar moet opnieuw gekoppeld worden.', code: 'google_calendar_reconnect_required' },
         { status: 409 },
       );
+    }
+
+    const token = extractBearerToken(request.headers.get('authorization'));
+    if (token) {
+      const { auth, firestore } = initFirebaseAdmin();
+      const decoded = await auth.verifyIdToken(token).catch(() => null);
+      if (decoded?.uid) {
+        await reportGoogleCalendarAlert({
+          firestore,
+          userRef: firestore.collection('users').doc(decoded.uid),
+          decoded,
+          source: 'google-calendar/refresh',
+          title: 'Google Calendar verversen mislukt',
+          message: errorMessage(error),
+          code: 'google_calendar_refresh_failed',
+          severity: 'error',
+        });
+      }
     }
 
     return NextResponse.json({ error: 'Google Calendar vernieuwen mislukt.' }, { status: 500 });

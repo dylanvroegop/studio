@@ -261,6 +261,7 @@ export default function NewJobPage() {
                       slug: singleItem.slug
                     }
                   },
+                  createdAt: serverTimestamp(),
                   updatedAt: serverTimestamp()
                 }
               }
