@@ -1838,8 +1838,11 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
       sectionKey: 'plinten_plafond',
     },
     beplating: {
-      logic: 'horizontal rows, staggered joints',
-      formula: 'ceil((netto_m2) / plaat_m2)',
+      logic: 'row_based_ceiling_plate_layout',
+      method: 'Geen m2 / plaat_m2. Bepaal eerst de plaatrichting vanuit het latwerk: de plaatlengte loopt over de plafondzijde haaks/opposite van de latwerkrichting; de rijen worden geteld over de zijde parallel aan het latwerk. Als latwerk over plafond_lengte loopt: plaat_lengte_axis_mm = netto_plafond_breedte_mm en row_side_mm = plafond_lengte_mm. Als latwerk over plafond_breedte loopt: plaat_lengte_axis_mm = netto_plafond_lengte_mm en row_side_mm = plafond_breedte_mm. Gebruik netto beplaatbaar vlak na koof/openingen/randzones waar die het plaatvlak echt onderbreken.',
+      formula: 'rows = ceil(row_side_mm / material.breedte_mm); if plaat_lengte_axis_mm <= material.lengte_mm then aantal = rows; else if plafond_lengte_mm > material.lengte_mm && plafond_breedte_mm > material.lengte_mm then aantal = ceil((rows * plaat_lengte_axis_mm) / material.lengte_mm); else aantal = rows * ceil(plaat_lengte_axis_mm / material.lengte_mm)',
+      cutting_policy: 'Als een volle plaat de plaat_lengte_axis_mm haalt, gebruik 1 volle plaat per rij en reken geen m2. Als beide plafondmaten langer zijn dan de plaatlengte, mogen reststukken in de volgende rij worden hergebruikt. Als minimaal 1 plafondmaat korter of gelijk is aan de plaatlengte, dan is extra_plate_per_column_for_remainder verboden en telt de rij-indeling.',
+      forbidden_methods: ['area_divided_by_area', 'm2_math_when_row_layout_required', 'extra_plate_per_column_for_remainder_when_full_sheet_covers_axis'],
       sectionKey: 'beplating',
     },
     koof_afwerkplaat: {
@@ -1853,8 +1856,11 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
       sectionKey: 'koof_constructieplaat',
     },
     koof_regelwerk: {
-      logic: 'frame around pipe chase - 2 rails + vertical studs',
-      formula: 'ceil(((2 * koof_lengte + ((ceil(koof_lengte / 600) + 1) * (koof_hoogte + koof_diepte)))) / material.lengte)',
+      logic: 'conditional by timber size: lightweight 22x50 two-rail method, heavier timber framed method',
+      formula: 'if material is 22x50mm then segments = two rails of length L per koof; stock_pieces_base = binpack/reuse segments into material.lengte_mm stock lengths (for example two 1500mm rails fit one 3000mm stock length); apply waste to stock_pieces_base and ceil; if output unit is m1 then aantal = stock_pieces_final * material.lengte_m else aantal = stock_pieces_final. Else use framed method: ceil(((2 * koof_lengte + ((ceil(koof_lengte / 600) + 1) * (koof_hoogte + koof_diepte)))) / material.lengte)',
+      material_condition_22x50: 'materiaalnaam or dimensions match 22x50mm / 22 x 50 mm',
+      lightweight_method_22x50: '2 rachels per koof length only: one rail fixed to wall and one rail fixed to ceiling. The 200x200 beplating corner is screwed together, so no vertical stud framework is needed for lightweight 22x50 koof.',
+      heavier_timber_method: 'For 44x69mm or other heavier timber, keep full framed calculation with 2 length rails plus cross pieces every 600mm as shown in the reference picture.',
       sectionKey: 'koof_regelwerk',
     },
     luik_afwerking: {

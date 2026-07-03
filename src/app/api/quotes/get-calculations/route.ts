@@ -120,11 +120,11 @@ export async function POST(req: Request) {
       }
 
       if (status || !data || !preferCompletedFallback) {
-        return NextResponse.json({ ok: true, row: data || null });
+        return NextResponse.json({ ok: true, row: data || null, latestRow: data || null });
       }
 
       if (data.status === 'completed' || hasDataJsonValue(data.data_json)) {
-        return NextResponse.json({ ok: true, row: data });
+        return NextResponse.json({ ok: true, row: data, latestRow: data });
       }
 
       const { data: fallbackCompletedRow, error: fallbackError } = await supabaseAdmin
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, message: fallbackError.message }, { status: 500 });
       }
 
-      return NextResponse.json({ ok: true, row: fallbackCompletedRow || data });
+      return NextResponse.json({ ok: true, row: fallbackCompletedRow || data, latestRow: data });
     }
 
     const { data, error } = await query;

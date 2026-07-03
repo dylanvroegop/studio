@@ -165,6 +165,10 @@ export function NewQuoteForm({
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [aiSourceImages, setAiSourceImages] = useState<File[]>([]);
   const [isAiExtracting, setIsAiExtracting] = useState(false);
+  const [postcodeLookup, setPostcodeLookup] = useState<{
+    target: 'factuur' | 'project' | null;
+    message: string;
+  }>({ target: null, message: '' });
   const [isMounted, setIsMounted] = useState(false);
   const resolvedBackHref = backHref ?? (quoteId ? '/offertes' : '/');
   const requiresWorkDescriptionPrompt = Boolean(successHref);
@@ -473,7 +477,7 @@ export function NewQuoteForm({
     };
   }, [firestore, quoteId, syncPlanningEntryToGoogleCalendar, user]);
 
-  const handleAutoSave = async (field: string, value: any) => {
+  const handleAutoSave = useCallback(async (field: string, value: any) => {
     if (!quoteId || !firestore) return;
     try {
       // Clean the value before saving. If empty, it returns deleteField() (since isUpdate: true)
@@ -487,7 +491,80 @@ export function NewQuoteForm({
     } catch (error) {
       console.error('Auto-save error:', error);
     }
-  };
+  }, [firestore, quoteId]);
+
+  const maybeLookupPostcode = useCallback(async (target: 'factuur' | 'project') => {
+    if (!user || !formRef.current) return;
+
+    const formData = new FormData(formRef.current);
+    const get = (key: string) => (typeof formData.get(key) === 'string' ? String(formData.get(key)).trim() : '');
+    const fieldNames = target === 'factuur'
+      ? {
+          straat: 'straat',
+          huisnummer: 'huisnummer',
+          postcode: 'postcode',
+          plaats: 'plaats',
+        }
+      : {
+          straat: 'projectStraat',
+          huisnummer: 'projectHuisnummer',
+          postcode: 'projectPostcode',
+          plaats: 'projectPlaats',
+        };
+
+    const straat = get(fieldNames.straat);
+    const huisnummer = get(fieldNames.huisnummer);
+    const plaats = get(fieldNames.plaats);
+    const existingPostcode = formatPostcode(get(fieldNames.postcode));
+    if (!straat || !huisnummer || !plaats || existingPostcode) return;
+
+    setPostcodeLookup({ target, message: 'Postcode zoeken...' });
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/address/postcode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ straat, huisnummer, plaats }),
+      });
+      const payload = await response.json().catch(() => null) as {
+        postcode?: string;
+        plaats?: string;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !payload?.postcode) {
+        setPostcodeLookup({ target, message: payload?.error || 'Geen postcode gevonden.' });
+        return;
+      }
+
+      const postcode = formatPostcode(payload.postcode);
+      const postcodeInput = formRef.current.elements.namedItem(fieldNames.postcode) as HTMLInputElement | null;
+      const placeInput = formRef.current.elements.namedItem(fieldNames.plaats) as HTMLInputElement | null;
+      if (postcodeInput) postcodeInput.value = postcode;
+      await handleAutoSave(fieldNames.postcode, postcode);
+
+      const resolvedPlace = formatCapitalize(String(payload.plaats || '').trim());
+      if (resolvedPlace && placeInput && !placeInput.value.trim()) {
+        placeInput.value = resolvedPlace;
+        await handleAutoSave(fieldNames.plaats, resolvedPlace);
+      }
+
+      setPostcodeLookup({ target, message: 'Postcode ingevuld.' });
+      window.setTimeout(() => {
+        setPostcodeLookup((current) => (
+          current.target === target && current.message === 'Postcode ingevuld.'
+            ? { target: null, message: '' }
+            : current
+        ));
+      }, 1800);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Postcode lookup mislukt.';
+      setPostcodeLookup({ target, message });
+    }
+  }, [handleAutoSave, user]);
 
   const collectDraftClientDataFromForm = useCallback((formEl: HTMLFormElement): Record<string, unknown> => {
     const formData = new FormData(formEl);
@@ -1088,6 +1165,7 @@ export function NewQuoteForm({
                     const v = formatCapitalize(e.target.value);
                     e.target.value = v;
                     handleAutoSave('straat', v);
+                    void maybeLookupPostcode('factuur');
                   }}
                 />
               </div>
@@ -1098,7 +1176,10 @@ export function NewQuoteForm({
                   name="huisnummer"
                   placeholder="Nr."
                   defaultValue={initialKI?.huisnummer}
-                  onBlur={(e) => handleAutoSave('huisnummer', e.target.value)}
+                  onBlur={(e) => {
+                    handleAutoSave('huisnummer', e.target.value);
+                    void maybeLookupPostcode('factuur');
+                  }}
                 />
               </div>
               <div className="sm:col-span-2 space-y-1.5">
@@ -1114,6 +1195,9 @@ export function NewQuoteForm({
                     handleAutoSave('postcode', v);
                   }}
                 />
+                {postcodeLookup.target === 'factuur' && postcodeLookup.message ? (
+                  <p className="text-xs text-muted-foreground">{postcodeLookup.message}</p>
+                ) : null}
               </div>
               <div className="sm:col-span-4 space-y-1.5">
                 <Label htmlFor="plaats">Plaats</Label>
@@ -1126,6 +1210,7 @@ export function NewQuoteForm({
                     const v = formatCapitalize(e.target.value);
                     e.target.value = v;
                     handleAutoSave('plaats', v);
+                    void maybeLookupPostcode('factuur');
                   }}
                 />
               </div>
@@ -1158,6 +1243,7 @@ export function NewQuoteForm({
                     const v = formatCapitalize(e.target.value);
                     e.target.value = v;
                     handleAutoSave('projectStraat', v);
+                    void maybeLookupPostcode('project');
                   }}
                 />
               </div>
@@ -1168,7 +1254,10 @@ export function NewQuoteForm({
                   name="projectHuisnummer"
                   placeholder="Nr."
                   defaultValue={initialKI?.projectHuisnummer}
-                  onBlur={(e) => handleAutoSave('projectHuisnummer', e.target.value)}
+                  onBlur={(e) => {
+                    handleAutoSave('projectHuisnummer', e.target.value);
+                    void maybeLookupPostcode('project');
+                  }}
                 />
               </div>
               <div className="sm:col-span-2 space-y-1.5">
@@ -1184,6 +1273,9 @@ export function NewQuoteForm({
                     handleAutoSave('projectPostcode', v);
                   }}
                 />
+                {postcodeLookup.target === 'project' && postcodeLookup.message ? (
+                  <p className="text-xs text-muted-foreground">{postcodeLookup.message}</p>
+                ) : null}
               </div>
               <div className="sm:col-span-4 space-y-1.5">
                 <Label htmlFor="projectPlaats">Plaats</Label>
@@ -1196,6 +1288,7 @@ export function NewQuoteForm({
                     const v = formatCapitalize(e.target.value);
                     e.target.value = v;
                     handleAutoSave('projectPlaats', v);
+                    void maybeLookupPostcode('project');
                   }}
                 />
               </div>

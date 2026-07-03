@@ -6,6 +6,48 @@ import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const WORK_DESCRIPTION_FIELDS = [
+    'korteTitel',
+    'korteBeschrijving',
+    'korte_titel',
+    'korte_beschrijving',
+    'werkbeschrijving',
+    'werkbeschrijving_jobs',
+    'werkbeschrijving_structured',
+    'werkbeschrijvingJobs',
+    'werkbeschrijvingStructured',
+] as const;
+
+function rootObject(value: unknown): Record<string, unknown> | null {
+    const root = Array.isArray(value) ? value[0] : value;
+    return root && typeof root === 'object' && !Array.isArray(root)
+        ? root as Record<string, unknown>
+        : null;
+}
+
+function preserveWorkDescriptionFields(
+    nextDataJson: unknown,
+    currentDataJson: unknown,
+): unknown {
+    const nextRoot = rootObject(nextDataJson);
+    const currentRoot = rootObject(currentDataJson);
+    if (!nextRoot || !currentRoot) return nextDataJson;
+
+    let changed = false;
+    const mergedRoot = { ...nextRoot };
+    for (const field of WORK_DESCRIPTION_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(nextRoot, field)) continue;
+        if (!Object.prototype.hasOwnProperty.call(currentRoot, field)) continue;
+        mergedRoot[field] = currentRoot[field];
+        changed = true;
+    }
+
+    if (!changed) return nextDataJson;
+    return Array.isArray(nextDataJson)
+        ? [mergedRoot, ...nextDataJson.slice(1)]
+        : mergedRoot;
+}
+
 export async function POST(req: Request) {
     try {
         // 1. Auth Check
@@ -41,6 +83,7 @@ export async function POST(req: Request) {
         }
 
         let nextDataJson = data_json;
+        let currentDataJson: unknown = null;
         if (data_json_patch && typeof data_json_patch === 'object' && !Array.isArray(data_json_patch)) {
             const { data: current, error: readError } = await supabaseAdmin
                 .from('quotes_collection')
@@ -55,6 +98,7 @@ export async function POST(req: Request) {
             if (!current) {
                 return NextResponse.json({ ok: false, message: 'Calculation not found' }, { status: 404 });
             }
+            currentDataJson = current.data_json;
 
             const currentRoot = Array.isArray(current.data_json)
                 ? current.data_json[0]
@@ -63,6 +107,22 @@ export async function POST(req: Request) {
                 ...(currentRoot && typeof currentRoot === 'object' ? currentRoot : {}),
                 ...data_json_patch,
             };
+        } else if (data_json) {
+            const { data: current, error: readError } = await supabaseAdmin
+                .from('quotes_collection')
+                .select('data_json')
+                .eq('id', calculation_id)
+                .eq('gebruikerid', decodedToken.uid)
+                .maybeSingle();
+
+            if (readError) {
+                return NextResponse.json({ ok: false, message: readError.message }, { status: 500 });
+            }
+            if (!current) {
+                return NextResponse.json({ ok: false, message: 'Calculation not found' }, { status: 404 });
+            }
+            currentDataJson = current.data_json;
+            nextDataJson = preserveWorkDescriptionFields(nextDataJson, currentDataJson);
         }
 
         // 3. Update Supabase using admin client (bypasses RLS)
@@ -84,8 +144,11 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ ok: true, data: data[0] });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('API Error /api/quotes/update-data-json:', error);
-        return NextResponse.json({ ok: false, message: error.message || 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json(
+            { ok: false, message: error instanceof Error ? error.message : 'Internal Server Error' },
+            { status: 500 }
+        );
     }
 }

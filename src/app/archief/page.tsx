@@ -116,7 +116,7 @@ function ArchiefPageContent() {
             archivedAtDate: naarDate(raw?.archivedAt),
           } as QuoteRow;
         })
-        .filter((q) => !!(q as any)?.archived);
+        .filter((q) => !!(q as any)?.archived && (q as any).isCalculationTest !== true);
 
       data.sort((a, b) => {
         const aT = a.archivedAtDate?.getTime() ?? a.updatedAtDate?.getTime() ?? a.createdAtDate?.getTime() ?? 0;

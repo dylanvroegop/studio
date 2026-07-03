@@ -25,9 +25,16 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy } from 'lucide-react';
+import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy, MoreHorizontal } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -39,7 +46,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { arrayUnion, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { getIdTokenResult } from 'firebase/auth';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useParams, useRouter } from 'next/navigation';
@@ -73,6 +80,7 @@ import {
 } from '@/lib/quote-pdf-text-settings';
 import { cloneTemplateSections, findWorkDescriptionTemplate } from '@/lib/work-description/templates';
 import { isIgnoredWorkDeliveryMaterial, validateWorkDeliveryScope } from '@/lib/work-delivery';
+import { capitalizeSentenceStarts } from '@/lib/text-formatting';
 
 import { Quote, ReceiptAttachment, QuotePhotoAttachment, type MaterialPresentation } from "@/lib/types";
 import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
@@ -1064,10 +1072,18 @@ export default function QuotePage() {
     const [quote, setQuote] = useState<Quote | null>(null);
 
     // Fetch calculation data from Supabase
-    const { calculation, loading: calculationLoading, error: calculationError, updateDataJson, updateDataJsonPatch } = useQuoteData(id, {
+    const {
+        calculation,
+        latestCalculationStatus,
+        loading: calculationLoading,
+        error: calculationError,
+        updateDataJson,
+        updateDataJsonPatch,
+        refetch: refetchQuoteData,
+    } = useQuoteData(id, {
         pollWhenMissing: quote?.status === 'in_behandeling',
         pollIntervalMs: 5000,
-        preferCompletedFallback: false,
+        preferCompletedFallback: true,
     });
 
     // Normalize calculation data once per payload to keep downstream effects stable.
@@ -1084,6 +1100,8 @@ export default function QuotePage() {
     const [klantInfo, setKlantInfo] = useState<KlantInformatie | null>(null);
     const [firebaseLoading, setFirebaseLoading] = useState(true);
     const [firebaseError, setFirebaseError] = useState<string | null>(null);
+    const [isEnsuringManualQuoteData, setIsEnsuringManualQuoteData] = useState(false);
+    const manualQuoteDataEnsureAttemptedRef = useRef(false);
 
     // Add state for PDF settings using default imported settings
     const [pdfSettings, setPdfSettings] = useState<QuotePDFSettings>(defaultQuotePDFSettings);
@@ -1798,6 +1816,65 @@ export default function QuotePage() {
         }
     }, [calculation, quote]);
 
+    useEffect(() => {
+        if (!user || !id) return;
+        if (calculation || calculationLoading || isEnsuringManualQuoteData) return;
+        if (latestCalculationStatus === 'pending' || latestCalculationStatus === 'processing') return;
+        if (manualQuoteDataEnsureAttemptedRef.current) return;
+
+        manualQuoteDataEnsureAttemptedRef.current = true;
+        let cancelled = false;
+
+        const ensureManualQuoteData = async () => {
+            setIsEnsuringManualQuoteData(true);
+            try {
+                const token = await user.getIdToken();
+                const response = await fetch('/api/quotes/ensure-data-json', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ quoteId: id }),
+                });
+                const payload = await response.json().catch(() => null);
+                if (!response.ok || payload?.ok !== true) {
+                    throw new Error(payload?.message || 'Kon handmatige offerte-data niet initialiseren.');
+                }
+                if (!cancelled) {
+                    refetchQuoteData();
+                }
+            } catch (error) {
+                console.error('Kon handmatige offerte-data niet initialiseren:', error);
+                manualQuoteDataEnsureAttemptedRef.current = false;
+                if (!cancelled) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Offerte-editor niet geladen',
+                        description: error instanceof Error ? error.message : 'Probeer de pagina opnieuw te laden.',
+                    });
+                }
+            } finally {
+                if (!cancelled) setIsEnsuringManualQuoteData(false);
+            }
+        };
+
+        void ensureManualQuoteData();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        calculation,
+        calculationLoading,
+        id,
+        isEnsuringManualQuoteData,
+        latestCalculationStatus,
+        refetchQuoteData,
+        toast,
+        user,
+    ]);
+
     // Keep quote metadata live while this page is open so calculation completion
     // (written by background processing) appears without manual refresh.
     useEffect(() => {
@@ -1925,11 +2002,12 @@ export default function QuotePage() {
     }, [handleQuoteNotesChange]);
 
     const handleQuoteNoteSectionChange = useCallback((sectionId: string, field: 'title' | 'linksTitle' | 'notes', value: string) => {
+        const nextValue = field === 'notes' ? capitalizeSentenceStarts(value) : value;
         const nextSections: QuoteNoteSection[] = quoteNoteSections.map((section) => {
             if (section.id !== sectionId) return section;
-            if (field === 'title') return { ...section, title: value };
-            if (field === 'linksTitle') return { ...section, linksTitle: value };
-            return { ...section, notes: value };
+            if (field === 'title') return { ...section, title: nextValue };
+            if (field === 'linksTitle') return { ...section, linksTitle: nextValue };
+            return { ...section, notes: nextValue };
         });
         syncQuoteNoteSectionsToQuoteNotes(nextSections);
     }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
@@ -2836,6 +2914,7 @@ export default function QuotePage() {
                     const offerteNummerRaw = Number(data?.offerteNummer);
                     const offerteNummer = Number.isFinite(offerteNummerRaw) ? offerteNummerRaw : null;
                     const archived = data?.archived === true;
+                    const isCalculationTest = data?.isCalculationTest === true;
                     const createdAtMs =
                         typeof data?.createdAt?.toMillis === 'function'
                             ? data.createdAt.toMillis()
@@ -2847,10 +2926,11 @@ export default function QuotePage() {
                         quoteId: docSnap.id,
                         offerteNummer,
                         archived,
+                        isCalculationTest,
                         createdAtMs,
                     };
                 })
-                .filter((quoteMeta) => !quoteMeta.archived)
+                .filter((quoteMeta) => !quoteMeta.archived && !quoteMeta.isCalculationTest)
                 .sort((a, b) => {
                     const aNr = a.offerteNummer ?? -1;
                     const bNr = b.offerteNummer ?? -1;
@@ -4500,16 +4580,17 @@ export default function QuotePage() {
                 uploadedBy: user.uid,
             };
 
-            const existing = Array.isArray((quote as any).fotos) ? ((quote as any).fotos as QuotePhotoAttachment[]) : [];
-            const nextFotos = [...existing, nextPhoto];
-
             const quoteRef = doc(firestore, 'quotes', id);
             await updateDoc(quoteRef, {
-                fotos: nextFotos,
+                fotos: arrayUnion(nextPhoto),
                 updatedAt: serverTimestamp(),
             } as any);
 
-            setQuote((prev) => (prev ? ({ ...prev, fotos: nextFotos } as Quote) : prev));
+            setQuote((prev) => {
+                if (!prev) return prev;
+                const existing = Array.isArray((prev as any).fotos) ? ((prev as any).fotos as QuotePhotoAttachment[]) : [];
+                return { ...prev, fotos: [...existing, nextPhoto] } as Quote;
+            });
             toast({
                 title: 'Foto opgeslagen',
                 description: file.name,
@@ -5286,6 +5367,8 @@ export default function QuotePage() {
     const hasStoredCalculatedTotal = storedQuoteTotal !== null;
     const hasCalculationResult = Boolean(calculation?.data_json) || hasStoredCalculatedTotal;
     const supabaseCalculationInProgress =
+        latestCalculationStatus === 'pending' ||
+        latestCalculationStatus === 'processing' ||
         calculation?.status === 'pending' ||
         calculation?.status === 'processing';
     const laborTotalHours = (calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0;
@@ -5294,9 +5377,7 @@ export default function QuotePage() {
     const footerVatRate = Number(quoteSettings?.btwTarief) || 21;
     const footerQuoteTotalExcl = totalMaterialExcl + laborTotalExcl;
     const footerQuoteTotalIncl = footerQuoteTotalExcl * (1 + footerVatRate / 100);
-    const calculationInProgress =
-        quote?.status === 'in_behandeling' ||
-        supabaseCalculationInProgress;
+    const calculationInProgress = supabaseCalculationInProgress;
     const calculationTimerStorageKey = `offerte_calculation_started_at_${id}`;
 
     useEffect(() => {
@@ -5337,11 +5418,6 @@ export default function QuotePage() {
 
     const loading = firebaseLoading || isUserLoading;
     const error = calculationError || firebaseError;
-    const calculationBlockedTabs = ['materialen', 'overzicht', 'nacalculatie', 'tekeningen', 'pdf', 'werkbeschrijving'] as const;
-    const isCalculationBlockedTab = calculationBlockedTabs.includes(activeTab as typeof calculationBlockedTabs[number]);
-    const showCalculationLoadingPanel =
-        isCalculationBlockedTab &&
-        (calculationInProgress || (quote?.status === 'in_behandeling' && calculationLoading));
     const calculationProgressPercentage = Math.min(
         100,
         (calculationElapsedSeconds / CALCULATION_ESTIMATE_SECONDS) * 100
@@ -5353,9 +5429,6 @@ export default function QuotePage() {
         calculationInProgress &&
         calculationElapsedSeconds >= CALCULATION_STUCK_SECONDS;
     const showCalculationBanner = calculationInProgress;
-    const calculationBannerMessage = calculationInProgress
-        ? 'We berekenen nu de materialen en uren. Je kunt op deze pagina blijven; de uitkomst verschijnt automatisch.'
-        : 'Calculatie draait nog op de achtergrond. Waarden kunnen nog wijzigen tot de berekening volledig klaar is.';
 
     useEffect(() => {
         if (!firestore || !id) return;
@@ -5934,72 +6007,58 @@ export default function QuotePage() {
         });
     }, [detectedWorkDescriptionTemplate, toast, applyLocalWorkDescriptionUpdate]);
 
-    const LoadingPanel = () => (
-        <div className="flex flex-col items-center justify-center py-20 gap-6">
-            <div className="flex w-full max-w-sm flex-col items-center gap-3">
-                <div className={`font-medium tracking-wide ${isCalculationTimedOut ? 'text-rose-300' : 'text-emerald-400'}`}>
-                    {calculationInProgress
-                        ? isCalculationTimedOut
-                            ? 'ER IS IETS MISGEGAAN'
-                            : isDelayedCalculation
-                                ? 'Berekening in behandeling'
-                                : 'MATERIALEN BEREKENEN'
-                        : 'LADEN'}
+    const CalculationStatusNotice = () => (
+        <div className={cn(
+            'rounded-lg border px-3 py-2 text-sm',
+            isCalculationTimedOut
+                ? 'border-rose-500/30 bg-rose-500/10 text-rose-100'
+                : 'border-amber-500/25 bg-amber-500/10 text-amber-100',
+        )}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                    <div className="flex items-center gap-2 font-medium">
+                        {isCalculationTimedOut ? <AlertCircle className="h-4 w-4" /> : <Loader2 className="h-4 w-4 animate-spin" />}
+                        {isCalculationTimedOut ? 'Calculatie duurt langer dan verwacht' : 'Calculatie wordt op de achtergrond bijgewerkt'}
+                    </div>
+                    <p className="mt-0.5 text-xs opacity-80">
+                        Je kunt ondertussen gewoon blijven werken in deze offerte. Nieuwe materialen en uren verschijnen zodra ze beschikbaar zijn.
+                    </p>
                 </div>
-                <div className={`text-sm text-center ${isCalculationTimedOut ? 'text-rose-200' : calculationInProgress ? 'text-emerald-300 animate-pulse' : 'text-muted-foreground animate-pulse'}`}>
-                    {calculationInProgress
-                        ? isCalculationTimedOut
-                            ? 'De berekening duurt langer dan 20 minuten. Probeer de calculatie opnieuw.'
-                            : isDelayedCalculation
-                                ? 'De berekening duurt momenteel langer dan gemiddeld. We verwerken uw materialen en uren nog.'
-                                : 'De AI berekent de benodigde materialen en uren...'
-                        : 'Even geduld afrubelen...'}
-                </div>
-                {calculationInProgress && !isCalculationTimedOut && (
-                    <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
-                )}
-                {calculationInProgress && (
-                    isCalculationTimedOut ? (
-                        <div className="w-full space-y-3 pt-1">
-                            <div className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-center text-xs text-rose-200">
-                                De berekening is nog niet afgerond na 20 minuten.
-                            </div>
-                            <Button
-                                type="button"
-                                onClick={() => { void handleRetryCalculation(); }}
-                                disabled={isRetryingCalculation}
-                                className="w-full"
-                            >
-                                {isRetryingCalculation ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Calculatie opnieuw starten...
-                                    </>
-                                ) : (
-                                    'Calculatie opnieuw proberen'
-                                )}
-                            </Button>
+                {isCalculationTimedOut ? (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { void handleRetryCalculation(); }}
+                        disabled={isRetryingCalculation}
+                        className="shrink-0"
+                    >
+                        {isRetryingCalculation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Opnieuw proberen
+                    </Button>
+                ) : (
+                    <div className="w-full max-w-48 shrink-0 space-y-1">
+                        <div className="flex justify-between text-[11px] opacity-75">
+                            <span>{formatTimerValue(calculationElapsedSeconds)}</span>
+                            <span>{isDelayedCalculation ? 'loopt' : formatTimerValue(CALCULATION_ESTIMATE_SECONDS)}</span>
                         </div>
-                    ) : (
-                        <div className="w-full space-y-2 pt-1">
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span>{formatTimerValue(calculationElapsedSeconds)}</span>
-                                <span>{formatTimerValue(CALCULATION_ESTIMATE_SECONDS)}</span>
-                            </div>
-                            <div className="h-2 w-full overflow-hidden rounded-full border border-emerald-500/20 bg-emerald-950/50">
-                                <div
-                                    className="h-full rounded-full bg-gradient-to-r from-emerald-500/70 to-emerald-400 transition-[width] duration-1000 ease-linear"
-                                    style={{ width: `${calculationProgressPercentage}%` }}
-                                />
-                            </div>
-                            <div className="text-center text-xs text-muted-foreground">
-                                {isDelayedCalculation
-                                    ? 'U hoeft niets te doen; de resultaten verschijnen automatisch zodra de berekening is afgerond.'
-                                    : 'Gemiddelde reken tijd; 5 minuten'}
-                            </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-background/50">
+                            <div
+                                className="h-full rounded-full bg-amber-300/80 transition-[width] duration-1000 ease-linear"
+                                style={{ width: `${calculationProgressPercentage}%` }}
+                            />
                         </div>
-                    )
+                    </div>
                 )}
+            </div>
+        </div>
+    );
+
+    const PageLoadingNotice = ({ label = 'Gegevens laden...' }: { label?: string }) => (
+        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+                {label}
             </div>
         </div>
     );
@@ -6294,6 +6353,63 @@ export default function QuotePage() {
             <AppNavigation />
             {/* Header */}
             <header className="sticky top-0 z-50 border-b border-border bg-background/40 px-4 py-3 backdrop-blur-md sm:px-6 sm:py-4">
+                {!loading && (
+                    <div className="absolute right-3 top-3 sm:hidden">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-9 w-9 rounded-full border border-border/50 bg-background/35 text-muted-foreground/65 opacity-65 backdrop-blur-sm transition hover:bg-muted/50 hover:text-foreground hover:opacity-100"
+                                    aria-label="Meer acties"
+                                    title="Meer acties"
+                                >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuItem
+                                    onClick={handleOpenSplitQuoteDialog}
+                                    disabled={combinedMaterialItems.length === 0 && Number(normalizedData?.totaal_uren || 0) <= 0}
+                                >
+                                    <Scissors className="mr-2 h-4 w-4" />
+                                    Splits offerte
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setIsDuplicateQuoteOpen(true)}
+                                    disabled={isDuplicatingQuote}
+                                >
+                                    {isDuplicatingQuote ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Copy className="mr-2 h-4 w-4" />}
+                                    Kopieer offerte
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setIsPlanningTypeDialogOpen(true)}>
+                                    <CalendarDays className="mr-2 h-4 w-4" />
+                                    Inplannen
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setIsPdfSettingsOpen(true)}>
+                                    <Settings className="mr-2 h-4 w-4" />
+                                    PDF instellingen
+                                </DropdownMenuItem>
+                                {hasDeveloperWhatsAppAccess && (
+                                    <DropdownMenuItem onClick={() => setIsWhatsAppModalOpen(true)}>
+                                        <MessageCircle className="mr-2 h-4 w-4" />
+                                        WhatsApp
+                                    </DropdownMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    onClick={() => {
+                                        if (requireValidWorkDelivery()) setIsSendModalOpen(true);
+                                    }}
+                                >
+                                    <Mail className="mr-2 h-4 w-4" />
+                                    Versturen
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                )}
                 <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-center sm:flex-row sm:items-center sm:gap-4 sm:text-left">
                     <div className="flex w-full items-center justify-center sm:w-auto sm:justify-start">
                         <div>
@@ -6519,17 +6635,7 @@ export default function QuotePage() {
                     </div>
                 ) : (
                     <>
-                    {showCalculationBanner && (
-                        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-                            <div className="flex items-start gap-3">
-                                <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-amber-300" />
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-amber-200">Calculatie wordt uitgevoerd</p>
-                                    <p className="text-xs text-amber-100/80">{calculationBannerMessage}</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    {showCalculationBanner && <CalculationStatusNotice />}
                     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
                         <div className="relative z-30 pointer-events-auto rounded-xl border border-border bg-card p-2 sm:hidden">
                             <div className="overflow-x-auto">
@@ -7274,15 +7380,14 @@ export default function QuotePage() {
 
                         {/* Overzicht Tab */}
                         <TabsContent value="overzicht" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            {showCalculationLoadingPanel || loading ? (
-                                <LoadingPanel />
+                            {loading || calculationLoading || isEnsuringManualQuoteData ? (
+                                <PageLoadingNotice label={isEnsuringManualQuoteData ? 'Handmatige offerte-editor voorbereiden...' : 'Offertegegevens laden...'} />
                             ) : !calculation?.data_json ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                    <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-emerald-400" />
                                     <Package size={40} className="mx-auto text-emerald-400/80 mb-4" />
-                                    <h3 className="text-lg font-medium text-emerald-300 mb-2">Nog geen calculatie</h3>
-                                    <p className="text-emerald-200/80">
-                                        De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                    <h3 className="text-lg font-medium text-foreground mb-2">Offerte-editor niet geladen</h3>
+                                    <p className="text-muted-foreground">
+                                        De handmatige offertegegevens konden nog niet worden voorbereid. Vernieuw de pagina of probeer het opnieuw.
                                     </p>
                                 </div>
                             ) : (
@@ -7321,8 +7426,8 @@ export default function QuotePage() {
 
                         {canShowNacalculatieTab && (
                             <TabsContent value="nacalculatie" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                {showCalculationLoadingPanel || isUserLoading || !user ? (
-                                    <LoadingPanel />
+                                {isUserLoading || !user ? (
+                                    <PageLoadingNotice label="Gebruiker laden..." />
                                 ) : (
                                     <NacalculatieTab
                                         quoteId={id}
@@ -7334,20 +7439,19 @@ export default function QuotePage() {
                         )}
 
                         <TabsContent value="tekeningen" className="mt-6 space-y-6">
-                            {showCalculationLoadingPanel || loading ? <LoadingPanel /> : quote && <DrawingsTab quote={quote} />}
+                            {loading ? <PageLoadingNotice label="Tekeningen laden..." /> : quote && <DrawingsTab quote={quote} />}
                         </TabsContent>
 
                         {/* Materialen Tab */}
                         <TabsContent value="materialen" className="mt-6 space-y-6 pb-44 sm:pb-32">
-                            {showCalculationLoadingPanel || loading ? (
-                                <LoadingPanel />
+                            {loading || calculationLoading || isEnsuringManualQuoteData ? (
+                                <PageLoadingNotice label={isEnsuringManualQuoteData ? 'Handmatige offerte-editor voorbereiden...' : 'Materialen laden...'} />
                             ) : !calculation?.data_json ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                    <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-emerald-400" />
                                     <Package size={40} className="mx-auto text-emerald-400/80 mb-4" />
-                                    <h3 className="text-lg font-medium text-emerald-300 mb-2">Nog geen materialen</h3>
-                                    <p className="text-emerald-200/80">
-                                        De materiaalstaat wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                    <h3 className="text-lg font-medium text-emerald-300 mb-2">Offerte-editor niet geladen</h3>
+                                    <p className="text-muted-foreground">
+                                        De handmatige materialen-editor kon nog niet worden voorbereid. Vernieuw de pagina of probeer het opnieuw.
                                     </p>
                                 </div>
                             ) : (
@@ -7357,7 +7461,7 @@ export default function QuotePage() {
                                             <Clock size={48} className="mx-auto text-muted mb-4" />
                                             <h3 className="text-lg font-medium text-foreground mb-2">Nog geen uren</h3>
                                             <p className="text-muted-foreground">
-                                                De urenspecificatie wordt automatisch gegenereerd zodra de calculatie is voltooid.
+                                                Voeg uren toe via de calculatie of werk later de offertegegevens bij.
                                             </p>
                                         </div>
                                     ) : (
@@ -7653,15 +7757,15 @@ export default function QuotePage() {
                                     variant="outline"
                                     className="gap-2"
                                     onClick={() => setIsPdfFocusMode(true)}
-                                    disabled={showCalculationLoadingPanel || loading || !areDrawingsReady}
+                                    disabled={loading || !areDrawingsReady}
                                 >
                                     <Maximize2 className="h-4 w-4" />
                                     Focusmodus
                                 </Button>
                             </div>
 
-                            {showCalculationLoadingPanel || loading ? (
-                                <LoadingPanel />
+                            {loading ? (
+                                <PageLoadingNotice label="PDF laden..." />
                             ) : !areDrawingsReady ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
                                     <div className={cn("text-muted-foreground", showDrawingsWarning && "text-amber-300")}>
@@ -7682,19 +7786,15 @@ export default function QuotePage() {
                         </TabsContent>
 
                         <TabsContent value="werkbeschrijving" className="mt-6">
-                            {showCalculationLoadingPanel || loading ? (
-                                <LoadingPanel />
-                            ) : !calculation?.data_json ? (
-                                <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                    <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-emerald-400" />
-                                    <FileText size={48} className="mx-auto text-emerald-400 mb-4" />
-                                    <h3 className="text-lg font-medium text-emerald-300 mb-2">Nog geen Werk &amp; Levering</h3>
-                                    <p className="text-emerald-200/80">
-                                        Werk &amp; Levering kan worden gegenereerd zodra de calculatie is voltooid.
-                                    </p>
-                                </div>
+                            {loading ? (
+                                <PageLoadingNotice label="Werk & Levering laden..." />
                             ) : (
                                 <div className="space-y-4 pb-32">
+                                    {!calculation?.data_json && (
+                                        <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                                            Handmatige offertegegevens worden voorbereid. De editor wordt zo geladen.
+                                        </div>
+                                    )}
                                     <WorkDescriptionWorkspace
                                         value={workDescriptionStructured}
                                         mode={workDescriptionMode}
@@ -7733,7 +7833,7 @@ export default function QuotePage() {
 
                         <TabsContent value="bonnetjes" className="mt-6">
                             {loading ? (
-                                <LoadingPanel />
+                                <PageLoadingNotice label="Bonnetjes laden..." />
                             ) : (
                                 <div className="space-y-4 rounded-lg border border-border bg-card p-6">
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -7824,7 +7924,7 @@ export default function QuotePage() {
 
                         <TabsContent value="fotos" className="mt-6">
                             {loading ? (
-                                <LoadingPanel />
+                                <PageLoadingNotice label="Foto's laden..." />
                             ) : (
                                 <div className="space-y-4 rounded-lg border border-border bg-card p-6">
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -7867,7 +7967,6 @@ export default function QuotePage() {
                                                 variant="outline"
                                                 className="gap-2"
                                                 onClick={() => photoCameraInputRef.current?.click()}
-                                                disabled={isUploadingPhoto}
                                             >
                                                 {isUploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                                                 Foto maken
@@ -7877,7 +7976,6 @@ export default function QuotePage() {
                                                 variant="outline"
                                                 className="gap-2"
                                                 onClick={() => photoInputRef.current?.click()}
-                                                disabled={isUploadingPhoto}
                                             >
                                                 <Upload className="h-4 w-4" />
                                                 Foto uploaden
@@ -7955,7 +8053,7 @@ export default function QuotePage() {
 
                         <TabsContent value="materiaalpresentatie" className="mt-6">
                             {loading ? (
-                                <LoadingPanel />
+                                <PageLoadingNotice label="Materiaalpresentatie laden..." />
                             ) : (
                                 <MaterialPresentationTab
                                     items={materialPresentations}
@@ -7973,7 +8071,7 @@ export default function QuotePage() {
 
                         <TabsContent value="materiaallijst" className="mt-6">
                             {loading ? (
-                                <LoadingPanel />
+                                <PageLoadingNotice label="Materiaallijsten laden..." />
                             ) : (
                                 <div className="space-y-4 rounded-lg border border-border bg-card p-4 sm:p-6">
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -8030,7 +8128,7 @@ export default function QuotePage() {
 
                         <TabsContent value="notities" className="mt-6">
                             {loading ? (
-                                <LoadingPanel />
+                                <PageLoadingNotice label="Notities laden..." />
                             ) : (
                                 <div className="space-y-4 rounded-lg border border-border bg-card p-6">
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -402,6 +402,7 @@ export default function WinstPage() {
           body: JSON.stringify({
             periodType,
             periodRange,
+            dashboardSelectionOnly: true,
             jobTypes: selectedJobTypes,
             clientIds: selectedClientIds,
             projectIds: selectedProjectIds,
@@ -630,23 +631,14 @@ export default function WinstPage() {
   const derived = useMemo(() => {
     const projects = metrics?.projectPerformances ?? [];
     const withActual = projects.filter((project) => project.hasActualData);
-    const materialCostKeys = new Set<WinstCostCategoryKey>(['materialenGroot', 'materialenVerbruik']);
-
     const sumQuotedRevenue = projects.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
     const sumQuotedCost = projects.reduce(
       (sum, project) => sum + project.costBreakdown.reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
       0
     );
-    const sumQuotedMaterialCost = projects.reduce(
-      (sum, project) =>
-        sum +
-        project.costBreakdown
-          .filter((row) => materialCostKeys.has(row.key))
-          .reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
-      0
-    );
     const estimatedProfit = sumQuotedRevenue - sumQuotedCost;
-    const projectedProfitFromMaterials = sumQuotedRevenue - sumQuotedMaterialCost;
+    const projectedProfitInclBtw = projects.reduce((sum, project) => sum + project.projectedProfitInclBtw, 0);
+    const projectedProfitAfterLaborMarginVat = projects.reduce((sum, project) => sum + project.projectedProfitAfterLaborMarginVat, 0);
 
     const sumActualCostKnown = withActual.reduce((sum, project) => sum + project.actualCostExcl, 0);
     const sumActualRevenueScope = withActual.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
@@ -791,7 +783,8 @@ export default function WinstPage() {
       withActual,
       sumQuotedRevenue,
       estimatedProfit,
-      projectedProfitFromMaterials,
+      projectedProfitInclBtw,
+      projectedProfitAfterLaborMarginVat,
       sumActualCostKnown,
       actualProfitKnown,
       actualMarginKnown,
@@ -916,9 +909,15 @@ export default function WinstPage() {
                 />
                 <KPIItem
                   className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
-                  label="Geprojecteerde winst"
-                  value={formatCurrency(derived.projectedProfitFromMaterials)}
-                  tone={derived.projectedProfitFromMaterials >= 0 ? 'positive' : 'negative'}
+                  label="Winst na btw arbeid + marge"
+                  value={formatCurrency(derived.projectedProfitAfterLaborMarginVat)}
+                  tone={derived.projectedProfitAfterLaborMarginVat >= 0 ? 'positive' : 'negative'}
+                />
+                <KPIItem
+                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
+                  label="Winst met arbeid + marge incl. btw"
+                  value={formatCurrency(derived.projectedProfitInclBtw)}
+                  tone={derived.projectedProfitInclBtw >= 0 ? 'positive' : 'negative'}
                 />
                 <KPIItem
                   className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"

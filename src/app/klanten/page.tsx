@@ -272,6 +272,7 @@ export default function KlantenPage() {
 
       quotesSnap.docs.forEach((quoteDoc) => {
         const quoteData = quoteDoc.data() as any;
+        if (quoteData?.isCalculationTest === true) return;
         const ki = (quoteData?.klantinformatie || {}) as Record<string, unknown>;
 
         const quoteClientId = String(ki?.clientId || '').trim();

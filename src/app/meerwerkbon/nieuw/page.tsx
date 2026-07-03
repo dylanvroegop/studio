@@ -99,7 +99,7 @@ export default function NieuweMeerwerkbonPage() {
         const quoteSnap = await getDocs(quoteQuery);
         const rows = quoteSnap.docs
           .map((d) => ({ id: d.id, ...(d.data() as any) } as QuoteRow))
-          .filter((q) => !q.archived);
+          .filter((q) => !q.archived && (q as any).isCalculationTest !== true);
 
         rows.sort((a, b) => {
           const aMs = parseDate(a.updatedAt)?.getTime() ?? parseDate(a.createdAt)?.getTime() ?? 0;

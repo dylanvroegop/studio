@@ -31,6 +31,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { cleanFirestoreData } from '@/lib/clean-firestore';
+import { capitalizeSentenceStarts } from '@/lib/text-formatting';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -403,7 +404,7 @@ export function QuoteNotes({ quoteId }: QuoteNotesProps) {
                         <Textarea
                             placeholder={placeholderText}
                             value={newNoteContent}
-                            onChange={(e) => setNewNoteContent(e.target.value)}
+                            onChange={(e) => setNewNoteContent(capitalizeSentenceStarts(e.target.value))}
                             className="min-h-[100px] border-0 focus-visible:ring-0 rounded-none shadow-none resize-none bg-transparent placeholder:text-muted-foreground/50 selection:bg-amber-500/20"
                         />
                     </div>
@@ -462,7 +463,7 @@ export function QuoteNotes({ quoteId }: QuoteNotesProps) {
                                             <div className="border rounded-md overflow-hidden bg-background">
                                                 <Textarea
                                                     value={editContent}
-                                                    onChange={(e) => setEditContent(e.target.value)}
+                                                    onChange={(e) => setEditContent(capitalizeSentenceStarts(e.target.value))}
                                                     className="min-h-[80px] border-0 focus-visible:ring-0 rounded-none shadow-none bg-transparent"
                                                 />
                                             </div>

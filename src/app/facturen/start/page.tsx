@@ -80,7 +80,7 @@ export default function StartFactuurPage() {
         const snap = await getDocs(q);
         const list = snap.docs
           .map((d) => ({ id: d.id, ...(d.data() as any) } as QuoteRow))
-          .filter((quote) => !quote.archived);
+          .filter((quote) => !quote.archived && (quote as any).isCalculationTest !== true);
 
         list.sort((a, b) => {
           const aT = parseDate(a.updatedAt)?.getTime() ?? parseDate(a.createdAt)?.getTime() ?? 0;

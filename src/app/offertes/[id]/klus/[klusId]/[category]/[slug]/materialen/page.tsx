@@ -3094,6 +3094,7 @@ export default function GenericMaterialsPageRedesigned() {
 
         quoteSnapshot.docs.forEach((quoteDoc) => {
           const quoteData = quoteDoc.data() as any;
+          if (quoteData?.isCalculationTest === true) return;
           const quoteUpdatedAtMs = Math.max(
             toMillis(quoteData?.updatedAt),
             toMillis(quoteData?.createdAt)

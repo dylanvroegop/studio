@@ -126,18 +126,19 @@ function MateriaallijstenPageContent() {
     const unsubQuotes = onSnapshot(
       query(collection(firestore, 'quotes'), where('userId', '==', user.uid)),
       (snapshot) => {
-        const rows = snapshot.docs.map((docSnap) => {
+        const rows = snapshot.docs.flatMap((docSnap) => {
           const data = docSnap.data() as Record<string, unknown>;
+          if (data.isCalculationTest === true) return [];
           const clientName = getClientName(data);
           const quoteNumber = typeof data.offerteNummer === 'number' || typeof data.offerteNummer === 'string' ? data.offerteNummer : null;
           const title = getString(data.titel) || getString(data.werkomschrijving) || `Offerte ${quoteNumber || docSnap.id}`;
-          return {
+          return [{
             id: docSnap.id,
             quote_number: quoteNumber,
             quote_client_name: clientName,
             title,
             search: `${quoteNumber || ''} ${clientName} ${title}`.toLowerCase(),
-          };
+          }];
         });
         rows.sort((a, b) => String(b.quote_number || '').localeCompare(String(a.quote_number || '')));
         setQuotes(rows);

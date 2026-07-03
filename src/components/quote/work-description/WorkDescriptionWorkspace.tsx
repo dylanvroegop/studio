@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { WorkDescriptionStructured, type WorkDescriptionJob } from '@/lib/quote-calculations';
+import { capitalizeSentenceStarts } from '@/lib/text-formatting';
 import {
   DEFAULT_ELECTRICAL_SCOPE,
   enforceWorkDeliverySafety,
@@ -240,7 +241,7 @@ export function LegacyWorkDescriptionWorkspace({
 
   const changeRow = (key: RowKey, index: number, rowValue: string) => {
     const next = [...rows(activeJob[key])];
-    next[index] = key === 'materials' ? sanitizeMaterialDescription(rowValue) : rowValue;
+    next[index] = key === 'materials' ? sanitizeMaterialDescription(rowValue) : capitalizeSentenceStarts(rowValue);
     setField(key, ensureRows(next));
   };
 
@@ -364,10 +365,10 @@ export function LegacyWorkDescriptionWorkspace({
             </div>
             {activeJob.electricalScope.enabled ? (
               <div className="grid gap-3 rounded-lg border border-border/70 p-3 md:grid-cols-2">
-                <div className="space-y-1 md:col-span-2"><Label>Expliciete omschrijving elektrawerk</Label><Input value={activeJob.electricalScope.description} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, description: event.target.value })} /></div>
+                <div className="space-y-1 md:col-span-2"><Label>Expliciete omschrijving elektrawerk</Label><Input value={activeJob.electricalScope.description} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, description: capitalizeSentenceStarts(event.target.value) })} /></div>
                 <div className="space-y-1"><Label>Maximale kabellengte (meter, optioneel)</Label><Input type="number" min="0" value={activeJob.electricalScope.maxLengthMeters ?? ''} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, maxLengthMeters: event.target.value ? Number(event.target.value) : undefined })} /></div>
-                <div className="space-y-1"><Label>Inbegrepen onderdelen, één per regel</Label><Textarea value={activeJob.electricalScope.includedItems.join('\n')} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, includedItems: event.target.value.split('\n') })} /></div>
-                <div className="space-y-1 md:col-span-2"><Label>Uitgesloten onderdelen, één per regel</Label><Textarea value={activeJob.electricalScope.excludedItems.join('\n')} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, excludedItems: event.target.value.split('\n') })} /></div>
+                <div className="space-y-1"><Label>Inbegrepen onderdelen, één per regel</Label><Textarea value={activeJob.electricalScope.includedItems.join('\n')} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, includedItems: capitalizeSentenceStarts(event.target.value).split('\n') })} /></div>
+                <div className="space-y-1 md:col-span-2"><Label>Uitgesloten onderdelen, één per regel</Label><Textarea value={activeJob.electricalScope.excludedItems.join('\n')} onChange={(event) => setField('electricalScope', { ...activeJob.electricalScope, excludedItems: capitalizeSentenceStarts(event.target.value).split('\n') })} /></div>
               </div>
             ) : null}
           </div>
@@ -518,7 +519,7 @@ export function WorkDescriptionWorkspace({
       <Label className="text-sm font-semibold text-foreground">Werkzaamheden</Label>
       <Textarea
         value={rows(job.work_scope).join('\n\n')}
-        onChange={(event) => updateJobWorkText(jobIndex, event.target.value)}
+        onChange={(event) => updateJobWorkText(jobIndex, capitalizeSentenceStarts(event.target.value))}
         placeholder="Beschrijf de werkzaamheden voor deze klus"
         rows={6}
         className="min-h-40"

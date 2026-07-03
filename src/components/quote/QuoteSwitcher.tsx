@@ -17,6 +17,7 @@ interface QuoteItem {
     totaalbedrag?: number;
     amount?: number;
     createdAt?: Timestamp;
+    isCalculationTest?: boolean;
     klantinformatie?: {
         voornaam?: string;
         achternaam?: string;
@@ -52,8 +53,10 @@ export function QuoteSwitcher({ currentQuoteId }: QuoteSwitcherProps) {
 
             const snap = await getDocs(q);
             const items: QuoteItem[] = [];
-            snap.forEach(doc => {
-                items.push({ id: doc.id, ...doc.data() } as QuoteItem);
+            snap.forEach((docSnap) => {
+                const data = docSnap.data() as Omit<QuoteItem, 'id'>;
+                if (data.isCalculationTest === true) return;
+                items.push({ ...data, id: docSnap.id } as QuoteItem);
             });
 
             // Sort client-side by createdAt (most recent first)

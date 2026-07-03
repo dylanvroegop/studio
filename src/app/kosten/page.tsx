@@ -458,6 +458,7 @@ function KostenPageContent() {
     const data = snapshot.docs
       .map((docSnap) => {
         const raw = docSnap.data() as Record<string, unknown>;
+        if (raw.isCalculationTest === true) return null;
         const title = getQuoteTitle(raw);
         const clientName = getClientName(raw);
         const offerteNummer = Number.isFinite(Number(raw.offerteNummer))
@@ -477,6 +478,7 @@ function KostenPageContent() {
           updatedAtDate: toDate(raw.updatedAt) || toDate(raw.createdAt),
         };
       })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
       .sort((a, b) => {
         const left = a.updatedAtDate?.getTime() || 0;
         const right = b.updatedAtDate?.getTime() || 0;

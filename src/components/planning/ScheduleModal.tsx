@@ -153,10 +153,12 @@ export function ScheduleModal({
                     where('userId', '==', user.uid)
                 );
                 const snap = await getDocs(q);
-                const data = snap.docs.map(d => ({
-                    id: d.id,
-                    ...d.data()
-                })) as Quote[];
+                const data = snap.docs
+                    .map(d => ({
+                        id: d.id,
+                        ...d.data()
+                    }) as Quote & { isCalculationTest?: boolean })
+                    .filter((quote) => quote.isCalculationTest !== true) as Quote[];
 
                 data.sort((a, b) => {
                     const numA = a.offerteNummer || 0;

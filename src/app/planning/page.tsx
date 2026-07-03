@@ -159,6 +159,7 @@ function PlanningPageContent() {
                 const mapped: Record<string, { amount: number; totalHours: number | null; totalEarnings: number | null }> = {};
                 snap.docs.forEach((quoteDoc) => {
                     const raw = quoteDoc.data() as any;
+                    if (raw?.isCalculationTest === true) return;
                     const amount = Number(raw?.totaalbedrag || raw?.amount || 0) || 0;
                     const totalHoursRaw = Number(raw?.totaal_uren);
                     const earningsExcl = Number(raw?.totals?.arbeidTotaal || 0) + Number(raw?.totals?.winstMarge || 0);

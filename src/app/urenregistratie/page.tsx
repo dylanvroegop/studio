@@ -230,7 +230,9 @@ function UrenRegistratiePageContent() {
             try {
                 const q = query(collection(firestore, 'quotes'), where('userId', '==', user.uid));
                 const snap = await getDocs(q);
-                const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+                const data = snap.docs
+                    .map(d => ({ id: d.id, ...d.data() } as any))
+                    .filter((quote) => quote.isCalculationTest !== true);
                 data.sort((a, b) => {
                     const tA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
                     const tB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;

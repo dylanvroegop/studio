@@ -736,6 +736,7 @@ export default function OverzichtPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingTestError, setIsSendingTestError] = useState(false);
   const [billingQuota, setBillingQuota] = useState<BillingQuotaState | null>(null);
+  const isCalculationTest = (quote as any)?.isCalculationTest === true;
 
   // Job delete
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -1170,20 +1171,22 @@ export default function OverzichtPage() {
   const tunnelkostenNum = useMemo(() => euroNLToNumberOrNull(tunnelkosten), [tunnelkosten]);
 
   const transportIsValid = useMemo(() => {
+    if (isCalculationTest) return true;
     if (transportMode === 'none') return true;
     if (transportMode === 'perKm') return prijsPerKmNum !== null && prijsPerKmNum > 0;
     if (transportMode === 'fixed') return vasteTransportNum !== null && vasteTransportNum > 0;
     return false;
-  }, [transportMode, prijsPerKmNum, vasteTransportNum]);
+  }, [isCalculationTest, transportMode, prijsPerKmNum, vasteTransportNum]);
 
   const winstMode = winstMarge.mode;
 
   const winstMargeIsValid = useMemo(() => {
+    if (isCalculationTest) return true;
     if (winstMode === 'none') return true;
     if (winstMode === 'percentage') return typeof winstMarge.percentage === 'number' && winstMarge.percentage > 0;
     if (winstMode === 'fixed') return typeof winstMarge.fixedAmount === 'number' && winstMarge.fixedAmount > 0;
     return false;
-  }, [winstMarge, winstMode]);
+  }, [isCalculationTest, winstMarge, winstMode]);
 
   const stats = useMemo(() => {
     const totaal = jobs.length;
@@ -1198,13 +1201,12 @@ export default function OverzichtPage() {
       pending,
       transportIsValid,
       winstMargeIsValid,
-      isReady: totaal > 0 && incompleet === 0 && pending === 0 && transportIsValid && winstMargeIsValid,
+      isReady: totaal > 0 && incompleet === 0 && transportIsValid && winstMargeIsValid,
     };
   }, [jobs, transportIsValid, winstMargeIsValid]);
 
   const primaryHint = useMemo(() => {
     if (stats.totaal === 0) return 'Voeg minimaal 1 klus toe.';
-    if (stats.pending > 0) return 'Nieuwe materialen worden nog op de achtergrond verwerkt. Wacht even met berekenen.';
     if (stats.incompleet > 0) return 'Er zijn nog onvolledige klussen. Werk ze eerst af.';
     if (!stats.transportIsValid) return 'Transport is niet ingevuld. Kies "Geen" of vul een bedrag in.';
     if (!stats.winstMargeIsValid) return 'Winstmarge is niet ingevuld. Kies "Geen" of vul een bedrag/percentage in.';
@@ -1222,6 +1224,12 @@ export default function OverzichtPage() {
     const remaining = billingQuota.remainingJobs;
     return typeof remaining === 'number' && remaining >= 0 && remaining <= 10;
   }, [billingQuota]);
+
+  const pendingMaterialProgress = useMemo(() => {
+    if (stats.totaal <= 0) return 0;
+    const processed = Math.max(0, stats.totaal - stats.pending);
+    return Math.min(100, Math.max(8, Math.round((processed / stats.totaal) * 100)));
+  }, [stats.pending, stats.totaal]);
 
   const statusVariant = useMemo(() => {
     if (stats.totaal === 0) return 'warn';
@@ -2266,7 +2274,7 @@ export default function OverzichtPage() {
       return;
     }
 
-    if (!defaultsConfirmed) {
+    if (!isCalculationTest && !defaultsConfirmed) {
       setPopupSaveTransport(true);
       setPopupSaveWinst(true);
       setStandaardenPopupOpen(true);
@@ -2444,44 +2452,6 @@ export default function OverzichtPage() {
             <div className="pt-4">
               <Button variant="outline" onClick={() => router.push('/dashboard')}>
                 Terug
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (calculatorUnavailable) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="max-w-xl w-full border-amber-500/30 bg-background/95">
-          <CardHeader className="space-y-3">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
-              <AlertTriangle className="h-5 w-5" />
-            </div>
-            <CardTitle>Calculator tijdelijk niet beschikbaar</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Onze calculator is op dit moment tijdelijk uit door onderhoud of een storing bij de verwerkingsserver.
-              Je gegevens zijn al opgeslagen.
-            </p>
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-200">
-              Probeer het over ongeveer 1 uur opnieuw.
-            </div>
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Button
-                variant="success"
-                onClick={() => {
-                  setCalculatorUnavailable(false);
-                  void handleFinishQuote();
-                }}
-              >
-                Nu opnieuw proberen
-              </Button>
-              <Button variant="outline" onClick={() => router.push('/dashboard')}>
-                Naar dashboard
               </Button>
             </div>
           </CardContent>
@@ -3205,6 +3175,55 @@ export default function OverzichtPage() {
 
       <div className="flex-1 px-4 py-6 md:py-10 pb-[14rem] sm:pb-[9rem]">
         <div className="mx-auto max-w-5xl space-y-6 sm:space-y-8">
+          {calculatorUnavailable && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-amber-900 shadow-sm dark:text-amber-100">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">Calculator tijdelijk niet beschikbaar</div>
+                    <div className="text-xs text-amber-800/80 dark:text-amber-100/75">
+                      Je offerte blijft gewoon bewerkbaar. Probeer de berekening later opnieuw.
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full border-amber-500/30 bg-amber-500/10 text-amber-900 hover:bg-amber-500/15 dark:text-amber-100 sm:w-auto"
+                  onClick={() => {
+                    setCalculatorUnavailable(false);
+                    void handleFinishQuote();
+                  }}
+                >
+                  Opnieuw proberen
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {stats.pending > 0 && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-amber-900 shadow-sm dark:text-amber-100">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
+                  <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-amber-500" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">Materialen worden op de achtergrond verwerkt</div>
+                    <div className="text-xs text-amber-800/80 dark:text-amber-100/75">
+                      {stats.pending} klus{stats.pending === 1 ? '' : 'sen'} wachten nog op materiaalverwerking. Je kunt de offerte gewoon bekijken en bewerken.
+                    </div>
+                  </div>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-amber-500/15 sm:w-44">
+                  <div
+                    className="h-full rounded-full bg-amber-400 transition-all duration-500"
+                    style={{ width: `${pendingMaterialProgress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Klussen */}
           <TooltipProvider>

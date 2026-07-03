@@ -2256,9 +2256,9 @@ export function MaterialSelectionModal({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
           className={cn(
-            "w-[95vw] p-0 transition-all duration-200",
+            "w-[98vw] p-0 transition-all duration-200",
             step === 'search'
-              ? "max-w-[1200px] h-[88vh] flex flex-col overflow-hidden gap-0"
+              ? "max-w-[1800px] h-[92vh] flex flex-col overflow-hidden gap-0"
               : "sm:max-w-[640px] h-auto block"
           )}
         >
@@ -2266,12 +2266,12 @@ export function MaterialSelectionModal({
           {/* === STEP 1: SEARCH & FILTER === */}
           {step === 'search' && (
             <>
-              <div className="flex-1 min-h-0 border-t grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
-                <aside className="hidden lg:flex flex-col border-r border-border/60 min-h-0">
-                  <div className="px-3 py-2 border-b border-border/60">
+              <div className="flex-1 min-h-0 border-t grid grid-cols-1 lg:grid-cols-[minmax(520px,32vw)_minmax(0,1fr)]">
+                <aside className="hidden lg:grid grid-cols-[minmax(210px,0.9fr)_minmax(260px,1.1fr)] grid-rows-[auto_minmax(0,1fr)] border-r border-border/60 min-h-0">
+                  <div className="col-span-2 px-3 py-2 border-b border-border/60">
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Filters</p>
                   </div>
-                  <div className="p-2 border-b border-border/60">
+                  <div className="min-h-0 overflow-y-auto p-2 border-r border-border/60">
                     <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium mb-2">Categorie</div>
                     <button
                       type="button"
@@ -2346,71 +2346,73 @@ export function MaterialSelectionModal({
                       </div>
                     )}
                   </div>
-                  <div className="px-3 py-2 border-b border-border/60">
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Subcategorie</p>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setSubCategoryFilter('all')}
-                      className={cn(
-                        "w-full flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors",
-                        isAllSubCategoriesSelected
-                          ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
-                          : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
-                      )}
-                    >
-                      <span>Alles</span>
-                      <span className="text-[10px] opacity-70">{materialsAfterCategoryFilter.length}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toggleSubCategorySelection(FAVORITE_SUBCATEGORY_FILTER)}
-                      className={cn(
-                        "w-full flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors",
-                        isSubCategorySelected(FAVORITE_SUBCATEGORY_FILTER)
-                          ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
-                          : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
-                      )}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                        Favorieten
-                      </span>
-                      <span className="text-[10px] opacity-70">{favoriteMaterialsCount}</span>
-                    </button>
-                    {availableSubCategories.map((subCat) => {
-                      const isFavoriteSubCategory = favoriteSubCategories.includes(subCat);
-                      return (
-                        <div key={subCat} className="w-full flex items-center gap-1">
-                          <button
-                            type="button"
-                            aria-label={isFavoriteSubCategory ? `Verwijder favoriet ${subCat}` : `Maak favoriet ${subCat}`}
-                            title={isFavoriteSubCategory ? 'Favoriet verwijderen' : 'Favoriet maken'}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleFavoriteSubCategory(subCat);
-                            }}
-                            className="h-7 w-7 shrink-0 rounded-md border border-muted-foreground/25 flex items-center justify-center hover:border-emerald-500/50 hover:bg-muted/40 transition-colors"
-                          >
-                            <Star className={cn("h-3.5 w-3.5", isFavoriteSubCategory ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/40")} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleSubCategorySelection(subCat)}
-                            className={cn(
-                              "flex-1 flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
-                              isSubCategorySelected(subCat)
-                                ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
-                                : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
-                            )}
-                          >
-                            <span className="truncate pr-2">{subCat}</span>
-                            <span className="text-[10px] opacity-70 shrink-0">{subCategoryCounts.get(subCat) || 0}</span>
-                          </button>
-                        </div>
-                      );
-                    })}
+                  <div className="min-h-0 flex flex-col">
+                    <div className="px-3 py-2 border-b border-border/60">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Subcategorie</p>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSubCategoryFilter('all')}
+                        className={cn(
+                          "w-full flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+                          isAllSubCategoriesSelected
+                            ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                            : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                        )}
+                      >
+                        <span>Alles</span>
+                        <span className="text-[10px] opacity-70">{materialsAfterCategoryFilter.length}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleSubCategorySelection(FAVORITE_SUBCATEGORY_FILTER)}
+                        className={cn(
+                          "w-full flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+                          isSubCategorySelected(FAVORITE_SUBCATEGORY_FILTER)
+                            ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                            : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                        )}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                          Favorieten
+                        </span>
+                        <span className="text-[10px] opacity-70">{favoriteMaterialsCount}</span>
+                      </button>
+                      {availableSubCategories.map((subCat) => {
+                        const isFavoriteSubCategory = favoriteSubCategories.includes(subCat);
+                        return (
+                          <div key={subCat} className="w-full flex items-center gap-1">
+                            <button
+                              type="button"
+                              aria-label={isFavoriteSubCategory ? `Verwijder favoriet ${subCat}` : `Maak favoriet ${subCat}`}
+                              title={isFavoriteSubCategory ? 'Favoriet verwijderen' : 'Favoriet maken'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFavoriteSubCategory(subCat);
+                              }}
+                              className="h-7 w-7 shrink-0 rounded-md border border-muted-foreground/25 flex items-center justify-center hover:border-emerald-500/50 hover:bg-muted/40 transition-colors"
+                            >
+                              <Star className={cn("h-3.5 w-3.5", isFavoriteSubCategory ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/40")} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleSubCategorySelection(subCat)}
+                              className={cn(
+                                "flex-1 flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
+                                isSubCategorySelected(subCat)
+                                  ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
+                                  : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
+                              )}
+                            >
+                              <span className="truncate pr-2">{subCat}</span>
+                              <span className="text-[10px] opacity-70 shrink-0">{subCategoryCounts.get(subCat) || 0}</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </aside>
 

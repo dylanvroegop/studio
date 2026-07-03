@@ -118,6 +118,7 @@ function parseFilters(body: unknown): WinstMetricsFiltersInput {
   return {
     periodType: source.periodType === 'week' ? 'week' : 'month',
     periodRange: safeNumber(source.periodRange),
+    dashboardSelectionOnly: source.dashboardSelectionOnly === true,
     jobTypes: Array.isArray(source.jobTypes) ? source.jobTypes.map((item) => String(item)) : [],
     clientIds: Array.isArray(source.clientIds) ? source.clientIds.map((item) => String(item)) : [],
     projectIds: Array.isArray(source.projectIds) ? source.projectIds.map((item) => String(item)) : [],
@@ -333,6 +334,7 @@ export async function POST(req: Request) {
           clientId: normalizeClientId(clientName),
           clientName,
           status: safeString(data.status) || undefined,
+          includeInDashboard: data.includeInDashboard === true,
           createdAt: parseDate(data.createdAt),
           updatedAt: parseDate(data.updatedAt),
           quotedRevenueIncl: safeNumber(data.totaalbedrag) || safeNumber(data.amount),

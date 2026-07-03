@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { capitalizeSentenceStarts } from '@/lib/text-formatting';
 
 interface WorkDescriptionSectionEditorProps {
   title: string;
@@ -44,7 +45,7 @@ export function WorkDescriptionSectionEditor({
             <span className="w-6 shrink-0 text-center text-xs text-muted-foreground">{index + 1}</span>
             <Input
               value={row}
-              onChange={(e) => onChangeRow(index, e.target.value)}
+              onChange={(e) => onChangeRow(index, capitalizeSentenceStarts(e.target.value))}
               placeholder={placeholder}
               className="h-9"
             />

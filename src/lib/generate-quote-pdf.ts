@@ -833,7 +833,8 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             structuredJobs.forEach((job, jobIndex) => {
                 const isLastJob = jobIndex === structuredJobs.length - 1;
                 const cardHeight = measureJobCard(job, isLastJob);
-                if (jobsOnCurrentPage >= 2 || y + cardHeight > pageHeight - bottomMargin) {
+                const currentPageHasWorkDescriptionContent = jobsOnCurrentPage > 0;
+                if (currentPageHasWorkDescriptionContent && (jobsOnCurrentPage >= 2 || y + cardHeight > pageHeight - bottomMargin)) {
                     startWorkDescriptionPage();
                 }
 

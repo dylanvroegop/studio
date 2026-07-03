@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import {
   Archive,
+  BarChart3,
   FileText,
   Loader2,
   MoreHorizontal,
@@ -69,6 +70,7 @@ type QuoteRow = Quote & {
   archived?: boolean;
   archivedAt?: Timestamp;
   archivedBy?: string;
+  includeInDashboard?: boolean;
   amount?: number;
   totaalbedrag?: number;
   offerteNummer?: number;
@@ -602,6 +604,7 @@ export default function OffertesPage() {
   const [archiveTarget, setArchiveTarget] = useState<QuoteRow | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [updatingAcceptanceQuoteId, setUpdatingAcceptanceQuoteId] = useState<string | null>(null);
+  const [updatingDashboardQuoteId, setUpdatingDashboardQuoteId] = useState<string | null>(null);
   const isSyncingTotalsRef = useRef(false);
   const isSyncingHoofdtitelsRef = useRef(false);
   const fetchedHoofdtitelIdsRef = useRef<Set<string>>(new Set());
@@ -666,7 +669,8 @@ export default function OffertesPage() {
               createdAtDate: naarDate(raw?.createdAt),
               updatedAtDate: naarDate(raw?.updatedAt),
             } as QuoteRow;
-          });
+          })
+          .filter((quote) => (quote as any).isCalculationTest !== true);
 
         data.sort((a, b) => {
           const aNum = typeof a.offerteNummer === 'number' ? a.offerteNummer : 0;
@@ -1266,6 +1270,23 @@ export default function OffertesPage() {
     }
   }
 
+  async function toggleQuoteDashboardSelection(quote: QuoteRow): Promise<void> {
+    if (!firestore || updatingDashboardQuoteId) return;
+    setUpdatingDashboardQuoteId(quote.id);
+    setError(null);
+    try {
+      await updateDoc(doc(firestore, 'quotes', quote.id), {
+        includeInDashboard: quote.includeInDashboard !== true,
+        dashboardSelectionUpdatedAt: serverTimestamp(),
+      } as any);
+    } catch (e: any) {
+      console.error('Kon dashboard selectie niet wijzigen:', e);
+      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon dashboard selectie niet wijzigen.'}`);
+    } finally {
+      setUpdatingDashboardQuoteId(null);
+    }
+  }
+
   const handleSelectExistingClient = (clientId: string): void => {
     if (creatingQuoteRef.current) return;
     setSelectedClientId(clientId);
@@ -1648,6 +1669,9 @@ export default function OffertesPage() {
                 const isArchived = !!q.archived;
                 const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
                 const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
+                const isIncludedInDashboard = q.includeInDashboard === true;
+                const isDashboardEligible = !isArchived && effectiveStatus === 'geaccepteerd';
+                const isUpdatingDashboard = updatingDashboardQuoteId === q.id;
                 const statusStyles = getOfferteStatusStyles(effectiveStatus, hasCalculated, isArchived);
                 const showUncalculatedPlaceholder = !hasCalculated && (effectiveStatus === 'in_behandeling' || effectiveStatus === 'concept');
                 const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
@@ -1757,6 +1781,17 @@ export default function OffertesPage() {
                                 Status: Concept
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                disabled={!isDashboardEligible || isUpdatingDashboard}
+                                onSelect={() => {
+                                  if (!isDashboardEligible || isUpdatingDashboard) return;
+                                  void toggleQuoteDashboardSelection(q);
+                                }}
+                              >
+                                <BarChart3 className="mr-2 h-4 w-4" />
+                                {isIncludedInDashboard ? 'Niet in dashboard' : 'Gebruik voor dashboard'}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
                               {isArchived ? (
                                 <DropdownMenuItem
                                   onSelect={() => {
@@ -1801,6 +1836,9 @@ export default function OffertesPage() {
                 const isArchived = !!q.archived;
                 const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
                 const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
+                const isIncludedInDashboard = q.includeInDashboard === true;
+                const isDashboardEligible = !isArchived && effectiveStatus === 'geaccepteerd';
+                const isUpdatingDashboard = updatingDashboardQuoteId === q.id;
                 const statusStyles = getOfferteStatusStyles(effectiveStatus, hasCalculated, isArchived);
                 const showUncalculatedPlaceholder = !hasCalculated && (effectiveStatus === 'in_behandeling' || effectiveStatus === 'concept');
                 const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
@@ -1888,6 +1926,34 @@ export default function OffertesPage() {
                           Bekijk offerte
                         </Button>
 
+                        <Button
+                          variant={isIncludedInDashboard ? 'default' : 'outline'}
+                          size="sm"
+                          disabled={!isDashboardEligible || isUpdatingDashboard}
+                          className={cn(
+                            'h-9 gap-2 whitespace-nowrap transition-all duration-150 active:scale-[0.98]',
+                            isIncludedInDashboard
+                              ? 'border border-cyan-400/40 bg-cyan-500/25 text-cyan-100 hover:bg-cyan-500/35 hover:text-white'
+                              : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 hover:text-white',
+                          )}
+                          aria-pressed={isIncludedInDashboard}
+                          aria-label={isIncludedInDashboard ? 'Niet gebruiken voor dashboard' : 'Gebruik voor dashboard'}
+                          title={isDashboardEligible ? undefined : 'Alleen geaccepteerde offertes tellen mee in dashboard'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            if (!isDashboardEligible || isUpdatingDashboard) return;
+                            void toggleQuoteDashboardSelection(q);
+                          }}
+                        >
+                          {isUpdatingDashboard ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <BarChart3 className="h-3.5 w-3.5" />
+                          )}
+                          {isIncludedInDashboard ? 'In dashboard' : 'Gebruik voor dashboard'}
+                        </Button>
+
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -1949,6 +2015,17 @@ export default function OffertesPage() {
                               }}
                             >
                               Status: Concept
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              disabled={!isDashboardEligible || isUpdatingDashboard}
+                              onSelect={() => {
+                                if (!isDashboardEligible || isUpdatingDashboard) return;
+                                void toggleQuoteDashboardSelection(q);
+                              }}
+                            >
+                              <BarChart3 className="mr-2 h-4 w-4" />
+                              {isIncludedInDashboard ? 'Niet in dashboard' : 'Gebruik voor dashboard'}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             {isArchived ? (

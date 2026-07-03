@@ -34,6 +34,7 @@ const CATEGORY_LABELS: Record<WinstCostCategoryKey, string> = {
 export interface WinstMetricsFiltersInput {
   periodType?: WinstPeriodType;
   periodRange?: number;
+  dashboardSelectionOnly?: boolean;
   jobTypes?: string[];
   clientIds?: string[];
   projectIds?: string[];
@@ -46,6 +47,7 @@ export interface WinstQuoteSource {
   clientId: string;
   clientName: string;
   status?: string;
+  includeInDashboard?: boolean;
   createdAt: Date | null;
   updatedAt: Date | null;
   quotedRevenueIncl: number;
@@ -118,6 +120,8 @@ interface QuotedSnapshot {
   transport: number;
   materieel: number;
   overhead: number;
+  winstMetArbeidMargeInclBtw: number;
+  winstNaBtwArbeidEnMarge: number;
   quotedHours: number;
   quotedDays: number;
   quotedTransportKm: number;
@@ -171,6 +175,7 @@ function normalizeFilters(filters: WinstMetricsFiltersInput): Required<WinstMetr
   return {
     periodType,
     periodRange: clampPeriodRange(filters.periodRange, periodType),
+    dashboardSelectionOnly: filters.dashboardSelectionOnly === true,
     jobTypes: Array.from(new Set((filters.jobTypes ?? []).map((item) => String(item).trim()).filter(Boolean))),
     clientIds: Array.from(new Set((filters.clientIds ?? []).map((item) => String(item).trim()).filter(Boolean))),
     projectIds: Array.from(new Set((filters.projectIds ?? []).map((item) => String(item).trim()).filter(Boolean))),
@@ -249,6 +254,11 @@ function isDateWithinRange(value: Date | null, range: { start: Date; end: Date }
   return timestamp >= range.start.getTime() && timestamp <= range.end.getTime();
 }
 
+function isDashboardSelected(quote: WinstQuoteSource, dashboardSelectionOnly: boolean): boolean {
+  if (!dashboardSelectionOnly) return true;
+  return quote.includeInDashboard === true;
+}
+
 function calcVarianceStatus(quotedExcl: number, actualExcl: number, diffPct: number): WinstVarianceStatus {
   if (actualExcl <= quotedExcl) return 'green';
   if (quotedExcl <= 0 && actualExcl > 0) return 'red';
@@ -321,6 +331,8 @@ function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<st
       transport: 0,
       materieel: quote.quotedMaterieelExcl,
       overhead: quote.quotedOverheadExcl,
+      winstMetArbeidMargeInclBtw: 0,
+      winstNaBtwArbeidEnMarge: 0,
       quotedHours: 0,
       quotedDays: 0,
       quotedTransportKm: 0,
@@ -341,6 +353,8 @@ function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<st
       transport: safeNumber(totals.transportTotaal),
       materieel: quote.quotedMaterieelExcl,
       overhead: quote.quotedOverheadExcl,
+      winstMetArbeidMargeInclBtw: safeNumber(totals.winstProjectie?.winstInclBtw),
+      winstNaBtwArbeidEnMarge: safeNumber(totals.winstProjectie?.winstNaBtwArbeidEnMarge),
       quotedHours,
       quotedDays: hoursToDays(quotedHours),
       quotedTransportKm: safeNumber(transportCalc.roundTripDistanceKm) || safeNumber(transportCalc.distanceKm) || 0,
@@ -353,6 +367,8 @@ function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<st
       transport: 0,
       materieel: quote.quotedMaterieelExcl,
       overhead: quote.quotedOverheadExcl,
+      winstMetArbeidMargeInclBtw: 0,
+      winstNaBtwArbeidEnMarge: 0,
       quotedHours: 0,
       quotedDays: 0,
       quotedTransportKm: 0,
@@ -815,6 +831,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
   const vatFilingPeriodMonths: 1 | 3 = input.vatFilingPeriodMonths === 1 ? 1 : 3;
   const vatPeriodStartMonth = normalizeStartMonth(input.vatPeriodStartMonth);
   const vatRange = buildVatRange(now, vatFilingPeriodMonths, vatPeriodStartMonth);
+  const scopedQuotes = input.quotes.filter((quote) => isDashboardSelected(quote, normalizedFilters.dashboardSelectionOnly));
 
   const calculationByQuoteId = new Map<string, WinstCalculationSource>();
   input.calculations.forEach((row) => {
@@ -854,7 +871,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     });
   });
 
-  const visibleQuotes = input.quotes.filter((quote) => {
+  const visibleQuotes = scopedQuotes.filter((quote) => {
     const baseDate = quote.updatedAt || quote.createdAt;
     if (!isDateWithinRange(baseDate, range)) return false;
     if (normalizedFilters.projectIds.length > 0 && !normalizedFilters.projectIds.includes(quote.id)) return false;
@@ -900,7 +917,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     }
   );
 
-  const relevantQuotes = input.quotes.filter((quote) => {
+  const relevantQuotes = scopedQuotes.filter((quote) => {
     const quoteStatus = String(quote.status || '').trim().toLowerCase();
     if (quoteStatus !== 'geaccepteerd') return false;
     const baseDate = quote.updatedAt || quote.createdAt;
@@ -919,8 +936,8 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
   const relevantQuoteIds = new Set(relevantQuotes.map((quote) => quote.id));
   const quotedRevenueByQuoteId = new Map(relevantQuotes.map((quote) => [quote.id, Math.max(0, safeNumber(quote.quotedRevenueIncl))]));
 
-  const completedFinalInvoiceQuoteIds = buildFinalInvoiceStateByQuoteId(input.quotes, input.invoices, vatRange);
-  const vatRelevantQuotes = input.quotes.filter((quote) => {
+  const completedFinalInvoiceQuoteIds = buildFinalInvoiceStateByQuoteId(scopedQuotes, input.invoices, vatRange);
+  const vatRelevantQuotes = scopedQuotes.filter((quote) => {
     const quoteStatus = String(quote.status || '').trim().toLowerCase();
     if (quoteStatus !== 'geaccepteerd') return false;
     return completedFinalInvoiceQuoteIds.has(quote.id);
@@ -1072,6 +1089,8 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
       hasActualData: actual.hasAnyActualData,
       dataQualityIssue,
       quotedRevenueIncl,
+      projectedProfitInclBtw: quoted.winstMetArbeidMargeInclBtw,
+      projectedProfitAfterLaborMarginVat: quoted.winstNaBtwArbeidEnMarge,
       receivedCashIncl,
       actualCostExcl,
       netProfitQuoteBasis,
@@ -1261,22 +1280,22 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
 
   const uniqueFilterOptions = {
     jobTypes: Array.from(
-      new Set(input.quotes.flatMap((quote) => quote.jobTypes).filter(Boolean))
+      new Set(scopedQuotes.flatMap((quote) => quote.jobTypes).filter(Boolean))
     )
       .map((jobType) => ({ id: jobType, label: jobType }))
       .sort((a, b) => a.label.localeCompare(b.label, 'nl-NL')),
     clients: Array.from(
-      new Set(input.quotes.map((quote) => quote.clientId).filter(Boolean))
+      new Set(scopedQuotes.map((quote) => quote.clientId).filter(Boolean))
     )
       .map((clientId) => {
-        const match = input.quotes.find((quote) => quote.clientId === clientId);
+        const match = scopedQuotes.find((quote) => quote.clientId === clientId);
         return {
           id: clientId,
           label: match?.clientName || clientId,
         };
       })
       .sort((a, b) => a.label.localeCompare(b.label, 'nl-NL')),
-    projects: input.quotes
+    projects: scopedQuotes
       .map((quote) => ({
         id: quote.id,
         label: quote.offerteNummer ? `#${quote.offerteNummer} • ${quote.title}` : quote.title,

@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { getIdTokenResult } from 'firebase/auth';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote, Landmark, ClipboardList, Euro } from 'lucide-react';
+import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus, StickyNote, Landmark, ClipboardList, Euro, Calculator } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -92,6 +92,13 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
         icon: ClipboardList,
         iconColorClass: 'text-emerald-400',
         iconColorClassActive: 'text-emerald-300',
+    },
+    {
+        href: '/calculation-test',
+        label: 'calculation test',
+        icon: Calculator,
+        iconColorClass: 'text-fuchsia-400',
+        iconColorClassActive: 'text-fuchsia-300',
     },
     {
         href: '/klanten',

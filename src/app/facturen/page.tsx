@@ -147,7 +147,9 @@ export default function FacturenPage() {
         const ref = collection(firestore, 'quotes');
         const q = query(ref, where('userId', '==', user.uid));
         const snap = await getDocs(q);
-        const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        const arr = snap.docs
+          .map((d) => ({ id: d.id, ...(d.data() as any) }))
+          .filter((quote) => quote.isCalculationTest !== true);
         arr.sort((a, b) => {
           const aT = naarDate(a.updatedAt)?.getTime() ?? naarDate(a.createdAt)?.getTime() ?? 0;
           const bT = naarDate(b.updatedAt)?.getTime() ?? naarDate(b.createdAt)?.getTime() ?? 0;

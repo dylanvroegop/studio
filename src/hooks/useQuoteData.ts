@@ -29,6 +29,45 @@ interface ApiErrorPayload {
 
 class TransientApiResponseError extends Error {}
 
+const WORK_DESCRIPTION_FIELDS = [
+    'korteTitel',
+    'korteBeschrijving',
+    'korte_titel',
+    'korte_beschrijving',
+    'werkbeschrijving',
+    'werkbeschrijving_jobs',
+    'werkbeschrijving_structured',
+    'werkbeschrijvingJobs',
+    'werkbeschrijvingStructured',
+] as const;
+
+function rootObject(value: unknown): Record<string, unknown> | null {
+    const root = Array.isArray(value) ? value[0] : value;
+    return root && typeof root === 'object' && !Array.isArray(root)
+        ? root as Record<string, unknown>
+        : null;
+}
+
+function preserveWorkDescriptionFields<T>(nextDataJson: T, currentDataJson: unknown): T {
+    const nextRoot = rootObject(nextDataJson);
+    const currentRoot = rootObject(currentDataJson);
+    if (!nextRoot || !currentRoot) return nextDataJson;
+
+    let changed = false;
+    const mergedRoot = { ...nextRoot };
+    for (const field of WORK_DESCRIPTION_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(nextRoot, field)) continue;
+        if (!Object.prototype.hasOwnProperty.call(currentRoot, field)) continue;
+        mergedRoot[field] = currentRoot[field];
+        changed = true;
+    }
+
+    if (!changed) return nextDataJson;
+    return (Array.isArray(nextDataJson)
+        ? [mergedRoot, ...nextDataJson.slice(1)]
+        : mergedRoot) as T;
+}
+
 async function parseApiJson<T extends ApiErrorPayload>(response: Response): Promise<T> {
     const contentType = response.headers.get('content-type') || '';
     const rawBody = await response.text();
@@ -70,13 +109,20 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
         : 5000;
     const preferCompletedFallback = options?.preferCompletedFallback !== false;
     const [calculation, setCalculation] = useState<QuoteCalculation | null>(null);
+    const [latestCalculationStatus, setLatestCalculationStatus] = useState<QuoteCalculation['status'] | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [refreshIndex, setRefreshIndex] = useState(0);
     const calculationRef = useRef<QuoteCalculation | null>(null);
     const lastSyncedDataJsonSignatureRef = useRef<string | null>(null);
     const latestRequestedDataJsonSignatureRef = useRef<string | null>(null);
     const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
     const mutationVersionRef = useRef(0);
+
+    const refetch = useCallback(() => {
+        setLoading(true);
+        setRefreshIndex((value) => value + 1);
+    }, []);
 
     useEffect(() => {
         calculationRef.current = calculation;
@@ -117,17 +163,22 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                     ok?: boolean;
                     message?: string;
                     row?: QuoteCalculation | null;
+                    latestRow?: QuoteCalculation | null;
                 }>(response);
                 if (!response.ok || !result.ok) {
                     throw new Error(result.message || 'Failed to fetch quote data');
                 }
 
                 const data = result.row as QuoteCalculation | null;
+                const latestRow = result.latestRow as QuoteCalculation | null | undefined;
+                const latestStatus = latestRow?.status || data?.status || null;
+                const latestStillProcessing = latestStatus === 'pending' || latestStatus === 'processing';
                 const hasDataJson = Boolean(data?.data_json);
 
                 if (isMounted) {
                     setError(null);
                     setCalculation(data);
+                    setLatestCalculationStatus(latestStatus);
                     calculationRef.current = data;
                     lastSyncedDataJsonSignatureRef.current = data?.data_json ? JSON.stringify(data.data_json) : null;
 
@@ -145,6 +196,12 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                     if (data.status === 'failed') {
                         setLoading(false);
                         setError('De calculatie is mislukt. Start de berekening opnieuw.');
+                        return;
+                    }
+
+                    if (latestStillProcessing) {
+                        setLoading(!hasDataJson);
+                        pollTimer = setTimeout(fetchQuoteData, POLL_INTERVAL_MS);
                         return;
                     }
 
@@ -190,7 +247,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
             isMounted = false;
             if (pollTimer) clearTimeout(pollTimer);
         };
-    }, [quoteId, user, pollWhenMissing, pollIntervalMs, preferCompletedFallback]);
+    }, [quoteId, user, pollWhenMissing, pollIntervalMs, preferCompletedFallback, refreshIndex]);
 
 
     // Function to update the data_json (for price edits)
@@ -204,7 +261,8 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
             return;
         }
 
-        const nextSignature = JSON.stringify(newDataJson);
+        const safeDataJson = preserveWorkDescriptionFields(newDataJson, currentCalculation.data_json);
+        const nextSignature = JSON.stringify(safeDataJson);
 
         // Prevent duplicate writes, including repeated blur events for a payload
         // that is already waiting in the queue.
@@ -220,7 +278,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
 
         // Apply edits immediately. Persisting is serialized below, so an older
         // server response can never make a deleted/edited row flash back in.
-        const optimisticCalculation = { ...currentCalculation, data_json: newDataJson };
+        const optimisticCalculation = { ...currentCalculation, data_json: safeDataJson };
         calculationRef.current = optimisticCalculation;
         setCalculation(optimisticCalculation);
         setError(null);
@@ -239,7 +297,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                 },
                 body: JSON.stringify({
                     calculation_id: currentCalculation.id,
-                    data_json: newDataJson
+                    data_json: safeDataJson
                 })
             });
 
@@ -253,7 +311,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                 throw new Error(result.message || 'Failed to update');
             }
 
-            const persistedDataJson = result.data?.data_json ?? newDataJson;
+            const persistedDataJson = result.data?.data_json ?? safeDataJson;
             lastSyncedDataJsonSignatureRef.current = JSON.stringify(persistedDataJson);
 
             // A newer optimistic edit may already be visible. Never replace it
@@ -355,5 +413,5 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
         return persisted;
     }, [user]);
 
-    return { calculation, loading, error, updateDataJson, updateDataJsonPatch };
+    return { calculation, latestCalculationStatus, loading, error, updateDataJson, updateDataJsonPatch, refetch };
 }

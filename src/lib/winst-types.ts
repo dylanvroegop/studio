@@ -107,6 +107,8 @@ export interface WinstProjectPerformance {
   hasActualData: boolean;
   dataQualityIssue: string | null;
   quotedRevenueIncl: number;
+  projectedProfitInclBtw: number;
+  projectedProfitAfterLaborMarginVat: number;
   receivedCashIncl: number;
   actualCostExcl: number;
   netProfitQuoteBasis: number;
