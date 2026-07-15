@@ -21,6 +21,7 @@ import {
   FileText,
   Loader2,
   MoreHorizontal,
+  Navigation,
   Plus,
   RotateCcw,
   Search,
@@ -55,6 +56,7 @@ import { useFirestore, useUser } from '@/firebase';
 import { createEmptyQuote } from '@/lib/firestore-actions';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-status';
+import { buildGoogleMapsDirectionsUrl, resolveQuoteProjectAddress } from '@/lib/maps';
 import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -1675,6 +1677,8 @@ export default function OffertesPage() {
                 const statusStyles = getOfferteStatusStyles(effectiveStatus, hasCalculated, isArchived);
                 const showUncalculatedPlaceholder = !hasCalculated && (effectiveStatus === 'in_behandeling' || effectiveStatus === 'concept');
                 const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
+                const routeDestinationAddress = resolveQuoteProjectAddress(q);
+                const routeMapsUrl = buildGoogleMapsDirectionsUrl(routeDestinationAddress);
 
                 return (
                   <div
@@ -1718,6 +1722,25 @@ export default function OffertesPage() {
                           )}
                         </div>
                         <div className="relative z-20 flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={!routeMapsUrl}
+                            className="h-9 gap-1.5 px-2.5"
+                            aria-label={routeMapsUrl ? `Route naar ${routeDestinationAddress}` : 'Geen adres beschikbaar'}
+                            title={routeMapsUrl ? `Route naar ${routeDestinationAddress}` : 'Geen adres beschikbaar'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              if (routeMapsUrl) {
+                                window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
+                              }
+                            }}
+                          >
+                            <Navigation className="h-4 w-4" />
+                            Route
+                          </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button

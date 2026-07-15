@@ -420,6 +420,7 @@ function KostenPageContent() {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [quoteSearch, setQuoteSearch] = useState('');
+  const [quoteSearchOpen, setQuoteSearchOpen] = useState(false);
   const [editingCostId, setEditingCostId] = useState<string | null>(null);
   const [costPendingDelete, setCostPendingDelete] = useState<ProjectCostRow | null>(null);
 
@@ -1274,11 +1275,59 @@ function KostenPageContent() {
 
                               <div className="space-y-2">
                                 <Label>Koppel aan offerte</Label>
-                                <Input
-                                  value={quoteSearch}
-                                  onChange={(event) => setQuoteSearch(event.target.value)}
-                                  placeholder="Zoek offerte op klant, titel of nummer..."
-                                />
+                                <div className="relative">
+                                  <Input
+                                    value={quoteSearch}
+                                    onChange={(event) => {
+                                      setQuoteSearch(event.target.value);
+                                      setQuoteSearchOpen(true);
+                                    }}
+                                    onFocus={() => setQuoteSearchOpen(true)}
+                                    onBlur={() => setQuoteSearchOpen(false)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === 'Escape') setQuoteSearchOpen(false);
+                                    }}
+                                    placeholder="Zoek offerte op klant, titel of nummer..."
+                                    role="combobox"
+                                    aria-expanded={quoteSearchOpen}
+                                    aria-controls="kosten-offerte-zoekresultaten"
+                                    aria-autocomplete="list"
+                                  />
+                                  {quoteSearchOpen ? (
+                                    <div
+                                      id="kosten-offerte-zoekresultaten"
+                                      role="listbox"
+                                      className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+                                    >
+                                      {filteredQuotesForPicker.length > 0 ? (
+                                        filteredQuotesForPicker.map((quote) => (
+                                          <button
+                                            key={quote.id}
+                                            type="button"
+                                            role="option"
+                                            aria-selected={form.offerteId === quote.id}
+                                            className={cn(
+                                              'flex w-full items-start rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground',
+                                              form.offerteId === quote.id && 'bg-accent text-accent-foreground'
+                                            )}
+                                            onMouseDown={(event) => event.preventDefault()}
+                                            onClick={() => {
+                                              applyMainOfferteToMaterialLines(quote.id);
+                                              setQuoteSearch('');
+                                              setQuoteSearchOpen(false);
+                                            }}
+                                          >
+                                            {quote.label}
+                                          </button>
+                                        ))
+                                      ) : (
+                                        <p className="px-2 py-3 text-sm text-muted-foreground">
+                                          Geen offertes gevonden voor “{quoteSearch.trim()}”.
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : null}
+                                </div>
                                 <Select
                                   value={form.offerteId || 'none'}
                                   onValueChange={(value) => applyMainOfferteToMaterialLines(value === 'none' ? '' : value)}
