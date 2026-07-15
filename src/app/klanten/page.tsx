@@ -73,6 +73,8 @@ type Client = {
   voornaam?: string;
   achternaam?: string;
   bedrijfsnaam?: string;
+  kvkNummer?: string;
+  btwNummer?: string;
   emailadres?: string;
   telefoonnummer?: string;
   straat?: string;
@@ -111,6 +113,8 @@ function toQuoteKlantinformatie(client: Client): Record<string, unknown> {
     voornaam: (client.voornaam || '').trim(),
     achternaam: (client.achternaam || '').trim(),
     bedrijfsnaam: (client.bedrijfsnaam || '').trim(),
+    kvkNummer: (client.kvkNummer || '').trim(),
+    btwNummer: (client.btwNummer || '').trim().toUpperCase(),
     emailadres,
     'e-mailadres': emailadres,
     telefoonnummer: (client.telefoonnummer || '').trim(),
@@ -240,6 +244,8 @@ export default function KlantenPage() {
         voornaam: editingClient.voornaam || '',
         achternaam: editingClient.achternaam || '',
         bedrijfsnaam: editingClient.bedrijfsnaam || '',
+        kvkNummer: editingClient.kvkNummer || '',
+        btwNummer: (editingClient.btwNummer || '').trim().toUpperCase(),
         emailadres: editingClient.emailadres || '',
         telefoonnummer: editingClient.telefoonnummer || '',
         straat: editingClient.straat || '',
@@ -331,6 +337,8 @@ export default function KlantenPage() {
         voornaam: editingClient.voornaam || '',
         achternaam: editingClient.achternaam || '',
         bedrijfsnaam: editingClient.bedrijfsnaam || '',
+        kvkNummer: editingClient.kvkNummer || '',
+        btwNummer: (editingClient.btwNummer || '').trim().toUpperCase(),
         emailadres: editingClient.emailadres || '',
         telefoonnummer: editingClient.telefoonnummer || '',
         straat: editingClient.straat || '',
@@ -386,7 +394,8 @@ export default function KlantenPage() {
     const name = `${c.voornaam || ''} ${c.achternaam || ''} ${c.bedrijfsnaam || ''}`.toLowerCase();
     const email = (c.emailadres || '').toLowerCase();
     const city = (c.plaats || '').toLowerCase();
-    return name.includes(term) || email.includes(term) || city.includes(term);
+    const companyNumbers = `${c.kvkNummer || ''} ${c.btwNummer || ''}`.toLowerCase();
+    return name.includes(term) || email.includes(term) || city.includes(term) || companyNumbers.includes(term);
   });
 
   if (isUserLoading || loading) {
@@ -714,6 +723,31 @@ export default function KlantenPage() {
                       setEditingClient({ ...editingClient, bedrijfsnaam: e.target.value })
                     }
                   />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>KVK-nummer</Label>
+                    <Input
+                      value={editingClient.kvkNummer || ''}
+                      placeholder="12345678"
+                      inputMode="numeric"
+                      onChange={(e) =>
+                        setEditingClient({ ...editingClient, kvkNummer: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>BTW-nummer</Label>
+                    <Input
+                      value={editingClient.btwNummer || ''}
+                      placeholder="NL123456789B01"
+                      onChange={(e) =>
+                        setEditingClient({ ...editingClient, btwNummer: e.target.value.toUpperCase() })
+                      }
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

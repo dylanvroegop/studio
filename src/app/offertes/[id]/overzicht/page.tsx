@@ -1004,9 +1004,19 @@ export default function OverzichtPage() {
         setPrijsPerKm('');
         setVasteTransportkosten('');
         setTunnelkosten('');
-        const rawUurTarief = data.instellingen?.uurTariefExclBtw;
-        const savedUurTarief = typeof rawUurTarief === 'number' && Number.isFinite(rawUurTarief)
+        const snapshotInst = ((data as any)?.calculationSnapshot?.instellingen
+          || (data as any)?.data_json?.instellingen
+          || {}) as any;
+        const quoteInstForRate = (data.instellingen || {}) as any;
+        const rawUurTarief = quoteInstForRate?.uurTariefExclBtw
+          ?? quoteInstForRate?.uurTarief
+          ?? snapshotInst?.uurTariefExclBtw
+          ?? snapshotInst?.uurTarief;
+        const parsedRawUurTarief = typeof rawUurTarief === 'number'
           ? rawUurTarief
+          : euroNLToNumberOrNull(rawUurTarief);
+        const savedUurTarief = typeof parsedRawUurTarief === 'number' && Number.isFinite(parsedRawUurTarief)
+          ? parsedRawUurTarief
           : null;
         const rawSource = (data.instellingen as any)?.uurTariefSource;
         const savedSource: UurTariefSource | null =
@@ -1014,10 +1024,7 @@ export default function OverzichtPage() {
             ? rawSource
             : null;
         const effectiveSource: UurTariefSource = savedSource ?? 'default';
-        const effectiveUurTarief =
-          effectiveSource === 'custom'
-            ? (savedUurTarief ?? standaardUurTariefWaarde ?? 50)
-            : (standaardUurTariefWaarde ?? savedUurTarief ?? 50);
+        const effectiveUurTarief = savedUurTarief ?? standaardUurTariefWaarde ?? 50;
 
         setUurTariefSource(effectiveSource);
         setUurTarief(numberToEuroInputString(effectiveUurTarief));
@@ -1027,8 +1034,11 @@ export default function OverzichtPage() {
         setVerzendkosten([]);
         setWinstMarge({ mode: 'percentage', percentage: 10, fixedAmount: null, basis: 'totaal' });
 
-        const heeftTransportInQuote = !!extras?.transport;
-        const heeftWinstInQuote = !!extras?.winstMarge;
+        const quoteInstExtras = ((data as any)?.instellingen?.extras ?? {}) as any;
+        const quoteTransport = extras?.transport ?? quoteInstExtras?.transport ?? null;
+        const quoteWinstMarge = extras?.winstMarge ?? quoteInstExtras?.winstMarge ?? null;
+        const heeftTransportInQuote = !!quoteTransport;
+        const heeftWinstInQuote = !!quoteWinstMarge;
         const heeftBouwplaatsInQuote = Array.isArray(extras?.materieel) && extras.materieel.length > 0;
         const heeftVerzendInQuote = Array.isArray(extras?.verzendkosten) && extras.verzendkosten.length > 0;
 
@@ -1052,7 +1062,7 @@ export default function OverzichtPage() {
           }
         };
 
-        if (heeftTransportInQuote) applyTransport(extras.transport);
+        if (heeftTransportInQuote) applyTransport(quoteTransport);
         else if (instellingen.standaardTransport) applyTransport(instellingen.standaardTransport);
 
         // Winstmarge: quote extras, anders user standaard
@@ -1071,7 +1081,7 @@ export default function OverzichtPage() {
           }
         };
 
-        if (heeftWinstInQuote) applyWinst(extras.winstMarge);
+        if (heeftWinstInQuote) applyWinst(quoteWinstMarge);
         else if (instellingen.standaardWinstMarge) applyWinst(instellingen.standaardWinstMarge);
 
         // Bouwplaatskosten: quote extras, anders standaard pakket
@@ -3638,6 +3648,9 @@ export default function OverzichtPage() {
               }
             >
               <div className="p-4 rounded-xl bg-card border border-border space-y-4">
+                <p className="text-xs text-muted-foreground/60">
+                  Deze transportinstelling geldt alleen voor deze offerte.
+                </p>
                 <SegmentedToggle
                   options={[
                     { id: 'perKm', label: 'Per km', subtitle: 'Automatisch' },
@@ -3705,10 +3718,10 @@ export default function OverzichtPage() {
             </OverzichtSection>
           </section>
 
-          {/* Standaard Uurtarief */}
+          {/* Uurtarief deze offerte */}
           <section className="space-y-3">
             <OverzichtSection
-              title="Standaard Uurtarief"
+              title="Uurtarief deze offerte"
               isCollapsed={!!collapsedSections['uurtarief']}
               onToggle={() => toggleSection('uurtarief')}
               onSettings={() => setUurTariefInstellingenOpen(true)}
@@ -3736,7 +3749,7 @@ export default function OverzichtPage() {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground/60">
-                  Dit tarief wordt gebruikt voor alle arbeidscalculaties in deze offerte.
+                  Dit tarief wordt alleen gebruikt voor arbeidscalculaties in deze offerte.
                 </p>
               </div>
             </OverzichtSection>

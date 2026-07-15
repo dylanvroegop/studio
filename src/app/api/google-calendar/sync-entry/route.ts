@@ -59,6 +59,19 @@ export async function POST(request: Request) {
     const decoded = await auth.verifyIdToken(token).catch(() => null);
     if (!decoded?.uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    if (body.action === 'delete') {
+      const entryRef = firestore.collection('planning_entries').doc(body.entryId);
+      const entrySnap = await entryRef.get();
+      if (entrySnap.exists && entrySnap.data()?.userId !== decoded.uid) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+
+      // Google Calendar is the external source of truth for synced planning.
+      // Deleting a Calvora planning row must never delete the Google event.
+      await entryRef.set({ googleCalendarEventId: null, updatedAt: new Date() }, { merge: true });
+      return NextResponse.json({ ok: true, action: 'delete' });
+    }
+
     const userDocRef = firestore.collection('users').doc(decoded.uid);
     const userSnap = await userDocRef.get();
     const userData = userSnap.data() as {
@@ -115,14 +128,6 @@ export async function POST(request: Request) {
     const entrySnap = await entryRef.get();
     const entryData = entrySnap.exists ? entrySnap.data() as { googleCalendarEventId?: string } : {};
     const calendarEventId = body.googleCalendarEventId || entryData.googleCalendarEventId;
-
-    if (body.action === 'delete') {
-      if (calendarEventId) {
-        await calendar.events.delete({ calendarId: 'primary', eventId: calendarEventId }).catch(() => null);
-      }
-      await entryRef.set({ googleCalendarEventId: null, updatedAt: new Date() }, { merge: true });
-      return NextResponse.json({ ok: true, action: 'delete' });
-    }
 
     if (!body.startDate || !body.endDate) {
       return NextResponse.json({ error: 'startDate/endDate vereist voor upsert' }, { status: 400 });

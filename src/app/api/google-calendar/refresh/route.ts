@@ -6,29 +6,101 @@ import { getCalendarClient, isGoogleInvalidGrantError } from '@/lib/integrations
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const GOOGLE_REQUEST_CONCURRENCY = 10;
+const AMSTERDAM_TIME_ZONE = 'Europe/Amsterdam';
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
   return authHeader.slice('Bearer '.length).trim() || null;
 }
 
-function getGoogleErrorStatus(error: unknown): number | null {
-  if (!error || typeof error !== 'object') return null;
-  const row = error as { code?: unknown; response?: { status?: unknown } };
-  const status = Number(row.response?.status ?? row.code);
-  return Number.isFinite(status) ? status : null;
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error || 'Onbekende fout');
+}
+
+function timeZoneOffsetMs(date: Date): number {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: AMSTERDAM_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  const representedAsUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  return representedAsUtc - date.getTime();
+}
+
+function amsterdamDateTime(dateOnly: string, time: string): Date | null {
+  const timeMatch = time.trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!timeMatch) return null;
+
+  const [year, month, day] = dateOnly.split('-').map(Number);
+  if (!year || !month || !day) return null;
+
+  const localAsUtc = Date.UTC(year, month - 1, day, Number(timeMatch[1]), Number(timeMatch[2]));
+  let utc = localAsUtc - timeZoneOffsetMs(new Date(localAsUtc));
+  utc = localAsUtc - timeZoneOffsetMs(new Date(utc));
+  return new Date(utc);
+}
+
+function parseRequestDate(value: unknown): Date | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function fallbackDateRange(): { startDate: Date; endDate: Date } {
+  const now = new Date();
+  return {
+    startDate: new Date(now.getFullYear(), now.getMonth(), 1),
+    endDate: new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59, 999),
+  };
+}
+
+function eventDateRange(event: {
+  start?: { dateTime?: string | null; date?: string | null };
+  end?: { dateTime?: string | null; date?: string | null };
+}): { startDate: Date; endDate: Date; allDay: boolean } | null {
+  if (event.start?.dateTime && event.end?.dateTime) {
+    const startDate = new Date(event.start.dateTime);
+    const endDate = new Date(event.end.dateTime);
+    if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime()) || endDate <= startDate) return null;
+    return { startDate, endDate, allDay: false };
+  }
+
+  if (event.start?.date && event.end?.date) {
+    const startDate = amsterdamDateTime(event.start.date, '00:00');
+    const exclusiveEnd = amsterdamDateTime(event.end.date, '00:00');
+    if (!startDate || !exclusiveEnd || exclusiveEnd <= startDate) return null;
+    return {
+      startDate,
+      endDate: new Date(exclusiveEnd.getTime() - 60_000),
+      allDay: true,
+    };
+  }
+
+  return null;
+}
+
+function overlapsRange(startDate: Date, endDate: Date, rangeStart: Date, rangeEnd: Date): boolean {
+  return startDate.getTime() <= rangeEnd.getTime() && endDate.getTime() >= rangeStart.getTime();
+}
+
+function googleEventDocId(eventId: string): string {
+  return `google_${eventId.replace(/\//g, '_')}`;
 }
 
 export async function POST(request: Request) {
   try {
     const token = extractBearerToken(request.headers.get('authorization'));
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const body = await request.json().catch(() => ({})) as { startDate?: string; endDate?: string };
+    const fallbackRange = fallbackDateRange();
+    const rangeStart = parseRequestDate(body.startDate) || fallbackRange.startDate;
+    const rangeEnd = parseRequestDate(body.endDate) || fallbackRange.endDate;
 
     const { auth, firestore } = initFirebaseAdmin();
     const decoded = await auth.verifyIdToken(token).catch(() => null);
@@ -93,74 +165,137 @@ export async function POST(request: Request) {
 
     let updated = 0;
     let unchanged = 0;
-    let missing = 0;
+    const missing = 0;
     let skipped = 0;
+    let imported = 0;
+    let hidden = 0;
 
-    for (let index = 0; index < linkedEntries.length; index += GOOGLE_REQUEST_CONCURRENCY) {
-      const chunk = linkedEntries.slice(index, index + GOOGLE_REQUEST_CONCURRENCY);
-      await Promise.all(chunk.map(async (planningDoc) => {
-        const entry = planningDoc.data() as {
-          googleCalendarEventId: string;
+    const linkedEntriesByGoogleId = new Map<string, typeof linkedEntries[number]>();
+    linkedEntries.forEach((planningDoc) => {
+      const eventId = String(planningDoc.data().googleCalendarEventId || '').trim();
+      if (eventId) linkedEntriesByGoogleId.set(eventId, planningDoc);
+    });
+
+    const googleEventIdsInRange = new Set<string>();
+    let pageToken: string | undefined;
+    do {
+      const listResponse = await calendar.events.list({
+        calendarId: 'primary',
+        timeMin: rangeStart.toISOString(),
+        timeMax: rangeEnd.toISOString(),
+        singleEvents: true,
+        orderBy: 'startTime',
+        showDeleted: false,
+        maxResults: 2500,
+        pageToken,
+      });
+
+      const events = listResponse.data.items || [];
+      for (const event of events) {
+        const eventId = event.id?.trim();
+        if (!eventId || event.status === 'cancelled') continue;
+
+        const parsedRange = eventDateRange(event);
+        if (!parsedRange || !overlapsRange(parsedRange.startDate, parsedRange.endDate, rangeStart, rangeEnd)) {
+          skipped += 1;
+          continue;
+        }
+
+        googleEventIdsInRange.add(eventId);
+        const existingDoc = linkedEntriesByGoogleId.get(eventId);
+        const entryRef = existingDoc?.ref || firestore.collection('planning_entries').doc(googleEventDocId(eventId));
+        const existing = existingDoc?.data() as {
           startDate?: Timestamp;
           endDate?: Timestamp;
+          cache?: { clientName?: string; projectTitle?: string; projectAddress?: string };
+          notes?: string;
+          status?: string;
+        } | undefined;
+
+        const summary = event.summary?.trim() || 'Google Calendar';
+        const description = event.description?.trim() || '';
+        const scheduledHours = Math.max(
+          0,
+          (parsedRange.endDate.getTime() - parsedRange.startDate.getTime()) / 3_600_000,
+        );
+        const nextData = {
+          userId: decoded.uid,
+          quoteId: existingDoc?.data()?.quoteId || '',
+          googleCalendarEventId: eventId,
+          googleCalendarHtmlLink: event.htmlLink || null,
+          isAllDay: parsedRange.allDay,
+          source: existingDoc?.data()?.source || (existingDoc ? 'calvora' : 'google'),
+          startDate: Timestamp.fromDate(parsedRange.startDate),
+          endDate: Timestamp.fromDate(parsedRange.endDate),
+          scheduledHours,
+          planningType: existingDoc?.data()?.planningType || 'job',
+          isAutoSplit: existingDoc?.data()?.isAutoSplit || false,
+          parentEntryId: existingDoc?.data()?.parentEntryId || null,
+          status: 'scheduled',
+          notes: description || existing?.notes || '',
+          cache: {
+            clientName: summary,
+            projectTitle: existing?.cache?.projectTitle || summary,
+            projectAddress: existing?.cache?.projectAddress || '',
+            totalQuoteHours: scheduledHours,
+            totalQuoteAmount: existingDoc?.data()?.cache?.totalQuoteAmount || 0,
+            totalQuoteEarnings: existingDoc?.data()?.cache?.totalQuoteEarnings || 0,
+          },
+          updatedAt: new Date(),
+          createdAt: existingDoc?.data()?.createdAt || new Date(),
         };
 
-        try {
-          const response = await calendar.events.get({
-            calendarId: 'primary',
-            eventId: entry.googleCalendarEventId,
-          });
-          const event = response.data;
-          if (event.status === 'cancelled') {
-            missing += 1;
-            return;
-          }
+        const currentStart = existing?.startDate?.toMillis();
+        const currentEnd = existing?.endDate?.toMillis();
+        const sameDates = currentStart === parsedRange.startDate.getTime() && currentEnd === parsedRange.endDate.getTime();
+        const sameTitle = existing?.cache?.clientName === summary && existing?.status === 'scheduled';
 
-          const startValue = event.start?.dateTime;
-          const endValue = event.end?.dateTime;
-          if (!startValue || !endValue) {
-            skipped += 1;
-            return;
-          }
+        await entryRef.set(nextData, { merge: true });
 
-          const startDate = new Date(startValue);
-          const endDate = new Date(endValue);
-          if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime()) || endDate <= startDate) {
-            skipped += 1;
-            return;
-          }
-
-          const currentStart = entry.startDate?.toMillis();
-          const currentEnd = entry.endDate?.toMillis();
-          if (currentStart === startDate.getTime() && currentEnd === endDate.getTime()) {
-            unchanged += 1;
-            return;
-          }
-
-          await planningDoc.ref.update({
-            startDate: Timestamp.fromDate(startDate),
-            endDate: Timestamp.fromDate(endDate),
-            scheduledHours: (endDate.getTime() - startDate.getTime()) / 3_600_000,
-            updatedAt: new Date(),
-          });
+        if (!existingDoc) {
+          imported += 1;
+        } else if (sameDates && sameTitle) {
+          unchanged += 1;
+        } else {
           updated += 1;
-        } catch (error) {
-          const status = getGoogleErrorStatus(error);
-          if (status === 404 || status === 410) {
-            missing += 1;
-            return;
-          }
-          throw error;
         }
-      }));
-    }
+      }
+
+      pageToken = listResponse.data.nextPageToken || undefined;
+    } while (pageToken);
+
+    const linkedEntriesInRange = linkedEntries.filter((planningDoc) => {
+      const entry = planningDoc.data() as {
+        startDate?: Timestamp;
+        endDate?: Timestamp;
+        source?: string;
+      };
+      const startDate = entry.startDate?.toDate();
+      const endDate = entry.endDate?.toDate();
+      return entry.source === 'google'
+        && startDate
+        && endDate
+        && overlapsRange(startDate, endDate, rangeStart, rangeEnd);
+    });
+
+    await Promise.all(linkedEntriesInRange.map(async (planningDoc) => {
+      const eventId = String(planningDoc.data().googleCalendarEventId || '').trim();
+      if (!eventId || googleEventIdsInRange.has(eventId)) return;
+      await planningDoc.ref.set({
+        status: 'cancelled',
+        updatedAt: new Date(),
+      }, { merge: true });
+      hidden += 1;
+    }));
 
     return NextResponse.json({
       ok: true,
       checked: linkedEntries.length,
+      imported,
       updated,
       unchanged,
       missing,
+      hidden,
       skipped,
     });
   } catch (error) {

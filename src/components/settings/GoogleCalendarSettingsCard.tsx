@@ -81,7 +81,7 @@ export function GoogleCalendarSettingsCard() {
       <CardHeader>
         <CardTitle>Google Calendar Sync</CardTitle>
         <CardDescription>
-          Planning-items gaan automatisch naar Google Calendar. Gebruik 'Google verversen' in Planning om gewijzigde datums en tijden terug te halen.
+          Planning-items gaan automatisch naar Google Calendar. Gebruik 'Google verversen' in Planning om Google Calendar over te nemen in Calvora.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

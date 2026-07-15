@@ -15,6 +15,7 @@
     "sync": "python3 -u sync.py",
     "sync:dry": "python3 -u sync.py --dry-run",
     "test:winst": "ts-node --transpile-only --compiler-options '{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' src/scripts/run-winst-metrics-tests.ts",
+    "test:invoice-pdf": "ts-node --transpile-only --compiler-options '{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' src/scripts/run-invoice-pdf-tests.ts",
     "materials:convert": "python3 scripts/convert_easy_scraper_materials.py",
     "set-dev-claim": "ts-node --transpile-only src/scripts/set-dev-claim.ts",
     "set-admin-claim": "ts-node --transpile-only src/scripts/set-admin-claim.ts",

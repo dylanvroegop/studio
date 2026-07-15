@@ -23,6 +23,14 @@ interface SendQuoteWhatsAppModalProps {
   clientName: string;
   quoteId?: string;
   quotePdfUrl: string;
+  documentUrl?: string;
+  requireDocumentUrl?: boolean;
+  documentLabel?: string;
+  documentLinkToken?: string;
+  storageKey?: string;
+  missingLinkTitle?: string;
+  missingLinkDescription?: string;
+  successDescription?: string;
   onDownloadOfficialPdf?: () => Promise<void> | void;
   onMarkAsSent?: () => Promise<void> | void;
 }
@@ -65,6 +73,14 @@ export function SendQuoteWhatsAppModal({
   clientName,
   quoteId,
   quotePdfUrl,
+  documentUrl,
+  requireDocumentUrl = true,
+  documentLabel = 'offerte',
+  documentLinkToken = QUOTE_URL_TOKEN,
+  storageKey = WHATSAPP_PRESET_STORAGE_KEY,
+  missingLinkTitle = 'Geen offertelink beschikbaar',
+  missingLinkDescription = 'Er kon geen actuele link voor deze offerte worden opgebouwd.',
+  successDescription = 'De officiële PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur.',
   onDownloadOfficialPdf,
   onMarkAsSent,
 }: SendQuoteWhatsAppModalProps) {
@@ -94,7 +110,7 @@ export function SendQuoteWhatsAppModal({
     const fallbackUrl = quoteId ? `${origin}/view/${quoteId}` : '';
     // A persisted PDF URL can point to an older generated document. Prefer the
     // live quote route so WhatsApp never shares a stale PDF alongside the current one.
-    const resolvedQuoteUrl = fallbackUrl || trimmedProvidedUrl;
+    const resolvedQuoteUrl = documentUrl?.trim() || fallbackUrl || trimmedProvidedUrl;
     setQuoteUrl(resolvedQuoteUrl);
 
     const guessedFirstName = String(
@@ -103,21 +119,21 @@ export function SendQuoteWhatsAppModal({
     setManualFirstName(guessedFirstName);
 
     try {
-      const savedPreset = localStorage.getItem(WHATSAPP_PRESET_STORAGE_KEY) || '';
+      const savedPreset = localStorage.getItem(storageKey) || '';
       setMessage(savedPreset);
     } catch {
       setMessage('');
     }
-  }, [isOpen, klantInfo, clientName, quotePdfUrl, quoteId]);
+  }, [isOpen, klantInfo, clientName, quotePdfUrl, quoteId, documentUrl, storageKey]);
 
   useEffect(() => {
     if (!isOpen) return;
     try {
-      localStorage.setItem(WHATSAPP_PRESET_STORAGE_KEY, message);
+      localStorage.setItem(storageKey, message);
     } catch {
       // Ignore storage failures and keep editing behavior intact.
     }
-  }, [isOpen, message]);
+  }, [isOpen, message, storageKey]);
 
   const handleSendViaWhatsApp = async () => {
     if (isOpening || isLaunchingWhatsAppRef.current) return;
@@ -137,10 +153,10 @@ export function SendQuoteWhatsAppModal({
       return;
     }
 
-    if (!trimmedQuoteUrl) {
+    if (requireDocumentUrl && !trimmedQuoteUrl) {
       toast({
-        title: 'Geen offertelink beschikbaar',
-        description: 'Er kon geen actuele link voor deze offerte worden opgebouwd.',
+        title: missingLinkTitle,
+        description: missingLinkDescription,
         variant: 'destructive',
       });
       isLaunchingWhatsAppRef.current = false;
@@ -163,6 +179,7 @@ export function SendQuoteWhatsAppModal({
       const nameValue = manualFirstName.trim() || 'klant';
       const outgoingMessage = template
         .replaceAll(FIRST_NAME_TOKEN, nameValue)
+        .replaceAll(documentLinkToken, trimmedQuoteUrl)
         .replaceAll(QUOTE_URL_TOKEN, trimmedQuoteUrl);
 
       if (onDownloadOfficialPdf) {
@@ -192,7 +209,7 @@ export function SendQuoteWhatsAppModal({
 
       toast({
         title: 'WhatsApp geopend',
-        description: 'De officiële PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur.',
+        description: successDescription,
         duration: 5000,
       });
 
@@ -264,13 +281,13 @@ export function SendQuoteWhatsAppModal({
               <div
                 draggable
                 onDragStart={(event) => {
-                  event.dataTransfer.setData('text/plain', QUOTE_URL_TOKEN);
+                  event.dataTransfer.setData('text/plain', documentLinkToken);
                   event.dataTransfer.effectAllowed = 'copy';
                 }}
                 className="cursor-grab rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 active:cursor-grabbing"
-                title="Sleep {{offerte_link}} naar het bericht"
+                title={`Sleep ${documentLinkToken} naar het bericht`}
               >
-                Sleep token: {QUOTE_URL_TOKEN}
+                Sleep token: {documentLinkToken}
               </div>
             </div>
             <Textarea
@@ -281,7 +298,7 @@ export function SendQuoteWhatsAppModal({
               onDrop={(event) => {
                 event.preventDefault();
                 const dropped = event.dataTransfer.getData('text/plain');
-                if (dropped !== FIRST_NAME_TOKEN && dropped !== QUOTE_URL_TOKEN) return;
+                if (dropped !== FIRST_NAME_TOKEN && dropped !== documentLinkToken) return;
                 const textarea = messageTextareaRef.current;
                 if (!textarea) {
                   setMessage((prev) => `${prev}${prev ? ' ' : ''}${dropped}`);
@@ -301,7 +318,7 @@ export function SendQuoteWhatsAppModal({
               className="min-h-[120px] bg-zinc-800 border-zinc-700 text-zinc-200"
             />
             <p className="text-xs text-zinc-500">
-              Dit bericht is jouw preset en wordt automatisch opgeslagen. Gebruik tokens om naam/link overal te plaatsen.
+              Dit bericht is jouw {documentLabel}-preset en wordt automatisch opgeslagen. Gebruik tokens om naam/link overal te plaatsen.
             </p>
           </div>
         </div>
@@ -311,7 +328,7 @@ export function SendQuoteWhatsAppModal({
             type="button"
             variant="success"
             onClick={handleSendViaWhatsApp}
-            disabled={isOpening || !normalizePhoneForWhatsApp(phone) || !quoteUrl.trim()}
+            disabled={isOpening || !normalizePhoneForWhatsApp(phone) || (requireDocumentUrl && !quoteUrl.trim())}
             className="w-full py-6 rounded-xl flex items-center justify-center gap-2"
           >
             {isOpening ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageCircle className="w-5 h-5" />}

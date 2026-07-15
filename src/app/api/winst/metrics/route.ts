@@ -335,6 +335,7 @@ export async function POST(req: Request) {
           clientName,
           status: safeString(data.status) || undefined,
           includeInDashboard: data.includeInDashboard === true,
+          hourlyWorkMaterialPassthrough: data.hourlyWorkMaterialPassthrough === true,
           createdAt: parseDate(data.createdAt),
           updatedAt: parseDate(data.updatedAt),
           quotedRevenueIncl: safeNumber(data.totaalbedrag) || safeNumber(data.amount),

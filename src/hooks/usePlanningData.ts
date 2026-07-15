@@ -100,6 +100,8 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
                     ...doc.data()
                 })) as PlanningEntry[];
 
+                data = data.filter(entry => entry.status !== 'cancelled');
+
                 if (options.startDate && options.endDate) {
                     const startTime = options.startDate.getTime();
                     const endTime = options.endDate.getTime();
@@ -165,6 +167,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             parentEntryId: data.parentEntryId || null,
             status: 'scheduled' as PlanningStatus,
             notes: data.notes || '',
+            source: 'calvora' as const,
             cache: data.cache,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
@@ -220,6 +223,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
                 parentEntryId: data.parentEntryId || null,
                 status: 'scheduled' as PlanningStatus,
                 notes: data.notes || '',
+                source: 'calvora' as const,
                 cache: data.cache,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
@@ -278,6 +282,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         await updateDoc(docRef, updateData);
         if (data.startDate !== undefined || data.endDate !== undefined || data.cache !== undefined || data.planningType !== undefined || data.notes !== undefined) {
             const currentEntry = entries.find((entry) => entry.id === entryId);
+            if (currentEntry?.source === 'google') return;
             const effectiveStartDate = data.startDate
                 || (currentEntry?.startDate instanceof Timestamp ? currentEntry.startDate.toDate() : undefined);
             const effectiveEndDate = data.endDate

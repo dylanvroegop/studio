@@ -17,6 +17,8 @@ Geef ALTIJD exact 1 JSON object terug (geen markdown, geen uitleg) met deze veld
   "klanttype": "particulier" | "zakelijk",
   "bedrijfsnaam": string,
   "contactpersoon": string,
+  "kvkNummer": string,
+  "btwNummer": string,
   "voornaam": string,
   "achternaam": string,
   "emailadres": string,
@@ -40,6 +42,7 @@ Regels:
 - Gebruik lege string "" als een waarde niet duidelijk leesbaar is.
 - Gebruik alleen gegevens die in de afbeelding staan; niet gokken.
 - "klanttype" is "zakelijk" als er duidelijke bedrijfsnaam/bedrijfscontext is, anders "particulier".
+- Vul kvkNummer en btwNummer alleen als ze duidelijk zichtbaar zijn. Zet btwNummer in hoofdletters.
 - Als er maar 1 adres is: gebruik dat als factuuradres en zet afwijkendProjectadres=false met lege projectvelden.
 - Als er expliciet een apart projectadres/werkadres staat: zet afwijkendProjectadres=true en vul project* velden.
 - Postcode in NL formaat als mogelijk (bijv. "1234 AB").
@@ -189,6 +192,8 @@ function normalizeClientPayload(input: Record<string, unknown>): Record<string, 
     klanttype: normalizeKlantType(input.klanttype),
     bedrijfsnaam: safeString(input.bedrijfsnaam),
     contactpersoon: safeString(input.contactpersoon),
+    kvkNummer: safeString(input.kvkNummer),
+    btwNummer: safeString(input.btwNummer).toUpperCase(),
     voornaam: safeString(input.voornaam),
     achternaam: safeString(input.achternaam),
     emailadres: safeString(input.emailadres),

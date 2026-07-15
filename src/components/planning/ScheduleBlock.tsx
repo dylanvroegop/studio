@@ -70,7 +70,7 @@ export function ScheduleBlock({
         };
     };
 
-    const timeLabel = `${format(startDate, 'HH:mm')} - ${format(displayEndDate, 'HH:mm')}`;
+    const timeLabel = entry.isAllDay ? 'Hele dag' : `${format(startDate, 'HH:mm')} - ${format(displayEndDate, 'HH:mm')}`;
     const planningType = entry.planningType || 'job';
 
     const planningTypeLabel = planningType === 'werkbespreking' ? 'Werkbespreking' : 'Klus';

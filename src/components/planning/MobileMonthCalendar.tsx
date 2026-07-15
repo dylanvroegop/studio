@@ -168,6 +168,7 @@ export function MobileMonthCalendar({
                                     const start = toDate(entry.startDate);
                                     const label = (entry.cache?.clientName || 'Planning').slice(0, 16);
                                     const isWerkbespreking = (entry.planningType || 'job') === 'werkbespreking';
+                                    const timeLabel = entry.isAllDay ? 'Hele dag' : format(start, 'HH:mm', { locale: nl });
 
                                     return (
                                         <div
@@ -182,9 +183,9 @@ export function MobileMonthCalendar({
                                                     ? 'bg-cyan-500/25 text-cyan-200'
                                                     : 'bg-emerald-500/20 text-emerald-200'
                                             )}
-                                            title={`${label} · ${format(start, 'HH:mm', { locale: nl })}`}
+                                            title={`${label} · ${timeLabel}`}
                                         >
-                                            {format(start, 'HH:mm', { locale: nl })} {label}
+                                            {timeLabel} {label}
                                         </div>
                                     );
                                 })}

@@ -16,6 +16,48 @@ function roundTo2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function isTruncatedText(value: string): boolean {
+  return value.includes('...') || value.includes('…');
+}
+
+function addCleanCandidate(target: string[], value: unknown) {
+  if (typeof value !== 'string') return;
+  const cleaned = value.replace(/\s+/g, ' ').trim();
+  if (cleaned && !target.includes(cleaned)) target.push(cleaned);
+}
+
+function collectTitleCandidates(source: unknown, target: string[]) {
+  if (!source || typeof source !== 'object') return;
+  const record = source as Record<string, any>;
+  addCleanCandidate(target, record.korteTitel);
+  addCleanCandidate(target, record.korte_titel);
+  addCleanCandidate(target, record.title);
+  addCleanCandidate(target, record.titel);
+  addCleanCandidate(target, record.werkomschrijving);
+
+  const structured = record.werkbeschrijving_structured || record.werkbeschrijvingStructured;
+  if (structured && typeof structured === 'object') {
+    addCleanCandidate(target, structured.title);
+    if (Array.isArray(structured.jobs)) {
+      structured.jobs.forEach((job: any) => addCleanCandidate(target, job?.title));
+    }
+  }
+
+  const jobs = record.werkbeschrijving_jobs || record.werkbeschrijvingJobs;
+  if (Array.isArray(jobs)) {
+    jobs.forEach((job: any) => addCleanCandidate(target, job?.title || job?.korteTitel || job?.korte_titel));
+  }
+}
+
+function resolveInvoiceTitle(quote: any, calculationSnapshot?: DataJson): string | null {
+  const candidates: string[] = [];
+  collectTitleCandidates(calculationSnapshot, candidates);
+  collectTitleCandidates(quote?.calculationSnapshot || quote?.data_json, candidates);
+  collectTitleCandidates(quote, candidates);
+  const title = candidates.find((candidate) => !isTruncatedText(candidate)) || candidates[0] || '';
+  return title || null;
+}
+
 function buildKlantSnapshot(quote: any) {
   const info = quote?.klantinformatie || {};
   const factuuradres = info?.factuuradres || info?.factuurAdres || {};
@@ -45,6 +87,7 @@ function buildKlantSnapshot(quote: any) {
     '';
 
   return {
+    clientId: (info?.clientId || '').toString().trim(),
     klanttype: info?.klanttype ?? null,
     naam,
     adres,
@@ -52,6 +95,8 @@ function buildKlantSnapshot(quote: any) {
     plaats,
     telefoon,
     email,
+    kvkNummer: (info?.kvkNummer || '').toString().trim(),
+    btwNummer: (info?.btwNummer || '').toString().trim().toUpperCase(),
   };
 }
 
@@ -91,6 +136,7 @@ export async function createInvoiceFromQuote(
       totaalInclBtw: number;
       paidAmount: number;
     } | null;
+    handmatigEindbedrag?: boolean;
     opmerking?: string;
     notes?: string;
     combinedContext?: InvoiceCombinedContext | null;
@@ -110,6 +156,7 @@ export async function createInvoiceFromQuote(
     voorschotPercentage,
     voorschotAftrekInclBtw,
     voorschotFactuurSnapshot,
+    handmatigEindbedrag,
     opmerking,
     notes,
     combinedContext,
@@ -147,7 +194,7 @@ export async function createInvoiceFromQuote(
 
     sourceQuote: {
       offerteNummer: safeNumber(quote?.offerteNummer) ?? null,
-      titel: (quote?.titel || quote?.title || quote?.werkomschrijving || '').toString() || null,
+      titel: resolveInvoiceTitle(quote, calculationSnapshot),
       klantSnapshot: buildKlantSnapshot(quote),
       projectAdresSnapshot: buildProjectAdresSnapshot(quote),
     },
@@ -163,6 +210,7 @@ export async function createInvoiceFromQuote(
         originalTotalInclBtw: roundTo2(Math.max(0, safeNumber(originalTotalInclBtw) ?? 0)),
         voorschotAftrekInclBtw: roundTo2(Math.max(0, safeNumber(voorschotAftrekInclBtw) ?? 0)),
         voorschotFactuur: voorschotFactuurSnapshot ?? null,
+        handmatigEindbedrag: handmatigEindbedrag === true,
         opmerking: (opmerking ?? '').toString(),
       }
       : undefined,

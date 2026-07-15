@@ -337,13 +337,22 @@ function PlanningPageContent() {
             const idToken = await user.getIdToken();
             const response = await fetch('/api/google-calendar/refresh', {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${idToken}` },
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({
+                    startDate: dateRange.start.toISOString(),
+                    endDate: dateRange.end.toISOString(),
+                }),
             });
             const result = await response.json().catch(() => null) as {
                 error?: string;
                 checked?: number;
+                imported?: number;
                 updated?: number;
                 missing?: number;
+                hidden?: number;
                 skipped?: number;
             } | null;
 
@@ -352,7 +361,9 @@ function PlanningPageContent() {
             }
 
             const details = [
+                result?.imported ? `${result.imported} Google-item(s) geïmporteerd` : '',
                 `${result?.updated || 0} planning-item(s) bijgewerkt`,
+                result?.hidden ? `${result.hidden} oud(e) Google-item(s) verborgen` : '',
                 result?.missing ? `${result.missing} verwijderd Google-item niet overgenomen` : '',
                 result?.skipped ? `${result.skipped} item(s) overgeslagen` : '',
             ].filter(Boolean).join('. ');

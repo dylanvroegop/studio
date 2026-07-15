@@ -53,6 +53,12 @@ export function ClientInfoCard({ klantInfo, onEditClient }: ClientInfoCardProps)
                 {klantInfo.bedrijfsnaam && (
                     <p className="text-foreground/80">{klantInfo.bedrijfsnaam}</p>
                 )}
+                {(klantInfo.kvkNummer || klantInfo.btwNummer) && (
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        {klantInfo.kvkNummer && <span>KVK: {klantInfo.kvkNummer}</span>}
+                        {klantInfo.btwNummer && <span>BTW: {klantInfo.btwNummer}</span>}
+                    </div>
+                )}
                 <p className="text-muted-foreground text-sm">{klantInfo.klanttype}</p>
             </div>
 

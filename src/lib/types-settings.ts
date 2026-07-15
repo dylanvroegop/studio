@@ -114,6 +114,18 @@ export interface UserSettings {
     factuurNummerStart: number;
     standaardBetaaltermijnDagen: number;
     standaardFactuurTekst: string;
+    factuurPdfDefaults?: {
+        paymentTermDays?: number;
+        showLogo?: boolean;
+        showQuoteReference?: boolean;
+        showSpecification?: boolean;
+        showTotalsBreakdown?: boolean;
+        showMaterialLaborBreakdown?: boolean;
+        showTransportBreakdown?: boolean;
+        showHourlyRateOnInvoice?: boolean;
+        showBankDetails?: boolean;
+        customPaymentText?: string;
+    };
     standaardVoorschotPercentage: number;
     standaardMeerwerkbonIntroTekst: string;
     standaardMeerwerkbonVoorwaarden: string;

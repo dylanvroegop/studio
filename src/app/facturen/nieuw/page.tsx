@@ -17,6 +17,7 @@ import type { UserSettings } from '@/lib/types-settings';
 import { calculateQuoteTotals, normalizeDataJson, type QuoteSettings as CalculationQuoteSettings } from '@/lib/quote-calculations';
 import { toast } from '@/hooks/use-toast';
 import { createInvoiceFromQuote, findExistingVoorschotInvoiceId, getInvoiceSnapshotForAdjustments } from '@/lib/invoice-actions';
+import { parsePriceToNumber } from '@/lib/utils';
 
 function formatCurrency(amount?: number) {
   const n = typeof amount === 'number' && Number.isFinite(amount) ? amount : 0;
@@ -32,10 +33,8 @@ function roundCurrency(value: number): number {
 }
 
 function parseCurrencyInput(value: string): number | null {
-  const normalized = (value || '').trim().replace(',', '.');
-  if (!normalized) return null;
-  const parsed = Number(normalized);
-  if (!Number.isFinite(parsed)) return null;
+  const parsed = parsePriceToNumber(value);
+  if (parsed === null || !Number.isFinite(parsed)) return null;
   return roundCurrency(Math.max(0, parsed));
 }
 
@@ -169,7 +168,7 @@ function NieuweFactuurPageContent() {
 
         let resolvedTotal = resolveTotalFromQuote(q);
 
-        if (q && resolvedTotal <= 0) {
+        if (q) {
           try {
             const token = await user.getIdToken();
             const response = await fetch('/api/quotes/get-calculations', {
@@ -186,8 +185,14 @@ function NieuweFactuurPageContent() {
               const rows = payload.rows as Array<{ quoteid: string; data_json: unknown }>;
               const forQuote = rows.filter((row) => row?.quoteid === quoteId);
               for (const row of forQuote) {
+                if (row?.data_json) {
+                  q = {
+                    ...q,
+                    calculationSnapshot: row.data_json,
+                  };
+                }
                 const calculatedTotal = resolveTotalFromCalculation(row?.data_json);
-                if (calculatedTotal && calculatedTotal > 0) {
+                if (resolvedTotal <= 0 && calculatedTotal && calculatedTotal > 0) {
                   resolvedTotal = calculatedTotal;
                   q = {
                     ...q,
@@ -308,6 +313,7 @@ function NieuweFactuurPageContent() {
           quote,
           settings,
           invoiceType: 'voorschot',
+          calculationSnapshot: quote.calculationSnapshot,
           originalTotalInclBtw: totalIncl,
           totalsInclBtw: voorschotBedrag,
           voorschotAftrekInclBtw: 0,
@@ -329,10 +335,12 @@ function NieuweFactuurPageContent() {
         quote,
         settings,
         invoiceType: 'eind',
+        calculationSnapshot: quote.calculationSnapshot,
         originalTotalInclBtw: totalIncl,
         totalsInclBtw: effectiefEindBedrag,
         voorschotAftrekInclBtw: existingId && voorschotIngeschakeld ? voorschotBedrag : 0,
         voorschotFactuurSnapshot: voorschotSnapshot,
+        handmatigEindbedrag,
         opmerking: eindfactuurOpmerking.trim()
           || (handmatigEindbedrag
             ? `Handmatig eindbedrag ingesteld op ${formatCurrency(effectiefEindBedrag)} (berekend was ${formatCurrency(berekendEindBedrag)}).`

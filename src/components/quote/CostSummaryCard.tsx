@@ -11,6 +11,7 @@ interface CostSummaryCardProps {
     extraKostenExcl?: number;
     onUpdateHourlyRate?: (rate: number) => void;
     onUpdateTotalHours?: (hours: number) => void;
+    onUpdateLowVatLaborHours?: (hours: number) => void;
     onUpdateMaterialenGrootTotal?: (value: number) => void;
     onUpdateMaterialenVerbruikTotal?: (value: number) => void;
     onUpdateMaterialenSubtotal?: (value: number) => void;
@@ -32,6 +33,7 @@ export function CostSummaryCard({
     extraKostenExcl = 0,
     onUpdateHourlyRate,
     onUpdateTotalHours,
+    onUpdateLowVatLaborHours,
     onUpdateMaterialenGrootTotal,
     onUpdateMaterialenVerbruikTotal,
     onUpdateMaterialenSubtotal,
@@ -45,6 +47,8 @@ export function CostSummaryCard({
 
     const [isEditingHours, setIsEditingHours] = useState(false);
     const [tempHours, setTempHours] = useState<string>('');
+    const [isEditingLowVatHours, setIsEditingLowVatHours] = useState(false);
+    const [tempLowVatHours, setTempLowVatHours] = useState<string>('');
     const [editingField, setEditingField] = useState<null | 'groot' | 'verbruik' | 'extra' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount'>(null);
     const [tempFieldValue, setTempFieldValue] = useState<string>('');
     const skipNextBlurSaveRef = useRef(false);
@@ -90,6 +94,28 @@ export function CostSummaryCard({
 
     const cancelEditingHours = () => {
         setIsEditingHours(false);
+    };
+
+    const startEditingLowVatHours = () => {
+        const current = Math.max(0, Number(settings?.arbeidBtwLaagUren) || 0);
+        setTempLowVatHours(current.toLocaleString('nl-NL', { maximumFractionDigits: 2 }));
+        setIsEditingLowVatHours(true);
+    };
+
+    const saveLowVatHours = () => {
+        if (skipNextBlurSaveRef.current) {
+            skipNextBlurSaveRef.current = false;
+            return;
+        }
+        const parsed = parseLocalizedNumber(tempLowVatHours);
+        if (!Number.isNaN(parsed) && onUpdateLowVatLaborHours) {
+            onUpdateLowVatLaborHours(Math.max(0, Math.min(parsed, Math.max(0, totalUren))));
+        }
+        setIsEditingLowVatHours(false);
+    };
+
+    const cancelEditingLowVatHours = () => {
+        setIsEditingLowVatHours(false);
     };
 
     const parseLocalizedNumber = (value: string): number => {
@@ -215,6 +241,16 @@ export function CostSummaryCard({
     const safeUrenPerDag = Number.isFinite(urenPerDag) && urenPerDag > 0 ? urenPerDag : 8;
     const aantalWerkdagen = totalUren > 0 ? Math.max(1, Math.ceil(totalUren / safeUrenPerDag)) : 0;
     const winstPerWerkdag = aantalWerkdagen > 0 ? winstNaBtwArbeidEnMarge / aantalWerkdagen : 0;
+    const arbeidLaagBtwUren = Math.max(0, totals.arbeidLaagBtwUren || 0);
+    const arbeidHoogBtwUren = Math.max(0, totals.arbeidHoogBtwUren || totalUren);
+    const arbeidLaagBtwTotaal = Math.max(0, totals.arbeidLaagBtwTotaal || 0);
+    const arbeidHoogBtwTotaal = Math.max(0, totals.arbeidHoogBtwTotaal || totals.arbeidTotaal);
+    const arbeidLaagBtwTarief = Math.max(0, totals.arbeidLaagBtwTarief || settings.arbeidBtwLaagTarief || 9);
+    const hasLaborVatSplit = arbeidLaagBtwUren > 0 && arbeidLaagBtwTotaal > 0 && !isMaterialsOnlyVatMode;
+    const calculateInclAmountForRate = (exclValue: number, rate: number): number => {
+        if (isMaterialsOnlyVatMode) return exclValue;
+        return exclValue + ((exclValue * Math.max(0, rate)) / 100);
+    };
 
     return (
         <div className="bg-card rounded-lg border border-border p-4">
@@ -343,7 +379,7 @@ export function CostSummaryCard({
 
                 <div className="h-px bg-border/60" />
 
-                <div className="rounded-lg border border-border p-2.5 bg-background/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="rounded-lg border border-border p-2.5 space-y-2 bg-background/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground flex flex-wrap items-center gap-1">
                             Arbeid (
@@ -397,9 +433,58 @@ export function CostSummaryCard({
                             )}
                             <span className="text-xs text-muted-foreground ml-1">excl. btw</span>)
                         </span>
-                        {renderAmountColumns(
-                            <span>{formatCurrency(totals.arbeidTotaal)}</span>,
-                            calculateInclAmount(totals.arbeidTotaal, !isMaterialsOnlyVatMode)
+                        {hasLaborVatSplit
+                            ? renderAmountColumns(
+                                <span>{formatCurrency(totals.arbeidTotaal)}</span>,
+                                calculateInclAmountForRate(arbeidHoogBtwTotaal, vatRate) + calculateInclAmountForRate(arbeidLaagBtwTotaal, arbeidLaagBtwTarief)
+                            )
+                            : renderAmountColumns(
+                                <span>{formatCurrency(totals.arbeidTotaal)}</span>,
+                                calculateInclAmount(totals.arbeidTotaal, !isMaterialsOnlyVatMode)
+                            )}
+                    </div>
+                    <div className="border-t border-border/70 pt-2 space-y-1 text-xs">
+                        <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">
+                                Arbeid {vatRate}% ({arbeidHoogBtwUren.toLocaleString('nl-NL', { maximumFractionDigits: 2 })} uur)
+                            </span>
+                            {renderAmountColumns(
+                                <span>{formatCurrency(arbeidHoogBtwTotaal)}</span>,
+                                calculateInclAmountForRate(arbeidHoogBtwTotaal, vatRate)
+                            )}
+                        </div>
+                        {(hasLaborVatSplit || isEditingLowVatHours || onUpdateLowVatLaborHours) && (
+                            <div className="flex justify-between gap-4">
+                                <span className="text-muted-foreground flex flex-wrap items-center gap-1">
+                                    Arbeid {arbeidLaagBtwTarief}% (
+                                    {isEditingLowVatHours ? (
+                                        <Input
+                                            autoFocus
+                                            type="text"
+                                            value={tempLowVatHours}
+                                            onChange={(e) => setTempLowVatHours(e.target.value)}
+                                            onBlur={saveLowVatHours}
+                                            onFocus={selectAllOnFocus}
+                                            className="h-6 w-16 px-1 py-0 text-xs bg-muted border-border text-center"
+                                            onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingLowVatHours)}
+                                        />
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className="p-0 border-0 bg-transparent inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                                            onClick={startEditingLowVatHours}
+                                        >
+                                            {arbeidLaagBtwUren.toLocaleString('nl-NL', { maximumFractionDigits: 2 })} uur
+                                            <Pencil size={11} className="text-muted-foreground" />
+                                        </button>
+                                    )}
+                                    )
+                                </span>
+                                {renderAmountColumns(
+                                    <span>{formatCurrency(arbeidLaagBtwTotaal)}</span>,
+                                    calculateInclAmountForRate(arbeidLaagBtwTotaal, arbeidLaagBtwTarief)
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>
@@ -509,13 +594,32 @@ export function CostSummaryCard({
                             calculateInclAmount(winstMargeExclBtw, !isMaterialsOnlyVatMode)
                         )}
                     </div>
-                    <div className="border-t border-border pt-1.5 flex justify-between text-sm">
-                        <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
-                        {renderAmountColumns(
-                            <span>{formatCurrency(btwMetMarge)}</span>,
-                            btwMetMarge
-                        )}
-                    </div>
+                    {hasLaborVatSplit ? (
+                        <div className="border-t border-border pt-1.5 space-y-1 text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
+                                {renderAmountColumns(
+                                    <span>{formatCurrency(totals.btwHoog || 0)}</span>,
+                                    totals.btwHoog || 0
+                                )}
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">BTW ({arbeidLaagBtwTarief}%)</span>
+                                {renderAmountColumns(
+                                    <span>{formatCurrency(totals.btwLaag || 0)}</span>,
+                                    totals.btwLaag || 0
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="border-t border-border pt-1.5 flex justify-between text-sm">
+                            <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
+                            {renderAmountColumns(
+                                <span>{formatCurrency(btwMetMarge)}</span>,
+                                btwMetMarge
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="border-t-2 border-primary/50 pt-2.5 flex justify-between">

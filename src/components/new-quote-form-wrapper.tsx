@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { z } from 'zod';
@@ -113,6 +113,8 @@ const KlantinformatieSchema = z.object({
   klanttype: z.enum(['particulier', 'zakelijk']),
   bedrijfsnaam: z.string().optional(),
   contactpersoon: z.string().optional(),
+  kvkNummer: z.string().optional(),
+  btwNummer: z.string().optional(),
   voornaam: z.string().min(1, 'Voornaam is verplicht'),
   achternaam: z.string().optional(),
   emailadres: z.preprocess(
@@ -151,7 +153,7 @@ export function NewQuoteForm({
 
   const [klanttype, setKlanttype] = useState<'particulier' | 'zakelijk'>('particulier');
   const [showProjectAddress, setShowProjectAddress] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isSaving, setIsSaving] = useState(false);
 
   // Data state
   const [initialKI, setInitialKI] = useState<Record<string, any> | null>(null);
@@ -292,6 +294,8 @@ export function NewQuoteForm({
       klanttype: isZakelijk ? 'Zakelijk' : 'Particulier',
       bedrijfsnaam: get('bedrijfsnaam'),
       contactpersoon: get('contactpersoon'),
+      kvkNummer: get('kvkNummer'),
+      btwNummer: get('btwNummer').toUpperCase(),
       voornaam: formatCapitalize(get('voornaam')),
       achternaam: formatCapitalize(get('achternaam')),
       emailadres: get('emailadres'),
@@ -587,6 +591,8 @@ export function NewQuoteForm({
       klanttype: klanttypeRaw === 'zakelijk' ? 'Zakelijk' : 'Particulier',
       bedrijfsnaam: get('bedrijfsnaam'),
       contactpersoon: get('contactpersoon'),
+      kvkNummer: get('kvkNummer'),
+      btwNummer: get('btwNummer').toUpperCase(),
       voornaam,
       achternaam,
       emailadres: get('emailadres'),
@@ -652,11 +658,14 @@ export function NewQuoteForm({
 
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSaving) return;
     if (!user || !firestore) return;
     if (!quoteId) {
       toast({ variant: 'destructive', title: 'Geen offerte ID gevonden.' });
       return;
     }
+
+    setIsSaving(true);
 
     const formData = new FormData(event.currentTarget);
     const raw: any = Object.fromEntries(formData);
@@ -670,99 +679,100 @@ export function NewQuoteForm({
     if (typeof raw.projectStraat === 'string') raw.projectStraat = formatCapitalize(raw.projectStraat);
     if (typeof raw.projectPlaats === 'string') raw.projectPlaats = formatCapitalize(raw.projectPlaats);
     if (typeof raw.projectPostcode === 'string') raw.projectPostcode = formatPostcode(raw.projectPostcode);
+    if (typeof raw.btwNummer === 'string') raw.btwNummer = raw.btwNummer.trim().toUpperCase();
     const workDescriptionPrompt =
       typeof raw.workDescriptionPrompt === 'string' ? raw.workDescriptionPrompt.trim() : '';
 
-    startTransition(async () => {
-      const validated = KlantinformatieSchema.safeParse(raw);
-      if (!validated.success) {
-        const firstMessage = validated.error.issues[0]?.message || 'Controleer de ingevulde velden';
-        toast({ variant: 'destructive', title: firstMessage });
-        return;
-      }
+    const validated = KlantinformatieSchema.safeParse(raw);
+    if (!validated.success) {
+      const firstMessage = validated.error.issues[0]?.message || 'Controleer de ingevulde velden';
+      toast({ variant: 'destructive', title: firstMessage });
+      setIsSaving(false);
+      return;
+    }
 
-      const cleanData = cleanFirestoreData({
-        ...validated.data,
-        userId: user.uid,
-        updatedAt: serverTimestamp(),
-        klanttype: validated.data.klanttype === 'particulier' ? 'Particulier' : 'Zakelijk',
-        ...(validated.data.afwijkendProjectadres ? {
-          afwijkendProjectadres: true,
-          projectStraat: validated.data.projectStraat,
-          projectHuisnummer: validated.data.projectHuisnummer,
-          projectPostcode: validated.data.projectPostcode,
-          projectPlaats: validated.data.projectPlaats,
-        } : {
-          afwijkendProjectadres: false,
-        })
-      });
+    const cleanData = cleanFirestoreData({
+      ...validated.data,
+      userId: user.uid,
+      updatedAt: serverTimestamp(),
+      klanttype: validated.data.klanttype === 'particulier' ? 'Particulier' : 'Zakelijk',
+      ...(validated.data.afwijkendProjectadres ? {
+        afwijkendProjectadres: true,
+        projectStraat: validated.data.projectStraat,
+        projectHuisnummer: validated.data.projectHuisnummer,
+        projectPostcode: validated.data.projectPostcode,
+        projectPlaats: validated.data.projectPlaats,
+      } : {
+        afwijkendProjectadres: false,
+      })
+    });
 
-      try {
-        // 1) SAVE/UPDATE CLIENT in Address Book
-        const clientRef = collection(firestore, 'clients');
-        const emailadres = typeof cleanData.emailadres === 'string' ? cleanData.emailadres.trim() : '';
-        if (emailadres) {
-          const q = query(
-            clientRef,
-            where('emailadres', '==', emailadres),
-            where('userId', '==', user.uid)
-          );
-          const snap = await getDocs(q);
+    try {
+      // 1) SAVE/UPDATE CLIENT in Address Book
+      const clientRef = collection(firestore, 'clients');
+      const emailadres = typeof cleanData.emailadres === 'string' ? cleanData.emailadres.trim() : '';
+      if (emailadres) {
+        const q = query(
+          clientRef,
+          where('emailadres', '==', emailadres),
+          where('userId', '==', user.uid)
+        );
+        const snap = await getDocs(q);
 
-          if (!snap.empty) {
-            const docId = snap.docs[0].id;
-            await updateDoc(doc(firestore, 'clients', docId), { ...cleanData, updatedAt: serverTimestamp() });
-          } else {
-            await addDoc(clientRef, { ...cleanData, createdAt: serverTimestamp() });
-          }
+        if (!snap.empty) {
+          const docId = snap.docs[0].id;
+          await updateDoc(doc(firestore, 'clients', docId), { ...cleanData, updatedAt: serverTimestamp() });
         } else {
           await addDoc(clientRef, { ...cleanData, createdAt: serverTimestamp() });
         }
+      } else {
+        await addDoc(clientRef, { ...cleanData, createdAt: serverTimestamp() });
+      }
 
-        // 2) UPDATE QUOTE FINAL CHECK & NAVIGATE
-        await updateDoc(doc(firestore, 'quotes', quoteId), {
-          klantinformatie: cleanData
-        });
+      // 2) UPDATE QUOTE FINAL CHECK & NAVIGATE
+      await updateDoc(doc(firestore, 'quotes', quoteId), {
+        klantinformatie: cleanData
+      });
 
-        // 3) Ensure Supabase data_json is in sync with the latest client info.
-        // Needed for manual-flow quotes that were initialized before klantdata existed.
-        const token = await user.getIdToken();
-        await fetch('/api/quotes/ensure-data-json', {
+      // 3) Ensure Supabase data_json is in sync with the latest client info.
+      // Needed for manual-flow quotes that were initialized before klantdata existed.
+      const token = await user.getIdToken();
+      await fetch('/api/quotes/ensure-data-json', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ quoteId }),
+      });
+
+      if (requiresWorkDescriptionPrompt && workDescriptionPrompt) {
+        const generateResponse = await fetch('/api/generate-work-description', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ quoteId }),
+          body: JSON.stringify({
+            quoteId,
+            prompt: workDescriptionPrompt,
+          }),
         });
 
-        if (requiresWorkDescriptionPrompt && workDescriptionPrompt) {
-          const generateResponse = await fetch('/api/generate-work-description', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              quoteId,
-              prompt: workDescriptionPrompt,
-            }),
-          });
-
-          const generatePayload = await generateResponse.json().catch(() => null) as { error?: string } | null;
-          if (!generateResponse.ok) {
-            throw new Error(generatePayload?.error || 'Kon Werk & Levering niet genereren.');
-          }
+        const generatePayload = await generateResponse.json().catch(() => null) as { error?: string } | null;
+        if (!generateResponse.ok) {
+          throw new Error(generatePayload?.error || 'Kon Werk & Levering niet genereren.');
         }
-
-        const resolvedSuccessHref = successHref || `/offertes/${quoteId}/klus/nieuw`;
-        router.push(resolvedSuccessHref);
-      } catch (e) {
-        console.error(e);
-        const message = e instanceof Error ? e.message : 'Fout bij opslaan';
-        toast({ variant: 'destructive', title: message });
       }
-    });
+
+      const resolvedSuccessHref = successHref || `/offertes/${quoteId}/klus/nieuw`;
+      router.push(resolvedSuccessHref);
+    } catch (e) {
+      console.error(e);
+      const message = e instanceof Error ? e.message : 'Fout bij opslaan';
+      toast({ variant: 'destructive', title: message });
+      setIsSaving(false);
+    }
   };
 
   const handleBackClick = async () => {
@@ -1087,6 +1097,31 @@ export function NewQuoteForm({
                   onBlur={(e) => handleAutoSave('contactpersoon', e.target.value)}
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="kvkNummer">KVK-nummer</Label>
+                <Input
+                  id="kvkNummer"
+                  name="kvkNummer"
+                  inputMode="numeric"
+                  placeholder="12345678"
+                  defaultValue={initialKI?.kvkNummer}
+                  onBlur={(e) => handleAutoSave('kvkNummer', e.target.value.trim())}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="btwNummer">BTW-nummer</Label>
+                <Input
+                  id="btwNummer"
+                  name="btwNummer"
+                  placeholder="NL123456789B01"
+                  defaultValue={initialKI?.btwNummer}
+                  onBlur={(e) => {
+                    const v = e.target.value.trim().toUpperCase();
+                    e.target.value = v;
+                    handleAutoSave('btwNummer', v);
+                  }}
+                />
+              </div>
             </div>
           )}
 
@@ -1324,8 +1359,8 @@ export function NewQuoteForm({
                 <Button variant="outline" type="button" onClick={handleBackClick}>
                   Terug
                 </Button>
-                <Button form={formId} type="submit" variant="success" disabled={isPending}>
-                  {isPending ? 'Opslaan...' : 'Opslaan'}
+                <Button form={formId} type="submit" variant="success" disabled={isSaving}>
+                  {isSaving ? 'Opslaan...' : 'Opslaan'}
                 </Button>
               </div>
             </div>,

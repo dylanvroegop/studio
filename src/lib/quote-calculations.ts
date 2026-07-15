@@ -122,6 +122,8 @@ export type KlantInformatie = {
     voornaam: string;
     achternaam: string;
     bedrijfsnaam?: string;
+    kvkNummer?: string;
+    btwNummer?: string;
     emailadres: string;
     telefoonnummer: string;
     straat: string;
@@ -141,6 +143,8 @@ export type QuoteSettings = {
     btwTarief: number; // 21
     uurTariefExclBtw: number; // 50
     btwMode?: "normaal" | "materiaal_only";
+    arbeidBtwLaagUren?: number;
+    arbeidBtwLaagTarief?: number;
     schattingUren?: boolean;
     extras: {
         transport: {
@@ -165,6 +169,12 @@ export type QuoteTotals = {
     materialenVerbruik: number;
     materialenTotaal: number;
     arbeidTotaal: number;
+    arbeidHoogBtwUren: number;
+    arbeidLaagBtwUren: number;
+    arbeidHoogBtwTotaal: number;
+    arbeidLaagBtwTotaal: number;
+    arbeidHoogBtwTarief: number;
+    arbeidLaagBtwTarief: number;
     transportTotaal: number;
     transportPerDag: number;
     transportAantalDagen: number;
@@ -192,6 +202,8 @@ export type QuoteTotals = {
     };
     totaalExclBtw: number;
     btw: number;
+    btwHoog: number;
+    btwLaag: number;
     totaalInclBtw: number;
 };
 
@@ -1523,9 +1535,22 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
     const totaalExclBtw = roundCurrency(subtotaalExclBtw + winstMargeExclBtw);
 
     const btwTarief = toNumber(quoteSettings?.btwTarief, 21);
+    const arbeidLaagBtwTarief = Math.max(0, toNumber(quoteSettings?.arbeidBtwLaagTarief, 9));
+    const arbeidLaagBtwUren = Math.min(
+        Math.max(0, toNumber(quoteSettings?.arbeidBtwLaagUren, 0)),
+        Math.max(0, totaalUren),
+    );
+    const arbeidHoogBtwUren = Math.max(0, totaalUren - arbeidLaagBtwUren);
+    const arbeidLaagBtwTotaal = roundCurrency(arbeidLaagBtwUren * uurTariefExclBtw);
+    const arbeidHoogBtwTotaal = roundCurrency(Math.max(0, arbeidSubtotalExclBtw - arbeidLaagBtwTotaal));
     const btwMode = quoteSettings?.btwMode === "materiaal_only" ? "materiaal_only" : "normaal";
-    const btwGrondslag = btwMode === "materiaal_only" ? materiaalSubtotalExclBtw : totaalExclBtw;
-    const btwBedrag = roundCurrency((btwTarief / 100) * btwGrondslag);
+    const btwHoogGrondslag = btwMode === "materiaal_only"
+        ? materiaalSubtotalExclBtw
+        : roundCurrency(materiaalSubtotalExclBtw + transportExclBtw + winstMargeExclBtw + arbeidHoogBtwTotaal);
+    const btwLaagGrondslag = btwMode === "materiaal_only" ? 0 : arbeidLaagBtwTotaal;
+    const btwHoog = roundCurrency((btwTarief / 100) * btwHoogGrondslag);
+    const btwLaag = roundCurrency((arbeidLaagBtwTarief / 100) * btwLaagGrondslag);
+    const btwBedrag = roundCurrency(btwHoog + btwLaag);
     const totaalInclBtw = roundCurrency(totaalExclBtw + btwBedrag);
     const winstProjectieOmzetExclBtw = totaalExclBtw;
     const winstProjectieKostenExclBtw = roundCurrency(materiaalSubtotalExclBtw + transportExclBtw);
@@ -1539,7 +1564,10 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
     const btwArbeidEnMarge = roundCurrency(
         btwMode === "materiaal_only"
             ? 0
-            : ((btwTarief / 100) * roundCurrency(arbeidSubtotalExclBtw + winstMargeExclBtw))
+            : (
+                ((btwTarief / 100) * roundCurrency(arbeidHoogBtwTotaal + winstMargeExclBtw))
+                + ((arbeidLaagBtwTarief / 100) * arbeidLaagBtwTotaal)
+            )
     );
     const winstNaBtwArbeidEnMarge = roundCurrency(winstProjectieWinstInclBtw - btwArbeidEnMarge);
     const winstProjectieMargePct = winstProjectieOmzetExclBtw > 0
@@ -1551,6 +1579,12 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
         materialenVerbruik: verbruikSubtotalExclBtw,
         materialenTotaal: materiaalSubtotalExclBtw,
         arbeidTotaal: arbeidSubtotalExclBtw,
+        arbeidHoogBtwUren,
+        arbeidLaagBtwUren,
+        arbeidHoogBtwTotaal,
+        arbeidLaagBtwTotaal,
+        arbeidHoogBtwTarief: btwTarief,
+        arbeidLaagBtwTarief,
         transportTotaal: transportExclBtw,
         transportPerDag: transportPerDagRounded,
         transportAantalDagen,
@@ -1578,6 +1612,8 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
         },
         totaalExclBtw: totaalExclBtw,
         btw: btwBedrag,
+        btwHoog,
+        btwLaag,
         totaalInclBtw: totaalInclBtw,
     };
 }

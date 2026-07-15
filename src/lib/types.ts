@@ -19,6 +19,8 @@ export type Client = {
   plaats: string;
   email?: string;
   telefoon?: string;
+  kvkNummer?: string;
+  btwNummer?: string;
   createdAt: string;
 };
 
@@ -41,6 +43,8 @@ export type Quote = {
 
     bedrijfsnaam: string | null;
     contactpersoon: string | null;
+    kvkNummer?: string | null;
+    btwNummer?: string | null;
     voornaam: string;
     achternaam: string;
 
@@ -155,6 +159,8 @@ export interface MaterialPresentation {
 export type QuoteSettings = {
   btwTarief: number;          // e.g. 21
   uurTariefExclBtw: number;   // e.g. 45.00
+  arbeidBtwLaagUren?: number;
+  arbeidBtwLaagTarief?: number;
 };
 
 export type InvoiceType = 'voorschot' | 'eind';
@@ -200,6 +206,7 @@ export interface Invoice {
     offerteNummer?: number;
     titel?: string;
     klantSnapshot: {
+      clientId?: string;
       klanttype?: string;
       naam: string;
       adres: string;
@@ -207,6 +214,8 @@ export interface Invoice {
       plaats: string;
       telefoon: string;
       email: string;
+      kvkNummer?: string;
+      btwNummer?: string;
     };
     projectAdresSnapshot?: {
       adres: string;
@@ -233,6 +242,7 @@ export interface Invoice {
       totaalInclBtw: number;
       paidAmount: number;
     } | null;
+    handmatigEindbedrag?: boolean;
     opmerking?: string;
   };
 

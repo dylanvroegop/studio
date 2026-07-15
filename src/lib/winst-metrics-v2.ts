@@ -48,6 +48,7 @@ export interface WinstQuoteSource {
   clientName: string;
   status?: string;
   includeInDashboard?: boolean;
+  hourlyWorkMaterialPassthrough?: boolean;
   createdAt: Date | null;
   updatedAt: Date | null;
   quotedRevenueIncl: number;
@@ -1086,6 +1087,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
       jobTypes: quote.jobTypes,
       createdAt: (quote.createdAt || quote.updatedAt)?.toISOString() ?? null,
       status: quote.status,
+      hourlyWorkMaterialPassthrough: quote.hourlyWorkMaterialPassthrough === true,
       hasActualData: actual.hasAnyActualData,
       dataQualityIssue,
       quotedRevenueIncl,

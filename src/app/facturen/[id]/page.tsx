@@ -8,12 +8,16 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
+  query,
   runTransaction,
   serverTimestamp,
   updateDoc,
+  where,
 } from 'firebase/firestore';
-import { CheckCircle2, Download, Loader2, Mail, ReceiptText, Settings } from 'lucide-react';
+import { getIdTokenResult } from 'firebase/auth';
+import { CheckCircle2, Download, Euro, Loader2, Mail, MessageCircle, ReceiptText, Settings, StickyNote } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,11 +42,14 @@ import { PDFPreviewInvoice } from '@/components/invoice/PDFPreviewInvoice';
 import type { PDFInvoiceData } from '@/lib/generate-invoice-pdf';
 import { generateInvoicePDF } from '@/lib/generate-invoice-pdf';
 import { SendInvoiceModal } from '@/components/invoice/SendInvoiceModal';
+import { SendQuoteWhatsAppModal } from '@/components/quote/SendQuoteWhatsAppModal';
 import { toast } from '@/hooks/use-toast';
 import {
   invoiceImpliesAccepted,
   promoteInvoiceRelatedQuotesToAcceptedInTransaction,
 } from '@/lib/quote-status';
+import type { DataJson } from '@/lib/quote-calculations';
+import { parsePriceToNumber } from '@/lib/utils';
 
 function naarDate(value: any): Date | null {
   if (!value) return null;
@@ -59,6 +66,106 @@ function formatCurrency(amount?: number) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
 }
 
+function getString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function formatAmountInput(amount?: number) {
+  const n = typeof amount === 'number' && Number.isFinite(amount) ? amount : 0;
+  return new Intl.NumberFormat('nl-NL', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
+function parseOptionalAmountInput(value: string): number | null {
+  if (!value.trim()) return 0;
+  return parsePriceToNumber(value);
+}
+
+function isTruncatedText(value: string): boolean {
+  return value.includes('...') || value.includes('…');
+}
+
+function addCleanCandidate(target: string[], value: unknown) {
+  if (typeof value !== 'string') return;
+  const cleaned = value.replace(/\s+/g, ' ').trim();
+  if (cleaned && !target.includes(cleaned)) target.push(cleaned);
+}
+
+function collectDescriptionCandidates(source: unknown, target: string[]) {
+  if (!source || typeof source !== 'object') return;
+  const record = source as Record<string, any>;
+  addCleanCandidate(target, record.korteTitel);
+  addCleanCandidate(target, record.korte_titel);
+  addCleanCandidate(target, record.title);
+  addCleanCandidate(target, record.titel);
+
+  const structured = record.werkbeschrijving_structured || record.werkbeschrijvingStructured;
+  if (structured && typeof structured === 'object') {
+    addCleanCandidate(target, structured.title);
+    if (Array.isArray(structured.jobs)) {
+      structured.jobs.forEach((job: any) => addCleanCandidate(target, job?.title));
+    }
+  }
+
+  const jobs = record.werkbeschrijving_jobs || record.werkbeschrijvingJobs;
+  if (Array.isArray(jobs)) {
+    jobs.forEach((job: any) => addCleanCandidate(target, job?.title || job?.korteTitel || job?.korte_titel));
+  }
+}
+
+function resolveInvoiceDescriptionFallback(invoice: Invoice, snapshot: DataJson | null): string {
+  const candidates: string[] = [];
+  collectDescriptionCandidates(snapshot, candidates);
+  collectDescriptionCandidates((invoice as any).calculationSnapshot, candidates);
+  collectDescriptionCandidates(invoice.sourceQuote, candidates);
+  addCleanCandidate(candidates, invoice.sourceQuote?.titel);
+
+  return candidates.find((candidate) => !isTruncatedText(candidate)) || candidates[0] || '';
+}
+
+function mergeCalculationSnapshotWithQuote(snapshot: DataJson | null | undefined, quoteData: any): DataJson | null {
+  if (!snapshot && !quoteData) return null;
+
+  const base = ((snapshot || quoteData?.calculationSnapshot || quoteData?.data_json || {}) as Record<string, unknown>);
+  const baseInst = (base.instellingen || {}) as Record<string, unknown>;
+  const quoteSettings = quoteData?.instellingen && typeof quoteData.instellingen === 'object'
+    ? quoteData.instellingen
+    : undefined;
+  const quoteExtras = quoteData?.extras && typeof quoteData.extras === 'object'
+    ? quoteData.extras
+    : undefined;
+  const baseHourlyRate = parsePriceToNumber(String(baseInst.uurTariefExclBtw ?? baseInst.uurTarief ?? ''));
+  const quoteHourlyRateSource = typeof quoteSettings?.uurTariefSource === 'string'
+    ? quoteSettings.uurTariefSource
+    : '';
+  const quoteHourlyRateIsExplicit = quoteHourlyRateSource === 'custom';
+  const effectiveHourlyRate = baseHourlyRate !== null && baseHourlyRate > 0 && !quoteHourlyRateIsExplicit
+    ? baseHourlyRate
+    : parsePriceToNumber(String(quoteSettings?.uurTariefExclBtw ?? quoteSettings?.uurTarief ?? '')) ?? baseHourlyRate;
+
+  return {
+    ...base,
+    ...(quoteExtras ? { extras: quoteExtras } : {}),
+    instellingen: {
+      ...baseInst,
+      ...(quoteSettings || {}),
+      ...(effectiveHourlyRate !== null && effectiveHourlyRate > 0
+        ? {
+          uurTariefExclBtw: effectiveHourlyRate,
+          uurTarief: effectiveHourlyRate,
+        }
+        : {}),
+      extras: {
+        ...((baseInst.extras || {}) as Record<string, unknown>),
+        ...((quoteSettings?.extras || {}) as Record<string, unknown>),
+        ...(quoteExtras || {}),
+      },
+    },
+  } as DataJson;
+}
+
 function nextStatusAfterPayment(total: number, paidAmount: number, current: InvoiceStatus): InvoiceStatus {
   const openAmount = Math.max(0, total - paidAmount);
   if (openAmount === 0) return 'betaald';
@@ -69,13 +176,34 @@ function nextStatusAfterPayment(total: number, paidAmount: number, current: Invo
 type InvoicePdfSettings = {
   issueDateISO: string;
   paymentTermDays: number;
+  invoiceDescription: string;
   showLogo: boolean;
   showQuoteReference: boolean;
   showSpecification: boolean;
   showTotalsBreakdown: boolean;
+  showMaterialLaborBreakdown: boolean;
+  showTransportBreakdown: boolean;
+  showHourlyRateOnInvoice: boolean;
   showBankDetails: boolean;
   customPaymentText: string;
 };
+
+type InvoicePdfDefaultSettings = Omit<InvoicePdfSettings, 'issueDateISO' | 'invoiceDescription'>;
+
+function buildInvoicePdfDefaultSettings(settings: InvoicePdfSettings): InvoicePdfDefaultSettings {
+  return {
+    paymentTermDays: settings.paymentTermDays,
+    showLogo: settings.showLogo,
+    showQuoteReference: settings.showQuoteReference,
+    showSpecification: settings.showSpecification,
+    showTotalsBreakdown: settings.showTotalsBreakdown,
+    showMaterialLaborBreakdown: settings.showMaterialLaborBreakdown,
+    showTransportBreakdown: settings.showTransportBreakdown,
+    showHourlyRateOnInvoice: settings.showHourlyRateOnInvoice,
+    showBankDetails: settings.showBankDetails,
+    customPaymentText: settings.customPaymentText,
+  };
+}
 
 function clampPaymentTermDays(value: number): number {
   if (!Number.isFinite(value)) return 14;
@@ -125,12 +253,24 @@ export default function FactuurDetailPage() {
 
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [businessData, setBusinessData] = useState<any>(null);
+  const [quoteClientNumbers, setQuoteClientNumbers] = useState<{ kvk: string; btw: string }>({ kvk: '', btw: '' });
+  const [quoteOfferteNummer, setQuoteOfferteNummer] = useState<number | null>(null);
+  const [quoteFullDescription, setQuoteFullDescription] = useState<string>('');
+  const [quoteCalculationSnapshot, setQuoteCalculationSnapshot] = useState<DataJson | null>(null);
+  const [quoteDocData, setQuoteDocData] = useState<any | null>(null);
 
   const [sendOpen, setSendOpen] = useState(false);
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false);
+  const [hasDeveloperWhatsAppAccess, setHasDeveloperWhatsAppAccess] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [overrideAmount, setOverrideAmount] = useState<string>('');
+  const [specOriginalTotal, setSpecOriginalTotal] = useState<string>('');
+  const [specVoorschotAftrek, setSpecVoorschotAftrek] = useState<string>('');
+  const [specVoorschotPaidInfo, setSpecVoorschotPaidInfo] = useState<string>('');
+  const [specFinalTotal, setSpecFinalTotal] = useState<string>('');
   const [overrideReason, setOverrideReason] = useState<string>('');
   const [overrideSaving, setOverrideSaving] = useState(false);
+  const [invoiceNotes, setInvoiceNotes] = useState<string>('');
+  const [notesSaving, setNotesSaving] = useState(false);
 
   // Payment form
   const [payAmount, setPayAmount] = useState<string>('');
@@ -140,7 +280,7 @@ export default function FactuurDetailPage() {
   const [payNote, setPayNote] = useState<string>('');
   const [paySaving, setPaySaving] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pdf' | 'overzicht' | 'betalingen'>('pdf');
+  const [activeTab, setActiveTab] = useState<'pdf' | 'overzicht' | 'bedrag' | 'notities' | 'betalingen'>('pdf');
   const [pdfSettingsOpen, setPdfSettingsOpen] = useState(false);
   const [pdfSettingsInitialized, setPdfSettingsInitialized] = useState(false);
   const [invoicePdfSettings, setInvoicePdfSettings] = useState<InvoicePdfSettings | null>(null);
@@ -203,6 +343,145 @@ export default function FactuurDetailPage() {
   }, [user, firestore, invoiceId]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    if (!user) {
+      setHasDeveloperWhatsAppAccess(false);
+      setWhatsAppOpen(false);
+      return;
+    }
+
+    const resolveDeveloperAccess = async () => {
+      try {
+        const token = await getIdTokenResult(user, false);
+        const allowed = token.claims.dev === true || token.claims.admin === true;
+        if (cancelled) return;
+        setHasDeveloperWhatsAppAccess(allowed);
+        if (!allowed) setWhatsAppOpen(false);
+      } catch {
+        if (cancelled) return;
+        setHasDeveloperWhatsAppAccess(false);
+        setWhatsAppOpen(false);
+      }
+    };
+
+    void resolveDeveloperAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!firestore || !invoice?.quoteId) {
+      setQuoteClientNumbers({ kvk: '', btw: '' });
+      setQuoteOfferteNummer(null);
+      setQuoteFullDescription('');
+      setQuoteDocData(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchQuoteClientNumbers = async () => {
+      try {
+        const quoteSnap = await getDoc(doc(firestore, 'quotes', invoice.quoteId));
+        const quoteData = quoteSnap.exists() ? (quoteSnap.data() as any) : {};
+        const quoteNumber = Number(quoteData?.offerteNummer);
+        const quoteDescriptionCandidates: string[] = [];
+        collectDescriptionCandidates(quoteData?.calculationSnapshot || quoteData?.data_json, quoteDescriptionCandidates);
+        collectDescriptionCandidates(quoteData, quoteDescriptionCandidates);
+        addCleanCandidate(quoteDescriptionCandidates, quoteData?.werkomschrijving);
+        const fullDescription = quoteDescriptionCandidates.find((candidate) => !isTruncatedText(candidate))
+          || quoteDescriptionCandidates[0]
+          || '';
+        const klantInfo = quoteData?.klantinformatie || {};
+        let kvk = getString(klantInfo.kvkNummer || klantInfo.kvk);
+        let btw = getString(klantInfo.btwNummer || klantInfo.btw).toUpperCase();
+
+        if (!kvk && !btw) {
+          const clientId = getString(klantInfo.clientId);
+          if (clientId) {
+            const clientSnap = await getDoc(doc(firestore, 'clients', clientId));
+            const client = clientSnap.exists() ? (clientSnap.data() as any) : {};
+            kvk = getString(client.kvkNummer || client.kvk);
+            btw = getString(client.btwNummer || client.btw).toUpperCase();
+          }
+        }
+
+        if (!kvk && !btw && user) {
+          const email = getString(klantInfo.emailadres || klantInfo['e-mailadres'] || klantInfo.email).toLowerCase();
+          if (email) {
+            const clientQuery = query(
+              collection(firestore, 'clients'),
+              where('userId', '==', user.uid),
+              where('emailadres', '==', email)
+            );
+            const clientSnap = await getDocs(clientQuery);
+            const client = clientSnap.docs[0]?.data() as any;
+            kvk = getString(client?.kvkNummer || client?.kvk);
+            btw = getString(client?.btwNummer || client?.btw).toUpperCase();
+          }
+        }
+
+        if (!cancelled) {
+          setQuoteClientNumbers({ kvk, btw });
+          setQuoteOfferteNummer(Number.isFinite(quoteNumber) ? quoteNumber : null);
+          setQuoteFullDescription(fullDescription);
+          setQuoteDocData(quoteData);
+        }
+      } catch {
+        if (!cancelled) {
+          setQuoteClientNumbers({ kvk: '', btw: '' });
+          setQuoteOfferteNummer(null);
+          setQuoteFullDescription('');
+          setQuoteDocData(null);
+        }
+      }
+    };
+
+    void fetchQuoteClientNumbers();
+    return () => {
+      cancelled = true;
+    };
+  }, [firestore, invoice?.quoteId, user]);
+
+  useEffect(() => {
+    if (!user || !invoice?.quoteId) {
+      setQuoteCalculationSnapshot(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchCalculationSnapshot = async () => {
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/quotes/get-calculations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ quoteIds: [invoice.quoteId] }),
+        });
+
+        if (!response.ok) throw new Error('Kon calculatiegegevens niet ophalen');
+        const payload = await response.json();
+        const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+        const row = rows.find((item: any) => item?.quoteid === invoice.quoteId) || rows[0];
+        const snapshot = row?.data_json || null;
+        if (!cancelled) setQuoteCalculationSnapshot(snapshot as DataJson | null);
+      } catch (err) {
+        console.error('Fout bij laden calculatiegegevens factuur:', err);
+        if (!cancelled) setQuoteCalculationSnapshot(null);
+      }
+    };
+
+    void fetchCalculationSnapshot();
+    return () => {
+      cancelled = true;
+    };
+  }, [invoice?.quoteId, user]);
+
+  useEffect(() => {
     if (!user || !firestore) return;
     const fetchSettings = async () => {
       try {
@@ -234,6 +513,21 @@ export default function FactuurDetailPage() {
   const isVoorschotInvoice = invoiceType === 'voorschot';
 
   useEffect(() => {
+    if (!invoice) return;
+    const originalTotal = Number(invoice.financialAdjustments?.originalTotalInclBtw ?? invoice.totalsSnapshot?.totaalInclBtw ?? 0);
+    const voorschotAftrek = Number(invoice.financialAdjustments?.voorschotAftrekInclBtw ?? 0);
+    const voorschotPaid = Number(invoice.financialAdjustments?.voorschotFactuur?.paidAmount ?? 0);
+    const finalTotal = Number(invoice.totalsSnapshot?.totaalInclBtw ?? 0);
+
+    setSpecOriginalTotal(formatAmountInput(originalTotal));
+    setSpecVoorschotAftrek(formatAmountInput(voorschotAftrek));
+    setSpecVoorschotPaidInfo(formatAmountInput(voorschotPaid));
+    setSpecFinalTotal(formatAmountInput(finalTotal));
+    setOverrideReason(getString(invoice.financialAdjustments?.opmerking));
+    setInvoiceNotes(typeof invoice.notes === 'string' ? invoice.notes : '');
+  }, [invoice?.id]);
+
+  useEffect(() => {
     if (!invoice || pdfSettingsInitialized) return;
 
     const fallbackIssueDate = issueDate || new Date();
@@ -248,6 +542,10 @@ export default function FactuurDetailPage() {
     );
 
     const stored = (invoice as any)?.pdfSettings || {};
+    const userPdfDefaults = settings?.factuurPdfDefaults || {};
+    const storedHasDescription = Object.prototype.hasOwnProperty.call(stored, 'invoiceDescription');
+    const defaultDescription = quoteFullDescription || resolveInvoiceDescriptionFallback(invoice, quoteCalculationSnapshot);
+    const storedDescription = getString(stored.invoiceDescription);
     const initialSettings: InvoicePdfSettings = {
       issueDateISO: parseDateOnlyISO((stored?.issueDateISO || '').toString())
         ? (stored.issueDateISO as string)
@@ -256,18 +554,27 @@ export default function FactuurDetailPage() {
         Number(
           stored?.paymentTermDays
           ?? stored?.betalingstermijnDagen
+          ?? userPdfDefaults.paymentTermDays
           ?? inferredTerm
         )
       ),
-      showLogo: stored?.showLogo !== false,
-      showQuoteReference: stored?.showQuoteReference !== false,
-      showSpecification: stored?.showSpecification !== false,
-      showTotalsBreakdown: stored?.showTotalsBreakdown !== false,
-      showBankDetails: stored?.showBankDetails !== false,
+      invoiceDescription: storedHasDescription && (!isTruncatedText(storedDescription) || !defaultDescription)
+        ? storedDescription
+        : defaultDescription,
+      showLogo: stored?.showLogo ?? userPdfDefaults.showLogo ?? true,
+      showQuoteReference: stored?.showQuoteReference ?? userPdfDefaults.showQuoteReference ?? true,
+      showSpecification: stored?.showSpecification ?? userPdfDefaults.showSpecification ?? true,
+      showTotalsBreakdown: stored?.showTotalsBreakdown ?? userPdfDefaults.showTotalsBreakdown ?? true,
+      showMaterialLaborBreakdown: stored?.showMaterialLaborBreakdown ?? userPdfDefaults.showMaterialLaborBreakdown ?? false,
+      showTransportBreakdown: stored?.showTransportBreakdown ?? userPdfDefaults.showTransportBreakdown ?? false,
+      showHourlyRateOnInvoice: stored?.showHourlyRateOnInvoice ?? stored?.showHoursBreakdown ?? userPdfDefaults.showHourlyRateOnInvoice ?? false,
+      showBankDetails: stored?.showBankDetails ?? userPdfDefaults.showBankDetails ?? true,
       customPaymentText:
         typeof stored?.customPaymentText === 'string'
           ? stored.customPaymentText
-          : (settings?.standaardFactuurTekst || ''),
+          : (typeof userPdfDefaults.customPaymentText === 'string'
+            ? userPdfDefaults.customPaymentText
+            : (settings?.standaardFactuurTekst || '')),
     };
 
     setInvoicePdfSettings(initialSettings);
@@ -281,7 +588,18 @@ export default function FactuurDetailPage() {
     isVoorschotInvoice,
     settings?.standaardBetaaltermijnDagen,
     settings?.standaardFactuurTekst,
+    settings?.factuurPdfDefaults,
+    quoteFullDescription,
+    quoteCalculationSnapshot,
   ]);
+
+  useEffect(() => {
+    if (!invoice || !invoicePdfSettings) return;
+    const currentDescription = getString(invoicePdfSettings.invoiceDescription);
+    const replacement = quoteFullDescription || resolveInvoiceDescriptionFallback(invoice, quoteCalculationSnapshot);
+    if (!replacement || replacement === currentDescription || !isTruncatedText(currentDescription)) return;
+    setInvoicePdfSettings((prev) => prev ? ({ ...prev, invoiceDescription: replacement }) : prev);
+  }, [invoice, invoicePdfSettings, quoteFullDescription, quoteCalculationSnapshot]);
 
   const effectiveIssueDate = useMemo(() => {
     const parsed = parseDateOnlyISO(invoicePdfSettings?.issueDateISO || '');
@@ -300,7 +618,7 @@ export default function FactuurDetailPage() {
   }, [isVoorschotInvoice, effectiveIssueDate, effectivePaymentTermDays]);
 
   useEffect(() => {
-    if (!invoicePdfSettings || !pdfSettingsInitialized || !firestore || !invoiceId) return;
+    if (!invoicePdfSettings || !pdfSettingsInitialized || !firestore || !invoiceId || !user) return;
 
     const signature = JSON.stringify(invoicePdfSettings);
     if (signature === lastSavedPdfSettingsRef.current) return;
@@ -313,14 +631,29 @@ export default function FactuurDetailPage() {
     pdfSettingsSaveTimerRef.current = setTimeout(async () => {
       try {
         const invRef = doc(firestore, 'invoices', invoiceId);
+        const userRef = doc(firestore, 'users', user.uid);
+        const defaultPdfSettings = buildInvoicePdfDefaultSettings(invoicePdfSettings);
         await updateDoc(invRef, {
           pdfSettings: invoicePdfSettings,
           issueDate: Timestamp.fromDate(effectiveIssueDate),
           dueDate: Timestamp.fromDate(effectiveDueDate),
           updatedAt: serverTimestamp(),
         } as any);
+        await updateDoc(userRef, {
+          'settings.factuurPdfDefaults': defaultPdfSettings,
+          'settings.standaardBetaaltermijnDagen': defaultPdfSettings.paymentTermDays,
+          'settings.standaardFactuurTekst': defaultPdfSettings.customPaymentText,
+        } as any);
 
         lastSavedPdfSettingsRef.current = signature;
+        setSettings((prev) => prev
+          ? ({
+            ...prev,
+            factuurPdfDefaults: defaultPdfSettings,
+            standaardBetaaltermijnDagen: defaultPdfSettings.paymentTermDays,
+            standaardFactuurTekst: defaultPdfSettings.customPaymentText,
+          })
+          : prev);
         setPdfSettingsSavedAt(Date.now());
       } catch (err) {
         console.error('Kon factuur PDF instellingen niet opslaan:', err);
@@ -339,6 +672,7 @@ export default function FactuurDetailPage() {
     pdfSettingsInitialized,
     firestore,
     invoiceId,
+    user,
     effectiveIssueDate,
     effectiveDueDate,
   ]);
@@ -349,21 +683,38 @@ export default function FactuurDetailPage() {
     const bedrijfNaam = settings.bedrijfsnaam || businessData?.bedrijfsnaam || '';
     const klant = invoice.sourceQuote?.klantSnapshot;
     if (!bedrijfNaam || !klant) return null;
+    const effectiveCalculationSnapshot = mergeCalculationSnapshotWithQuote(
+      quoteCalculationSnapshot ?? invoice.calculationSnapshot,
+      quoteDocData,
+    );
+    const snapshotKvk = getString((klant as any).kvkNummer || (klant as any).kvk);
+    const snapshotBtw = getString((klant as any).btwNummer || (klant as any).btw).toUpperCase();
+    const calculationKlantInfo = (effectiveCalculationSnapshot as any)?.klantinformatie || {};
+    const klanttype = getString((klant as any).klanttype || calculationKlantInfo.klanttype);
+    const isZakelijkeKlant = klanttype.toLowerCase() === 'zakelijk';
+    const klantKvk = isZakelijkeKlant
+      ? snapshotKvk || getString(calculationKlantInfo.kvkNummer || calculationKlantInfo.kvk) || quoteClientNumbers.kvk
+      : '';
+    const klantBtw = isZakelijkeKlant
+      ? snapshotBtw || getString(calculationKlantInfo.btwNummer || calculationKlantInfo.btw).toUpperCase() || quoteClientNumbers.btw
+      : '';
+    const snapshotOfferteNummer = Number(invoice.sourceQuote?.offerteNummer);
+    const offerteNummer = Number.isFinite(snapshotOfferteNummer) ? snapshotOfferteNummer : quoteOfferteNummer;
 
     const originalTotalInclBtw = Number(invoice.financialAdjustments?.originalTotalInclBtw ?? invoice.totalsSnapshot?.totaalInclBtw ?? 0);
     const voorschotAftrekInclBtw = Number(invoice.financialAdjustments?.voorschotAftrekInclBtw ?? 0);
     const voorschotFactuurPaidAmount = typeof invoice.financialAdjustments?.voorschotFactuur?.paidAmount === 'number'
       ? invoice.financialAdjustments.voorschotFactuur.paidAmount
       : undefined;
-
     return {
       invoiceType,
       invoiceNumberLabel: invoice.invoiceNumberLabel,
       issueDate: effectiveIssueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }),
       dueDate: effectiveDueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }),
       paymentTermDays: isVoorschotInvoice ? 0 : effectivePaymentTermDays,
+      invoiceDescription: invoicePdfSettings?.invoiceDescription?.trim() || undefined,
       betreftOfferte: invoicePdfSettings?.showQuoteReference !== false
-        ? (invoice.sourceQuote?.offerteNummer ? `Offerte #${invoice.sourceQuote.offerteNummer}` : undefined)
+        ? (offerteNummer ? `Offerte #${offerteNummer}` : undefined)
         : undefined,
       logoUrl: invoicePdfSettings?.showLogo === false ? undefined : (settings.logoUrl || undefined),
       logoScale: settings.logoScale || 1.0,
@@ -381,12 +732,15 @@ export default function FactuurDetailPage() {
         bic: invoicePdfSettings?.showBankDetails === false ? undefined : (settings.bic || undefined),
       },
       klant: {
+        klanttype,
         naam: klant.naam || '',
         adres: klant.adres || '',
         postcode: klant.postcode || '',
         plaats: klant.plaats || '',
         telefoon: klant.telefoon || '',
         email: klant.email || '',
+        kvk: klantKvk,
+        btw: klantBtw,
       },
       totals: {
         totaalExclBtw: invoice.totalsSnapshot?.totaalExclBtw,
@@ -400,10 +754,15 @@ export default function FactuurDetailPage() {
           voorschotFactuurPaidAmount,
         }
         : undefined,
+      showMaterialLaborBreakdown: invoicePdfSettings?.showMaterialLaborBreakdown === true,
+      showTransportBreakdown: invoicePdfSettings?.showTransportBreakdown === true,
+      showHourlyRateOnInvoice: invoicePdfSettings?.showHourlyRateOnInvoice === true,
+      invoiceNotes: typeof invoice.notes === 'string' ? invoice.notes : '',
       standaardFactuurTekst: (invoicePdfSettings?.customPaymentText || settings.standaardFactuurTekst || '').trim(),
-      calculationSnapshot: invoice.calculationSnapshot ?? null,
+      laborHoursPerDay: settings.planningSettings?.defaultWorkdayHours,
+      calculationSnapshot: effectiveCalculationSnapshot ?? null,
     };
-  }, [invoice, settings, businessData, invoiceType, isVoorschotInvoice, effectiveIssueDate, effectiveDueDate, effectivePaymentTermDays, invoicePdfSettings]);
+  }, [invoice, settings, businessData, invoiceType, isVoorschotInvoice, effectiveIssueDate, effectiveDueDate, effectivePaymentTermDays, invoicePdfSettings, quoteClientNumbers, quoteOfferteNummer, quoteCalculationSnapshot, quoteDocData]);
 
   const handleDownloadPdf = async () => {
     if (!pdfData) return;
@@ -487,8 +846,8 @@ export default function FactuurDetailPage() {
   const handleAddPayment = async () => {
     if (!firestore || !invoice || !invoiceId) return;
 
-    const amount = Number(String(payAmount).replace(',', '.'));
-    if (!Number.isFinite(amount) || amount <= 0) {
+    const amount = parsePriceToNumber(payAmount);
+    if (amount === null || !Number.isFinite(amount) || amount <= 0) {
       toast({ title: 'Ongeldig bedrag', description: 'Vul een geldig bedrag in.', variant: 'destructive' });
       return;
     }
@@ -551,6 +910,24 @@ export default function FactuurDetailPage() {
       toast({ title: 'Fout', description: 'Kon betaling niet opslaan.', variant: 'destructive' });
     } finally {
       setPaySaving(false);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    if (!firestore || !invoiceId || notesSaving) return;
+    setNotesSaving(true);
+    try {
+      const invRef = doc(firestore, 'invoices', invoiceId);
+      await updateDoc(invRef, {
+        notes: invoiceNotes,
+        updatedAt: serverTimestamp(),
+      });
+      toast({ title: 'Opgeslagen', description: 'Notities zijn opgeslagen en verschijnen op de factuur.' });
+    } catch (e) {
+      console.error(e);
+      toast({ title: 'Fout', description: 'Kon notities niet opslaan.', variant: 'destructive' });
+    } finally {
+      setNotesSaving(false);
     }
   };
 
@@ -639,6 +1016,19 @@ export default function FactuurDetailPage() {
               <Mail className="h-4 w-4" />
               Versturen
             </Button>
+            {hasDeveloperWhatsAppAccess && (
+              <Button
+                type="button"
+                variant="success"
+                className="flex h-10 w-10 shrink-0 items-center justify-center p-0"
+                onClick={() => setWhatsAppOpen(true)}
+                disabled={!pdfData}
+                aria-label="WhatsApp"
+                title="WhatsApp"
+              >
+                <MessageCircle className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               type="button"
               variant="success"
@@ -656,7 +1046,7 @@ export default function FactuurDetailPage() {
       <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as 'pdf' | 'overzicht' | 'betalingen')}
+          onValueChange={(value) => setActiveTab(value as 'pdf' | 'overzicht' | 'bedrag' | 'notities' | 'betalingen')}
           className="space-y-6"
         >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full">
@@ -666,6 +1056,14 @@ export default function FactuurDetailPage() {
               </TabsTrigger>
               <TabsTrigger value="overzicht" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                 <ReceiptText className="h-4 w-4" /> Overzicht
+              </TabsTrigger>
+              {invoiceType === 'eind' ? (
+                <TabsTrigger value="bedrag" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                  <Euro className="h-4 w-4" /> Bedrag
+                </TabsTrigger>
+              ) : null}
+              <TabsTrigger value="notities" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
+                <StickyNote className="h-4 w-4" /> Notities
               </TabsTrigger>
               <TabsTrigger value="betalingen" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
                 <CheckCircle2 className="h-4 w-4" /> Betalingen
@@ -704,19 +1102,36 @@ export default function FactuurDetailPage() {
                         {isVoorschotInvoice ? (
                           <Input type="text" value="Direct" disabled readOnly />
                         ) : (
-                          <Input
-                            type="number"
-                            min={1}
-                            max={365}
-                            value={invoicePdfSettings.paymentTermDays}
-                            onChange={(event) =>
-                              setInvoicePdfSettings((prev) => prev
-                                ? ({ ...prev, paymentTermDays: clampPaymentTermDays(Number(event.target.value)) })
-                                : prev)
-                            }
-                          />
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Dagen</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={365}
+                              value={invoicePdfSettings.paymentTermDays}
+                              onChange={(event) =>
+                                setInvoicePdfSettings((prev) => prev
+                                  ? ({ ...prev, paymentTermDays: clampPaymentTermDays(Number(event.target.value)) })
+                                  : prev)
+                              }
+                            />
+                            <div className="text-xs text-muted-foreground">
+                              Vervaldatum: {effectiveDueDate.toLocaleDateString('nl-NL')}
+                            </div>
+                          </div>
                         )}
                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Omschrijving factuur</Label>
+                      <Input
+                        value={invoicePdfSettings.invoiceDescription}
+                        onChange={(event) =>
+                          setInvoicePdfSettings((prev) => prev ? ({ ...prev, invoiceDescription: event.target.value }) : prev)
+                        }
+                        placeholder="Bijv. wandpaneel plaatsen"
+                      />
                     </div>
 
                     <div className="grid gap-3 md:grid-cols-2">
@@ -751,6 +1166,30 @@ export default function FactuurDetailPage() {
                           onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showTotalsBreakdown: event.target.checked }) : prev)}
                         />
                         <span>Subtotaal + BTW tonen</span>
+                      </label>
+                      <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm md:col-span-2">
+                        <input
+                          type="checkbox"
+                          checked={invoicePdfSettings.showMaterialLaborBreakdown}
+                          onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showMaterialLaborBreakdown: event.target.checked }) : prev)}
+                        />
+                        <span>Specificatie kosten tonen</span>
+                      </label>
+                      <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={invoicePdfSettings.showHourlyRateOnInvoice}
+                          onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showHourlyRateOnInvoice: event.target.checked }) : prev)}
+                        />
+                        <span>Toon uurtarief op factuur/offerte</span>
+                      </label>
+                      <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={invoicePdfSettings.showTransportBreakdown}
+                          onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showTransportBreakdown: event.target.checked }) : prev)}
+                        />
+                        <span>Transportkosten tonen</span>
                       </label>
                       <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm md:col-span-2">
                         <input
@@ -863,37 +1302,6 @@ export default function FactuurDetailPage() {
             <TabsContent value="overzicht" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Betalingstermijn</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="space-y-2">
-                    <Label>Dagen</Label>
-                    {isVoorschotInvoice ? (
-                      <Input type="text" value="Direct" disabled readOnly />
-                    ) : (
-                      <Input
-                        type="number"
-                        min={1}
-                        max={365}
-                        value={invoicePdfSettings?.paymentTermDays ?? 14}
-                        onChange={(event) =>
-                          setInvoicePdfSettings((prev) => prev
-                            ? ({ ...prev, paymentTermDays: clampPaymentTermDays(Number(event.target.value)) })
-                            : prev)
-                        }
-                      />
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {isVoorschotInvoice
-                      ? 'Voorschotfacturen hebben altijd directe betaling.'
-                      : `Vervaldatum: ${effectiveDueDate.toLocaleDateString('nl-NL')}`}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
                   <CardTitle>Bedragen</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
@@ -912,23 +1320,50 @@ export default function FactuurDetailPage() {
                 </CardContent>
               </Card>
 
-              {invoiceType === 'eind' && (
+            </TabsContent>
+
+            {invoiceType === 'eind' ? (
+              <TabsContent value="bedrag" className="space-y-4">
                 <Card>
                   <CardHeader>
                     <CardTitle>Bedrag aanpassen</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Nieuw bedrag (incl. BTW)</Label>
-                      <Input
-                        value={overrideAmount}
-                        onChange={(e) => setOverrideAmount(e.target.value)}
-                        placeholder="bijv. 1250,00"
-                      />
-                      <div className="text-xs text-muted-foreground">
-                        Laat leeg om niet te wijzigen. Dit overschrijft het eindfactuurbedrag.
+                  <CardContent className="space-y-5">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Origineel totaal (incl. BTW)</Label>
+                        <Input
+                          value={specOriginalTotal}
+                          onChange={(e) => setSpecOriginalTotal(e.target.value)}
+                          placeholder="0,00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Voorschot in mindering</Label>
+                        <Input
+                          value={specVoorschotAftrek}
+                          onChange={(e) => setSpecVoorschotAftrek(e.target.value)}
+                          placeholder="0,00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Reeds betaald op voorschot (info)</Label>
+                        <Input
+                          value={specVoorschotPaidInfo}
+                          onChange={(e) => setSpecVoorschotPaidInfo(e.target.value)}
+                          placeholder="0,00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Totaal (incl. BTW)</Label>
+                        <Input
+                          value={specFinalTotal}
+                          onChange={(e) => setSpecFinalTotal(e.target.value)}
+                          placeholder="bijv. 1.301,90"
+                        />
                       </div>
                     </div>
+
                     <div className="space-y-2">
                       <Label>Reden / notitie (optioneel)</Label>
                       <Textarea
@@ -938,32 +1373,59 @@ export default function FactuurDetailPage() {
                         className="min-h-[90px]"
                       />
                     </div>
+
                     <Button
                       type="button"
                       variant="success"
                       disabled={overrideSaving}
                       onClick={async () => {
-                        const parsed = Number(String(overrideAmount).replace(',', '.'));
-                        if (!overrideAmount.trim()) return;
-                        if (!Number.isFinite(parsed) || parsed < 0) {
-                          toast({ title: 'Ongeldig bedrag', description: 'Vul een geldig bedrag in.', variant: 'destructive' });
+                        const originalTotal = parseOptionalAmountInput(specOriginalTotal);
+                        const voorschotAftrek = parseOptionalAmountInput(specVoorschotAftrek);
+                        const voorschotPaidInfo = parseOptionalAmountInput(specVoorschotPaidInfo);
+                        const finalTotal = parseOptionalAmountInput(specFinalTotal);
+                        if (
+                          originalTotal === null
+                          || voorschotAftrek === null
+                          || voorschotPaidInfo === null
+                          || finalTotal === null
+                          || originalTotal < 0
+                          || voorschotAftrek < 0
+                          || voorschotPaidInfo < 0
+                          || finalTotal < 0
+                        ) {
+                          toast({ title: 'Ongeldig bedrag', description: 'Gebruik Nederlandse bedragen zoals 1.301,90.', variant: 'destructive' });
                           return;
                         }
+
                         setOverrideSaving(true);
                         try {
                           const invRef = doc(firestore!, 'invoices', invoiceId);
+                          const existingVoorschot = invoice.financialAdjustments?.voorschotFactuur ?? null;
                           await updateDoc(invRef, {
-                            'totalsSnapshot.totaalInclBtw': parsed,
-                            'paymentSummary.openAmount': Math.max(0, parsed - (invoice.paymentSummary?.paidAmount ?? 0)),
-                            'financialAdjustments.opmerking': overrideReason || '',
+                            totalsSnapshot: {
+                              ...invoice.totalsSnapshot,
+                              totaalInclBtw: finalTotal,
+                            },
+                            paymentSummary: {
+                              ...(invoice.paymentSummary || {}),
+                              openAmount: Math.max(0, finalTotal - (invoice.paymentSummary?.paidAmount ?? 0)),
+                            },
+                            financialAdjustments: {
+                              ...(invoice.financialAdjustments || {}),
+                              originalTotalInclBtw: originalTotal,
+                              voorschotAftrekInclBtw: voorschotAftrek,
+                              voorschotFactuur: existingVoorschot
+                                ? { ...existingVoorschot, paidAmount: voorschotPaidInfo }
+                                : { invoiceId: '', invoiceNumberLabel: '', totaalInclBtw: voorschotAftrek, paidAmount: voorschotPaidInfo },
+                              handmatigEindbedrag: false,
+                              opmerking: overrideReason || '',
+                            },
                             updatedAt: serverTimestamp(),
                           });
-                          setOverrideAmount('');
-                          setOverrideReason('');
-                          toast({ title: 'Opgeslagen', description: 'Eindfactuurbedrag is aangepast.' });
+                          toast({ title: 'Opgeslagen', description: 'Factuurbedragen zijn aangepast.' });
                         } catch (e) {
                           console.error(e);
-                          toast({ title: 'Fout', description: 'Kon bedrag niet opslaan.', variant: 'destructive' });
+                          toast({ title: 'Fout', description: 'Kon bedragen niet opslaan.', variant: 'destructive' });
                         } finally {
                           setOverrideSaving(false);
                         }
@@ -975,17 +1437,31 @@ export default function FactuurDetailPage() {
                     </Button>
                   </CardContent>
                 </Card>
-              )}
+              </TabsContent>
+            ) : null}
 
+            <TabsContent value="notities" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Notities</CardTitle>
+                  <CardTitle>Notities op factuur</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <Textarea value={invoice.notes || ''} readOnly className="min-h-[120px]" />
-                  <div className="text-xs text-muted-foreground mt-2">
-                    Notities zijn in v1 read-only (kan later editable gemaakt worden).
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Notities</Label>
+                    <Textarea
+                      value={invoiceNotes}
+                      onChange={(event) => setInvoiceNotes(event.target.value)}
+                      placeholder={'Bijv.\n* Knauf Insulation Naturroll 037 Glaswol 140 mm (Rd 3,75 m²K/W) - €122,16\n* Dampremmende klimaatfolie - €139,15\n\nISDE Meldcode: KA18226'}
+                      className="min-h-[220px]"
+                    />
+                    <div className="text-xs text-muted-foreground">
+                      Deze tekst wordt als aparte notitiesectie op de factuur-PDF geplaatst.
+                    </div>
                   </div>
+                  <Button type="button" variant="success" onClick={handleSaveNotes} disabled={notesSaving} className="w-full">
+                    {notesSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Notities opslaan
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1106,6 +1582,28 @@ export default function FactuurDetailPage() {
         bedrijfsnaam={settings?.bedrijfsnaam || businessData?.bedrijfsnaam || ''}
         iban={settings?.iban || undefined}
         onDownloadPDF={handleDownloadPdf}
+      />
+
+      <SendQuoteWhatsAppModal
+        isOpen={whatsAppOpen}
+        onClose={() => setWhatsAppOpen(false)}
+        klantInfo={{
+          voornaam: invoice.sourceQuote?.klantSnapshot?.naam?.split(/\s+/)[0] || '',
+          achternaam: '',
+          telefoonnummer: invoice.sourceQuote?.klantSnapshot?.telefoon || '',
+        } as any}
+        clientName={invoice.sourceQuote?.klantSnapshot?.naam || 'klant'}
+        quoteId=""
+        quotePdfUrl=""
+        requireDocumentUrl={false}
+        documentLabel="factuur"
+        documentLinkToken="{{factuur_link}}"
+        storageKey="whatsapp_invoice_message_preset_v1"
+        missingLinkTitle="Geen factuurlink beschikbaar"
+        missingLinkDescription="De factuur-PDF wordt gedownload. Voeg deze handmatig toe in WhatsApp."
+        successDescription="De factuur-PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur."
+        onDownloadOfficialPdf={handleDownloadPdf}
+        onMarkAsSent={handleMarkSent}
       />
     </div>
   );

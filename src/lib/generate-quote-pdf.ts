@@ -32,12 +32,15 @@ export interface PDFQuoteData {
         iban?: string;
     };
     klant: {
+        klanttype?: string | null;
         naam: string;
         adres: string;
         postcode: string;
         plaats: string;
         telefoon: string;
         email: string;
+        kvk?: string;
+        btw?: string;
     };
     projectLocatie: string;
     korteTitel?: string;
@@ -66,11 +69,19 @@ export interface PDFQuoteData {
         materialenVerbruik: number;
         materialenTotaal: number;
         arbeidTotaal: number;
+        arbeidHoogBtwUren?: number;
+        arbeidLaagBtwUren?: number;
+        arbeidHoogBtwTotaal?: number;
+        arbeidLaagBtwTotaal?: number;
+        arbeidHoogBtwTarief?: number;
+        arbeidLaagBtwTarief?: number;
         transportTotaal: number;
         subtotaalExclBtw: number;
         winstMarge: number;
         totaalExclBtw: number;
         btw: number;
+        btwHoog?: number;
+        btwLaag?: number;
         totaalInclBtw: number;
         totaalUren: number;
         uurTarief: number;
@@ -519,9 +530,19 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.text(`Email: ${displayKlant.email}`, colRight, y);
     y += 5;
 
+    const isZakelijkeKlant = String(data.klant.klanttype || '').trim().toLowerCase() === 'zakelijk';
+    const klantKvk = isZakelijkeKlant ? String(data.klant.kvk || '').trim() : '';
+    const klantBtw = isZakelijkeKlant ? String(data.klant.btw || '').trim() : '';
+
     doc.text(`KVK: ${displayBedrijf.kvk}`, colLeft, y);
+    if (klantKvk) {
+        doc.text(`KVK: ${klantKvk}`, colRight, y);
+    }
     y += 5;
     doc.text(`BTW: ${displayBedrijf.btw}`, colLeft, y);
+    if (klantBtw) {
+        doc.text(`BTW: ${klantBtw}`, colRight, y);
+    }
     y += 5;
     if (displayBedrijf.iban) {
         doc.text(`IBAN: ${displayBedrijf.iban}`, colLeft, y);
@@ -645,6 +666,14 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         summaryItems.push(['Materialen', formatCurrency(summaryLineTotals.materialen)]);
     }
 
+    const laborLowVatHours = Math.max(0, Number(data.totals.arbeidLaagBtwUren) || 0);
+    const laborLowVatAmount = Math.max(0, Number(data.totals.arbeidLaagBtwTotaal) || 0);
+    const laborHighVatHours = Math.max(0, Number(data.totals.arbeidHoogBtwUren) || (data.totals.totaalUren - laborLowVatHours));
+    const laborHighVatAmount = Math.max(0, Number(data.totals.arbeidHoogBtwTotaal) || (data.totals.arbeidTotaal - laborLowVatAmount));
+    const laborHighVatRate = Math.max(0, Number(data.totals.arbeidHoogBtwTarief) || Number(data.totals.btwPercentage) || 21);
+    const laborLowVatRate = Math.max(0, Number(data.totals.arbeidLaagBtwTarief) || 9);
+    const hasLaborVatSplit = laborLowVatHours > 0 && laborLowVatAmount > 0;
+
     if (data.settings.showSummaryArbeid) {
         const arbeidLabelParts: string[] = [];
         if (data.settings.showSummaryArbeidUren) {
@@ -657,6 +686,16 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             ? `Arbeid (${arbeidLabelParts.join(' · ')})`
             : 'Arbeid';
         summaryItems.push([arbeidLabel, formatCurrency(summaryLineTotals.arbeid)]);
+        if (hasLaborVatSplit) {
+            const splitParts = (hours: number) => {
+                const parts: string[] = [];
+                if (data.settings.showSummaryArbeidUren) parts.push(`${hours.toLocaleString('nl-NL', { maximumFractionDigits: 2 })} uur`);
+                if (data.settings.showSummaryArbeidTariefPerUurExclBtw) parts.push(`${formatCurrency(summaryHourlyRate)}/uur ex. btw`);
+                return parts.length > 0 ? ` (${parts.join(' · ')})` : '';
+            };
+            summaryItems.push([`Arbeid ${laborHighVatRate}%${splitParts(laborHighVatHours)}`, formatCurrency(laborHighVatAmount)]);
+            summaryItems.push([`Arbeid ${laborLowVatRate}%${splitParts(laborLowVatHours)}`, formatCurrency(laborLowVatAmount)]);
+        }
     }
 
     if (data.settings.showSummaryTransport && summaryLineTotals.transport !== 0) {
@@ -689,7 +728,22 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         y += 6;
     }
 
-    if (data.settings.showSummaryBtw) {
+    if (data.settings.showSummaryBtw && hasLaborVatSplit) {
+        const highVat = Math.max(0, Number(data.totals.btwHoog) || 0);
+        const lowVat = Math.max(0, Number(data.totals.btwLaag) || 0);
+        const vatRows = ([
+            [`BTW (${laborHighVatRate}%)`, highVat],
+            [`BTW (${laborLowVatRate}%)`, lowVat],
+        ] as Array<[string, number]>).filter(([, value]) => value > 0);
+        doc.setTextColor(80, 80, 80);
+        vatRows.forEach(([label, value]) => {
+            doc.text(label, margin, y);
+            doc.setTextColor(30, 30, 30);
+            doc.text(formatCurrency(value), pageWidth - margin, y, { align: 'right' });
+            doc.setTextColor(80, 80, 80);
+            y += 6;
+        });
+    } else if (data.settings.showSummaryBtw) {
         doc.setTextColor(80, 80, 80);
         doc.text(`BTW (${data.totals.btwPercentage}%)`, margin, y);
         doc.setTextColor(30, 30, 30);

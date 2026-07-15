@@ -104,6 +104,7 @@ export interface WinstProjectPerformance {
   jobTypes: string[];
   createdAt: string | null;
   status?: string;
+  hourlyWorkMaterialPassthrough?: boolean;
   hasActualData: boolean;
   dataQualityIssue: string | null;
   quotedRevenueIncl: number;

@@ -1730,6 +1730,8 @@ export default function QuotePage() {
                     voornaam: rawKi.voornaam || '',
                     achternaam: rawKi.achternaam || '',
                     bedrijfsnaam: rawKi.bedrijfsnaam || null,
+                    kvkNummer: rawKi.kvkNummer || '',
+                    btwNummer: rawKi.btwNummer || '',
                     emailadres: rawKi.emailadres || rawKi['e-mailadres'] || '',
                     telefoonnummer: rawKi.telefoonnummer || '',
                     straat: rawKi.straat || rawKi.factuuradres?.straat || '',
@@ -1752,6 +1754,8 @@ export default function QuotePage() {
                 const mappedSettings: QuoteCalculationSettings = {
                     btwTarief: quoteInst?.btwTarief ?? rawInst?.btwTarief ?? 21,
                     btwMode: quoteInst?.btwMode ?? rawInst?.btwMode ?? 'normaal',
+                    arbeidBtwLaagUren: quoteInst?.arbeidBtwLaagUren ?? rawInst?.arbeidBtwLaagUren ?? 0,
+                    arbeidBtwLaagTarief: quoteInst?.arbeidBtwLaagTarief ?? rawInst?.arbeidBtwLaagTarief ?? 9,
                     uurTariefExclBtw: quoteInst?.uurTariefExclBtw ?? quoteInst?.uurTarief ?? rawInst?.uurTariefExclBtw ?? rawInst?.uurTarief ?? 50,
                     schattingUren: quoteInst?.schattingUren ?? rawInst?.schattingUren ?? false,
                     extras: {
@@ -1953,6 +1957,8 @@ export default function QuotePage() {
                     return {
                         btwTarief: inst.btwTarief || 21,
                         btwMode: inst.btwMode === 'materiaal_only' ? 'materiaal_only' : 'normaal',
+                        arbeidBtwLaagUren: inst.arbeidBtwLaagUren ?? 0,
+                        arbeidBtwLaagTarief: inst.arbeidBtwLaagTarief ?? 9,
                         uurTariefExclBtw: inst.uurTariefExclBtw || inst.uurTarief || 50,
                         schattingUren: inst.schattingUren ?? false,
                         extras: {
@@ -3838,6 +3844,8 @@ export default function QuotePage() {
                     ...((prev.instellingen ?? {}) as any),
                     btwTarief: newSettings.btwTarief,
                     btwMode: newSettings.btwMode,
+                    arbeidBtwLaagUren: newSettings.arbeidBtwLaagUren ?? 0,
+                    arbeidBtwLaagTarief: newSettings.arbeidBtwLaagTarief ?? 9,
                     uurTariefExclBtw: newSettings.uurTariefExclBtw,
                     uurTarief: newSettings.uurTariefExclBtw,
                     schattingUren: newSettings.schattingUren,
@@ -3865,6 +3873,8 @@ export default function QuotePage() {
                 ...((quote?.instellingen ?? {}) as any),
                 btwTarief: newSettings.btwTarief,
                 btwMode: newSettings.btwMode,
+                arbeidBtwLaagUren: newSettings.arbeidBtwLaagUren ?? 0,
+                arbeidBtwLaagTarief: newSettings.arbeidBtwLaagTarief ?? 9,
                 uurTariefExclBtw: newSettings.uurTariefExclBtw,
                 uurTarief: newSettings.uurTariefExclBtw,
                 schattingUren: newSettings.schattingUren,
@@ -4075,12 +4085,15 @@ export default function QuotePage() {
                 iban: userProfile?.settings?.iban || businessData?.iban || userProfile?.iban || '',
             },
             klant: {
+                klanttype: klantInfo?.klanttype || null,
                 naam: klantInfo ? `${klantInfo.voornaam || ''} ${klantInfo.achternaam || ''}`.trim() : 'Klant nog niet ingevuld',
                 adres: klantInfo ? `${klantInfo.straat || ''} ${klantInfo.huisnummer || ''}`.trim() : '',
                 postcode: klantInfo?.postcode || '',
                 plaats: klantInfo?.plaats || '',
                 telefoon: klantInfo?.telefoonnummer || '',
                 email: klantInfo?.emailadres || '',
+                kvk: klantInfo?.kvkNummer || '',
+                btw: klantInfo?.btwNummer || '',
             },
             projectLocatie: klantInfo?.afwijkendProjectadres && klantInfo.projectAdres
                 ? `${klantInfo.projectAdres.straat} ${klantInfo.projectAdres.huisnummer}, ${klantInfo.projectAdres.plaats}`
@@ -4110,11 +4123,19 @@ export default function QuotePage() {
                 materialenVerbruik: totals?.materialenVerbruik ?? 0,
                 materialenTotaal: totals?.materialenTotaal ?? 0,
                 arbeidTotaal: totals?.arbeidTotaal ?? 0,
+                arbeidHoogBtwUren: totals?.arbeidHoogBtwUren ?? 0,
+                arbeidLaagBtwUren: totals?.arbeidLaagBtwUren ?? 0,
+                arbeidHoogBtwTotaal: totals?.arbeidHoogBtwTotaal ?? 0,
+                arbeidLaagBtwTotaal: totals?.arbeidLaagBtwTotaal ?? 0,
+                arbeidHoogBtwTarief: totals?.arbeidHoogBtwTarief ?? pdfBtwPercentage,
+                arbeidLaagBtwTarief: totals?.arbeidLaagBtwTarief ?? 9,
                 transportTotaal: totals?.transportTotaal ?? 0,
                 subtotaalExclBtw: totals?.subtotaalExclBtw ?? 0,
                 winstMarge: totals?.winstMarge ?? 0,
                 totaalExclBtw: totals?.totaalExclBtw ?? 0,
                 btw: totals?.btw ?? 0,
+                btwHoog: totals?.btwHoog ?? totals?.btw ?? 0,
+                btwLaag: totals?.btwLaag ?? 0,
                 totaalInclBtw: totals?.totaalInclBtw ?? 0,
                 totaalUren: normalizedData?.totaal_uren || 0,
                 uurTarief: pdfHourlyRate,
@@ -7401,6 +7422,14 @@ export default function QuotePage() {
                                         onUpdateHourlyRate={(newRate) => {
                                             if (!quoteSettings) return;
                                             handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
+                                        }}
+                                        onUpdateLowVatLaborHours={(hours) => {
+                                            if (!quoteSettings) return;
+                                            handleUpdateSettings({
+                                                ...quoteSettings,
+                                                arbeidBtwLaagUren: hours,
+                                                arbeidBtwLaagTarief: quoteSettings.arbeidBtwLaagTarief ?? 9,
+                                            });
                                         }}
                                         onUpdateTotalHours={async (newHours) => {
                                             if (!calculation) return;
