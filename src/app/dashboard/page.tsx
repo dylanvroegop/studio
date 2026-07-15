@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Pencil, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { doc, updateDoc } from 'firebase/firestore';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
@@ -35,6 +36,7 @@ type ProjectRowData = WinstMetricsResponse['projectPerformances'][number] & {
   actualProjectMargin: number | null;
   realizedProfitPerDay: number | null;
   expectedProfitPerDay: number | null;
+  materialPassthroughExcl: number;
 };
 
 type TimeEntryRow = {
@@ -156,8 +158,10 @@ function ProjectRow(props: {
   project: ProjectRowData;
   onNavigate: (path: string) => void;
   onEditHours: (project: ProjectRowData) => void;
+  onToggleHourlyWork: (project: ProjectRowData) => void;
+  isTogglingHourlyWork?: boolean;
 }) {
-  const { project, onNavigate, onEditHours } = props;
+  const { project, onNavigate, onEditHours, onToggleHourlyWork, isTogglingHourlyWork = false } = props;
   const projectLabel = project.offerteNummer ? `#${project.offerteNummer}` : project.title;
   const encodedProjectId = encodeURIComponent(project.projectId);
   const openHoursEditor = () => onEditHours(project);
@@ -239,11 +243,26 @@ function ProjectRow(props: {
           </span>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-background/25 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={() => onToggleHourlyWork(project)}
+          disabled={isTogglingHourlyWork}
+          className={cn(
+            'w-full rounded-lg border px-3 py-2.5 text-left transition-colors',
+            project.hourlyWorkMaterialPassthrough
+              ? 'border-emerald-500/45 bg-emerald-500/10 hover:bg-emerald-500/15'
+              : 'border-white/10 bg-background/25 hover:border-emerald-500/35 hover:bg-emerald-500/5'
+          )}
+          title="Klik om materialen als doorbelast bij uurwerk te markeren"
+        >
           <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Winst</p>
           <p className={cn('mt-1 text-2xl font-semibold leading-none', winstTextClass)}>{winstText}</p>
-          <p className="mt-1 text-[10px] text-muted-foreground">Basis: omzet incl. btw - kosten incl. btw</p>
-        </div>
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            {project.hourlyWorkMaterialPassthrough
+              ? 'Uurwerk: omzet - materialen - kosten'
+              : 'Basis: omzet incl. btw - kosten incl. btw'}
+          </p>
+        </button>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
           <div className="relative rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
@@ -375,6 +394,7 @@ export default function WinstPage() {
   const [hoursEntryToDelete, setHoursEntryToDelete] = useState<TimeEntryRow | null>(null);
   const [hoursDeleting, setHoursDeleting] = useState<boolean>(false);
   const [metricsRefreshTick, setMetricsRefreshTick] = useState<number>(0);
+  const [hourlyToggleSavingId, setHourlyToggleSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -496,6 +516,46 @@ export default function WinstPage() {
     setHoursHistory([]);
     setHoursEditingEntryId(null);
     setHoursEntryToDelete(null);
+  };
+
+  const handleToggleHourlyWork = async (project: ProjectRowData) => {
+    if (!firestore || !user) return;
+    const nextValue = !project.hourlyWorkMaterialPassthrough;
+    setHourlyToggleSavingId(project.projectId);
+    setMetrics((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        projectPerformances: prev.projectPerformances.map((row) => (
+          row.projectId === project.projectId
+            ? { ...row, hourlyWorkMaterialPassthrough: nextValue }
+            : row
+        )),
+      };
+    });
+
+    try {
+      await updateDoc(doc(firestore, 'quotes', project.projectId), {
+        hourlyWorkMaterialPassthrough: nextValue,
+        updatedAt: new Date(),
+      });
+      toast({
+        title: nextValue ? 'Uurwerk gemarkeerd' : 'Uurwerk-markering verwijderd',
+        description: nextValue
+          ? 'Materialen worden in dit dashboard als doorbelast meegenomen.'
+          : 'Dashboard gebruikt weer de normale winstbasis.',
+      });
+    } catch (error) {
+      setMetricsRefreshTick((prev) => prev + 1);
+      const message = error instanceof Error ? error.message : 'Onbekende fout';
+      toast({
+        title: 'Markering opslaan mislukt',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setHourlyToggleSavingId(null);
+    }
   };
 
   const handleSaveProjectHours = async () => {
@@ -748,10 +808,16 @@ export default function WinstPage() {
     }
 
     const projectRows: ProjectRowData[] = projects.map((project) => {
-      const actualProjectProfit = project.hasActualData ? project.quotedRevenueIncl - project.actualCostExcl : null;
+      const materialPassthroughExcl = project.costBreakdown
+        .filter((row) => row.key === 'materialenGroot' || row.key === 'materialenVerbruik')
+        .reduce((sum, row) => sum + row.quotedExcl, 0);
+      const adjustedRevenue = project.hourlyWorkMaterialPassthrough
+        ? Math.max(0, project.quotedRevenueIncl - materialPassthroughExcl)
+        : project.quotedRevenueIncl;
+      const actualProjectProfit = project.hasActualData ? adjustedRevenue - project.actualCostExcl : null;
       const actualProjectMargin =
-        actualProjectProfit !== null && project.quotedRevenueIncl > 0
-          ? actualProjectProfit / project.quotedRevenueIncl
+        actualProjectProfit !== null && adjustedRevenue > 0
+          ? actualProjectProfit / adjustedRevenue
           : null;
       const quotedCostExcl = project.costBreakdown.reduce((sum, row) => sum + row.quotedExcl, 0);
       const expectedProjectProfit = project.quotedRevenueIncl - quotedCostExcl;
@@ -769,6 +835,7 @@ export default function WinstPage() {
         actualProjectMargin,
         realizedProfitPerDay,
         expectedProfitPerDay,
+        materialPassthroughExcl,
       };
     });
 
@@ -805,13 +872,21 @@ export default function WinstPage() {
   }, [derived.projectRows, projectSearch]);
 
   const projectTotals = useMemo(() => {
-    const totalOmzet = filteredProjects.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
+    const totalOmzet = filteredProjects.reduce((sum, project) => (
+      sum + (project.hourlyWorkMaterialPassthrough
+        ? Math.max(0, project.quotedRevenueIncl - project.materialPassthroughExcl)
+        : project.quotedRevenueIncl)
+    ), 0);
     const totalQuotedCosts = filteredProjects.reduce(
       (sum, project) => sum + project.costBreakdown.reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
       0
     );
     const projectsWithActual = filteredProjects.filter((project) => project.hasActualData);
-    const actualRevenueScope = projectsWithActual.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
+    const actualRevenueScope = projectsWithActual.reduce((sum, project) => (
+      sum + (project.hourlyWorkMaterialPassthrough
+        ? Math.max(0, project.quotedRevenueIncl - project.materialPassthroughExcl)
+        : project.quotedRevenueIncl)
+    ), 0);
     const totalKosten = projectsWithActual.reduce((sum, project) => sum + project.actualCostExcl, 0);
     const marge = actualRevenueScope > 0 ? (actualRevenueScope - totalKosten) / actualRevenueScope : null;
     const totalActualDays = filteredProjects.reduce((sum, project) => sum + project.actualDays, 0);
@@ -1084,6 +1159,8 @@ export default function WinstPage() {
                       project={project}
                       onNavigate={router.push}
                       onEditHours={handleOpenHoursEditor}
+                      onToggleHourlyWork={handleToggleHourlyWork}
+                      isTogglingHourlyWork={hourlyToggleSavingId === project.projectId}
                     />
                   ))}
                 </>

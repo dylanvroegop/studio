@@ -191,6 +191,19 @@ function fallbackValueForLegacyRequiredColumn(params: {
   return null;
 }
 
+function buildLegacySupplierOrderNumberFallback(params: {
+  input: Record<string, unknown>;
+  date: string;
+}): string {
+  return (
+    safeString(params.input.supplier_order_number)
+    || safeString(params.input.order_number)
+    || safeString(params.input.supplier_invoice_number)
+    || safeString(params.input.invoice_number)
+    || `kost-${params.date}-${Date.now()}`
+  );
+}
+
 function isImageReceiptFile(file: { url?: string; filename?: string; content_type?: string }): boolean {
   const contentType = safeString(file.content_type).toLowerCase();
   if (contentType.startsWith('image/')) return true;
@@ -493,6 +506,7 @@ export async function POST(request: Request) {
 
       if (error) {
         const retryPayload: Record<string, unknown> = { ...insertPayload };
+        let latestRetryPayload: Record<string, unknown> = retryPayload;
         let attempts = 0;
         while (error && attempts < 5) {
           const notNullColumn = getProjectCostsNotNullColumn(error.message);
@@ -512,6 +526,7 @@ export async function POST(request: Request) {
           }
 
           retryPayload[notNullColumn] = fallback;
+          latestRetryPayload = retryPayload;
           const retry = await supabaseAdmin
             .from('project_costs')
             .insert(retryPayload)
@@ -523,8 +538,21 @@ export async function POST(request: Request) {
           attempts += 1;
         }
 
+        if (error && isMissingColumnError(error.message, 'project_costs', 'supplier_order_number')) {
+          const retryPayloadWithoutSupplierOrderNumber: Record<string, unknown> = { ...latestRetryPayload };
+          delete retryPayloadWithoutSupplierOrderNumber.supplier_order_number;
+          latestRetryPayload = retryPayloadWithoutSupplierOrderNumber;
+          const retryWithoutSupplierOrderNumber = await supabaseAdmin
+            .from('project_costs')
+            .insert(retryPayloadWithoutSupplierOrderNumber)
+            .select('*')
+            .single();
+          data = retryWithoutSupplierOrderNumber.data;
+          error = retryWithoutSupplierOrderNumber.error;
+        }
+
         if (error && isMissingColumnError(error.message, 'project_costs', 'receipt_files')) {
-          const retryPayloadWithoutReceiptFiles: Record<string, unknown> = { ...retryPayload };
+          const retryPayloadWithoutReceiptFiles: Record<string, unknown> = { ...latestRetryPayload };
           delete retryPayloadWithoutReceiptFiles.receipt_files;
           const retryWithoutReceiptFiles = await supabaseAdmin
             .from('project_costs')
@@ -608,6 +636,7 @@ export async function POST(request: Request) {
         offerte_id: group.offerteId,
         category: group.category,
         supplier_name: supplierName,
+        supplier_order_number: buildLegacySupplierOrderNumberFallback({ input, date }),
         description: rowDescription,
         line_items: groupLineItems,
         amount_excl_btw: amountExcl,
