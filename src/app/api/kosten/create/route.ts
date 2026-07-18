@@ -69,7 +69,7 @@ function dateOnly(value: unknown): string {
 }
 
 function euroToCents(value: number): number {
-  return Math.max(0, Math.round(roundEuro(value) * 100));
+  return Math.round(roundEuro(value) * 100);
 }
 
 function centsToEuro(value: number): number {
@@ -78,18 +78,18 @@ function centsToEuro(value: number): number {
 
 function allocateAmountAcrossGroups(groupTotals: number[], targetAmount: number): number[] {
   const targetCents = euroToCents(targetAmount);
-  if (targetCents <= 0) return groupTotals.map(() => 0);
+  if (targetCents === 0) return groupTotals.map(() => 0);
 
-  const normalizedTotals = groupTotals.map((value) => Math.max(0, safeNumber(value)));
-  const totalsSum = normalizedTotals.reduce((sum, value) => sum + value, 0);
+  const normalizedTotals = groupTotals.map((value) => safeNumber(value));
+  const totalsSum = normalizedTotals.reduce((sum, value) => sum + Math.abs(value), 0);
   if (totalsSum <= 0) {
     return normalizedTotals.map((_, index) => (index === 0 ? centsToEuro(targetCents) : 0));
   }
 
-  const rawShares = normalizedTotals.map((value) => (value / totalsSum) * targetCents);
+  const rawShares = normalizedTotals.map((value) => (Math.abs(value) / totalsSum) * Math.abs(targetCents));
   const floorShares = rawShares.map((value) => Math.floor(value));
   const distributed = floorShares.reduce((sum, value) => sum + value, 0);
-  let remainder = targetCents - distributed;
+  let remainder = Math.abs(targetCents) - distributed;
 
   const order = rawShares
     .map((value, index) => ({
@@ -105,7 +105,8 @@ function allocateAmountAcrossGroups(groupTotals: number[], targetAmount: number)
     cursor = (cursor + 1) % order.length;
   }
 
-  return floorShares.map((value) => centsToEuro(value));
+  const sign = Math.sign(targetCents);
+  return floorShares.map((value) => centsToEuro(value * sign));
 }
 
 function rebalanceLineItemsToTargetAmount(params: {
@@ -117,17 +118,17 @@ function rebalanceLineItemsToTargetAmount(params: {
 
   const currentTotals = lineItems.map((item) => {
     const explicitTotal = roundEuro(safeNumber(item.total_price));
-    if (explicitTotal > 0) return explicitTotal;
-    const quantity = Math.max(0, safeNumber(item.quantity));
-    const unitPrice = Math.max(0, safeNumber(item.unit_price));
+    if (explicitTotal !== 0) return explicitTotal;
+    const quantity = safeNumber(item.quantity);
+    const unitPrice = safeNumber(item.unit_price);
     return roundEuro(quantity * unitPrice);
   });
   const allocatedTotals = allocateAmountAcrossGroups(currentTotals, targetAmountExcl);
 
   return lineItems.map((item, index) => {
-    const quantity = Math.max(0, safeNumber(item.quantity));
+    const quantity = safeNumber(item.quantity);
     const allocatedTotal = roundEuro(allocatedTotals[index] || 0);
-    const allocatedUnitPrice = quantity > 0
+    const allocatedUnitPrice = quantity !== 0
       ? roundEuro(allocatedTotal / quantity)
       : roundEuro(safeNumber(item.unit_price));
 
@@ -368,6 +369,9 @@ async function upsertProfitOverview(params: {
     materiaal: 0,
     brandstof: 0,
     gereedschap: 0,
+    eigen_verbruik: 0,
+    hotel: 0,
+    telefoon: 0,
     overig: 0,
   };
 
@@ -385,7 +389,7 @@ async function upsertProfitOverview(params: {
   const totalMaterialCost = roundEuro(totals.materiaal);
   const totalFuelCost = roundEuro(totals.brandstof);
   const totalToolCost = roundEuro(totals.gereedschap);
-  const totalOtherCost = roundEuro(totals.overig);
+  const totalOtherCost = roundEuro(totals.overig + totals.eigen_verbruik + totals.hotel + totals.telefoon);
   const totalLaborCost = roundEuro(laborCost);
   const totalCosts = roundEuro(
     totalMaterialCost
@@ -476,7 +480,7 @@ export async function POST(request: Request) {
     const routedLineItems = lineItems.map((item) => {
       const lineCategory = normalizeProjectCostCategory(item.category || category);
       const lineOfferteIdRaw = safeString(item.offerte_id || null);
-      const lineOfferteId = lineCategory === 'materiaal' ? (lineOfferteIdRaw || offerteId) : null;
+      const lineOfferteId = lineOfferteIdRaw || offerteId;
       return {
         ...item,
         category: lineCategory,
@@ -590,7 +594,7 @@ export async function POST(request: Request) {
     if (groupedEntries.size === 0) {
       groupedEntries.set(`${category}__${offerteId || 'none'}`, {
         category,
-        offerteId: category === 'materiaal' ? offerteId : null,
+        offerteId,
         lineItems: [],
       });
     }
@@ -601,12 +605,12 @@ export async function POST(request: Request) {
     const groupedLineTotal = roundEuro(groupLineTotals.reduce((sum, value) => sum + roundEuro(value), 0));
     const shouldApplyManualOverrideForSplit =
       manualOverride
-      && requestedAmountExcl > 0
+      && requestedAmountExcl !== 0
       && Math.abs(groupedLineTotal - requestedAmountExcl) > 0.05;
 
     if (shouldApplyManualOverrideForSplit) {
       amountExclPerGroup = allocateAmountAcrossGroups(groupLineTotals, requestedAmountExcl);
-    } else if (groupedArray.length === 1 && amountExclPerGroup[0] <= 0 && requestedAmountExcl > 0) {
+    } else if (groupedArray.length === 1 && amountExclPerGroup[0] === 0 && requestedAmountExcl !== 0) {
       amountExclPerGroup = [roundEuro(requestedAmountExcl)];
     }
 
@@ -615,7 +619,7 @@ export async function POST(request: Request) {
     for (const [groupIndex, group] of groupedArray.entries()) {
       let groupLineItems = group.lineItems;
       const amountExcl = roundEuro(amountExclPerGroup[groupIndex] || 0);
-      if (amountExcl <= 0) continue;
+      if (amountExcl === 0) continue;
 
       const groupLineTotal = sumProjectCostLineItems(groupLineItems as any);
       if (groupLineItems.length > 0 && Math.abs(groupLineTotal - amountExcl) > 0.01) {

@@ -258,10 +258,10 @@ export async function POST(request: Request) {
     const amountExcl = roundEuro(
       manualOverride
         ? requestedAmountExcl
-        : (lineItemsTotal > 0 ? lineItemsTotal : requestedAmountExcl)
+        : (lineItemsTotal !== 0 ? lineItemsTotal : requestedAmountExcl)
     );
-    if (amountExcl <= 0) {
-      return NextResponse.json({ ok: false, message: 'Bedrag excl. BTW moet groter dan 0 zijn.' }, { status: 400 });
+    if (amountExcl === 0) {
+      return NextResponse.json({ ok: false, message: 'Bedrag excl. BTW mag niet 0 zijn.' }, { status: 400 });
     }
 
     const btwPercentage = roundEuro(safeNumber(input.btw_percentage) || 21);

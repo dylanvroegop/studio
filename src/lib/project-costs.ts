@@ -2,6 +2,9 @@ export const PROJECT_COST_CATEGORIES = [
   'materiaal',
   'brandstof',
   'gereedschap',
+  'eigen_verbruik',
+  'hotel',
+  'telefoon',
   'overig',
 ] as const;
 
@@ -50,6 +53,9 @@ export const PROJECT_COST_CATEGORY_LABELS: Record<ProjectCostCategory, string> =
   materiaal: 'Materiaal',
   brandstof: 'Brandstof',
   gereedschap: 'Gereedschap',
+  eigen_verbruik: 'Eigen verbruik',
+  hotel: 'Hotel',
+  telefoon: 'Telefoon',
   overig: 'Overig',
 };
 
@@ -72,15 +78,19 @@ export function normalizeProjectCostCategory(value: unknown): ProjectCostCategor
   if (normalized === 'materiaal') return 'materiaal';
   if (normalized === 'brandstof') return 'brandstof';
   if (normalized === 'gereedschap') return 'gereedschap';
+  if (normalized === 'eigen_verbruik' || normalized === 'eigen verbruik') return 'eigen_verbruik';
+  if (normalized === 'hotel' || normalized === 'overnachting') return 'hotel';
+  if (normalized === 'telefoon' || normalized === 'phone') return 'telefoon';
   return 'overig';
 }
 
 export function normalizeProjectCostLineItem(input: unknown): ProjectCostLineItem {
   const row = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
-  const quantity = Math.max(0, safeNumber(row.quantity));
-  const unitPrice = Math.max(0, safeNumber(row.unit_price));
+  // Credit notes use negative quantities/totals; do not coerce them to zero.
+  const quantity = safeNumber(row.quantity);
+  const unitPrice = safeNumber(row.unit_price);
   const explicitTotal = safeNumber(row.total_price);
-  const totalPrice = roundEuro(explicitTotal > 0 ? explicitTotal : quantity * unitPrice);
+  const totalPrice = roundEuro(explicitTotal !== 0 ? explicitTotal : quantity * unitPrice);
   const rawCategory = safeString(row.category);
   const category = rawCategory ? normalizeProjectCostCategory(rawCategory) : undefined;
   const offerteId = safeString(row.offerte_id ?? row.offerteId) || null;
@@ -101,7 +111,7 @@ export function normalizeProjectCostLineItems(input: unknown): ProjectCostLineIt
 
   return input
     .map((item) => normalizeProjectCostLineItem(item))
-    .filter((item) => item.description || item.total_price > 0 || item.quantity > 0);
+    .filter((item) => item.description || item.total_price !== 0 || item.quantity !== 0);
 }
 
 function fallbackReceiptFileFromUrl(receiptUrl: string | null): ProjectCostReceiptFile[] {
@@ -166,6 +176,31 @@ export function inferProjectCostCategory(params: {
   const target = `${supplier} ${description} ${lines}`;
 
   const containsAny = (needles: string[]) => needles.some((needle) => target.includes(needle));
+
+  if (
+    containsAny([
+      'boete',
+      'bekeuring',
+      'verkeersovertreding',
+      'snelheidsovertreding',
+      'naheffingsaanslag parkeren',
+      'cjib',
+    ])
+  ) {
+    return 'overig';
+  }
+
+  if (containsAny(['hotel', 'overnachting', 'accommodatie', 'logies'])) {
+    return 'hotel';
+  }
+
+  if (containsAny(['kpn', 'telefoon', 'mobiel', 'telecom', 'belbundel'])) {
+    return 'telefoon';
+  }
+
+  if (containsAny(['tijdelijke toeslag transportkosten'])) {
+    return 'materiaal';
+  }
 
   if (
     containsAny([

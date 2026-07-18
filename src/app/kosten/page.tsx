@@ -67,6 +67,8 @@ import {
   type ProjectCostReceiptFile,
   type ProjectCostRow,
 } from '@/lib/project-costs';
+import { invoiceImpliesAccepted } from '@/lib/quote-status';
+import type { InvoiceStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type CostFilterMode = 'alle' | ProjectCostCategory;
@@ -263,8 +265,8 @@ function createEmptyLineItem(): ProjectCostLineItem {
 }
 
 function normalizeLineItem(item: ProjectCostLineItem): ProjectCostLineItem {
-  const quantity = Math.max(0, safeNumber(item.quantity));
-  const unitPrice = Math.max(0, safeNumber(item.unit_price));
+  const quantity = safeNumber(item.quantity);
+  const unitPrice = safeNumber(item.unit_price);
   const explicitTotal = roundEuro(safeNumber(item.total_price));
   const category = normalizeProjectCostCategory(item.category || 'materiaal');
   const offerteId = safeString(item.offerte_id) || null;
@@ -273,14 +275,14 @@ function normalizeLineItem(item: ProjectCostLineItem): ProjectCostLineItem {
     quantity,
     unit: safeString(item.unit) || 'st',
     unit_price: roundEuro(unitPrice),
-    total_price: explicitTotal > 0 ? explicitTotal : roundEuro(quantity * unitPrice),
+    total_price: explicitTotal !== 0 ? explicitTotal : roundEuro(quantity * unitPrice),
     category,
-    offerte_id: category === 'materiaal' ? offerteId : null,
+    offerte_id: offerteId,
   };
 }
 
 function euroToCents(value: number): number {
-  return Math.max(0, Math.round(roundEuro(value) * 100));
+  return Math.round(roundEuro(value) * 100);
 }
 
 function centsToEuro(value: number): number {
@@ -290,12 +292,12 @@ function centsToEuro(value: number): number {
 function rebalanceLineItemsToAmount(lineItems: ProjectCostLineItem[], targetAmountExcl: number): ProjectCostLineItem[] {
   if (lineItems.length === 0) return lineItems;
   const targetCents = euroToCents(targetAmountExcl);
-  if (targetCents <= 0) return lineItems;
+  if (targetCents === 0) return lineItems;
 
   const working = lineItems.map((rawItem) => {
     const item = normalizeLineItem(rawItem);
-    const quantity = Math.max(0, safeNumber(item.quantity));
-    const unitCents = Math.max(0, Math.round(roundEuro(item.unit_price) * 100));
+    const quantity = safeNumber(item.quantity);
+    const unitCents = Math.round(roundEuro(item.unit_price) * 100);
     const totalCents = euroToCents(roundEuro((unitCents / 100) * quantity));
     return {
       item,
@@ -370,6 +372,9 @@ function categoryBadgeClass(category: ProjectCostCategory): string {
   if (category === 'materiaal') return 'border-emerald-500/30 bg-emerald-500/15 text-emerald-200';
   if (category === 'brandstof') return 'border-amber-500/30 bg-amber-500/15 text-amber-200';
   if (category === 'gereedschap') return 'border-blue-500/30 bg-blue-500/15 text-blue-200';
+  if (category === 'eigen_verbruik') return 'border-violet-500/30 bg-violet-500/15 text-violet-200';
+  if (category === 'hotel') return 'border-rose-500/30 bg-rose-500/15 text-rose-200';
+  if (category === 'telefoon') return 'border-cyan-500/30 bg-cyan-500/15 text-cyan-200';
   return 'border-zinc-500/30 bg-zinc-500/15 text-zinc-200';
 }
 
@@ -402,6 +407,7 @@ function KostenPageContent() {
   const firestore = useFirestore();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pageReceiptDragDepthRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -418,6 +424,7 @@ function KostenPageContent() {
   const [deletingCostId, setDeletingCostId] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [pageReceiptDragActive, setPageReceiptDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [quoteSearch, setQuoteSearch] = useState('');
   const [quoteSearchOpen, setQuoteSearchOpen] = useState(false);
@@ -445,21 +452,36 @@ function KostenPageContent() {
     }
 
     if (initialOfferteIdFromUrl && quotes.some((quote) => quote.id === initialOfferteIdFromUrl)) {
-      applyMainOfferteToMaterialLines(initialOfferteIdFromUrl);
+      applyMainOfferteToLines(initialOfferteIdFromUrl);
       setQuoteSearch('');
     }
   }, [initialOfferteIdFromUrl, shouldOpenCreateFromUrl, quotes]);
 
   const loadQuotes = useCallback(async (): Promise<QuoteOption[]> => {
     if (!user || !firestore) return [];
-    const snapshot = await getDocs(
-      query(collection(firestore, 'quotes'), where('userId', '==', user.uid))
-    );
+    const [snapshot, invoicesSnapshot] = await Promise.all([
+      getDocs(query(collection(firestore, 'quotes'), where('userId', '==', user.uid))),
+      getDocs(query(collection(firestore, 'invoices'), where('userId', '==', user.uid))),
+    ]);
+
+    const acceptedQuoteIdsFromInvoices = new Set<string>();
+    invoicesSnapshot.docs.forEach((invoiceSnap) => {
+      const invoice = invoiceSnap.data() as {
+        quoteId?: unknown;
+        status?: InvoiceStatus | string;
+        archived?: boolean;
+      };
+      const quoteId = safeString(invoice.quoteId);
+      if (!quoteId || invoice.archived || !invoiceImpliesAccepted(invoice.status)) return;
+      acceptedQuoteIdsFromInvoices.add(quoteId);
+    });
 
     const data = snapshot.docs
       .map((docSnap) => {
         const raw = docSnap.data() as Record<string, unknown>;
         if (raw.isCalculationTest === true) return null;
+        if (raw.archived === true) return null;
+        if (raw.status !== 'geaccepteerd' && !acceptedQuoteIdsFromInvoices.has(docSnap.id)) return null;
         const title = getQuoteTitle(raw);
         const clientName = getClientName(raw);
         const offerteNummer = Number.isFinite(Number(raw.offerteNummer))
@@ -566,6 +588,9 @@ function KostenPageContent() {
     { value: 'materiaal', label: 'Materiaal' },
     { value: 'brandstof', label: 'Brandstof' },
     { value: 'gereedschap', label: 'Gereedschap' },
+    { value: 'eigen_verbruik', label: 'Eigen verbruik' },
+    { value: 'hotel', label: 'Hotel' },
+    { value: 'telefoon', label: 'Telefoon' },
     { value: 'overig', label: 'Overig' },
   ];
 
@@ -603,6 +628,9 @@ function KostenPageContent() {
       materiaal: 0,
       brandstof: 0,
       gereedschap: 0,
+      eigen_verbruik: 0,
+      hotel: 0,
+      telefoon: 0,
       overig: 0,
     } satisfies Record<CostFilterMode, number>;
 
@@ -617,6 +645,9 @@ function KostenPageContent() {
       materiaal: roundEuro(totals.materiaal),
       brandstof: roundEuro(totals.brandstof),
       gereedschap: roundEuro(totals.gereedschap),
+      eigen_verbruik: roundEuro(totals.eigen_verbruik),
+      hotel: roundEuro(totals.hotel),
+      telefoon: roundEuro(totals.telefoon),
       overig: roundEuro(totals.overig),
     } satisfies Record<CostFilterMode, number>;
   }, [costs, quoteById, search]);
@@ -675,12 +706,30 @@ function KostenPageContent() {
         };
 
         if (shouldRecalculateTotal) {
-          const quantity = Math.max(0, safeNumber(merged.quantity));
-          const unitPrice = Math.max(0, safeNumber(merged.unit_price));
+          const quantity = safeNumber(merged.quantity);
+          const unitPrice = safeNumber(merged.unit_price);
           merged.total_price = roundEuro(quantity * unitPrice);
         }
 
         return merged;
+      })
+    );
+  };
+
+  const updateLineItemFromInclBtw = (index: number, amountInclBtw: number) => {
+    const factor = 1 + Math.max(0, safeNumber(form.btwPercentage)) / 100;
+    const amountExclBtw = roundEuro(amountInclBtw / factor);
+
+    setLineItems((prev) =>
+      prev.map((item, currentIndex) => {
+        if (currentIndex !== index) return item;
+
+        const quantity = safeNumber(item.quantity);
+        return {
+          ...item,
+          unit_price: quantity !== 0 ? roundEuro(amountExclBtw / quantity) : 0,
+          total_price: amountExclBtw,
+        };
       })
     );
   };
@@ -691,7 +740,7 @@ function KostenPageContent() {
       normalizeLineItem({
         ...createEmptyLineItem(),
         category: form.category,
-        offerte_id: form.category === 'materiaal' ? (form.offerteId || null) : null,
+        offerte_id: form.offerteId || null,
       }),
     ]);
   };
@@ -703,16 +752,13 @@ function KostenPageContent() {
     });
   };
 
-  const applyMainOfferteToMaterialLines = (nextOfferteIdRaw: string) => {
+  const applyMainOfferteToLines = (nextOfferteIdRaw: string) => {
     const nextOfferteId = safeString(nextOfferteIdRaw);
     const previousMainOfferteId = safeString(form.offerteId);
 
     setLineItems((prev) =>
       prev.map((rawLine) => {
         const line = normalizeLineItem(rawLine);
-        const lineCategory = normalizeProjectCostCategory(line.category || 'materiaal');
-        if (lineCategory !== 'materiaal') return line;
-
         const currentLineOfferteId = safeString(line.offerte_id);
         const followsMain =
           !currentLineOfferteId
@@ -744,7 +790,7 @@ function KostenPageContent() {
     }
 
     const payloadLineItems = normalizedLineItems.filter(
-      (item) => item.description || item.total_price > 0
+      (item) => item.description || item.total_price !== 0
     );
     const normalizedReceiptUrl = safeString(form.receiptUrl) || null;
     const payloadReceiptFiles = Array.isArray(form.receiptFiles) && form.receiptFiles.length > 0
@@ -857,6 +903,7 @@ function KostenPageContent() {
           manual_amount_override?: boolean;
           date?: string;
           offerte_reference?: string | null;
+          offerte_id?: string | null;
           suggested_category?: ProjectCostCategory;
           receipt_url?: string;
           receipt_files?: ProjectCostReceiptFile[];
@@ -868,19 +915,19 @@ function KostenPageContent() {
       }
 
       const extracted = payload.data;
-      const matchedOfferteId = parseOfferteReferenceToQuoteId(
-        extracted.offerte_reference || null,
-        quotes
-      );
+      const matchedOfferteId = (
+        safeString(extracted.offerte_id)
+        && quotes.some((quote) => quote.id === safeString(extracted.offerte_id))
+      )
+        ? safeString(extracted.offerte_id)
+        : parseOfferteReferenceToQuoteId(extracted.offerte_reference || null, quotes);
       const extractedLineItems = Array.isArray(extracted.line_items) && extracted.line_items.length > 0
         ? extracted.line_items.map((item) =>
           normalizeLineItem({
             ...item,
             category: item.category || extracted.suggested_category || 'materiaal',
             offerte_id:
-              normalizeProjectCostCategory(item.category || extracted.suggested_category || 'materiaal') === 'materiaal'
-                ? (safeString(item.offerte_id) || matchedOfferteId || null)
-                : null,
+              safeString(item.offerte_id) || matchedOfferteId || null,
           })
         )
         : [createEmptyLineItem()];
@@ -889,8 +936,8 @@ function KostenPageContent() {
         extractedLineItems.reduce((sum, item) => sum + roundEuro(item.total_price), 0)
       );
       const extractedLineItemsRebalanced = (
-        extractedAmountExcl > 0
-        && extractedLineItemsTotal > 0
+        extractedAmountExcl !== 0
+        && extractedLineItemsTotal !== 0
         && Math.abs(extractedAmountExcl - extractedLineItemsTotal) > 0.01
       )
         ? rebalanceLineItemsToAmount(extractedLineItems, extractedAmountExcl)
@@ -901,8 +948,8 @@ function KostenPageContent() {
       const shouldEnableManualOverride =
         extracted.manual_amount_override === true
         || (
-          extractedAmountExcl > 0
-          && extractedLineItemsTotalAfterRebalance > 0
+          extractedAmountExcl !== 0
+          && extractedLineItemsTotalAfterRebalance !== 0
           && Math.abs(extractedAmountExcl - extractedLineItemsTotalAfterRebalance) > 0.05
         );
       setLineItems(extractedLineItemsRebalanced);
@@ -937,6 +984,27 @@ function KostenPageContent() {
     }
   };
 
+  const openReceiptFromPage = (file: File) => {
+    const isSupportedReceipt = file.type.startsWith('image/')
+      || file.type === 'application/pdf'
+      || /\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(file.name);
+
+    if (!isSupportedReceipt) {
+      toast({
+        title: 'Geen bon of factuur gevonden',
+        description: 'Gebruik een PDF, JPG, PNG, WEBP of HEIC bestand.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    resetForm();
+    setEntryMode('upload');
+    setSelectedFile(file);
+    setCreateOpen(true);
+    void handleExtract(file);
+  };
+
   const handleOpenCost = (cost: ProjectCostRow) => {
     const rowCategory = normalizeProjectCostCategory(cost.category);
     const rowOfferteId = safeString(cost.offerte_id) || null;
@@ -945,14 +1013,14 @@ function KostenPageContent() {
         normalizeLineItem({
           ...item,
           category: item.category || rowCategory,
-          offerte_id: safeString(item.offerte_id) || (rowCategory === 'materiaal' ? rowOfferteId : null),
+          offerte_id: safeString(item.offerte_id) || rowOfferteId,
         })
       )
       : [createEmptyLineItem()];
     const amountExclForCost = roundEuro(safeNumber(cost.amount_excl_btw));
     const normalizedOpenLineItems = (
       initialLineItems.length > 0
-      && amountExclForCost > 0
+      && amountExclForCost !== 0
       && Math.abs(
         roundEuro(initialLineItems.reduce((sum, item) => sum + roundEuro(item.total_price), 0))
         - amountExclForCost
@@ -964,7 +1032,7 @@ function KostenPageContent() {
       normalizedOpenLineItems.reduce((sum, item) => sum + roundEuro(item.total_price), 0)
     );
     const useManualOverride =
-      lineItemsTotalForCost <= 0
+      lineItemsTotalForCost === 0
       || Math.abs(amountExclForCost - lineItemsTotalForCost) > 0.05;
 
     setLineItems(normalizedOpenLineItems);
@@ -1053,12 +1121,64 @@ function KostenPageContent() {
   }
 
   return (
-    <div className="app-shell min-h-screen bg-background">
+    <div
+      className="app-shell min-h-screen bg-background"
+      onDragEnter={(event) => {
+        if (createOpen) return;
+        if (!event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        pageReceiptDragDepthRef.current += 1;
+        setPageReceiptDragActive(true);
+      }}
+      onDragOver={(event) => {
+        if (createOpen) return;
+        if (!event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        if (!pageReceiptDragActive) setPageReceiptDragActive(true);
+      }}
+      onDragLeave={(event) => {
+        if (createOpen) return;
+        if (!event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        pageReceiptDragDepthRef.current = Math.max(0, pageReceiptDragDepthRef.current - 1);
+        if (pageReceiptDragDepthRef.current === 0) setPageReceiptDragActive(false);
+      }}
+      onDrop={(event) => {
+        if (createOpen) return;
+        if (!event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        pageReceiptDragDepthRef.current = 0;
+        setPageReceiptDragActive(false);
+        const receiptFile = Array.from(event.dataTransfer.files).find((file) => (
+          file.type.startsWith('image/')
+          || file.type === 'application/pdf'
+          || /\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(file.name)
+        ));
+        if (receiptFile) openReceiptFromPage(receiptFile);
+      }}
+      onPaste={(event) => {
+        if (createOpen) return;
+        const receiptFile = Array.from(event.clipboardData.files).find((file) => file.type.startsWith('image/'));
+        if (!receiptFile) return;
+        event.preventDefault();
+        openReceiptFromPage(receiptFile);
+      }}
+    >
+      {pageReceiptDragActive ? (
+        <div className="pointer-events-none fixed inset-0 z-[130] flex items-center justify-center bg-background/85 p-6 backdrop-blur-sm">
+          <div className="rounded-xl border-2 border-dashed border-emerald-500 bg-card px-8 py-10 text-center shadow-2xl">
+            <UploadCloud className="mx-auto mb-3 h-8 w-8 text-emerald-500" />
+            <div className="text-lg font-semibold text-foreground">Laat screenshot los om een kost toe te voegen</div>
+            <p className="mt-1 text-sm text-muted-foreground">De AI leest de bon of factuur uit en opent daarna het controleformulier.</p>
+          </div>
+        </div>
+      ) : null}
       <AppNavigation />
       <DashboardHeader user={user} title="Kosten" />
 
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
-        <div className="w-full max-w-5xl space-y-5">
+        <div className="w-full max-w-7xl space-y-5">
           <Card>
             <CardContent className="space-y-4 pt-5">
               {error ? (
@@ -1224,6 +1344,9 @@ function KostenPageContent() {
                                       <SelectItem value="materiaal">Materiaal</SelectItem>
                                       <SelectItem value="brandstof">Brandstof</SelectItem>
                                       <SelectItem value="gereedschap">Gereedschap</SelectItem>
+                                      <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
+                                      <SelectItem value="hotel">Hotel</SelectItem>
+                                      <SelectItem value="telefoon">Telefoon</SelectItem>
                                       <SelectItem value="overig">Overig</SelectItem>
                                     </SelectContent>
                                   </Select>
@@ -1312,7 +1435,7 @@ function KostenPageContent() {
                                             )}
                                             onMouseDown={(event) => event.preventDefault()}
                                             onClick={() => {
-                                              applyMainOfferteToMaterialLines(quote.id);
+                                              applyMainOfferteToLines(quote.id);
                                               setQuoteSearch('');
                                               setQuoteSearchOpen(false);
                                             }}
@@ -1330,7 +1453,7 @@ function KostenPageContent() {
                                 </div>
                                 <Select
                                   value={form.offerteId || 'none'}
-                                  onValueChange={(value) => applyMainOfferteToMaterialLines(value === 'none' ? '' : value)}
+                                  onValueChange={(value) => applyMainOfferteToLines(value === 'none' ? '' : value)}
                                 >
                                   <SelectTrigger>
                                     <SelectValue placeholder="Niet gekoppeld" />
@@ -1345,7 +1468,7 @@ function KostenPageContent() {
                                   </SelectContent>
                                 </Select>
                                 <p className="text-xs text-muted-foreground">
-                                  Hoofdlink vult automatisch materiaalregels in. Regels met een eigen afwijkende koppeling blijven ongewijzigd.
+                                  Hoofdlink vult automatisch alle regels in. Regels met een eigen afwijkende koppeling blijven ongewijzigd.
                                 </p>
                               </div>
 
@@ -1387,10 +1510,7 @@ function KostenPageContent() {
                                               const nextCategory = normalizeProjectCostCategory(value);
                                               updateLineItem(index, {
                                                 category: nextCategory,
-                                                offerte_id:
-                                                  nextCategory === 'materiaal'
-                                                    ? (safeString(item.offerte_id) || form.offerteId || null)
-                                                    : null,
+                                                offerte_id: safeString(item.offerte_id) || form.offerteId || null,
                                               });
                                             }}
                                           >
@@ -1401,6 +1521,9 @@ function KostenPageContent() {
                                               <SelectItem value="materiaal">Materiaal</SelectItem>
                                               <SelectItem value="gereedschap">Gereedschap</SelectItem>
                                               <SelectItem value="brandstof">Brandstof</SelectItem>
+                                              <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
+                                              <SelectItem value="hotel">Hotel</SelectItem>
+                                              <SelectItem value="telefoon">Telefoon</SelectItem>
                                               <SelectItem value="overig">Overig</SelectItem>
                                             </SelectContent>
                                           </Select>
@@ -1408,30 +1531,26 @@ function KostenPageContent() {
 
                                         <div className="space-y-1">
                                           <Label className="text-xs text-muted-foreground">Offerte (per regel)</Label>
-                                          {normalizeProjectCostCategory(item.category || form.category) === 'materiaal' ? (
-                                            <Select
-                                              value={safeString(item.offerte_id) || 'none'}
-                                              onValueChange={(value) =>
-                                                updateLineItem(index, {
-                                                  offerte_id: value === 'none' ? null : value,
-                                                })
-                                              }
-                                            >
-                                              <SelectTrigger>
-                                                <SelectValue placeholder="Niet gekoppeld" />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                <SelectItem value="none">Niet gekoppeld</SelectItem>
-                                                {quotes.map((quote) => (
-                                                  <SelectItem key={`${index}-${quote.id}`} value={quote.id}>
-                                                    {quote.label}
-                                                  </SelectItem>
-                                                ))}
-                                              </SelectContent>
-                                            </Select>
-                                          ) : (
-                                            <Input value="Bedrijfskost (geen offerte)" disabled readOnly />
-                                          )}
+                                          <Select
+                                            value={safeString(item.offerte_id) || 'none'}
+                                            onValueChange={(value) =>
+                                              updateLineItem(index, {
+                                                offerte_id: value === 'none' ? null : value,
+                                              })
+                                            }
+                                          >
+                                            <SelectTrigger>
+                                              <SelectValue placeholder="Niet gekoppeld" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="none">Niet gekoppeld</SelectItem>
+                                              {quotes.map((quote) => (
+                                                <SelectItem key={`${index}-${quote.id}`} value={quote.id}>
+                                                  {quote.label}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
                                         </div>
                                       </div>
 
@@ -1440,7 +1559,6 @@ function KostenPageContent() {
                                           <p className="text-[11px] text-muted-foreground">Aantal</p>
                                           <Input
                                             type="number"
-                                            min="0"
                                             step="0.01"
                                             value={item.quantity}
                                             onChange={(event) =>
@@ -1486,7 +1604,15 @@ function KostenPageContent() {
                                         </div>
                                         <div className="space-y-1">
                                           <p className="text-[11px] text-muted-foreground">Incl.</p>
-                                          <Input value={formatCurrency(lineIncl)} disabled />
+                                          <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={lineIncl}
+                                            onChange={(event) =>
+                                              updateLineItemFromInclBtw(index, safeNumber(event.target.value))
+                                            }
+                                            placeholder="Incl. BTW"
+                                          />
                                         </div>
                                         <div className="space-y-1">
                                           <p className="text-[11px] text-muted-foreground">Actie</p>
@@ -1691,7 +1817,88 @@ function KostenPageContent() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
+            <>
+              <div className="hidden overflow-hidden rounded-md border border-border bg-card/40 sm:block">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1080px] border-collapse text-sm">
+                    <thead className="border-b border-border bg-muted/35 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="w-[110px] px-3 py-2.5">Datum</th>
+                        <th className="min-w-[180px] px-3 py-2.5">Leverancier</th>
+                        <th className="w-[120px] px-3 py-2.5">Categorie</th>
+                        <th className="min-w-[220px] px-3 py-2.5">Offerte / klant</th>
+                        <th className="w-[70px] px-3 py-2.5 text-center">Bon</th>
+                        <th className="w-[120px] px-3 py-2.5 text-right">Excl. BTW</th>
+                        <th className="w-[105px] px-3 py-2.5 text-right">BTW</th>
+                        <th className="w-[150px] px-3 py-2.5 text-right">Incl. BTW</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/70">
+                      {filteredCosts.map((cost) => {
+                        const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
+                        const linkedLabel = quote
+                          ? (quote.offerteNummer ? `#${quote.offerteNummer}` : quote.label)
+                          : 'Niet gekoppeld';
+                        const hasReceipt = (Array.isArray(cost.receipt_files) && cost.receipt_files.length > 0) || Boolean(cost.receipt_url);
+
+                        return (
+                          <tr
+                            key={`table-${cost.id}`}
+                            className="cursor-pointer bg-background/10 transition-colors hover:bg-muted/30"
+                            onClick={() => handleOpenCost(cost)}
+                          >
+                            <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{formatDateLabel(cost.date)}</td>
+                            <td className="max-w-[260px] px-3 py-2.5">
+                              <div className="truncate font-medium text-foreground">{cost.supplier_name || 'Onbekende leverancier'}</div>
+                              {cost.description ? <div className="mt-0.5 truncate text-xs text-muted-foreground">{cost.description}</div> : null}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Badge variant="outline" className="rounded px-1.5 py-0 text-[11px] font-medium">
+                                {PROJECT_COST_CATEGORY_LABELS[cost.category]}
+                              </Badge>
+                            </td>
+                            <td className="max-w-[280px] px-3 py-2.5">
+                              <div className="truncate text-foreground">{linkedLabel}</div>
+                              {quote?.clientName ? <div className="truncate text-xs text-muted-foreground">{quote.clientName}</div> : null}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              {hasReceipt ? <Receipt className="mx-auto h-4 w-4 text-emerald-400" aria-label="Bon gekoppeld" /> : <span className="text-muted-foreground/50">—</span>}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{formatCurrency(cost.amount_excl_btw || 0)}</td>
+                            <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(cost.btw_amount || 0)}</td>
+                            <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-foreground">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <span>{formatCurrency(cost.amount_incl_btw || 0)}</span>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-red-500/10 hover:text-red-300"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    requestDeleteCost(cost);
+                                  }}
+                                  disabled={deletingCostId === cost.id}
+                                  title="Verwijder kost"
+                                  aria-label={`Verwijder kost van ${cost.supplier_name || 'leverancier'}`}
+                                >
+                                  {deletingCostId === cost.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                  <span>{filteredCosts.length} {filteredCosts.length === 1 ? 'kost' : 'kosten'}</span>
+                  <span className="font-semibold tabular-nums text-foreground">Totaal incl. BTW: {formatCurrency(filteredCosts.reduce((sum, cost) => sum + safeNumber(cost.amount_incl_btw), 0))}</span>
+                </div>
+              </div>
+
+            <div className="space-y-2 sm:hidden">
               {filteredCosts.map((cost) => {
                 const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
                 const linkedLabel = quote
@@ -1793,6 +2000,7 @@ function KostenPageContent() {
                 );
               })}
             </div>
+            </>
           )}
         </div>
       </main>

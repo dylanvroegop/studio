@@ -87,7 +87,7 @@ export interface WinstNacalculatieSource {
 
 export interface WinstProjectCostSource {
   quoteId: string;
-  category: 'materiaal' | 'brandstof' | 'gereedschap' | 'overig';
+  category: 'materiaal' | 'brandstof' | 'gereedschap' | 'eigen_verbruik' | 'hotel' | 'telefoon' | 'overig';
   amountExcl: number;
   amountIncl?: number;
 }
@@ -153,6 +153,9 @@ interface ExternalProjectCostSnapshot {
   materiaal: number;
   brandstof: number;
   gereedschap: number;
+  eigen_verbruik: number;
+  hotel: number;
+  telefoon: number;
   overig: number;
 }
 
@@ -433,6 +436,9 @@ function getActualSnapshot(
     safeNumber(externalProjectCosts?.materiaal)
     + safeNumber(externalProjectCosts?.brandstof)
     + safeNumber(externalProjectCosts?.gereedschap)
+    + safeNumber(externalProjectCosts?.eigen_verbruik)
+    + safeNumber(externalProjectCosts?.hotel)
+    + safeNumber(externalProjectCosts?.telefoon)
     + safeNumber(externalProjectCosts?.overig);
   const externalLaborCost = safeNumber(externalLabor?.costExcl);
   const externalLaborHours = safeNumber(externalLabor?.hours);
@@ -444,7 +450,7 @@ function getActualSnapshot(
     const mappedMaterial = safeNumber(externalProjectCosts?.materiaal);
     const mappedTransport = safeNumber(externalProjectCosts?.brandstof);
     const mappedTools = safeNumber(externalProjectCosts?.gereedschap);
-    const mappedOther = safeNumber(externalProjectCosts?.overig);
+    const mappedOther = safeNumber(externalProjectCosts?.overig) + safeNumber(externalProjectCosts?.eigen_verbruik) + safeNumber(externalProjectCosts?.hotel) + safeNumber(externalProjectCosts?.telefoon);
 
     const externalSnapshot: ActualSnapshot = {
       materialenGroot: mappedMaterial,
@@ -854,6 +860,9 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
       materiaal: 0,
       brandstof: 0,
       gereedschap: 0,
+      eigen_verbruik: 0,
+      hotel: 0,
+      telefoon: 0,
       overig: 0,
     };
     const resolvedAmount = safeNumber(row.amountIncl) > 0 ? safeNumber(row.amountIncl) : safeNumber(row.amountExcl);
