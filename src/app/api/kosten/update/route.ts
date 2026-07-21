@@ -36,6 +36,19 @@ function dateOnly(value: unknown): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function sumLineItemsInclBtw(
+  lineItems: ReturnType<typeof normalizeProjectCostLineItems>,
+  fallbackBtwPercentage: number
+): number {
+  return roundEuro(
+    lineItems.reduce((sum, item) => {
+      const lineBtwPercentage = item.btw_percentage ?? fallbackBtwPercentage;
+      const calculatedIncl = roundEuro(item.total_price * (1 + lineBtwPercentage / 100));
+      return sum + (item.total_incl_btw ?? calculatedIncl);
+    }, 0)
+  );
+}
+
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -253,6 +266,7 @@ export async function POST(request: Request) {
     const lineItems = normalizeProjectCostLineItems(input.line_items);
     const lineItemsTotal = sumProjectCostLineItems(lineItems);
     const requestedAmountExcl = roundEuro(safeNumber(input.amount_excl_btw));
+    const requestedAmountIncl = roundEuro(safeNumber(input.amount_incl_btw));
     const manualOverride = input.manual_amount_override === true;
 
     const amountExcl = roundEuro(
@@ -265,12 +279,126 @@ export async function POST(request: Request) {
     }
 
     const btwPercentage = roundEuro(safeNumber(input.btw_percentage) || 21);
-    const btwAmount = roundEuro((amountExcl * btwPercentage) / 100);
-    const amountIncl = roundEuro(amountExcl + btwAmount);
+    const amountIncl = requestedAmountIncl !== 0
+      ? requestedAmountIncl
+      : roundEuro(amountExcl * (1 + btwPercentage / 100));
+    const btwAmount = roundEuro(amountIncl - amountExcl);
     const date = dateOnly(input.date);
     const receiptUrl = safeString(input.receipt_url) || null;
     const receiptFiles = normalizeProjectCostReceiptFiles(input.receipt_files, receiptUrl);
     const status = safeString(input.status) || 'confirmed';
+
+    // A single supplier invoice can contain material for multiple quotes. Store a
+    // separate cost row per quote so each quote overview receives only its lines.
+    const routedLineItems = lineItems.map((item) => ({
+      ...item,
+      category: normalizeProjectCostCategory(item.category || category),
+      offerte_id: safeString(item.offerte_id) || offerteId,
+    }));
+    const groupedEntries = new Map<string, {
+      category: ReturnType<typeof normalizeProjectCostCategory>;
+      offerteId: string | null;
+      lineItems: typeof routedLineItems;
+    }>();
+
+    routedLineItems.forEach((line) => {
+      const key = `${line.category}__${line.offerte_id || 'none'}`;
+      const group = groupedEntries.get(key);
+      if (group) {
+        group.lineItems.push(line);
+        return;
+      }
+      groupedEntries.set(key, {
+        category: line.category,
+        offerteId: line.offerte_id || null,
+        lineItems: [line],
+      });
+    });
+
+    const quoteIdsToValidate = Array.from(
+      new Set(
+        routedLineItems
+          .map((item) => safeString(item.offerte_id))
+          .filter(Boolean)
+      )
+    );
+    for (const quoteId of quoteIdsToValidate) {
+      await validateQuoteOwnership({ offerteId: quoteId, uid });
+    }
+
+    if (groupedEntries.size > 1) {
+      const groups = Array.from(groupedEntries.values());
+      const primaryRow: Record<string, unknown>[] = [];
+
+      for (const [index, group] of groups.entries()) {
+        const groupAmountExcl = sumProjectCostLineItems(group.lineItems);
+        const groupAmountIncl = sumLineItemsInclBtw(group.lineItems, btwPercentage);
+        const groupPayload = {
+          offerte_id: group.offerteId,
+          category: group.category,
+          supplier_name: supplierName,
+          supplier_order_number: safeString(input.supplier_order_number) || `kost-${date}-${Date.now()}-${index + 1}`,
+          description: `${description} (${group.category})`,
+          line_items: group.lineItems,
+          amount_excl_btw: groupAmountExcl,
+          btw_percentage: btwPercentage,
+          btw_amount: roundEuro(groupAmountIncl - groupAmountExcl),
+          amount_incl_btw: groupAmountIncl,
+          date,
+          receipt_url: receiptUrl,
+          receipt_files: receiptFiles,
+          status,
+          updated_at: new Date().toISOString(),
+        };
+
+        const writeGroup = async (payload: Record<string, unknown>) => (
+          index === 0
+            ? supabaseAdmin
+              .from('project_costs')
+              .update(payload)
+              .eq('id', costId)
+              .eq('user_id', uid)
+              .select('*')
+              .single()
+            : supabaseAdmin
+              .from('project_costs')
+              .insert({ ...payload, user_id: uid })
+              .select('*')
+              .single()
+        );
+
+        let result = await writeGroup(groupPayload);
+        // Some existing installations predate the receipt_files column.
+        if (result.error && isMissingColumnError(result.error.message, 'project_costs', 'receipt_files')) {
+          const { receipt_files: _receiptFiles, ...fallbackPayload } = groupPayload;
+          result = await writeGroup(fallbackPayload);
+        }
+
+        if (result.error) {
+          return NextResponse.json({ ok: false, message: result.error.message }, { status: 500 });
+        }
+
+        primaryRow.push(result.data as Record<string, unknown>);
+
+        if (group.offerteId) {
+          try {
+            await syncCostReceiptImagesToQuoteBonnetjes({
+              uid,
+              offerteId: group.offerteId,
+              costId: safeString((result.data as Record<string, unknown>).id),
+              receiptFiles,
+            });
+          } catch (syncError) {
+            console.warn('[kosten/update] Kon bonnetjes niet aan gesplitste offerte koppelen:', syncError);
+          }
+        }
+      }
+
+      return NextResponse.json({
+        ok: true,
+        data: mapProjectCostRow(primaryRow[0]),
+      });
+    }
 
     const updatePayload: Record<string, unknown> = {
       offerte_id: offerteId,

@@ -18,7 +18,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const EXTRACTION_PROMPT =
-  'You are an expert at extracting data from Dutch supplier invoices and receipts for construction/carpentry materials. Extract: supplier_name, date (YYYY-MM-DD), receipt_description (short Dutch summary of the entire receipt/invoice, not just one line item), line_items (array of {description, quantity, unit, unit_price, total_price, category}), subtotal_excl_btw, btw_percentage, btw_amount, total_incl_btw, and any project/offerte reference number. Return the project/offerte number as offerte_reference. Important: a field explicitly labelled "Referentie" is always the user\'s quote number (for example, "Referentie 260312" must yield offerte_reference: "260312"); do not confuse it with a packing-slip, invoice, debtor, or order number. line_items.category must be exactly one of: materiaal, gereedschap, brandstof, hotel, telefoon, overig. Rules: phone/mobile/telecom/KPN invoices => telefoon; hotel stays/overnachtingen/accommodation => hotel; the exact line "Tijdelijke toeslag transportkosten" is always materiaal; fines/boetes/bekeuringen => overig; reusable tools (measuring tools, hand tools, power tools, sets, holders, clamps, markers/pencils) => gereedschap; consumables and build inputs (screws, plugs, glue, sealant, tape, wood, plates, profiles, sanding discs, etc.) => materiaal; fuel/charging products => brandstof. Important: keep subtotal_excl_btw and total_incl_btw fiscally correct. Read explicitly printed invoice totals before inferring values. Always validate total_incl_btw = subtotal_excl_btw + btw_amount. Credit notes (creditfacturen) must retain their negative signs: return negative quantities, line totals, subtotal, VAT amount, and total exactly as printed; never convert them to zero or positive values. Invoices can contain multiple VAT rates or VAT-exempt/onbelast amounts; never apply the printed 21% rate to the entire subtotal in that case. For example, if the document prints total €139.13 and VAT €2.63, subtotal_excl_btw must be €136.50. If the receipt shows retail prices (often VAT-included), still return the correct EXCL subtotal from the VAT breakdown. Critical validation: when quantity * unit_price does not match a printed (possibly discounted) line total or receipt total, prefer the discounted/printed totals and set total_price accordingly. Return ONLY valid JSON, no markdown.';
+  'You are an expert at extracting data from Dutch supplier invoices and receipts for construction/carpentry materials. Extract: supplier_name, date (YYYY-MM-DD), receipt_description (short Dutch summary of the entire receipt/invoice, not just one line item), line_items (array of {description, quantity, unit, unit_price, total_price, total_incl_btw, btw_percentage, category}), subtotal_excl_btw, btw_percentage, btw_amount, total_incl_btw, and any project/offerte reference number. total_price is always the EXCL. BTW line total; total_incl_btw is the exact inclusive amount for that line. Return the project/offerte number as offerte_reference. Important: a field explicitly labelled "Referentie" is always the user\'s quote number (for example, "Referentie 260312" must yield offerte_reference: "260312"); do not confuse it with a packing-slip, invoice, debtor, or order number. line_items.category must be exactly one of: materiaal, gereedschap, brandstof, hotel, telefoon, leadkosten, overig. Rules: lead-generation/lead costs => leadkosten; phone/mobile/telecom/KPN invoices => telefoon; hotel stays/overnachtingen/accommodation => hotel; the exact line "Tijdelijke toeslag transportkosten" is always materiaal; Brandstof toeslag/brandstofkosten on a Bouwmaat invoice is always materiaal; any uitvulplaat or reinigingsdoekjes is always gereedschap; fines/boetes/bekeuringen => overig; reusable tools (measuring tools, hand tools, power tools, sets, holders, clamps, markers/pencils) => gereedschap; consumables and build inputs (screws, plugs, glue, sealant, tape, wood, plates, profiles, sanding discs, etc.) => materiaal; fuel/charging products => brandstof. Deposit/pallet charge lines (statiegeld, emballage, borg, palletborg) are real material costs: never omit them or replace them with a zero-valued placeholder. They are usually 0% VAT, so include them in subtotal_excl_btw and total_incl_btw with btw_percentage: 0 and total_incl_btw equal to total_price. Important: keep subtotal_excl_btw and total_incl_btw fiscally correct. Read explicitly printed invoice totals before inferring values. Always validate total_incl_btw = subtotal_excl_btw + btw_amount. Credit notes (creditfacturen) must retain their negative signs: return negative quantities, line totals, subtotal, VAT amount, and total exactly as printed; never convert them to zero or positive values. Invoices can contain multiple VAT rates or VAT-exempt/onbelast amounts; never apply the printed 21% rate to the entire subtotal in that case. For example, if the document prints total €139.13 and VAT €2.63, subtotal_excl_btw must be €136.50. If the receipt shows retail prices (often VAT-included), still return the correct EXCL subtotal from the VAT breakdown. Critical validation: when quantity * unit_price does not match a printed (possibly discounted) line total or receipt total, prefer the discounted/printed totals and set total_price accordingly. Return ONLY valid JSON, no markdown.';
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -219,7 +219,7 @@ function convertLineItemsFromInclToExcl(
   });
 }
 
-function inferLineItemCategory(description: string): 'materiaal' | 'gereedschap' | 'brandstof' | 'hotel' | 'telefoon' | 'overig' {
+function inferLineItemCategory(description: string): 'materiaal' | 'gereedschap' | 'brandstof' | 'hotel' | 'telefoon' | 'leadkosten' | 'overig' {
   const target = safeString(description).toLowerCase();
   if (!target) return 'materiaal';
 
@@ -249,7 +249,19 @@ function inferLineItemCategory(description: string): 'materiaal' | 'gereedschap'
     return 'telefoon';
   }
 
+  if (containsAny(['leadkosten', 'lead kosten', 'lead cost', 'lead generation'])) {
+    return 'leadkosten';
+  }
+
+  if (containsAny(['uitvulplaat', 'reinigingsdoekjes', 'reinigings doekjes'])) {
+    return 'gereedschap';
+  }
+
   if (containsAny(['tijdelijke toeslag transportkosten'])) {
+    return 'materiaal';
+  }
+
+  if (containsAny(['brandstof toeslag', 'brandstofkosten'])) {
     return 'materiaal';
   }
 

@@ -5,6 +5,7 @@ export const PROJECT_COST_CATEGORIES = [
   'eigen_verbruik',
   'hotel',
   'telefoon',
+  'leadkosten',
   'overig',
 ] as const;
 
@@ -16,6 +17,9 @@ export interface ProjectCostLineItem {
   unit: string;
   unit_price: number;
   total_price: number;
+  total_incl_btw?: number;
+  /** Optional per-line VAT rate for mixed-rate invoices, such as VAT-free deposits. */
+  btw_percentage?: number;
   category?: ProjectCostCategory;
   offerte_id?: string | null;
 }
@@ -51,11 +55,12 @@ export interface ProjectCostRow {
 
 export const PROJECT_COST_CATEGORY_LABELS: Record<ProjectCostCategory, string> = {
   materiaal: 'Materiaal',
-  brandstof: 'Brandstof',
+  brandstof: 'Autokosten',
   gereedschap: 'Gereedschap',
   eigen_verbruik: 'Eigen verbruik',
   hotel: 'Hotel',
   telefoon: 'Telefoon',
+  leadkosten: 'Leadkosten',
   overig: 'Overig',
 };
 
@@ -76,11 +81,12 @@ export function roundEuro(value: number): number {
 export function normalizeProjectCostCategory(value: unknown): ProjectCostCategory {
   const normalized = safeString(value).toLowerCase();
   if (normalized === 'materiaal') return 'materiaal';
-  if (normalized === 'brandstof') return 'brandstof';
+  if (normalized === 'brandstof' || normalized === 'autokosten' || normalized === 'auto kosten') return 'brandstof';
   if (normalized === 'gereedschap') return 'gereedschap';
   if (normalized === 'eigen_verbruik' || normalized === 'eigen verbruik') return 'eigen_verbruik';
   if (normalized === 'hotel' || normalized === 'overnachting') return 'hotel';
   if (normalized === 'telefoon' || normalized === 'phone') return 'telefoon';
+  if (normalized === 'leadkosten' || normalized === 'lead kosten' || normalized === 'lead cost') return 'leadkosten';
   return 'overig';
 }
 
@@ -90,6 +96,13 @@ export function normalizeProjectCostLineItem(input: unknown): ProjectCostLineIte
   const quantity = safeNumber(row.quantity);
   const unitPrice = safeNumber(row.unit_price);
   const explicitTotal = safeNumber(row.total_price);
+  const explicitTotalIncl = safeNumber(row.total_incl_btw);
+  const rawBtwPercentage = row.btw_percentage ?? row.vat_percentage;
+  const hasExplicitBtwPercentage =
+    rawBtwPercentage !== undefined
+    && rawBtwPercentage !== null
+    && String(rawBtwPercentage).trim() !== ''
+    && Number.isFinite(Number(rawBtwPercentage));
   const totalPrice = roundEuro(explicitTotal !== 0 ? explicitTotal : quantity * unitPrice);
   const rawCategory = safeString(row.category);
   const category = rawCategory ? normalizeProjectCostCategory(rawCategory) : undefined;
@@ -101,6 +114,8 @@ export function normalizeProjectCostLineItem(input: unknown): ProjectCostLineIte
     unit: safeString(row.unit) || 'st',
     unit_price: roundEuro(unitPrice),
     total_price: totalPrice,
+    ...(explicitTotalIncl !== 0 ? { total_incl_btw: roundEuro(explicitTotalIncl) } : {}),
+    ...(hasExplicitBtwPercentage ? { btw_percentage: roundEuro(Number(rawBtwPercentage)) } : {}),
     category,
     offerte_id: offerteId,
   };
@@ -198,7 +213,19 @@ export function inferProjectCostCategory(params: {
     return 'telefoon';
   }
 
+  if (containsAny(['leadkosten', 'lead kosten', 'lead cost', 'leadkosten'])) {
+    return 'leadkosten';
+  }
+
+  if (containsAny(['uitvulplaat', 'reinigingsdoekjes', 'reinigings doekjes'])) {
+    return 'gereedschap';
+  }
+
   if (containsAny(['tijdelijke toeslag transportkosten'])) {
+    return 'materiaal';
+  }
+
+  if (containsAny(['brandstof toeslag', 'brandstofkosten'])) {
     return 'materiaal';
   }
 

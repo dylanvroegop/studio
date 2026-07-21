@@ -6,6 +6,7 @@ import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
 import { ThemeModeProvider } from '@/context/ThemeModeContext';
 import { DeferredAuthGuards } from '@/components/DeferredAuthGuards';
 import { QuoteWorkMeetingStatusSync } from '@/components/QuoteWorkMeetingStatusSync';
+import { PendingCostImportPrompt } from '@/components/PendingCostImportPrompt';
 
 export const metadata: Metadata = {
   title: 'Calvora',
@@ -55,6 +56,7 @@ export default function RootLayout({
             <MeasurementUnitProvider>
               <DeferredAuthGuards />
               <QuoteWorkMeetingStatusSync />
+              <PendingCostImportPrompt />
               {children}
               <Toaster />
             </MeasurementUnitProvider>

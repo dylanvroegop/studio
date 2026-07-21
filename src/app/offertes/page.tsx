@@ -607,6 +607,7 @@ export default function OffertesPage() {
   const [archiving, setArchiving] = useState(false);
   const [updatingAcceptanceQuoteId, setUpdatingAcceptanceQuoteId] = useState<string | null>(null);
   const [updatingDashboardQuoteId, setUpdatingDashboardQuoteId] = useState<string | null>(null);
+  const [profitByQuoteId, setProfitByQuoteId] = useState<Record<string, number>>({});
   const isSyncingTotalsRef = useRef(false);
   const isSyncingHoofdtitelsRef = useRef(false);
   const fetchedHoofdtitelIdsRef = useRef<Set<string>>(new Set());
@@ -948,6 +949,64 @@ export default function OffertesPage() {
     });
     return map;
   }, [quotes]);
+
+  useEffect(() => {
+    if (!user || quotes.length === 0) return;
+
+    let cancelled = false;
+    const loadQuoteProfits = async () => {
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/winst/metrics', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            periodType: 'month',
+            periodRange: 60,
+            projectIds: quotes.map((quote) => quote.id),
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          data?: {
+            projectPerformances?: Array<{
+              projectId: string;
+              quotedRevenueIncl: number;
+              actualCostExcl: number;
+              hasActualData: boolean;
+              hourlyWorkMaterialPassthrough?: boolean;
+              costBreakdown?: Array<{ key: string; quotedExcl: number }>;
+            }>;
+          };
+        } | null;
+        if (!response.ok || !payload?.ok || !payload.data?.projectPerformances || cancelled) return;
+
+        const nextProfits: Record<string, number> = {};
+        payload.data.projectPerformances.forEach((project) => {
+          if (!project.hasActualData) return;
+          const materialPassthroughExcl = (project.costBreakdown || [])
+            .filter((row) => row.key === 'materialenGroot' || row.key === 'materialenVerbruik')
+            .reduce((sum, row) => sum + row.quotedExcl, 0);
+          const adjustedRevenue = project.hourlyWorkMaterialPassthrough
+            ? Math.max(0, project.quotedRevenueIncl - materialPassthroughExcl)
+            : project.quotedRevenueIncl;
+          const profit = adjustedRevenue - project.actualCostExcl;
+          if (Number.isFinite(profit)) nextProfits[project.projectId] = profit;
+        });
+        setProfitByQuoteId(nextProfits);
+      } catch (error) {
+        console.warn('Kon winst per offerte niet laden:', error);
+      }
+    };
+
+    void loadQuoteProfits();
+    return () => {
+      cancelled = true;
+    };
+  }, [quotes, user]);
 
   useEffect(() => {
     if (!firestore || acceptedQuoteIdsFromInvoices.size === 0 || quotes.length === 0) return;
@@ -1677,6 +1736,8 @@ export default function OffertesPage() {
                 const statusStyles = getOfferteStatusStyles(effectiveStatus, hasCalculated, isArchived);
                 const showUncalculatedPlaceholder = !hasCalculated && (effectiveStatus === 'in_behandeling' || effectiveStatus === 'concept');
                 const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
+                const quoteProfit = profitByQuoteId[q.id];
+                const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
                 const routeDestinationAddress = resolveQuoteProjectAddress(q);
                 const routeMapsUrl = buildGoogleMapsDirectionsUrl(routeDestinationAddress);
 
@@ -1711,7 +1772,8 @@ export default function OffertesPage() {
                         <div className="truncate text-xs text-muted-foreground/90">{rowDescription}</div>
                       ) : null}
                       <div className="flex items-center justify-between gap-2">
-                        <div className={cn('min-w-0 truncate text-lg font-bold tabular-nums', showUncalculatedPlaceholder ? 'text-emerald-300' : 'text-emerald-400')}>
+                        <div className="min-w-0 space-y-0.5 tabular-nums">
+                          <div className={cn('truncate text-lg font-bold', showUncalculatedPlaceholder ? 'text-blue-300' : 'text-blue-400')}>
                           {showUncalculatedPlaceholder ? (
                             <span className="inline-flex items-center gap-2">
                               <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
@@ -1720,6 +1782,12 @@ export default function OffertesPage() {
                           ) : (
                             amountLabel
                           )}
+                          </div>
+                          {hasQuoteProfit ? (
+                            <div className="truncate text-sm font-semibold text-emerald-400">
+                              Winst {formatCurrency(quoteProfit)}
+                            </div>
+                          ) : null}
                         </div>
                         <div className="relative z-20 flex items-center gap-1">
                           <Button
@@ -1865,13 +1933,15 @@ export default function OffertesPage() {
                 const statusStyles = getOfferteStatusStyles(effectiveStatus, hasCalculated, isArchived);
                 const showUncalculatedPlaceholder = !hasCalculated && (effectiveStatus === 'in_behandeling' || effectiveStatus === 'concept');
                 const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
+                const quoteProfit = profitByQuoteId[q.id];
+                const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
                 const amountClass = cn(
                   'text-2xl font-bold tabular-nums',
-                  showUncalculatedPlaceholder ? 'text-emerald-300' : 'text-emerald-400'
+                  showUncalculatedPlaceholder ? 'text-blue-300' : 'text-blue-400'
                 );
                 const amountMobileClass = cn(
                   'mt-2 text-xl font-bold tabular-nums',
-                  showUncalculatedPlaceholder ? 'text-emerald-300' : 'text-emerald-400'
+                  showUncalculatedPlaceholder ? 'text-blue-300' : 'text-blue-400'
                 );
 
                 return (
@@ -1921,7 +1991,7 @@ export default function OffertesPage() {
                       </div>
 
                       <div className="relative z-20 flex items-center gap-1 sm:gap-4">
-                        <div className="hidden min-w-[140px] text-right sm:block">
+                        <div className="hidden min-w-[160px] text-right sm:block">
                           <div className={amountClass}>
                             {showUncalculatedPlaceholder ? (
                               <span className="inline-flex items-center gap-2">
@@ -1932,6 +2002,11 @@ export default function OffertesPage() {
                               amountLabel
                             )}
                           </div>
+                          {hasQuoteProfit ? (
+                            <div className="mt-0.5 text-sm font-semibold tabular-nums text-emerald-400">
+                              Winst {formatCurrency(quoteProfit)}
+                            </div>
+                          ) : null}
                         </div>
 
                         <Button
@@ -1950,14 +2025,14 @@ export default function OffertesPage() {
                         </Button>
 
                         <Button
-                          variant={isIncludedInDashboard ? 'default' : 'outline'}
+                          variant="outline"
                           size="sm"
                           disabled={!isDashboardEligible || isUpdatingDashboard}
                           className={cn(
-                            'h-9 gap-2 whitespace-nowrap transition-all duration-150 active:scale-[0.98]',
+                            'h-9 w-9 shrink-0 p-0 transition-all duration-150 active:scale-[0.98]',
                             isIncludedInDashboard
-                              ? 'border border-cyan-400/40 bg-cyan-500/25 text-cyan-100 hover:bg-cyan-500/35 hover:text-white'
-                              : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 hover:text-white',
+                              ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 hover:text-emerald-100'
+                              : 'border-red-400/50 bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:text-red-100',
                           )}
                           aria-pressed={isIncludedInDashboard}
                           aria-label={isIncludedInDashboard ? 'Niet gebruiken voor dashboard' : 'Gebruik voor dashboard'}
@@ -1974,7 +2049,6 @@ export default function OffertesPage() {
                           ) : (
                             <BarChart3 className="h-3.5 w-3.5" />
                           )}
-                          {isIncludedInDashboard ? 'In dashboard' : 'Gebruik voor dashboard'}
                         </Button>
 
                         <DropdownMenu>

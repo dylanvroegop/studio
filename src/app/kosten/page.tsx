@@ -125,6 +125,20 @@ function formatCurrency(amount: number): string {
   }).format(Number.isFinite(amount) ? amount : 0);
 }
 
+function getCostAmountSearchText(cost: ProjectCostRow): string {
+  return [cost.amount_excl_btw, cost.btw_amount, cost.amount_incl_btw]
+    .flatMap((amount) => {
+      const value = safeNumber(amount);
+      return [
+        formatCurrency(value),
+        value.toFixed(2),
+        value.toFixed(2).replace('.', ','),
+        String(value),
+      ];
+    })
+    .join(' ');
+}
+
 function formatDateLabel(value: string): string {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) return 'Onbekende datum';
@@ -268,6 +282,8 @@ function normalizeLineItem(item: ProjectCostLineItem): ProjectCostLineItem {
   const quantity = safeNumber(item.quantity);
   const unitPrice = safeNumber(item.unit_price);
   const explicitTotal = roundEuro(safeNumber(item.total_price));
+  const explicitTotalIncl = roundEuro(safeNumber(item.total_incl_btw));
+  const hasExplicitBtwPercentage = item.btw_percentage !== undefined && Number.isFinite(safeNumber(item.btw_percentage));
   const category = normalizeProjectCostCategory(item.category || 'materiaal');
   const offerteId = safeString(item.offerte_id) || null;
   return {
@@ -276,6 +292,8 @@ function normalizeLineItem(item: ProjectCostLineItem): ProjectCostLineItem {
     unit: safeString(item.unit) || 'st',
     unit_price: roundEuro(unitPrice),
     total_price: explicitTotal !== 0 ? explicitTotal : roundEuro(quantity * unitPrice),
+    ...(explicitTotalIncl !== 0 ? { total_incl_btw: explicitTotalIncl } : {}),
+    ...(hasExplicitBtwPercentage ? { btw_percentage: roundEuro(safeNumber(item.btw_percentage)) } : {}),
     category,
     offerte_id: offerteId,
   };
@@ -375,6 +393,7 @@ function categoryBadgeClass(category: ProjectCostCategory): string {
   if (category === 'eigen_verbruik') return 'border-violet-500/30 bg-violet-500/15 text-violet-200';
   if (category === 'hotel') return 'border-rose-500/30 bg-rose-500/15 text-rose-200';
   if (category === 'telefoon') return 'border-cyan-500/30 bg-cyan-500/15 text-cyan-200';
+  if (category === 'leadkosten') return 'border-orange-500/30 bg-orange-500/15 text-orange-200';
   return 'border-zinc-500/30 bg-zinc-500/15 text-zinc-200';
 }
 
@@ -586,11 +605,12 @@ function KostenPageContent() {
   const filterOptions: Array<{ value: CostFilterMode; label: string }> = [
     { value: 'alle', label: 'Alle' },
     { value: 'materiaal', label: 'Materiaal' },
-    { value: 'brandstof', label: 'Brandstof' },
+    { value: 'brandstof', label: 'Autokosten' },
     { value: 'gereedschap', label: 'Gereedschap' },
     { value: 'eigen_verbruik', label: 'Eigen verbruik' },
     { value: 'hotel', label: 'Hotel' },
     { value: 'telefoon', label: 'Telefoon' },
+    { value: 'leadkosten', label: 'Leadkosten' },
     { value: 'overig', label: 'Overig' },
   ];
 
@@ -603,7 +623,7 @@ function KostenPageContent() {
         if (!term) return true;
         const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
         const offerteNummer = quote?.offerteNummer ? String(quote.offerteNummer) : '';
-        const target = `${cost.supplier_name} ${cost.description} ${offerteNummer} ${quote?.label || ''}`.toLowerCase();
+        const target = `${cost.supplier_name} ${cost.description} ${offerteNummer} ${quote?.label || ''} ${getCostAmountSearchText(cost)}`.toLowerCase();
         return target.includes(term);
       })
       .sort((a, b) => {
@@ -619,7 +639,7 @@ function KostenPageContent() {
       if (!term) return true;
       const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
       const offerteNummer = quote?.offerteNummer ? String(quote.offerteNummer) : '';
-      const target = `${cost.supplier_name} ${cost.description} ${offerteNummer} ${quote?.label || ''}`.toLowerCase();
+      const target = `${cost.supplier_name} ${cost.description} ${offerteNummer} ${quote?.label || ''} ${getCostAmountSearchText(cost)}`.toLowerCase();
       return target.includes(term);
     });
 
@@ -631,6 +651,7 @@ function KostenPageContent() {
       eigen_verbruik: 0,
       hotel: 0,
       telefoon: 0,
+      leadkosten: 0,
       overig: 0,
     } satisfies Record<CostFilterMode, number>;
 
@@ -648,6 +669,7 @@ function KostenPageContent() {
       eigen_verbruik: roundEuro(totals.eigen_verbruik),
       hotel: roundEuro(totals.hotel),
       telefoon: roundEuro(totals.telefoon),
+      leadkosten: roundEuro(totals.leadkosten),
       overig: roundEuro(totals.overig),
     } satisfies Record<CostFilterMode, number>;
   }, [costs, quoteById, search]);
@@ -668,9 +690,23 @@ function KostenPageContent() {
     [normalizedLineItems]
   );
 
+  const hasManualLineInclBtw = normalizedLineItems.some((item) => item.total_incl_btw !== undefined);
+  const lineItemsTotalIncl = useMemo(
+    () => roundEuro(normalizedLineItems.reduce((sum, item) => {
+      const lineBtwPercentage = item.btw_percentage ?? form.btwPercentage;
+      const calculatedIncl = roundEuro(item.total_price * (1 + lineBtwPercentage / 100));
+      return sum + (item.total_incl_btw ?? calculatedIncl);
+    }, 0)),
+    [form.btwPercentage, normalizedLineItems]
+  );
+
+  const hasLineSpecificBtw = normalizedLineItems.some((item) => item.btw_percentage !== undefined);
+
   const amountExcl = form.manualOverride ? roundEuro(form.amountExcl) : lineItemsTotal;
-  const btwAmount = roundEuro((amountExcl * form.btwPercentage) / 100);
-  const amountIncl = roundEuro(amountExcl + btwAmount);
+  const amountIncl = form.manualOverride || (!hasManualLineInclBtw && !hasLineSpecificBtw)
+    ? roundEuro(amountExcl * (1 + form.btwPercentage / 100))
+    : lineItemsTotalIncl;
+  const btwAmount = roundEuro(amountIncl - amountExcl);
   const isEditingCost = Boolean(editingCostId);
 
   const resetForm = () => {
@@ -709,6 +745,7 @@ function KostenPageContent() {
           const quantity = safeNumber(merged.quantity);
           const unitPrice = safeNumber(merged.unit_price);
           merged.total_price = roundEuro(quantity * unitPrice);
+          delete merged.total_incl_btw;
         }
 
         return merged;
@@ -717,18 +754,19 @@ function KostenPageContent() {
   };
 
   const updateLineItemFromInclBtw = (index: number, amountInclBtw: number) => {
-    const factor = 1 + Math.max(0, safeNumber(form.btwPercentage)) / 100;
-    const amountExclBtw = roundEuro(amountInclBtw / factor);
-
     setLineItems((prev) =>
       prev.map((item, currentIndex) => {
         if (currentIndex !== index) return item;
 
         const quantity = safeNumber(item.quantity);
+        const lineBtwPercentage = item.btw_percentage ?? form.btwPercentage;
+        const factor = 1 + Math.max(0, safeNumber(lineBtwPercentage)) / 100;
+        const amountExclBtw = roundEuro(amountInclBtw / factor);
         return {
           ...item,
           unit_price: quantity !== 0 ? roundEuro(amountExclBtw / quantity) : 0,
           total_price: amountExclBtw,
+          total_incl_btw: roundEuro(amountInclBtw),
         };
       })
     );
@@ -823,6 +861,8 @@ function KostenPageContent() {
           description: form.description || form.supplierName,
           line_items: payloadLineItems,
           amount_excl_btw: amountExcl,
+          amount_incl_btw: amountIncl,
+          btw_amount: btwAmount,
           manual_amount_override: form.manualOverride,
           btw_percentage: form.btwPercentage,
           date: form.date,
@@ -1193,7 +1233,7 @@ function KostenPageContent() {
                   <Input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Zoek op leverancier, omschrijving of offertennummer..."
+                    placeholder="Zoek op leverancier, omschrijving, offertennummer of bedrag..."
                     className="pl-9"
                   />
                 </div>
@@ -1342,11 +1382,12 @@ function KostenPageContent() {
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="materiaal">Materiaal</SelectItem>
-                                      <SelectItem value="brandstof">Brandstof</SelectItem>
+                                      <SelectItem value="brandstof">Autokosten</SelectItem>
                                       <SelectItem value="gereedschap">Gereedschap</SelectItem>
                                       <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
                                       <SelectItem value="hotel">Hotel</SelectItem>
                                       <SelectItem value="telefoon">Telefoon</SelectItem>
+                                      <SelectItem value="leadkosten">Leadkosten</SelectItem>
                                       <SelectItem value="overig">Overig</SelectItem>
                                     </SelectContent>
                                   </Select>
@@ -1485,8 +1526,10 @@ function KostenPageContent() {
                                   {lineItems.map((item, index) => {
                                     const normalizedLine = normalizeLineItem(item);
                                     const lineExcl = normalizedLine.total_price;
-                                    const lineBtw = roundEuro((lineExcl * form.btwPercentage) / 100);
-                                    const lineIncl = roundEuro(lineExcl + lineBtw);
+                                    const lineBtwPercentage = normalizedLine.btw_percentage ?? form.btwPercentage;
+                                    const calculatedLineIncl = roundEuro(lineExcl * (1 + lineBtwPercentage / 100));
+                                    const lineIncl = normalizedLine.total_incl_btw ?? calculatedLineIncl;
+                                    const lineBtw = roundEuro(lineIncl - lineExcl);
 
                                     return (
                                       <div
@@ -1520,10 +1563,11 @@ function KostenPageContent() {
                                             <SelectContent>
                                               <SelectItem value="materiaal">Materiaal</SelectItem>
                                               <SelectItem value="gereedschap">Gereedschap</SelectItem>
-                                              <SelectItem value="brandstof">Brandstof</SelectItem>
+                                              <SelectItem value="brandstof">Autokosten</SelectItem>
                                               <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
                                               <SelectItem value="hotel">Hotel</SelectItem>
                                               <SelectItem value="telefoon">Telefoon</SelectItem>
+                                              <SelectItem value="leadkosten">Leadkosten</SelectItem>
                                               <SelectItem value="overig">Overig</SelectItem>
                                             </SelectContent>
                                           </Select>

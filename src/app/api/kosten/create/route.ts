@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { DocumentReference } from 'firebase-admin/firestore';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
@@ -372,6 +373,7 @@ async function upsertProfitOverview(params: {
     eigen_verbruik: 0,
     hotel: 0,
     telefoon: 0,
+    leadkosten: 0,
     overig: 0,
   };
 
@@ -389,7 +391,7 @@ async function upsertProfitOverview(params: {
   const totalMaterialCost = roundEuro(totals.materiaal);
   const totalFuelCost = roundEuro(totals.brandstof);
   const totalToolCost = roundEuro(totals.gereedschap);
-  const totalOtherCost = roundEuro(totals.overig + totals.eigen_verbruik + totals.hotel + totals.telefoon);
+  const totalOtherCost = roundEuro(totals.overig + totals.eigen_verbruik + totals.hotel + totals.telefoon + totals.leadkosten);
   const totalLaborCost = roundEuro(laborCost);
   const totalCosts = roundEuro(
     totalMaterialCost
@@ -432,7 +434,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Ongeldige payload.' }, { status: 400 });
     }
 
-    const input = normalizeCreateInput(body as Record<string, unknown>);
+    let input = normalizeCreateInput(body as Record<string, unknown>);
     const token = extractBearerToken(request.headers.get('authorization'));
     let uid = '';
     if (token) {
@@ -449,6 +451,38 @@ export async function POST(request: Request) {
 
     const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
     if (trialBlockedResponse) return trialBlockedResponse;
+
+    const pendingImportId = safeString(input.pending_import_id);
+    let pendingImportRef: FirebaseFirestore.DocumentReference | null = null;
+    if (pendingImportId) {
+      const { firestore } = initFirebaseAdmin();
+      pendingImportRef = firestore.collection('pending_cost_imports').doc(pendingImportId);
+      const pendingSnap = await pendingImportRef.get();
+      if (!pendingSnap.exists) {
+        return NextResponse.json({ ok: false, message: 'Openstaande factuur niet gevonden.' }, { status: 404 });
+      }
+
+      const pendingRow = pendingSnap.data() || {};
+      const pendingUserId = safeString((pendingRow as { userId?: unknown }).userId);
+      if (pendingUserId !== uid) {
+        return NextResponse.json({ ok: false, message: 'Geen toegang tot deze openstaande factuur.' }, { status: 403 });
+      }
+
+      if (safeString((pendingRow as { status?: unknown }).status) === 'linked') {
+        return NextResponse.json({ ok: false, message: 'Deze factuur is al gekoppeld.' }, { status: 409 });
+      }
+
+      const pendingPayload = asRecord((pendingRow as { payload?: unknown }).payload);
+      if (!pendingPayload) {
+        return NextResponse.json({ ok: false, message: 'De gegevens van de openstaande factuur zijn ongeldig.' }, { status: 400 });
+      }
+
+      input = {
+        ...pendingPayload,
+        ...input,
+        user_id: uid,
+      };
+    }
 
     const supplierName = safeString(input.supplier_name);
     if (!supplierName) {
@@ -470,6 +504,7 @@ export async function POST(request: Request) {
 
     const lineItems = normalizeProjectCostLineItems(input.line_items);
     const requestedAmountExcl = roundEuro(safeNumber(input.amount_excl_btw));
+    const requestedAmountIncl = roundEuro(safeNumber(input.amount_incl_btw));
     const manualOverride = input.manual_amount_override === true;
     const btwPercentage = roundEuro(safeNumber(input.btw_percentage) || 21);
     const date = dateOnly(input.date);
@@ -629,8 +664,10 @@ export async function POST(request: Request) {
         }) as any;
       }
 
-      const btwAmount = roundEuro((amountExcl * btwPercentage) / 100);
-      const amountIncl = roundEuro(amountExcl + btwAmount);
+      const amountIncl = groupedArray.length === 1 && requestedAmountIncl !== 0
+        ? requestedAmountIncl
+        : roundEuro(amountExcl * (1 + btwPercentage / 100));
+      const btwAmount = roundEuro(amountIncl - amountExcl);
       const rowDescription = groupedArray.length > 1
         ? `${description} (${group.category})`
         : description;
@@ -719,6 +756,21 @@ export async function POST(request: Request) {
         });
       } catch (syncError) {
         console.warn('[kosten/create] Kon bonnetjes sync niet uitvoeren:', syncError);
+      }
+    }
+
+    if (pendingImportRef) {
+      try {
+        await pendingImportRef.update({
+          status: 'linked',
+          linkedCostIds: insertedRows
+            .map((row) => safeString((row as Record<string, unknown>).id))
+            .filter(Boolean),
+          linkedAt: new Date(),
+          updatedAt: new Date(),
+        });
+      } catch (pendingError) {
+        console.warn('[kosten/create] Kon openstaande factuur niet als gekoppeld te markeren:', pendingError);
       }
     }
 

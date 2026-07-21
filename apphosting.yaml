@@ -18,6 +18,10 @@ env:
     secret: N8N_HEADER_SECRET
   - variable: CALVORA_USER_ID
     secret: CALVORA_USER_ID
+  - variable: OPENAI_API_KEY
+    secret: OPENAI_API_KEY
+  - variable: OPENAI_RECEIPTS_MODEL
+    value: gpt-5.2
 
   - variable: STRIPE_SECRET_KEY
     secret: STRIPE_SECRET_KEY

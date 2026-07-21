@@ -1,0 +1,683 @@
+{
+  "name": "OfferteHulp - automatische factuurimport kosten",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "includeSpamTrash": false,
+          "includeDrafts": false,
+          "q": "has:attachment newer_than:1d",
+          "readStatus": "unread"
+        },
+        "options": {
+          "downloadAttachments": true,
+          "dataPropertyAttachmentsPrefixName": "attachment_"
+        }
+      },
+      "id": "0a9a27de-9b84-4b7b-9cae-8f12f2b2d201",
+      "name": "Gmail Trigger - facturen inbox",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        260,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst invoiceFile = /\\.(pdf|png|jpe?g|webp|heic|heif)$/i;\nreturn items.flatMap((item) => {\n  const text = [item.json.subject, item.json.text, item.json.html, item.json.snippet].filter(Boolean).join(' ').toLowerCase();\n  const binary = item.binary || {};\n  const files = Object.entries(binary).filter(([key, value]) => key.startsWith('attachment_') && invoiceFile.test(value.fileName || key));\n  return files.slice(0, 1).map(([key, value]) => ({ json: { ...item.json, attachmentField: key, attachmentFileName: value.fileName || key, sourceMailbox: 'facturenvroegoptimmerwerken@gmail.com' }, binary: { data: value } }));\n});"
+      },
+      "id": "f7b5d50d-1013-4f0e-83cd-75d00b51c201",
+      "name": "Vind factuurbijlage - dedicated inbox",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.calvora.nl/api/kosten/extract",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-offertehulp-secret",
+              "value": "PASTE_N8N_HEADER_SECRET"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "parameterType": "formData",
+              "name": "user_id",
+              "value": "PASTE_FIREBASE_UID"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5b4c0fa7-7b69-4b93-9a1e-70a5b2bbd201",
+      "name": "Analyseer factuur - dedicated inbox",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dedicated-offerte-link-check",
+              "leftValue": "={{ $json.data.offerte_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7a2b0d3e-4c91-4df3-8f2d-5e9a1c3b7d01",
+      "name": "Heeft offerte koppeling? - dedicated inbox",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.calvora.nl/api/kosten/pending",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-offertehulp-secret",
+              "value": "PASTE_N8N_HEADER_SECRET"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: 'PASTE_FIREBASE_UID', payload: $json.data }) }}",
+        "options": {}
+      },
+      "id": "8b3c1e4f-5da2-4e04-9a3e-6fab2d4c8e02",
+      "name": "Zet opzij voor koppeling - dedicated inbox",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1260,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "addLabel",
+        "messageId": "={{ $('Vind factuurbijlage - dedicated inbox').item.json.id }}",
+        "labelIds": [
+          "Facturen/Wacht op offerte"
+        ]
+      },
+      "id": "9c4d2f5a-6eb3-4f15-ab4f-7aac3e5d9f03",
+      "name": "Label wacht op offerte - dedicated inbox",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1520,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "markAsRead",
+        "messageId": "={{ $('Vind factuurbijlage - dedicated inbox').item.json.id }}"
+      },
+      "id": "ad5e3f6b-7fc4-4026-bc59-8abd4e6f0a04",
+      "name": "Markeer wachtende factuur als gelezen - dedicated inbox",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1780,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.calvora.nl/api/kosten/create",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-offertehulp-secret",
+              "value": "PASTE_N8N_HEADER_SECRET"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: 'PASTE_FIREBASE_UID', supplier_name: $json.data.supplier_name, description: $json.data.description, category: $json.data.suggested_category, line_items: $json.data.line_items, amount_excl_btw: $json.data.amount_excl_btw, amount_incl_btw: $json.data.amount_incl_btw, btw_percentage: $json.data.btw_percentage, btw_amount: $json.data.btw_amount, date: $json.data.date, offerte_id: $json.data.offerte_id, offerte_reference: $json.data.offerte_reference, receipt_url: $json.data.receipt_url, receipt_files: $json.data.receipt_files, manual_amount_override: $json.data.manual_amount_override, status: 'confirmed' }) }}",
+        "options": {}
+      },
+      "id": "8f3d8d1a-4e22-4f25-b6b2-4e9e46d8d201",
+      "name": "Sla op in kosten - dedicated inbox",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "addLabel",
+        "messageId": "={{ $('Vind factuurbijlage - dedicated inbox').item.json.id }}",
+        "labelIds": [
+          "Facturen/Verwerkt"
+        ]
+      },
+      "id": "c7c2edb4-7b13-4b92-8d5b-07f1c9b8d201",
+      "name": "Label factuur als verwerkt - dedicated inbox",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1300,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "markAsRead",
+        "messageId": "={{ $('Vind factuurbijlage - dedicated inbox').item.json.id }}"
+      },
+      "id": "ecbca56c-9d53-4f1f-8128-4e3a7b1dd201",
+      "name": "Markeer factuur als gelezen - dedicated inbox",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1560,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "includeSpamTrash": false,
+          "includeDrafts": false,
+          "q": "has:attachment newer_than:1d",
+          "readStatus": "unread"
+        },
+        "options": {
+          "downloadAttachments": true,
+          "dataPropertyAttachmentsPrefixName": "attachment_"
+        }
+      },
+      "id": "9e80b247-05a0-4774-9428-0a92a5d1e202",
+      "name": "Gmail Trigger - normale inbox finder",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        260,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst invoiceFile = /(?:factuur|invoice|rekening|credit|creditnota|creditfactuur|receipt|bill|nota).*\\.(pdf|png|jpe?g|webp|heic|heif)$/i;\nconst invoiceText = /\\b(factuur|invoice|rekening|creditfactuur|creditnota|vervaldatum|factuurnummer|te betalen|amount due|payment due|btw)\\b/i;\nreturn items.flatMap((item) => {\n  const text = [item.json.subject, item.json.text, item.json.html, item.json.snippet].filter(Boolean).join(' ');\n  const binary = item.binary || {};\n  const files = Object.entries(binary).filter(([key, value]) => {\n    const name = value.fileName || key;\n    return key.startsWith('attachment_') && /\\.(pdf|png|jpe?g|webp|heic|heif)$/i.test(name) && (invoiceFile.test(name) || invoiceText.test(text));\n  });\n  return files.slice(0, 1).map(([key, value]) => ({ json: { ...item.json, attachmentField: key, attachmentFileName: value.fileName || key, sourceMailbox: 'vroegoptimmerwerken@gmail.com' }, binary: { data: value } }));\n});"
+      },
+      "id": "a7ce9f8d-0c1b-4e4a-9e0c-8e1a0c6fe202",
+      "name": "Vind factuurbijlage - normale inbox finder",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.calvora.nl/api/kosten/extract",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-offertehulp-secret",
+              "value": "PASTE_N8N_HEADER_SECRET"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "parameterType": "formData",
+              "name": "user_id",
+              "value": "PASTE_FIREBASE_UID"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1b1d8fc3-5a6a-4eb2-9416-bc8e0ad2e202",
+      "name": "Analyseer factuur - normale inbox finder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "normal-offerte-link-check",
+              "leftValue": "={{ $json.data.offerte_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7a2b0d3e-4c91-4df3-8f2d-5e9a1c3b7d05",
+      "name": "Heeft offerte koppeling? - normale inbox finder",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.calvora.nl/api/kosten/pending",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-offertehulp-secret",
+              "value": "PASTE_N8N_HEADER_SECRET"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: 'PASTE_FIREBASE_UID', payload: $json.data }) }}",
+        "options": {}
+      },
+      "id": "8b3c1e4f-5da2-4e04-9a3e-6fab2d4c8e06",
+      "name": "Zet opzij voor koppeling - normale inbox finder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1260,
+        860
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "addLabel",
+        "messageId": "={{ $('Vind factuurbijlage - normale inbox finder').item.json.id }}",
+        "labelIds": [
+          "Facturen/Wacht op offerte"
+        ]
+      },
+      "id": "9c4d2f5a-6eb3-4f15-ab4f-7aac3e5d9f07",
+      "name": "Label wacht op offerte - normale inbox finder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1520,
+        860
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "markAsRead",
+        "messageId": "={{ $('Vind factuurbijlage - normale inbox finder').item.json.id }}"
+      },
+      "id": "ad5e3f6b-7fc4-4026-bc59-8abd4e6f0a08",
+      "name": "Markeer wachtende factuur als gelezen - normale inbox finder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1780,
+        860
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.calvora.nl/api/kosten/create",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-offertehulp-secret",
+              "value": "PASTE_N8N_HEADER_SECRET"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: 'PASTE_FIREBASE_UID', supplier_name: $json.data.supplier_name, description: $json.data.description, category: $json.data.suggested_category, line_items: $json.data.line_items, amount_excl_btw: $json.data.amount_excl_btw, amount_incl_btw: $json.data.amount_incl_btw, btw_percentage: $json.data.btw_percentage, btw_amount: $json.data.btw_amount, date: $json.data.date, offerte_id: $json.data.offerte_id, offerte_reference: $json.data.offerte_reference, receipt_url: $json.data.receipt_url, receipt_files: $json.data.receipt_files, manual_amount_override: $json.data.manual_amount_override, status: 'confirmed' }) }}",
+        "options": {}
+      },
+      "id": "d27f0d3e-8d7d-4cc1-8c30-c53d47e7e202",
+      "name": "Sla op in kosten - normale inbox finder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "addLabel",
+        "messageId": "={{ $('Vind factuurbijlage - normale inbox finder').item.json.id }}",
+        "labelIds": [
+          "Facturen/Verwerkt"
+        ]
+      },
+      "id": "f65b1694-2698-4168-81c2-8c76c58be203",
+      "name": "Label factuur als verwerkt - normale inbox finder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1300,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "markAsRead",
+        "messageId": "={{ $('Vind factuurbijlage - normale inbox finder').item.json.id }}"
+      },
+      "id": "5ee3673a-08f9-42d4-a4ab-7eb55d3ce203",
+      "name": "Markeer factuur als gelezen - normale inbox finder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1560,
+        700
+      ]
+    }
+  ],
+  "connections": {
+    "Gmail Trigger - facturen inbox": {
+      "main": [
+        [
+          {
+            "node": "Vind factuurbijlage - dedicated inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vind factuurbijlage - dedicated inbox": {
+      "main": [
+        [
+          {
+            "node": "Analyseer factuur - dedicated inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyseer factuur - dedicated inbox": {
+      "main": [
+        [
+          {
+            "node": "Heeft offerte koppeling? - dedicated inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Heeft offerte koppeling? - dedicated inbox": {
+      "main": [
+        [
+          {
+            "node": "Sla op in kosten - dedicated inbox",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Zet opzij voor koppeling - dedicated inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zet opzij voor koppeling - dedicated inbox": {
+      "main": [
+        [
+          {
+            "node": "Label wacht op offerte - dedicated inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Label wacht op offerte - dedicated inbox": {
+      "main": [
+        [
+          {
+            "node": "Markeer wachtende factuur als gelezen - dedicated inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sla op in kosten - dedicated inbox": {
+      "main": [
+        [
+          {
+            "node": "Label factuur als verwerkt - dedicated inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Label factuur als verwerkt - dedicated inbox": {
+      "main": [
+        [
+          {
+            "node": "Markeer factuur als gelezen - dedicated inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger - normale inbox finder": {
+      "main": [
+        [
+          {
+            "node": "Vind factuurbijlage - normale inbox finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vind factuurbijlage - normale inbox finder": {
+      "main": [
+        [
+          {
+            "node": "Analyseer factuur - normale inbox finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyseer factuur - normale inbox finder": {
+      "main": [
+        [
+          {
+            "node": "Heeft offerte koppeling? - normale inbox finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Heeft offerte koppeling? - normale inbox finder": {
+      "main": [
+        [
+          {
+            "node": "Sla op in kosten - normale inbox finder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Zet opzij voor koppeling - normale inbox finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zet opzij voor koppeling - normale inbox finder": {
+      "main": [
+        [
+          {
+            "node": "Label wacht op offerte - normale inbox finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Label wacht op offerte - normale inbox finder": {
+      "main": [
+        [
+          {
+            "node": "Markeer wachtende factuur als gelezen - normale inbox finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sla op in kosten - normale inbox finder": {
+      "main": [
+        [
+          {
+            "node": "Label factuur als verwerkt - normale inbox finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Label factuur als verwerkt - normale inbox finder": {
+      "main": [
+        [
+          {
+            "node": "Markeer factuur als gelezen - normale inbox finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c7c2edb4-7b13-4b92-8d5b-07f1c9b8d204",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

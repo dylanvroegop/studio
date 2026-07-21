@@ -87,7 +87,7 @@ export interface WinstNacalculatieSource {
 
 export interface WinstProjectCostSource {
   quoteId: string;
-  category: 'materiaal' | 'brandstof' | 'gereedschap' | 'eigen_verbruik' | 'hotel' | 'telefoon' | 'overig';
+  category: 'materiaal' | 'brandstof' | 'gereedschap' | 'eigen_verbruik' | 'hotel' | 'telefoon' | 'leadkosten' | 'overig';
   amountExcl: number;
   amountIncl?: number;
 }
@@ -156,6 +156,7 @@ interface ExternalProjectCostSnapshot {
   eigen_verbruik: number;
   hotel: number;
   telefoon: number;
+  leadkosten: number;
   overig: number;
 }
 
@@ -439,6 +440,7 @@ function getActualSnapshot(
     + safeNumber(externalProjectCosts?.eigen_verbruik)
     + safeNumber(externalProjectCosts?.hotel)
     + safeNumber(externalProjectCosts?.telefoon)
+    + safeNumber(externalProjectCosts?.leadkosten)
     + safeNumber(externalProjectCosts?.overig);
   const externalLaborCost = safeNumber(externalLabor?.costExcl);
   const externalLaborHours = safeNumber(externalLabor?.hours);
@@ -450,7 +452,7 @@ function getActualSnapshot(
     const mappedMaterial = safeNumber(externalProjectCosts?.materiaal);
     const mappedTransport = safeNumber(externalProjectCosts?.brandstof);
     const mappedTools = safeNumber(externalProjectCosts?.gereedschap);
-    const mappedOther = safeNumber(externalProjectCosts?.overig) + safeNumber(externalProjectCosts?.eigen_verbruik) + safeNumber(externalProjectCosts?.hotel) + safeNumber(externalProjectCosts?.telefoon);
+    const mappedOther = safeNumber(externalProjectCosts?.overig) + safeNumber(externalProjectCosts?.eigen_verbruik) + safeNumber(externalProjectCosts?.hotel) + safeNumber(externalProjectCosts?.telefoon) + safeNumber(externalProjectCosts?.leadkosten);
 
     const externalSnapshot: ActualSnapshot = {
       materialenGroot: mappedMaterial,
@@ -863,6 +865,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
       eigen_verbruik: 0,
       hotel: 0,
       telefoon: 0,
+      leadkosten: 0,
       overig: 0,
     };
     const resolvedAmount = safeNumber(row.amountIncl) > 0 ? safeNumber(row.amountIncl) : safeNumber(row.amountExcl);
