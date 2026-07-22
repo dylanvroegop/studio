@@ -8,8 +8,8 @@ Dit project bevat een importeerbare workflow in `n8n/offertehulp-invoice-importe
 2. Accepteert PDF- en afbeeldingsbijlagen uit `facturenvroegoptimmerwerken@gmail.com`.
 3. Zoekt in `vroegoptimmerwerken@gmail.com` naar factuur-signalen in onderwerp, berichttekst en bestandsnaam.
 4. Stuurt de bijlage naar `/api/kosten/extract`. De bestaande app slaat het document op in Supabase Storage en extraheert leverancier, datum, BTW, regels en offerte-referentie.
-5. Als `offerte_id` gevonden is, stuurt hij de extractie door naar `/api/kosten/create` en maakt daarmee een regel in `project_costs` / de Kosten-tab.
-6. Als `offerte_id` ontbreekt, stuurt hij de extractie naar `/api/kosten/pending`. De factuur wordt dan niet als Kosten opgeslagen; de app toont bij het openen een in-app venster waarin je de juiste offerte/klant kiest.
+5. Als `offerte_id` gevonden is, of als de factuur geen materiaal bevat, stuurt hij de extractie door naar `/api/kosten/create` en maakt daarmee een regel in `project_costs` / de Kosten-tab.
+6. Als `offerte_id` ontbreekt én er wel materiaalregels zijn, stuurt hij de extractie naar `/api/kosten/pending`. De factuur wordt dan niet als Kosten opgeslagen; de app opent bij het starten de bestaande `Nieuwe kost`-pagina met de factuur al ingevuld, zodat je de juiste offerte/klant kiest.
 7. Een verwerkte e-mail krijgt `Facturen/Verwerkt`. Een wachtende e-mail krijgt `Facturen/Wacht op offerte`. Beide worden daarna als gelezen gemarkeerd, zodat dezelfde factuur niet opnieuw wordt geïmporteerd.
 
 ## Eenmalige voorbereiding

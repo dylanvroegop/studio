@@ -97,6 +97,23 @@ type KostenFormState = {
   receiptFiles: ProjectCostReceiptFile[];
 };
 
+type ExtractedCostData = {
+  supplier_name?: string;
+  description?: string;
+  line_items?: ProjectCostLineItem[];
+  amount_excl_btw?: number;
+  btw_percentage?: number;
+  btw_amount?: number;
+  amount_incl_btw?: number;
+  manual_amount_override?: boolean;
+  date?: string;
+  offerte_reference?: string | null;
+  offerte_id?: string | null;
+  suggested_category?: ProjectCostCategory;
+  receipt_url?: string;
+  receipt_files?: ProjectCostReceiptFile[];
+};
+
 function safeNumber(value: unknown): number {
   const numeric = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
@@ -427,6 +444,7 @@ function KostenPageContent() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pageReceiptDragDepthRef = useRef(0);
+  const pendingHydratedRef = useRef<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -441,6 +459,7 @@ function KostenPageContent() {
   const [entryMode, setEntryMode] = useState<EntryMode>('upload');
   const [saving, setSaving] = useState(false);
   const [deletingCostId, setDeletingCostId] = useState<string | null>(null);
+  const [dismissingPendingImport, setDismissingPendingImport] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [pageReceiptDragActive, setPageReceiptDragActive] = useState(false);
@@ -449,12 +468,16 @@ function KostenPageContent() {
   const [quoteSearchOpen, setQuoteSearchOpen] = useState(false);
   const [editingCostId, setEditingCostId] = useState<string | null>(null);
   const [costPendingDelete, setCostPendingDelete] = useState<ProjectCostRow | null>(null);
+  const [pendingImportId, setPendingImportId] = useState<string | null>(null);
+  const pendingDismissInFlightRef = useRef<string | null>(null);
+  const skipNextPendingDismissRef = useRef(false);
 
   const [form, setForm] = useState<KostenFormState>(createDefaultFormState());
   const [lineItems, setLineItems] = useState<ProjectCostLineItem[]>([
     createEmptyLineItem(),
   ]);
   const initialOfferteIdFromUrl = safeString(searchParams?.get('offerteId'));
+  const initialPendingImportId = safeString(searchParams?.get('pendingId'));
   const shouldOpenCreateFromUrl = safeString(searchParams?.get('open')) === '1';
 
   useEffect(() => {
@@ -598,6 +621,105 @@ function KostenPageContent() {
     };
   }, [loadCosts, loadQuotes, user, firestore]);
 
+  useEffect(() => {
+    if (!user || !initialPendingImportId || pendingHydratedRef.current === initialPendingImportId) return;
+    let cancelled = false;
+
+    const loadPendingImport = async () => {
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/kosten/pending', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => null) as {
+          ok?: boolean;
+          data?: Array<ExtractedCostData & { id?: string }>;
+        } | null;
+        if (!response.ok || !payload?.ok || !Array.isArray(payload.data)) {
+          throw new Error('Openstaande factuur kon niet worden geladen.');
+        }
+
+        const pending = payload.data.find((item) => safeString(item.id) === initialPendingImportId);
+        if (!pending || cancelled) return;
+        pendingHydratedRef.current = initialPendingImportId;
+
+        const matchedOfferteId = (
+          safeString(pending.offerte_id)
+          && quotes.some((quote) => quote.id === safeString(pending.offerte_id))
+        )
+          ? safeString(pending.offerte_id)
+          : parseOfferteReferenceToQuoteId(pending.offerte_reference || null, quotes);
+        const extractedLineItems = Array.isArray(pending.line_items) && pending.line_items.length > 0
+          ? pending.line_items.map((item) =>
+            normalizeLineItem({
+              ...item,
+              category: item.category || pending.suggested_category || 'materiaal',
+              offerte_id: safeString(item.offerte_id) || matchedOfferteId || null,
+            })
+          )
+          : [createEmptyLineItem()];
+        const extractedAmountExcl = roundEuro(safeNumber(pending.amount_excl_btw));
+        const extractedLineItemsTotal = roundEuro(
+          extractedLineItems.reduce((sum, item) => sum + roundEuro(item.total_price), 0)
+        );
+        const extractedLineItemsRebalanced = (
+          extractedAmountExcl !== 0
+          && extractedLineItemsTotal !== 0
+          && Math.abs(extractedAmountExcl - extractedLineItemsTotal) > 0.01
+        )
+          ? rebalanceLineItemsToAmount(extractedLineItems, extractedAmountExcl)
+          : extractedLineItems;
+        const extractedLineItemsTotalAfterRebalance = roundEuro(
+          extractedLineItemsRebalanced.reduce((sum, item) => sum + roundEuro(item.total_price), 0)
+        );
+        const shouldEnableManualOverride =
+          pending.manual_amount_override === true
+          || (
+            extractedAmountExcl !== 0
+            && extractedLineItemsTotalAfterRebalance !== 0
+            && Math.abs(extractedAmountExcl - extractedLineItemsTotalAfterRebalance) > 0.05
+          );
+
+        setPendingImportId(initialPendingImportId);
+        setEditingCostId(null);
+        setLineItems(extractedLineItemsRebalanced);
+        setForm((previous) => ({
+          ...previous,
+          category: normalizeProjectCostCategory(pending.suggested_category || previous.category),
+          supplierName: safeString(pending.supplier_name),
+          description: safeString(pending.description),
+          offerteId: matchedOfferteId,
+          date: safeString(pending.date) || previous.date,
+          btwPercentage: safeNumber(pending.btw_percentage) || previous.btwPercentage,
+          amountExcl: extractedAmountExcl,
+          manualOverride: shouldEnableManualOverride,
+          receiptUrl: safeString(pending.receipt_url),
+          receiptFiles: Array.isArray(pending.receipt_files) ? pending.receipt_files : [],
+        }));
+        setEntryMode('upload');
+        setCreateOpen(true);
+        toast({
+          title: 'Openstaande factuur geopend',
+          description: 'Kies de juiste offerte en sla de kost daarna op.',
+        });
+      } catch (pendingError) {
+        if (!cancelled) {
+          toast({
+            title: 'Factuur kon niet worden geopend',
+            description: pendingError instanceof Error ? pendingError.message : 'Onbekende fout.',
+            variant: 'destructive',
+          });
+        }
+      }
+    };
+
+    void loadPendingImport();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialPendingImportId, quotes, toast, user]);
+
   const quoteById = useMemo(() => {
     return new Map(quotes.map((quote) => [quote.id, quote]));
   }, [quotes]);
@@ -711,12 +833,53 @@ function KostenPageContent() {
 
   const resetForm = () => {
     setEditingCostId(null);
+    setPendingImportId(null);
     setForm(createDefaultFormState());
     setLineItems([createEmptyLineItem()]);
     setQuoteSearch('');
     setSelectedFile(null);
     setEntryMode('upload');
     setDragActive(false);
+  };
+
+  const closeCreateDialog = async (): Promise<void> => {
+    const pendingIdToDismiss = pendingImportId;
+    setCreateOpen(false);
+    resetForm();
+
+    if (skipNextPendingDismissRef.current) {
+      skipNextPendingDismissRef.current = false;
+      return;
+    }
+
+    if (!pendingIdToDismiss || !user || pendingDismissInFlightRef.current === pendingIdToDismiss) return;
+
+    pendingDismissInFlightRef.current = pendingIdToDismiss;
+    setDismissingPendingImport(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/kosten/pending', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: pendingIdToDismiss }),
+      });
+      const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || `HTTP ${response.status}`);
+      }
+    } catch (dismissError) {
+      toast({
+        title: 'Openstaande factuur niet verborgen',
+        description: dismissError instanceof Error ? dismissError.message : 'Probeer het opnieuw.',
+        variant: 'destructive',
+      });
+    } finally {
+      pendingDismissInFlightRef.current = null;
+      setDismissingPendingImport(false);
+    }
   };
 
   const openCreateDialog = () => {
@@ -855,6 +1018,7 @@ function KostenPageContent() {
         },
         body: JSON.stringify({
           id: editingCostId,
+          pending_import_id: pendingImportId || undefined,
           offerte_id: form.offerteId || null,
           category: form.category,
           supplier_name: form.supplierName,
@@ -892,6 +1056,7 @@ function KostenPageContent() {
           : `${safeString(form.supplierName)} is toegevoegd.`,
       });
 
+      if (pendingImportId) skipNextPendingDismissRef.current = true;
       setCreateOpen(false);
       resetForm();
     } catch (saveError) {
@@ -1242,7 +1407,7 @@ function KostenPageContent() {
                   open={createOpen}
                   onOpenChange={(open) => {
                     setCreateOpen(open);
-                    if (!open) resetForm();
+                    if (!open) void closeCreateDialog();
                   }}
                 >
                   <DialogTrigger asChild>
@@ -1766,11 +1931,8 @@ function KostenPageContent() {
                         <Button
                           type="button"
                           variant="outline"
-                          onClick={() => {
-                            setCreateOpen(false);
-                            resetForm();
-                          }}
-                          disabled={saving}
+                          onClick={() => setCreateOpen(false)}
+                          disabled={saving || dismissingPendingImport}
                         >
                           Annuleren
                         </Button>

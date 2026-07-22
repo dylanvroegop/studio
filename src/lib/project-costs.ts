@@ -294,12 +294,111 @@ export function extractOfferteReference(raw: unknown): string | null {
   const value = safeString(raw);
   if (!value) return null;
 
-  const numberMatch = value.match(/(?:offerte|ref|project|order)?\s*#?\s*(\d{3,})/i);
+  const numberMatch = value.match(/(?:offerte(?:nummer|nr)?|referentie|reference|ref|memo|project(?:nummer|nr)?|werk(?:nummer|nr)?)\s*(?:nummer|nr\.?|no\.?)?\s*[:=#-]?\s*(\d{3,8})/i);
   if (numberMatch?.[1]) {
     return numberMatch[1];
   }
 
-  return value.length >= 3 ? value : null;
+  const standaloneNumber = value.match(/^#?\s*(\d{3,8})\s*$/);
+  return standaloneNumber?.[1] || null;
+}
+
+type OfferteReferenceCandidate = {
+  value: string;
+  score: number;
+  order: number;
+};
+
+const POSITIVE_REFERENCE_LABEL = /(?:offerte(?:nummer|nr)?|offerte\s*#?|referentie|reference|ref|memo|project(?:nummer|nr)?|werk(?:nummer|nr)?|uw\s+(?:referentie|kenmerk)|klant(?:referentie|kenmerk))/i;
+const NEGATIVE_REFERENCE_LABEL = /(?:factuur|invoice|debiteur|debtor|order(?:nummer|nr)?|bestel(?:nummer|nr)?|artikel|barcode|poi|terminal|merchant|transaction|transactie|period|periode|iban|btw|datum|date|telefoon|postcode)/i;
+
+function normalizeReferenceCandidate(value: unknown): string | null {
+  const text = safeString(value);
+  if (!text) return null;
+
+  const standalone = text.match(/^#?\s*(\d{3,8})\s*$/);
+  if (standalone?.[1]) return standalone[1];
+
+  return extractOfferteReference(text);
+}
+
+/**
+ * Resolves a quote number from the complete AI extraction payload.
+ *
+ * Invoice formats differ widely. In particular, Bouwmaat prints the quote
+ * number as `Memo: 260313`, while other suppliers use `Referentie`,
+ * `Offertenr.`, `Uw kenmerk`, or `Projectnummer`. We prefer these labelled
+ * values and only use an unlabelled six-digit value when it is unambiguous.
+ */
+export function extractOfferteReferenceFromExtraction(raw: unknown): string | null {
+  const candidates: OfferteReferenceCandidate[] = [];
+  let order = 0;
+
+  const addCandidate = (value: unknown, score: number): void => {
+    const normalized = normalizeReferenceCandidate(value);
+    if (!normalized) return;
+    candidates.push({ value: normalized, score, order: order++ });
+  };
+
+  const addLabeledTextCandidates = (value: string, path: string): void => {
+    const labeledPattern = /(?:offerte(?:nummer|nr)?|referentie|reference|ref|memo|project(?:nummer|nr)?|werk(?:nummer|nr)?|uw\s+(?:referentie|kenmerk)|klant(?:referentie|kenmerk))\s*(?:nummer|nr\.?|no\.?)?\s*[:=#-]?\s*(\d{3,8})/gi;
+    let match: RegExpExecArray | null;
+    while ((match = labeledPattern.exec(value)) !== null) {
+      addCandidate(match[1], 100);
+    }
+
+    // A six-digit quote number is useful as a fallback, but not when it
+    // appears in a known invoice/line-item field where false positives are
+    // common (invoice numbers, article numbers, dates, and totals).
+    if (!POSITIVE_REFERENCE_LABEL.test(value) && !NEGATIVE_REFERENCE_LABEL.test(path)) {
+      const unlabelledNumbers = value.match(/\b\d{6}\b/g) || [];
+      unlabelledNumbers.forEach((number) => addCandidate(number, 10));
+    }
+  };
+
+  const walk = (value: unknown, path: string, depth: number): void => {
+    if (depth > 8 || value === null || value === undefined) return;
+
+    if (typeof value === 'string') {
+      addLabeledTextCandidates(value, path);
+      const key = path.split('.').pop() || '';
+      if (POSITIVE_REFERENCE_LABEL.test(key)) addCandidate(value, 90);
+      return;
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const key = path.split('.').pop() || '';
+      if (POSITIVE_REFERENCE_LABEL.test(key)) addCandidate(String(value), 90);
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => walk(item, `${path}[${index}]`, depth + 1));
+      return;
+    }
+
+    if (typeof value !== 'object') return;
+
+    const row = value as Record<string, unknown>;
+    const label = safeString(row.label ?? row.name ?? row.key ?? row.type);
+    const labelledValue = row.value ?? row.number ?? row.reference ?? row.offerte_reference;
+    if (label && POSITIVE_REFERENCE_LABEL.test(label) && labelledValue !== undefined) {
+      addCandidate(labelledValue, 100);
+    }
+
+    Object.entries(row).forEach(([key, item]) => {
+      walk(item, path ? `${path}.${key}` : key, depth + 1);
+    });
+  };
+
+  walk(raw, '', 0);
+
+  const best = candidates
+    .filter((candidate) => !NEGATIVE_REFERENCE_LABEL.test(candidate.value))
+    .sort((left, right) => right.score - left.score || left.order - right.order)[0];
+  if (best) return best.value;
+
+  return null;
 }
 
 export function mapProjectCostRow(input: unknown): ProjectCostRow {

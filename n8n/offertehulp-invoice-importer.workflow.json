@@ -98,11 +98,11 @@
           "conditions": [
             {
               "id": "dedicated-offerte-link-check",
-              "leftValue": "={{ $json.data.offerte_id }}",
-              "rightValue": "",
+              "leftValue": "={{ Boolean($json.data.offerte_id) || !((String($json.data.suggested_category || '').toLowerCase() === 'materiaal') || (($json.data.line_items || []).some(item => String(item.category || '').toLowerCase() === 'materiaal'))) }}",
+              "rightValue": true,
               "operator": {
-                "type": "string",
-                "operation": "notEmpty"
+                "type": "boolean",
+                "operation": "equals"
               }
             }
           ],
@@ -111,7 +111,7 @@
         "options": {}
       },
       "id": "7a2b0d3e-4c91-4df3-8f2d-5e9a1c3b7d01",
-      "name": "Heeft offerte koppeling? - dedicated inbox",
+      "name": "Direct opslaan in Kosten? - dedicated inbox",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
@@ -336,11 +336,11 @@
           "conditions": [
             {
               "id": "normal-offerte-link-check",
-              "leftValue": "={{ $json.data.offerte_id }}",
-              "rightValue": "",
+              "leftValue": "={{ Boolean($json.data.offerte_id) || !((String($json.data.suggested_category || '').toLowerCase() === 'materiaal') || (($json.data.line_items || []).some(item => String(item.category || '').toLowerCase() === 'materiaal'))) }}",
+              "rightValue": true,
               "operator": {
-                "type": "string",
-                "operation": "notEmpty"
+                "type": "boolean",
+                "operation": "equals"
               }
             }
           ],
@@ -349,7 +349,7 @@
         "options": {}
       },
       "id": "7a2b0d3e-4c91-4df3-8f2d-5e9a1c3b7d05",
-      "name": "Heeft offerte koppeling? - normale inbox finder",
+      "name": "Direct opslaan in Kosten? - normale inbox finder",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
@@ -505,14 +505,14 @@
       "main": [
         [
           {
-            "node": "Heeft offerte koppeling? - dedicated inbox",
+            "node": "Direct opslaan in Kosten? - dedicated inbox",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Heeft offerte koppeling? - dedicated inbox": {
+    "Direct opslaan in Kosten? - dedicated inbox": {
       "main": [
         [
           {
@@ -600,14 +600,14 @@
       "main": [
         [
           {
-            "node": "Heeft offerte koppeling? - normale inbox finder",
+            "node": "Direct opslaan in Kosten? - normale inbox finder",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Heeft offerte koppeling? - normale inbox finder": {
+    "Direct opslaan in Kosten? - normale inbox finder": {
       "main": [
         [
           {

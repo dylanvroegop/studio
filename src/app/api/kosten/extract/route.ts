@@ -4,6 +4,7 @@ import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
   extractOfferteReference,
+  extractOfferteReferenceFromExtraction,
   inferProjectCostCategory,
   normalizeProjectCostLineItems,
   normalizeProjectCostLineItem,
@@ -18,7 +19,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const EXTRACTION_PROMPT =
-  'You are an expert at extracting data from Dutch supplier invoices and receipts for construction/carpentry materials. Extract: supplier_name, date (YYYY-MM-DD), receipt_description (short Dutch summary of the entire receipt/invoice, not just one line item), line_items (array of {description, quantity, unit, unit_price, total_price, total_incl_btw, btw_percentage, category}), subtotal_excl_btw, btw_percentage, btw_amount, total_incl_btw, and any project/offerte reference number. total_price is always the EXCL. BTW line total; total_incl_btw is the exact inclusive amount for that line. Return the project/offerte number as offerte_reference. Important: a field explicitly labelled "Referentie" is always the user\'s quote number (for example, "Referentie 260312" must yield offerte_reference: "260312"); do not confuse it with a packing-slip, invoice, debtor, or order number. line_items.category must be exactly one of: materiaal, gereedschap, brandstof, hotel, telefoon, leadkosten, overig. Rules: lead-generation/lead costs => leadkosten; phone/mobile/telecom/KPN invoices => telefoon; hotel stays/overnachtingen/accommodation => hotel; the exact line "Tijdelijke toeslag transportkosten" is always materiaal; Brandstof toeslag/brandstofkosten on a Bouwmaat invoice is always materiaal; any uitvulplaat or reinigingsdoekjes is always gereedschap; fines/boetes/bekeuringen => overig; reusable tools (measuring tools, hand tools, power tools, sets, holders, clamps, markers/pencils) => gereedschap; consumables and build inputs (screws, plugs, glue, sealant, tape, wood, plates, profiles, sanding discs, etc.) => materiaal; fuel/charging products => brandstof. Deposit/pallet charge lines (statiegeld, emballage, borg, palletborg) are real material costs: never omit them or replace them with a zero-valued placeholder. They are usually 0% VAT, so include them in subtotal_excl_btw and total_incl_btw with btw_percentage: 0 and total_incl_btw equal to total_price. Important: keep subtotal_excl_btw and total_incl_btw fiscally correct. Read explicitly printed invoice totals before inferring values. Always validate total_incl_btw = subtotal_excl_btw + btw_amount. Credit notes (creditfacturen) must retain their negative signs: return negative quantities, line totals, subtotal, VAT amount, and total exactly as printed; never convert them to zero or positive values. Invoices can contain multiple VAT rates or VAT-exempt/onbelast amounts; never apply the printed 21% rate to the entire subtotal in that case. For example, if the document prints total €139.13 and VAT €2.63, subtotal_excl_btw must be €136.50. If the receipt shows retail prices (often VAT-included), still return the correct EXCL subtotal from the VAT breakdown. Critical validation: when quantity * unit_price does not match a printed (possibly discounted) line total or receipt total, prefer the discounted/printed totals and set total_price accordingly. Return ONLY valid JSON, no markdown.';
+  'You are an expert at extracting data from Dutch supplier invoices and receipts for construction/carpentry materials. Extract: supplier_name, date (YYYY-MM-DD), receipt_description (short Dutch summary of the entire receipt/invoice, not just one line item), line_items (array of {description, quantity, unit, unit_price, total_price, total_incl_btw, btw_percentage, category}), subtotal_excl_btw, btw_percentage, btw_amount, total_incl_btw, and any project/offerte reference number. total_price is always the EXCL. BTW line total; total_incl_btw is the exact inclusive amount for that line. Return the project/offerte number as offerte_reference and also include reference_candidates (array of {label, value, context}) when a reference is visible. Inspect the entire document, including header fields, footer fields, memos, remarks, and text close to labels. Reference labels include Offertenr., Offertenummer, Offerte, Referentie, Reference, Uw referentie, Uw kenmerk, Memo, Projectnummer, Werknummer, and Klantreferentie. On Bouwmaat documents specifically, a line such as "Memo: 260313" is the user\'s quote number and must yield offerte_reference: "260313". The number may be six digits and may be printed on the same line or immediately after the label. Never use Factuurnr./Factuurnummer, Invoice number, Debiteurnr., order/bestelnummer, artikelnummer, barcode, POI, terminal, merchant, transaction, payment, date, or totals as offerte_reference. If no labelled reference is visible, return null rather than guessing a random number. line_items.category must be exactly one of: materiaal, gereedschap, brandstof, hotel, telefoon, leadkosten, overig. Rules: lead-generation/lead costs => leadkosten; phone/mobile/telecom/KPN invoices => telefoon; hotel stays/overnachtingen/accommodation => hotel; the exact line "Tijdelijke toeslag transportkosten" is always materiaal; Brandstof toeslag/brandstofkosten on a Bouwmaat invoice is always materiaal; any uitvulplaat or reinigingsdoekjes is always gereedschap; fines/boetes/bekeuringen => overig; reusable tools (measuring tools, hand tools, power tools, sets, holders, clamps, markers/pencils) => gereedschap; consumables and build inputs (screws, plugs, glue, sealant, tape, wood, plates, profiles, sanding discs, etc.) => materiaal; fuel/charging products => brandstof. Deposit/pallet charge lines (statiegeld, emballage, borg, palletborg) are real material costs: never omit them or replace them with a zero-valued placeholder. They are usually 0% VAT, so include them in subtotal_excl_btw and total_incl_btw with btw_percentage: 0 and total_incl_btw equal to total_price. Important: keep subtotal_excl_btw and total_incl_btw fiscally correct. Read explicitly printed invoice totals before inferring values. Always validate total_incl_btw = subtotal_excl_btw + btw_amount. Credit notes (creditfacturen) must retain their negative signs: return negative quantities, line totals, subtotal, VAT amount, and total exactly as printed; never convert them to zero or positive values. Invoices can contain multiple VAT rates or VAT-exempt/onbelast amounts; never apply the printed 21% rate to the entire subtotal in that case. For example, if the document prints total €139.13 and VAT €2.63, subtotal_excl_btw must be €136.50. If the receipt shows retail prices (often VAT-included), still return the correct EXCL subtotal from the VAT breakdown. Critical validation: when quantity * unit_price does not match a printed (possibly discounted) line total or receipt total, prefer the discounted/printed totals and set total_price accordingly. Return ONLY valid JSON, no markdown.';
+
+const REFERENCE_ONLY_PROMPT =
+  'Inspect this Dutch invoice or receipt only for the customer\'s project/offerte number. Return ONLY valid JSON with {"offerte_reference": string|null, "reference_candidates": [{"label": string, "value": string, "context": string}]}. Inspect all visible text, including headers, footers, memo/remark fields, and labels near numbers. Valid labels include Offertenr., Offertenummer, Offerte, Referentie, Reference, Uw referentie, Uw kenmerk, Memo, Projectnummer, Werknummer, and Klantreferentie. On Bouwmaat invoices, "Memo: 260313" means offerte_reference "260313". Match a number on the same line or immediately following the label. Do NOT return Factuurnr./Factuurnummer, invoice number, Debiteurnr., order/bestelnummer, artikelnummer, barcode, POI, terminal, merchant, transaction, payment, date, VAT, or total numbers. If no labelled project/offerte reference is visible, return null. Do not guess.';
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -811,6 +815,20 @@ export async function POST(request: Request) {
         prompt: EXTRACTION_PROMPT,
         imageDataUrl,
       });
+
+      if (!extractOfferteReferenceFromExtraction(parsedExtraction)) {
+        try {
+          const referenceExtraction = await callOpenAiExtraction({
+            apiKey,
+            model,
+            prompt: REFERENCE_ONLY_PROMPT,
+            imageDataUrl,
+          });
+          parsedExtraction = { ...parsedExtraction, ...referenceExtraction };
+        } catch (referenceError) {
+          console.warn('[kosten/extract] Gerichte referentiecontrole mislukt:', referenceError);
+        }
+      }
     } else {
       const fileId = await uploadFileToOpenAi({
         apiKey,
@@ -826,6 +844,20 @@ export async function POST(request: Request) {
           prompt: EXTRACTION_PROMPT,
           fileId,
         });
+
+        if (!extractOfferteReferenceFromExtraction(parsedExtraction)) {
+          try {
+            const referenceExtraction = await callOpenAiExtraction({
+              apiKey,
+              model,
+              prompt: REFERENCE_ONLY_PROMPT,
+              fileId,
+            });
+            parsedExtraction = { ...parsedExtraction, ...referenceExtraction };
+          } catch (referenceError) {
+            console.warn('[kosten/extract] Gerichte referentiecontrole mislukt:', referenceError);
+          }
+        }
       } finally {
         await deleteOpenAiFile(apiKey, fileId);
       }
@@ -1022,13 +1054,14 @@ export async function POST(request: Request) {
     });
     const extractedDate = normalizeDate(parsedExtraction.date);
 
-    const offerteReference = extractOfferteReference(
-      parsedExtraction.offerte_reference
-      || parsedExtraction.project_reference
-      || parsedExtraction.reference
-      || parsedExtraction.reference_number
-      || parsedExtraction.offerte_nummer
-    );
+    const offerteReference = extractOfferteReferenceFromExtraction(parsedExtraction)
+      || extractOfferteReference(
+        parsedExtraction.offerte_reference
+        || parsedExtraction.project_reference
+        || parsedExtraction.reference
+        || parsedExtraction.reference_number
+        || parsedExtraction.offerte_nummer
+      );
     const matchedOfferteId = await resolveOfferteIdFromReference(offerteReference, uid);
 
     const suggestedCategory = inferProjectCostCategory({
