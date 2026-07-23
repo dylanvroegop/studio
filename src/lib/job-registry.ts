@@ -1104,7 +1104,10 @@ const GEVEL_BEKLEDING_KERALIT_MATS: MaterialSection[] = [
   { label: 'Kunststof Panelen', categoryFilter: 'Keralit, Vloer-rabat-vellingdelen, Overig', category: 'gevel_kunststof', key: 'gevelbekleding_kunststof', category_ultra_filter: 'keralit' },
   { label: 'Keralit Startprofiel', categoryFilter: 'Keralit', category: 'bevestiging', key: 'keralit_startprofiel', category_ultra_filter: 'subcat:startprofielen' },
   { label: 'Keralit Eindprofiel', categoryFilter: 'Keralit', category: 'bevestiging', key: 'keralit_eindprofiel', category_ultra_filter: '' },
-  { label: 'Keralit Hoekprofiel', categoryFilter: 'Keralit', category: 'bevestiging', key: 'keralit_hoekprofiel', category_ultra_filter: '' },
+  // Het aluminium basisprofiel en de kunststof afwerking worden apart gekozen;
+  // de afwerking klikt achteraf in het aluminium hoekprofiel.
+  { label: 'Hoekprofiel Aluminium (basis)', categoryFilter: 'Keralit', category: 'bevestiging', key: 'keralit_hoekprofiel', category_ultra_filter: 'aluminium' },
+  { label: 'Afwerking Hoekprofiel', categoryFilter: 'Keralit', category: 'bevestiging', key: 'keralit_hoekprofiel_afwerking', category_ultra_filter: 'uitwendig hoekprofiel' },
   { label: 'Daktrim', categoryFilter: 'Keralit', category: 'daktrim', key: 'daktrim', category_ultra_filter: '' },
   { label: 'Waterslagen', categoryFilter: 'Keralit', category: 'Vensterbank', key: 'waterslag', category_ultra_filter: '' },
   ...GEVEL_BEKLEDING_AFWERKING_MATS.map((section) =>

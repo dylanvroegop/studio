@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Plus, Search, Filter, ArrowLeft, ChevronDown, Star, Pencil, Copy, Sparkles, Upload } from 'lucide-react';
+import { Loader2, Plus, Search, Filter, ArrowLeft, ChevronDown, Star, Pencil, Copy, Sparkles, Upload, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PriceImportRequestForm } from '@/components/PriceImportRequestForm';
@@ -707,6 +707,10 @@ export function MaterialSelectionModal({
 
   // Edit State
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ExistingMaterial | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingMaterial, setDeletingMaterial] = useState(false);
+  const [deletedMaterialIds, setDeletedMaterialIds] = useState<string[]>([]);
   const showDevCopyButton = process.env.NODE_ENV === 'development';
 
   // Form State
@@ -1501,7 +1505,8 @@ export function MaterialSelectionModal({
   }, [open, shouldApplyDefaultSubCategoryOnOpen, normalizedDefaultSubCategoryFilters, availableSubCategories]);
 
   const allFilteredMaterials = useMemo(() => {
-    let result = materialsAfterCategoryFilter;
+    const deletedIds = new Set(deletedMaterialIds);
+    let result = materialsAfterCategoryFilter.filter((material) => !deletedIds.has(material.row_id));
 
     if (subCategoryFilter !== 'all') {
       const selectedSubCategories = Array.isArray(subCategoryFilter)
@@ -1540,7 +1545,7 @@ export function MaterialSelectionModal({
     }
 
     const selectedMaterial = selectedMaterialId
-      ? existingMaterials.find((material) => isSelectedMaterial(material))
+      ? existingMaterials.find((material) => isSelectedMaterial(material) && !deletedIds.has(material.row_id))
       : undefined;
 
     if (selectedMaterial) {
@@ -1564,7 +1569,7 @@ export function MaterialSelectionModal({
       const orderB = b.order_id ?? 999999;
       return orderA - orderB;
     });
-  }, [materialsAfterCategoryFilter, searchTerm, subCategoryFilter, selectedMaterialId, existingMaterials, isSelectedMaterial]);
+  }, [materialsAfterCategoryFilter, searchTerm, subCategoryFilter, selectedMaterialId, existingMaterials, isSelectedMaterial, deletedMaterialIds]);
 
   const visibleMaterials = useMemo(() => {
     return allFilteredMaterials.slice(0, displayLimit);
@@ -2233,6 +2238,63 @@ export function MaterialSelectionModal({
     }
   };
 
+  const openDeleteDialog = (material: ExistingMaterial, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setError(null);
+    setDeleteTarget(material);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteMaterial = async (): Promise<void> => {
+    if (!deleteTarget?.row_id) return;
+
+    setDeletingMaterial(true);
+    setError(null);
+
+    try {
+      const { getAuth } = await import('firebase/auth');
+      const currentUser = getAuth().currentUser;
+      if (!currentUser) throw new Error('Niet ingelogd.');
+
+      const token = await currentUser.getIdToken();
+      const response = await fetch('/api/materialen/delete', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ row_id: deleteTarget.row_id }),
+      });
+      const json = await response.json().catch(() => null);
+
+      if (!response.ok || !json?.ok) {
+        throw new Error(json?.message || 'Materiaal verwijderen mislukt.');
+      }
+
+      setDeletedMaterialIds((current) => (
+        current.includes(deleteTarget.row_id) ? current : [...current, deleteTarget.row_id]
+      ));
+      setDeleteDialogOpen(false);
+      setDeleteTarget(null);
+      toast({
+        title: 'Materiaal verwijderd',
+        description: deleteTarget.materiaalnaam || 'Het materiaal is verwijderd uit de materiaallijst.',
+      });
+    } catch (deleteError: any) {
+      const message = deleteError?.message || 'Materiaal verwijderen mislukt.';
+      setError(message);
+      void reportOperationalError({
+        source: 'material_selection_delete',
+        title: 'Materiaal verwijderen mislukt',
+        message,
+        severity: 'critical',
+        context: { rowId: deleteTarget.row_id },
+      });
+    } finally {
+      setDeletingMaterial(false);
+    }
+  };
+
   const copyMaterialName = async (name: string): Promise<void> => {
     const materialName = (name || '').trim();
     if (!materialName || typeof navigator === 'undefined' || !navigator.clipboard) return;
@@ -2768,8 +2830,21 @@ export function MaterialSelectionModal({
                                   size="icon"
                                   className="h-8 w-8 text-muted-foreground/50 hover:text-foreground hover:bg-muted"
                                   onClick={(e) => startEditing(mat, e)}
+                                  aria-label={`Bewerk ${mat.materiaalnaam || 'materiaal'}`}
+                                  title="Bewerken"
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground/50 hover:bg-destructive/15 hover:text-destructive"
+                                  onClick={(e) => openDeleteDialog(mat, e)}
+                                  aria-label={`Verwijder ${mat.materiaalnaam || 'materiaal'}`}
+                                  title="Verwijderen"
+                                  disabled={deletingMaterial}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               </div>
                             </div>
@@ -3230,6 +3305,39 @@ export function MaterialSelectionModal({
           )}
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(nextOpen) => {
+          if (deletingMaterial) return;
+          setDeleteDialogOpen(nextOpen);
+          if (!nextOpen) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Materiaal verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je <strong>{deleteTarget?.materiaalnaam || 'dit materiaal'}</strong> wilt verwijderen?
+              <br />
+              Deze actie kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="ghost" disabled={deletingMaterial}>Annuleren</Button>
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructiveSoft"
+              onClick={() => void confirmDeleteMaterial()}
+              disabled={deletingMaterial}
+            >
+              {deletingMaterial ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Verwijderen
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={safetyDialogOpen}
         onOpenChange={(nextOpen) => {

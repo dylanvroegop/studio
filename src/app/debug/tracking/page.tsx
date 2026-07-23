@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, CheckCircle2, MapPin, RefreshCw, Send, ArrowLeft } from 'lucide-react';
+import { AlertCircle, CalendarDays, CheckCircle2, Clock3, Gauge, MapPin, RefreshCw, Route, Send, ArrowLeft } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/firebase';
+
+const TrackingRouteMap = dynamic(
+  () => import('@/components/tracking/TrackingRouteMap').then((module) => module.TrackingRouteMap),
+  { ssr: false, loading: () => <div className="flex h-[420px] items-center justify-center rounded-xl border border-border bg-muted/20 text-sm text-muted-foreground">Kaart laden...</div> },
+);
 
 type TrackingPosition = {
   id: string;
@@ -26,14 +32,26 @@ type TrackingPosition = {
   raw_payload: Record<string, unknown>;
 };
 
+type DayPosition = TrackingPosition & {
+  address?: string | null;
+  street?: string | null;
+  houseNumber?: string | null;
+  city?: string | null;
+};
+
 type ApiResponse = {
   ok?: boolean;
   data?: TrackingPosition[] | TrackingPosition;
   message?: string;
+  device?: { id?: number; name?: string; uniqueId?: string };
+};
+
+type DayApiResponse = ApiResponse & {
+  data?: DayPosition[];
 };
 
 const DEFAULT_POSITION = {
-  deviceId: '27801119',
+  deviceId: '2780111912',
   latitude: '52.42466',
   longitude: '4.63337',
   accuracyM: '8',
@@ -53,6 +71,43 @@ function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+function localDateInputValue(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getLocalDayRange(dateValue: string): { from: string; to: string } {
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const fromDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const toDate = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+  return { from: fromDate.toISOString(), to: toDate.toISOString() };
+}
+
+function distanceBetweenKm(left: DayPosition, right: DayPosition): number {
+  const earthRadiusKm = 6371;
+  const lat1 = left.latitude * Math.PI / 180;
+  const lat2 = right.latitude * Math.PI / 180;
+  const deltaLat = (right.latitude - left.latitude) * Math.PI / 180;
+  const deltaLon = (right.longitude - left.longitude) * Math.PI / 180;
+  const a = Math.sin(deltaLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function totalDistanceKm(positions: DayPosition[]): number {
+  return positions.slice(1).reduce((total, position, index) => total + distanceBetweenKm(positions[index], position), 0);
+}
+
+function formatDuration(start: string | undefined, end: string | undefined): string {
+  if (!start || !end) return '—';
+  const minutes = Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000));
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return hours ? `${hours}u ${rest}m` : `${rest}m`;
+}
+
 export default function TrackingDebugPage() {
   const { toast } = useToast();
   const { user, isUserLoading } = useUser();
@@ -62,6 +117,11 @@ export default function TrackingDebugPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isFetchingTraccar, setIsFetchingTraccar] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(localDateInputValue());
+  const [dayPositions, setDayPositions] = useState<DayPosition[]>([]);
+  const [dayAddresses, setDayAddresses] = useState<Record<string, DayPosition>>({});
+  const [isLoadingDay, setIsLoadingDay] = useState(false);
+  const [hasLoadedDay, setHasLoadedDay] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const getHeaders = useCallback(async () => {
@@ -101,6 +161,69 @@ export default function TrackingDebugPage() {
   useEffect(() => {
     void loadPositions();
   }, [loadPositions]);
+
+  const visibleDayPositions = useMemo(
+    () => dayPositions.map((position) => ({ ...position, ...dayAddresses[position.id] })),
+    [dayAddresses, dayPositions],
+  );
+
+  const dayDistanceKm = useMemo(() => totalDistanceKm(visibleDayPositions), [visibleDayPositions]);
+
+  async function reverseGeocodeDay(points: DayPosition[]) {
+    const maxLookups = 60;
+    const step = Math.max(1, Math.ceil(points.length / maxLookups));
+    const sampled = points.filter((_, index) => index % step === 0);
+    const last = points[points.length - 1];
+    const lookupPoints = last && !sampled.some((point) => point.id === last.id) ? [...sampled, last] : sampled;
+    if (lookupPoints.length === 0) return;
+
+    const response = await fetch('/api/tracking/reverse-geocode', {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify({
+        points: lookupPoints.map((point) => ({ id: point.id, latitude: point.latitude, longitude: point.longitude })),
+      }),
+    });
+    const payload = await response.json() as { ok?: boolean; data?: Array<{ id: string; address: string | null; street: string | null; houseNumber: string | null; city: string | null }>; };
+    if (!response.ok || !payload.ok || !Array.isArray(payload.data)) return;
+
+    setDayAddresses((current) => {
+      const next = { ...current };
+      payload.data?.forEach((address) => {
+        const original = points.find((point) => point.id === address.id);
+        if (original) next[address.id] = { ...original, ...address };
+      });
+      return next;
+    });
+  }
+
+  async function loadFullDay() {
+    setIsLoadingDay(true);
+    setError(null);
+    setHasLoadedDay(false);
+    try {
+      const range = getLocalDayRange(selectedDate);
+      const query = new URLSearchParams(range);
+      const response = await fetch(`/api/tracking/traccar?${query.toString()}`, {
+        headers: await getHeaders(),
+        cache: 'no-store',
+      });
+      const payload = await response.json() as DayApiResponse;
+      if (!response.ok || !payload.ok || !Array.isArray(payload.data)) {
+        throw new Error(payload.message || 'Traccar-dagdata kon niet worden geladen.');
+      }
+
+      setDayPositions(payload.data);
+      setDayAddresses({});
+      setHasLoadedDay(true);
+      void reverseGeocodeDay(payload.data).catch(() => undefined);
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : 'Traccar-dagdata kon niet worden geladen.';
+      setError(message);
+    } finally {
+      setIsLoadingDay(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -223,6 +346,82 @@ export default function TrackingDebugPage() {
             <span>{error}</span>
           </div>
         ) : null}
+
+        <Card>
+          <CardHeader className="gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2"><Route className="h-5 w-5 text-emerald-400" /> Volledige dag uit Traccar</CardTitle>
+              <CardDescription>Bekijk alle GPS-punten van één dag, met gereden route en straatnamen.</CardDescription>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="tracking-date">Dag</Label>
+                <div className="relative">
+                  <CalendarDays className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input id="tracking-date" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="pl-9" />
+                </div>
+              </div>
+              <Button type="button" onClick={() => void loadFullDay()} disabled={isLoadingDay || !selectedDate}>
+                <RefreshCw className={isLoadingDay ? 'mr-2 h-4 w-4 animate-spin' : 'mr-2 h-4 w-4'} />
+                {isLoadingDay ? 'Dag laden...' : 'Laad hele dag'}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {!hasLoadedDay ? (
+              <div className="rounded-xl border border-dashed border-border bg-muted/10 p-8 text-center text-sm text-muted-foreground">
+                Kies een dag en klik op “Laad hele dag”. Hiermee lezen we de historische punten rechtstreeks uit Traccar.
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="h-4 w-4" /> GPS-punten</div>
+                    <div className="mt-1 text-xl font-semibold">{visibleDayPositions.length}</div>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground"><Route className="h-4 w-4" /> Routeafstand</div>
+                    <div className="mt-1 text-xl font-semibold">{dayDistanceKm.toFixed(1)} km</div>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 className="h-4 w-4" /> Eerste → laatste</div>
+                    <div className="mt-1 text-sm font-semibold">
+                      {visibleDayPositions[0] ? `${formatDate(visibleDayPositions[0].recorded_at)} → ${formatDate(visibleDayPositions[visibleDayPositions.length - 1].recorded_at)}` : '—'}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground"><Gauge className="h-4 w-4" /> Tijdsduur</div>
+                    <div className="mt-1 text-xl font-semibold">{formatDuration(visibleDayPositions[0]?.recorded_at, visibleDayPositions[visibleDayPositions.length - 1]?.recorded_at)}</div>
+                  </div>
+                </div>
+
+                <TrackingRouteMap positions={visibleDayPositions} />
+
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <table className="w-full min-w-[760px] text-left text-sm">
+                    <thead className="border-b border-border bg-muted/20 text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr><th className="px-3 py-2">Tijd</th><th className="px-3 py-2">Straat / plaats</th><th className="px-3 py-2">Snelheid</th><th className="px-3 py-2">Nauwkeurigheid</th><th className="px-3 py-2">GPS-status</th></tr>
+                    </thead>
+                    <tbody>
+                      {visibleDayPositions.map((position, index) => (
+                        <tr key={position.id} className="border-b border-border/60 last:border-0">
+                          <td className="whitespace-nowrap px-3 py-3 font-mono">{formatDate(position.recorded_at)}</td>
+                          <td className="px-3 py-3">
+                            <div className="font-medium">{position.street ? `${position.street}${position.houseNumber ? ` ${position.houseNumber}` : ''}` : position.address || 'Adres wordt opgehaald...'}</div>
+                            <div className="text-xs text-muted-foreground">{position.city || (index === 0 ? 'Startpunt' : index === visibleDayPositions.length - 1 ? 'Eindpunt' : 'GPS-punt')}</div>
+                          </td>
+                          <td className="px-3 py-3">{position.speed_kmh == null ? '—' : `${position.speed_kmh.toFixed(1)} km/u`}</td>
+                          <td className="px-3 py-3">{position.accuracy_m == null ? '—' : `${Number(position.accuracy_m).toFixed(1)} m`}</td>
+                          <td className="px-3 py-3"><span className="inline-flex items-center gap-1.5 text-emerald-400"><CheckCircle2 className="h-4 w-4" /> Ontvangen</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
           <Card>

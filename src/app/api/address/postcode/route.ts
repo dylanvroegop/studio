@@ -54,7 +54,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Straat, huisnummer en plaats zijn verplicht.' }, { status: 400 });
     }
 
-    const apiKey = process.env.GOOGLE_API_KEY?.trim()
+    const apiKey = process.env.GOOGLE_GEOCODING_API_KEY?.trim()
+      || process.env.GOOGLE_API_KEY?.trim()
       || process.env.ANTIGRAVITY_GOOGLE_API_KEY?.trim();
     if (!apiKey) {
       return NextResponse.json({ error: 'GOOGLE_API_KEY is niet geconfigureerd.' }, { status: 500 });

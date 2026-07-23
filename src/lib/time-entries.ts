@@ -4,7 +4,9 @@ export type TimeEntrySource =
   | 'timer_exact'
   | 'manual'
   | 'login_prompt_confirm'
-  | 'login_prompt_adjust';
+  | 'login_prompt_adjust'
+  | 'gps_tracking_confirm'
+  | 'gps_tracking_adjust';
 
 export interface TimeEntryRecord {
   id: string;
@@ -33,6 +35,11 @@ export interface PendingHourPrompt {
   clientName?: string;
   projectTitle?: string;
   planningType?: 'job' | 'werkbespreking' | 'mixed';
+  promptSource?: 'planning' | 'gps_tracking';
+  startTime?: string;
+  endTime?: string;
+  matchedDistanceM?: number;
+  gpsPointCount?: number;
   workDate: string;
   endWorkDate?: string;
   suggestedHours: number;

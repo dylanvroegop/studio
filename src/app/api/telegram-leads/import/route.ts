@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
 
 const SOURCE = 'telegram_werkspot';
 const AMSTERDAM_TIME_ZONE = 'Europe/Amsterdam';
+const DEFAULT_STANDARD_HOURLY_RATE = 55;
 
 const nullableString = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
@@ -350,7 +351,7 @@ export async function POST(request: Request) {
         },
         instellingen: {
           btwTarief: 21,
-          uurTariefExclBtw: userSettings.standaardUurtarief ?? 45,
+          uurTariefExclBtw: userSettings.standaardUurtarief ?? DEFAULT_STANDARD_HOURLY_RATE,
         },
         extras: {
           transport: userSettings.standaardTransport ?? { mode: 'fixed', vasteTransportkosten: 45 },

@@ -5,6 +5,10 @@ import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { fetchLaborCostsByQuoteId } from '@/lib/labor-costs';
 import {
+  archiveIdsFromReceiptFiles,
+  linkTaxDocumentToCosts,
+} from '@/lib/tax-document-archive';
+import {
   mapProjectCostRow,
   normalizeProjectCostCategory,
   normalizeProjectCostLineItems,
@@ -727,6 +731,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Bedrag excl. BTW moet groter dan 0 zijn.' }, { status: 400 });
     }
 
+    const insertedCostIds = insertedRows
+      .map((row) => safeString((row as Record<string, unknown>).id))
+      .filter(Boolean);
+    for (const archiveId of archiveIdsFromReceiptFiles(receiptFiles)) {
+      try {
+        await linkTaxDocumentToCosts({
+          archiveId,
+          userId: uid,
+          costIds: insertedCostIds,
+        });
+      } catch (archiveError) {
+        // The archive itself is already durable and the receipt_files JSON keeps
+        // its id; linking is retried safely when the cost is edited later.
+        console.warn('[kosten/create] Kon document niet aan kost koppelen:', archiveError);
+      }
+    }
+
     const overviewQuoteIds = Array.from(
       new Set(
         insertedRows
@@ -763,9 +784,7 @@ export async function POST(request: Request) {
       try {
         await pendingImportRef.update({
           status: 'linked',
-          linkedCostIds: insertedRows
-            .map((row) => safeString((row as Record<string, unknown>).id))
-            .filter(Boolean),
+          linkedCostIds: insertedCostIds,
           linkedAt: new Date(),
           updatedAt: new Date(),
         });

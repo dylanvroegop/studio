@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
+  archiveIdsFromReceiptFiles,
+  linkTaxDocumentToCosts,
+} from '@/lib/tax-document-archive';
+import {
   mapProjectCostRow,
   normalizeProjectCostCategory,
   normalizeProjectCostLineItems,
@@ -394,6 +398,17 @@ export async function POST(request: Request) {
         }
       }
 
+      const splitCostIds = primaryRow
+        .map((row) => safeString(row.id))
+        .filter(Boolean);
+      for (const archiveId of archiveIdsFromReceiptFiles(receiptFiles)) {
+        try {
+          await linkTaxDocumentToCosts({ archiveId, userId: uid, costIds: splitCostIds });
+        } catch (archiveError) {
+          console.warn('[kosten/update] Kon document niet aan gesplitste kost koppelen:', archiveError);
+        }
+      }
+
       return NextResponse.json({
         ok: true,
         data: mapProjectCostRow(primaryRow[0]),
@@ -439,6 +454,14 @@ export async function POST(request: Request) {
 
     if (updated.error) {
       return NextResponse.json({ ok: false, message: updated.error.message }, { status: 500 });
+    }
+
+    for (const archiveId of archiveIdsFromReceiptFiles(receiptFiles)) {
+      try {
+        await linkTaxDocumentToCosts({ archiveId, userId: uid, costIds: [costId] });
+      } catch (archiveError) {
+        console.warn('[kosten/update] Kon document niet aan kost koppelen:', archiveError);
+      }
     }
 
     if (offerteId) {

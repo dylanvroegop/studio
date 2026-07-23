@@ -174,7 +174,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     standaardWinstMarge: { mode: 'percentage', percentage: 10 },
     standaardTransport: { mode: 'perKm', prijsPerKm: 0.23 },
     standaardKleinMateriaal: { mode: 'inschatting', percentage: null },
-    standaardUurtarief: 45,
+    standaardUurtarief: 55,
     omzetBelastingAangiftePeriode: 'kwartaal',
     omzetBelastingStartMaand: 1,
     offerteNummerPrefix: new Date().getFullYear() + '-',

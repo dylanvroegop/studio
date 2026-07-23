@@ -1064,6 +1064,11 @@ function parseReceiptCreatedAt(value: unknown): Date | null {
     return null;
 }
 
+interface PendingPhotoUpload {
+    photo: QuotePhotoAttachment;
+    previewUrl: string;
+}
+
 export default function QuotePage() {
     const params = useParams();
     const id = params?.id as string;
@@ -1118,7 +1123,8 @@ export default function QuotePage() {
     const photoCameraInputRef = useRef<HTMLInputElement | null>(null);
     const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
     const [receiptActionId, setReceiptActionId] = useState<string | null>(null);
-    const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+    const [pendingPhotoUploads, setPendingPhotoUploads] = useState<PendingPhotoUpload[]>([]);
+    const pendingPhotoUploadsRef = useRef<PendingPhotoUpload[]>([]);
     const [photoActionId, setPhotoActionId] = useState<string | null>(null);
     const [selectedPhoto, setSelectedPhoto] = useState<QuotePhotoAttachment | null>(null);
     const [materialPresentationUploadKey, setMaterialPresentationUploadKey] = useState<string | null>(null);
@@ -4555,6 +4561,28 @@ export default function QuotePage() {
         }
     };
 
+    const addPendingPhotoUpload = (pendingUpload: PendingPhotoUpload): void => {
+        const nextPendingUploads = [...pendingPhotoUploadsRef.current, pendingUpload];
+        pendingPhotoUploadsRef.current = nextPendingUploads;
+        setPendingPhotoUploads(nextPendingUploads);
+    };
+
+    const removePendingPhotoUpload = (photoId: string): void => {
+        const pendingUpload = pendingPhotoUploadsRef.current.find(({ photo }) => photo.id === photoId);
+        if (pendingUpload) {
+            URL.revokeObjectURL(pendingUpload.previewUrl);
+        }
+        const nextPendingUploads = pendingPhotoUploadsRef.current.filter(({ photo }) => photo.id !== photoId);
+        pendingPhotoUploadsRef.current = nextPendingUploads;
+        setPendingPhotoUploads(nextPendingUploads);
+    };
+
+    useEffect(() => {
+        return () => {
+            pendingPhotoUploadsRef.current.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl));
+        };
+    }, []);
+
     const handleUploadPhoto = async (file: File): Promise<void> => {
         if (!user || !firestore || !id || !quote) return;
 
@@ -4577,28 +4605,37 @@ export default function QuotePage() {
             return;
         }
 
-        setIsUploadingPhoto(true);
+        const photoId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const extension = String(file.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+        const storagePath = `users/${user.uid}/quotes/${id}/fotos/${photoId}.${extension}`;
+        const previewUrl = URL.createObjectURL(file);
+        const pendingPhoto: QuotePhotoAttachment = {
+            id: photoId,
+            quoteId: id,
+            originalName: file.name,
+            mimeType: file.type || 'image/jpeg',
+            sizeBytes: file.size,
+            storagePath,
+            downloadUrl: previewUrl,
+            createdAt: new Date().toISOString(),
+            uploadedBy: user.uid,
+        };
+
+        // Show the photo immediately. The Storage upload and Firestore save continue
+        // in this async task, so the camera can be opened again right away.
+        addPendingPhotoUpload({ photo: pendingPhoto, previewUrl });
+
         try {
             const storage = getStorage();
-            const photoId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-                ? crypto.randomUUID()
-                : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-            const extension = String(file.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-            const storagePath = `users/${user.uid}/quotes/${id}/fotos/${photoId}.${extension}`;
             const fileRef = storageRef(storage, storagePath);
             await uploadBytes(fileRef, file, { contentType: file.type || 'image/jpeg' });
             const downloadUrl = await getDownloadURL(fileRef);
 
             const nextPhoto: QuotePhotoAttachment = {
-                id: photoId,
-                quoteId: id,
-                originalName: file.name,
-                mimeType: file.type || 'image/jpeg',
-                sizeBytes: file.size,
-                storagePath,
+                ...pendingPhoto,
                 downloadUrl,
-                createdAt: new Date().toISOString(),
-                uploadedBy: user.uid,
             };
 
             const quoteRef = doc(firestore, 'quotes', id);
@@ -4610,27 +4647,22 @@ export default function QuotePage() {
             setQuote((prev) => {
                 if (!prev) return prev;
                 const existing = Array.isArray((prev as any).fotos) ? ((prev as any).fotos as QuotePhotoAttachment[]) : [];
-                return { ...prev, fotos: [...existing, nextPhoto] } as Quote;
+                const withoutCurrentPhoto = existing.filter((photo) => photo.id !== nextPhoto.id);
+                return { ...prev, fotos: [...withoutCurrentPhoto, nextPhoto] } as Quote;
             });
+            removePendingPhotoUpload(photoId);
             toast({
                 title: 'Foto opgeslagen',
                 description: file.name,
             });
         } catch (error) {
             console.error('Error uploading foto:', error);
+            removePendingPhotoUpload(photoId);
             toast({
                 variant: 'destructive',
                 title: 'Upload mislukt',
                 description: 'Kon foto niet uploaden. Probeer het opnieuw.',
             });
-        } finally {
-            setIsUploadingPhoto(false);
-            if (photoInputRef.current) {
-                photoInputRef.current.value = '';
-            }
-            if (photoCameraInputRef.current) {
-                photoCameraInputRef.current.value = '';
-            }
         }
     };
 
@@ -6246,13 +6278,23 @@ export default function QuotePage() {
         });
     }, [receiptAttachments]);
 
+    const displayedPhotoAttachments = useMemo(() => {
+        const persistedPhotoIds = new Set(photoAttachments.map((photo) => photo.id));
+        return [
+            ...photoAttachments,
+            ...pendingPhotoUploads
+                .filter(({ photo }) => !persistedPhotoIds.has(photo.id))
+                .map(({ photo }) => photo),
+        ];
+    }, [pendingPhotoUploads, photoAttachments]);
+
     const sortedPhotoAttachments = useMemo(() => {
-        return [...photoAttachments].sort((a, b) => {
+        return [...displayedPhotoAttachments].sort((a, b) => {
             const aDate = parseReceiptCreatedAt(a.createdAt)?.getTime() ?? 0;
             const bDate = parseReceiptCreatedAt(b.createdAt)?.getTime() ?? 0;
             return bDate - aDate;
         });
-    }, [photoAttachments]);
+    }, [displayedPhotoAttachments]);
 
     const formatReceiptSize = (sizeBytes: number): string => {
         const size = Number(sizeBytes || 0);
@@ -7964,6 +8006,11 @@ export default function QuotePage() {
                                             </p>
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2">
+                                            {pendingPhotoUploads.length > 0 && (
+                                                <span className="text-xs text-muted-foreground">
+                                                    {pendingPhotoUploads.length} foto{pendingPhotoUploads.length === 1 ? '' : "'s"} {pendingPhotoUploads.length === 1 ? 'wordt' : 'worden'} op de achtergrond opgeslagen
+                                                </span>
+                                            )}
                                             <input
                                                 ref={photoCameraInputRef}
                                                 type="file"
@@ -7997,7 +8044,7 @@ export default function QuotePage() {
                                                 className="gap-2"
                                                 onClick={() => photoCameraInputRef.current?.click()}
                                             >
-                                                {isUploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                                                {pendingPhotoUploads.length > 0 ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                                                 Foto maken
                                             </Button>
                                             <Button
@@ -8020,6 +8067,7 @@ export default function QuotePage() {
                                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                             {sortedPhotoAttachments.map((photo) => {
                                                 const createdAt = parseReceiptCreatedAt(photo.createdAt);
+                                                const isPending = pendingPhotoUploads.some(({ photo: pendingPhoto }) => pendingPhoto.id === photo.id);
                                                 const isBusy = photoActionId === photo.id;
                                                 return (
                                                     <div key={photo.id} className="overflow-hidden rounded-lg border border-border/70 bg-background/50">
@@ -8027,13 +8075,19 @@ export default function QuotePage() {
                                                             type="button"
                                                             className="relative block w-full"
                                                             onClick={() => setSelectedPhoto(photo)}
-                                                        >
-                                                            <img
-                                                                src={photo.downloadUrl}
-                                                                alt={photo.originalName || 'Projectfoto'}
-                                                                className="h-44 w-full object-cover"
-                                                                loading="lazy"
-                                                            />
+                                                            >
+                                                                <img
+                                                                    src={photo.downloadUrl}
+                                                                    alt={photo.originalName || 'Projectfoto'}
+                                                                    className="h-44 w-full object-cover"
+                                                                    loading="lazy"
+                                                                />
+                                                            {isPending && (
+                                                                <div className="absolute left-2 top-2 flex items-center gap-1.5 rounded-md bg-background/90 px-2 py-1 text-xs text-foreground shadow">
+                                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                                    Opslaan...
+                                                                </div>
+                                                            )}
                                                             <div className="absolute right-2 top-2 rounded-md bg-background/90 p-1 text-foreground shadow">
                                                                 <Maximize2 className="h-3.5 w-3.5" />
                                                             </div>
@@ -8043,8 +8097,9 @@ export default function QuotePage() {
                                                                 {photo.originalName}
                                                             </div>
                                                             <div className="text-xs text-muted-foreground">
-                                                                {formatReceiptSize(photo.sizeBytes)}
-                                                                {createdAt ? ` · ${createdAt.toLocaleString('nl-NL')}` : ''}
+                                                                {isPending
+                                                                    ? 'Wordt op de achtergrond opgeslagen'
+                                                                    : `${formatReceiptSize(photo.sizeBytes)}${createdAt ? ` · ${createdAt.toLocaleString('nl-NL')}` : ''}`}
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <Button
@@ -8063,7 +8118,7 @@ export default function QuotePage() {
                                                                     variant="outline"
                                                                     size="sm"
                                                                     className="gap-2 text-red-400 hover:text-red-300"
-                                                                    disabled={isBusy}
+                                                                    disabled={isBusy || isPending}
                                                                     onClick={() => { void handleDeletePhoto(photo); }}
                                                                 >
                                                                     {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}

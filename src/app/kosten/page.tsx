@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
+  Camera,
   CalendarDays,
   ExternalLink,
   Link2,
@@ -443,6 +444,7 @@ function KostenPageContent() {
   const firestore = useFirestore();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const quickPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const pageReceiptDragDepthRef = useRef(0);
   const pendingHydratedRef = useRef<string | null>(null);
 
@@ -1210,6 +1212,12 @@ function KostenPageContent() {
     void handleExtract(file);
   };
 
+  const handleQuickPhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    event.currentTarget.value = '';
+    if (file) openReceiptFromPage(file);
+  };
+
   const handleOpenCost = (cost: ProjectCostRow) => {
     const rowCategory = normalizeProjectCostCategory(cost.category);
     const rowOfferteId = safeString(cost.offerte_id) || null;
@@ -1402,6 +1410,25 @@ function KostenPageContent() {
                     className="pl-9"
                   />
                 </div>
+
+                <input
+                  ref={quickPhotoInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleQuickPhotoChange}
+                />
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 shrink-0 gap-2 border-emerald-500/40 px-4 text-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-100"
+                  onClick={() => quickPhotoInputRef.current?.click()}
+                >
+                  <Camera className="h-4 w-4" />
+                  Foto maken
+                </Button>
 
                 <Dialog
                   open={createOpen}
@@ -2241,14 +2268,25 @@ function KostenPageContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Button
-        type="button"
-        className="fixed bottom-5 right-4 z-40 h-12 gap-2 rounded-full px-4 shadow-lg shadow-emerald-900/30 sm:hidden"
-        onClick={openCreateDialog}
-      >
-        <Plus className="h-4 w-4" />
-        Nieuwe kost
-      </Button>
+      <div className="fixed bottom-5 right-4 z-40 flex gap-2 sm:hidden">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12 gap-2 rounded-full border-emerald-500/50 bg-card px-4 text-emerald-200 shadow-lg shadow-emerald-900/20 hover:bg-emerald-500/10 hover:text-emerald-100"
+          onClick={() => quickPhotoInputRef.current?.click()}
+        >
+          <Camera className="h-4 w-4" />
+          Foto
+        </Button>
+        <Button
+          type="button"
+          className="h-12 gap-2 rounded-full px-4 shadow-lg shadow-emerald-900/30"
+          onClick={openCreateDialog}
+        >
+          <Plus className="h-4 w-4" />
+          Nieuwe kost
+        </Button>
+      </div>
     </div>
   );
 }

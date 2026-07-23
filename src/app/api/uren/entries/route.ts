@@ -15,11 +15,15 @@ const ALLOWED_SOURCES: TimeEntrySource[] = [
   'manual',
   'login_prompt_confirm',
   'login_prompt_adjust',
+  'gps_tracking_confirm',
+  'gps_tracking_adjust',
 ];
 
 const PROMPT_SOURCES: TimeEntrySource[] = [
   'login_prompt_confirm',
   'login_prompt_adjust',
+  'gps_tracking_confirm',
+  'gps_tracking_adjust',
 ];
 
 function extractBearerToken(authHeader: string | null): string | null {

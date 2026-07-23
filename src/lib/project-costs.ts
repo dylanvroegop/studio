@@ -27,9 +27,12 @@ export interface ProjectCostLineItem {
 export interface ProjectCostReceiptFile {
   url: string;
   path: string | null;
+  archive_id?: string | null;
+  bucket?: string | null;
   filename: string;
   content_type: string;
   size_bytes: number;
+  sha256?: string | null;
   uploaded_at: string;
 }
 
@@ -157,12 +160,15 @@ export function normalizeProjectCostReceiptFiles(input: unknown, fallbackUrl?: s
       if (!url) return null;
       const filename = safeString(item.filename) || url.split('/').pop() || 'bon';
       return {
-        url,
-        path: safeString(item.path) || null,
-        filename,
-        content_type: safeString(item.content_type),
-        size_bytes: Math.max(0, Math.round(safeNumber(item.size_bytes))),
-        uploaded_at: safeString(item.uploaded_at),
+      url,
+      path: safeString(item.path) || null,
+      archive_id: safeString(item.archive_id) || null,
+      bucket: safeString(item.bucket) || null,
+      filename,
+      content_type: safeString(item.content_type),
+      size_bytes: Math.max(0, Math.round(safeNumber(item.size_bytes))),
+      sha256: safeString(item.sha256) || null,
+      uploaded_at: safeString(item.uploaded_at),
       };
     })
     .filter((item): item is ProjectCostReceiptFile => Boolean(item));

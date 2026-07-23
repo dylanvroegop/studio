@@ -3,6 +3,11 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
+  archiveTaxDocument,
+  createTaxDocumentSignedUrl,
+  toArchivedReceiptFile,
+} from '@/lib/tax-document-archive';
+import {
   extractOfferteReference,
   extractOfferteReferenceFromExtraction,
   inferProjectCostCategory,
@@ -13,7 +18,6 @@ import {
   roundEuro,
   sumProjectCostLineItems,
 } from '@/lib/project-costs';
-import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -523,35 +527,10 @@ function inferContentType(rawType: string, filename: string): string {
   return 'application/octet-stream';
 }
 
-function isBucketNotFoundError(message: string): boolean {
-  const lower = message.toLowerCase();
-  return lower.includes('bucket not found') || lower.includes('bucket') && lower.includes('not found');
-}
-
 function toImageDataUrl(contentType: string, bytes: Buffer): string {
   const type = safeString(contentType) || 'image/jpeg';
   const base64 = bytes.toString('base64');
   return `data:${type};base64,${base64}`;
-}
-
-async function ensureReceiptsBucketExists(): Promise<void> {
-  const create = await supabaseAdmin.storage.createBucket('receipts', {
-    public: true,
-    fileSizeLimit: 15728640,
-    allowedMimeTypes: [
-      'application/pdf',
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'image/heic',
-      'image/heif',
-    ],
-  });
-
-  if (!create.error) return;
-  const message = safeString(create.error.message);
-  if (message.toLowerCase().includes('already exists')) return;
-  throw new Error(message || 'Kon receipts-bucket niet aanmaken.');
 }
 
 function extractResponseText(payload: unknown): string {
@@ -776,33 +755,18 @@ export async function POST(request: Request) {
     }
 
     const bytes = Buffer.from(await sourceFile.arrayBuffer());
-    const storagePath = `${uid}/${Date.now()}-${filename || 'receipt'}`;
-
-    let upload = await supabaseAdmin
-      .storage
-      .from('receipts')
-      .upload(storagePath, bytes, {
-        contentType,
-        upsert: false,
-      });
-
-    if (upload.error && isBucketNotFoundError(upload.error.message)) {
-      await ensureReceiptsBucketExists();
-      upload = await supabaseAdmin
-        .storage
-        .from('receipts')
-        .upload(storagePath, bytes, {
-          contentType,
-          upsert: false,
-        });
-    }
-
-    if (upload.error) {
-      return NextResponse.json({ ok: false, message: upload.error.message }, { status: 500 });
-    }
-
-    const publicUrlData = supabaseAdmin.storage.from('receipts').getPublicUrl(storagePath);
-    const receiptUrl = safeString(publicUrlData.data?.publicUrl) || storagePath;
+    const archivedRecord = await archiveTaxDocument({
+      userId: uid,
+      bytes,
+      originalFilename: filename,
+      contentType,
+      source: 'manual_upload',
+      metadata: {
+        extraction: 'openai_receipt_extraction',
+      },
+    });
+    const receiptUrl = await createTaxDocumentSignedUrl(archivedRecord);
+    const archivedReceiptFile = toArchivedReceiptFile(archivedRecord, receiptUrl);
 
     const model = safeString(process.env.OPENAI_RECEIPTS_MODEL) || 'gpt-5.2';
 
@@ -1086,16 +1050,7 @@ export async function POST(request: Request) {
         offerte_id: matchedOfferteId,
         suggested_category: suggestedCategory,
         receipt_url: receiptUrl,
-        receipt_files: [
-          {
-            url: receiptUrl,
-            path: storagePath,
-            filename,
-            content_type: contentType,
-            size_bytes: bytes.byteLength,
-            uploaded_at: new Date().toISOString(),
-          },
-        ],
+        receipt_files: [archivedReceiptFile],
       },
     });
   } catch (error) {

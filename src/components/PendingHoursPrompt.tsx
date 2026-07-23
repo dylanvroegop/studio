@@ -281,15 +281,16 @@ export function PendingHoursPrompt() {
       return;
     }
 
+    const isGpsPrompt = currentItem.promptSource === 'gps_tracking';
     const isConfirmFlow = (
       parsedQuoted === null
       && !trimmedNote
       && nearlyEqual(parsedWorked, currentItem.suggestedHours)
       && nearlyEqual(parsedWorkedDays, getDefaultWorkedDays(currentItem))
     );
-    const source: 'login_prompt_confirm' | 'login_prompt_adjust' = isConfirmFlow
-      ? 'login_prompt_confirm'
-      : 'login_prompt_adjust';
+    const source = isGpsPrompt
+      ? (isConfirmFlow ? 'gps_tracking_confirm' : 'gps_tracking_adjust')
+      : (isConfirmFlow ? 'login_prompt_confirm' : 'login_prompt_adjust');
 
     submitLockRef.current = true;
     const pendingDates = (currentItem.pendingDates || []).length > 0
@@ -344,6 +345,10 @@ export function PendingHoursPrompt() {
               quotedHours: quotedDistribution ? quotedDistribution[index] : null,
               note: trimmedNote || null,
               source,
+              startTime: currentItem.startTime || null,
+              endTime: currentItem.endTime || null,
+              exactMinutes: Math.max(0, Math.round(workedDistribution[index] * 60)),
+              roundingRule: isGpsPrompt ? 'GPS-tracking voorstel' : null,
               promptKey: segment.dayPromptKey || currentItem.promptKey,
             }),
           });
@@ -390,11 +395,16 @@ export function PendingHoursPrompt() {
   const rangeText = currentItem.endWorkDate && currentItem.endWorkDate !== currentItem.workDate
     ? `${currentItem.workDate} t/m ${currentItem.endWorkDate}`
     : currentItem.workDate;
-  const planningTypeLabel = currentItem.planningType === 'werkbespreking'
+  const planningTypeLabel = currentItem.promptSource === 'gps_tracking'
+    ? 'GPS-tracking'
+    : currentItem.planningType === 'werkbespreking'
     ? 'Werkbespreking'
     : currentItem.planningType === 'mixed'
       ? 'Gemengd (klus + werkbespreking)'
       : 'Klus';
+  const timeWindowText = currentItem.startTime && currentItem.endTime
+    ? `${currentItem.startTime} - ${currentItem.endTime}`
+    : null;
 
   return (
     <Dialog
@@ -414,6 +424,7 @@ export function PendingHoursPrompt() {
           <DialogTitle>Openstaande uren</DialogTitle>
           <DialogDescription>
             Je hebt openstaande uren op <strong>{currentItem.quoteLabel}</strong> van {rangeText}. Controleer de voorgestelde {formatHours(currentItem.suggestedHours)} en pas direct aan waar nodig.
+            {currentItem.promptSource === 'gps_tracking' ? ' Dit voorstel komt uit Traccar GPS-data.' : ''}
           </DialogDescription>
         </DialogHeader>
 
@@ -423,6 +434,13 @@ export function PendingHoursPrompt() {
           <div><strong className="text-foreground">Klant:</strong> {currentItem.clientName || 'onbekend'}</div>
           <div><strong className="text-foreground">Project:</strong> {currentItem.projectTitle || 'onbekend'}</div>
           <div><strong className="text-foreground">Type:</strong> {planningTypeLabel}</div>
+          {timeWindowText ? <div><strong className="text-foreground">GPS-tijd:</strong> {timeWindowText}</div> : null}
+          {typeof currentItem.matchedDistanceM === 'number' ? (
+            <div><strong className="text-foreground">Afstand tot project:</strong> {Math.round(currentItem.matchedDistanceM)} meter</div>
+          ) : null}
+          {typeof currentItem.gpsPointCount === 'number' ? (
+            <div><strong className="text-foreground">GPS-punten:</strong> {currentItem.gpsPointCount}</div>
+          ) : null}
           <div><strong className="text-foreground">Open dagen:</strong> {currentItem.pendingDaysCount || (currentItem.pendingDates || []).length || 1}</div>
           <div><strong className="text-foreground">Prompt key:</strong> {currentItem.promptKey}</div>
           <div>

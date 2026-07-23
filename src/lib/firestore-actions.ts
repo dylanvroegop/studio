@@ -10,6 +10,8 @@ import {
 } from 'firebase/firestore';
 import { sanitizeQuotePdfTextSettings } from '@/lib/quote-pdf-text-settings';
 
+const DEFAULT_STANDARD_HOURLY_RATE = 55;
+
 /**
  * Reserves the next available quote number for a specific user.
  * Increments the counter in `counters/quoteNumber_{userId}`.
@@ -88,7 +90,7 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
 
     // Fetch user settings to use as defaults
     let settings = {
-        standaardUurtarief: 45.00,
+        standaardUurtarief: DEFAULT_STANDARD_HOURLY_RATE,
         standaardWinstMarge: { percentage: 10 },
         standaardTransport: { vasteTransportkosten: 45.00 }
     };
@@ -109,6 +111,24 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
             const nieuweInstellingen = data?.instellingen ?? {};
             // Prefer explicit `instellingen`, fallback to legacy `settings`
             settings = { ...settings, ...legacySettings, ...nieuweInstellingen };
+
+            // Keep the quote default in sync with both the current settings field
+            // and legacy hourly-rate field names used by older user documents.
+            const hourlyRateCandidates = [
+                nieuweInstellingen?.standaardUurtarief,
+                nieuweInstellingen?.standaardUurTarief,
+                nieuweInstellingen?.uurTariefExclBtw,
+                legacySettings?.standaardUurtarief,
+                legacySettings?.standaardUurTarief,
+                legacySettings?.uurTariefExclBtw,
+                legacySettings?.uurTarief,
+            ];
+            const configuredHourlyRate = hourlyRateCandidates
+                .map((value: unknown) => Number(value))
+                .find((value: number) => Number.isFinite(value) && value > 0);
+            if (configuredHourlyRate !== undefined) {
+                settings.standaardUurtarief = configuredHourlyRate;
+            }
             if (data?.defaultPdfTeksten) {
                 defaultPdfTeksten = sanitizeQuotePdfTextSettings(data.defaultPdfTeksten);
             }
@@ -138,7 +158,7 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
         },
         instellingen: {
             btwTarief: 21,
-            uurTariefExclBtw: settings.standaardUurtarief ?? 45.00,
+            uurTariefExclBtw: settings.standaardUurtarief ?? DEFAULT_STANDARD_HOURLY_RATE,
         },
         extras: {
             transport: settings.standaardTransport ?? {

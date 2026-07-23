@@ -323,7 +323,7 @@ function createGevelbekledingRuleSet(config: {
 }): Record<string, Record<string, any>> {
   const bekledingFormula =
     config.sectionKeyBekleding === 'gevelbekleding_kunststof'
-      ? "if material.werkende_breedte_mm exists then if maatwerk_item.keralit_panelen_orientation == 'vertical' then banen = ceil(gevel_lengte_mm / material.werkende_breedte_mm); if maatwerk_item.keralit_panelen_afval_volgende_baan == true then totaal_banen_mm = banen * gevel_hoogte_mm; stuks = ceil(totaal_banen_mm / material.lengte_mm); else segmenten_per_baan = ceil(gevel_hoogte_mm / material.lengte_mm); stuks = banen * segmenten_per_baan; else rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)"
+      ? "if material.breedte exists then if maatwerk_item.keralit_panelen_orientation == 'vertical' then banen = ceil(gevel_lengte_mm / material.breedte); if maatwerk_item.keralit_panelen_afval_volgende_baan == true then totaal_banen_mm = banen * gevel_hoogte_mm; stuks = ceil(totaal_banen_mm / material.lengte); else segmenten_per_baan = ceil(gevel_hoogte_mm / material.lengte); stuks = banen * segmenten_per_baan; else rows = ceil(gevel_hoogte_mm / material.breedte); cols = ceil(gevel_lengte_mm / material.lengte); stuks = rows * cols; aantal = ceil(stuks); else requires_manual_input and return error; never use m2, dekking_m2 or area fallback"
       : 'if material.werkende_breedte_mm exists then rows = ceil(gevel_hoogte_mm / material.werkende_breedte_mm); cols = ceil(gevel_lengte_mm / material.lengte_mm); stuks = rows * cols; else plaat_m2 = material.lengte_m * material.breedte_m; stuks = ceil(gevel_netto_m2 / plaat_m2); aantal = ceil(stuks)';
   const bekledingLogic =
     config.sectionKeyBekleding === 'gevelbekleding_kunststof'
@@ -383,7 +383,9 @@ function createGevelbekledingRuleSet(config: {
       group: 'bekleding',
       logic: bekledingLogic,
       formula: bekledingFormula,
-      required_inputs: ['maatwerk_item.lengte', 'maatwerk_item.hoogte', 'material.lengte'],
+      required_inputs: config.sectionKeyBekleding === 'gevelbekleding_kunststof'
+        ? ['maatwerk_item.lengte', 'maatwerk_item.hoogte', 'material.lengte', 'material.breedte']
+        : ['maatwerk_item.lengte', 'maatwerk_item.hoogte', 'material.lengte'],
       missing_input_behavior: 'requires_manual_input',
       wastePercentage: 'user_input',
     },
@@ -1929,6 +1931,15 @@ const STATIC_RULES_BY_SLUG: Record<string, Record<string, Record<string, any>>> 
         sectionKey: 'keralit_hoekprofiel',
         group: 'bevestiging',
         logic: 'lineair op opgegeven buitenhoeken',
+        formula: 'if maatwerk_item.aantal_hoeken exists then lineair_m1 = (maatwerk_item.aantal_hoeken * gevel_hoogte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m); else requires_manual_input',
+        required_inputs: ['maatwerk_item.hoogte', 'maatwerk_item.aantal_hoeken', 'material.lengte'],
+        missing_input_behavior: 'requires_manual_input',
+        wastePercentage: 'user_input',
+      },
+      keralit_hoekprofiel_afwerking: {
+        sectionKey: 'keralit_hoekprofiel_afwerking',
+        group: 'bevestiging',
+        logic: 'zelfde lineaire afwerking als het aluminium hoekprofiel op opgegeven buitenhoeken',
         formula: 'if maatwerk_item.aantal_hoeken exists then lineair_m1 = (maatwerk_item.aantal_hoeken * gevel_hoogte_mm) / 1000; aantal = ceil((lineair_m1) / material.lengte_m); else requires_manual_input',
         required_inputs: ['maatwerk_item.hoogte', 'maatwerk_item.aantal_hoeken', 'material.lengte'],
         missing_input_behavior: 'requires_manual_input',

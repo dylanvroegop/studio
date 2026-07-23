@@ -7,7 +7,7 @@ Dit project bevat een importeerbare workflow in `n8n/offertehulp-invoice-importe
 1. Pollt beide Gmail-inboxen iedere vijf minuten op ongelezen e-mails met bijlagen.
 2. Accepteert PDF- en afbeeldingsbijlagen uit `facturenvroegoptimmerwerken@gmail.com`.
 3. Zoekt in `vroegoptimmerwerken@gmail.com` naar factuur-signalen in onderwerp, berichttekst en bestandsnaam.
-4. Stuurt de bijlage naar `/api/kosten/extract`. De bestaande app slaat het document op in Supabase Storage en extraheert leverancier, datum, BTW, regels en offerte-referentie.
+4. Stuurt de bijlage naar `/api/kosten/extract`. De app archiveert het volledige originele bestand in de privébucket `tax-documents`, registreert bestandsgrootte en SHA-256-hash, en extraheert daarna leverancier, datum, BTW, regels en offerte-referentie.
 5. Als `offerte_id` gevonden is, of als de factuur geen materiaal bevat, stuurt hij de extractie door naar `/api/kosten/create` en maakt daarmee een regel in `project_costs` / de Kosten-tab.
 6. Als `offerte_id` ontbreekt én er wel materiaalregels zijn, stuurt hij de extractie naar `/api/kosten/pending`. De factuur wordt dan niet als Kosten opgeslagen; de app opent bij het starten de bestaande `Nieuwe kost`-pagina met de factuur al ingevuld, zodat je de juiste offerte/klant kiest.
 7. Een verwerkte e-mail krijgt `Facturen/Verwerkt`. Een wachtende e-mail krijgt `Facturen/Wacht op offerte`. Beide worden daarna als gelezen gemarkeerd, zodat dezelfde factuur niet opnieuw wordt geïmporteerd.
@@ -25,7 +25,7 @@ Dit project bevat een importeerbare workflow in `n8n/offertehulp-invoice-importe
    - `PASTE_FIREBASE_UID` door de Firebase UID van het Calvora-account.
    - `PASTE_N8N_HEADER_SECRET` door exact dezelfde waarde als `N8N_HEADER_SECRET` in App Hosting.
 7. Controleer in de Gmail-actienodes dat beide labels bestaan en selecteer ze zo nodig opnieuw uit de dropdown.
-8. Test eerst met één factuur mét offerte-referentie. Controleer daarna `/kosten` en de opgeslagen bon/factuur bij de kostenregel.
+8. Test eerst met één factuur mét offerte-referentie. Controleer daarna `/kosten`, de opgeslagen bon/factuur bij de kostenregel en of het origineel vanuit de galerij opnieuw opent.
 9. Test daarna met één factuur zonder referentie. Controleer dat er géén Kosten-regel verschijnt, maar dat bij het openen van de app het venster `Factuur koppelen aan een offerte` verschijnt.
 10. Activeer de workflow pas nadat beide tests succesvol zijn.
 
@@ -44,6 +44,8 @@ De workflow gebruikt deze serverroutes:
 - `POST /api/kosten/extract` als multipart form-data met `file` en `user_id`.
 - `POST /api/kosten/create` als JSON met de `data` uit de extractie plus `user_id`.
 - `POST /api/kosten/pending` als JSON met `user_id` en de geëxtraheerde `payload` wanneer geen `offerte_id` gevonden is.
+
+`/api/kosten/extract` archiveert de originele bijlage vóór de AI-analyse. Het resultaat bevat in `receipt_files` een `archive_id`, `sha256`, opslagpad en een tijdelijke tekenlink. De tijdelijke link mag verlopen; de `archive_id` blijft de permanente verwijzing naar het origineel. De Kosten-galerij maakt bij openen automatisch een nieuwe tijdelijke link.
 
 De app haalt openstaande imports op via `GET /api/kosten/pending`. Na het kiezen van een offerte maakt `POST /api/kosten/create` de Kosten-regel aan met `pending_import_id` en markeert de import als gekoppeld.
 

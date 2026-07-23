@@ -55,7 +55,8 @@ async function getGoogleDistance(input: {
   durationMinOneWay: number;
   raw: Record<string, unknown>;
 }> {
-  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  const apiKey = process.env.GOOGLE_GEOCODING_API_KEY?.trim()
+    || process.env.GOOGLE_API_KEY?.trim()
     || process.env.ANTIGRAVITY_GOOGLE_API_KEY?.trim();
   if (!apiKey) {
     throw new Error('GOOGLE_API_KEY is niet geconfigureerd.');
@@ -186,7 +187,8 @@ export async function POST(request: Request) {
     }
 
     const hasGoogleApiKey = Boolean(
-      process.env.GOOGLE_API_KEY?.trim()
+      process.env.GOOGLE_GEOCODING_API_KEY?.trim()
+      || process.env.GOOGLE_API_KEY?.trim()
       || process.env.ANTIGRAVITY_GOOGLE_API_KEY?.trim()
     );
     if (hasGoogleApiKey) {

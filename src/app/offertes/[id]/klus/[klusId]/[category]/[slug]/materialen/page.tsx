@@ -396,7 +396,11 @@ function isKeralitEindOfHoekprofielSection(
   materialName?: string
 ): boolean {
   const normalizedSectionKey = String(sectionKey || '').toLowerCase().trim();
-  if (normalizedSectionKey === 'keralit_eindprofiel' || normalizedSectionKey === 'keralit_hoekprofiel') {
+  if (
+    normalizedSectionKey === 'keralit_eindprofiel'
+    || normalizedSectionKey === 'keralit_hoekprofiel'
+    || normalizedSectionKey === 'keralit_hoekprofiel_afwerking'
+  ) {
     return true;
   }
   const haystack = `${label || ''} ${context || ''} ${materialName || ''}`.toLowerCase();
