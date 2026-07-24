@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 const AMSTERDAM_TIMEZONE = 'Europe/Amsterdam';
 const GPS_MATCH_RADIUS_M = 100;
 const GPS_MIN_VISIT_MINUTES = 15;
-const GPS_ACTIVE_VISIT_GRACE_MINUTES = 30;
+const GPS_ACTIVE_VISIT_GRACE_MINUTES = 0;
 const GPS_MAX_LOOKBACK_DAYS = 3;
 
 type GeoPoint = {
@@ -593,6 +593,8 @@ export async function GET(request: Request) {
     const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
     if (trialBlockedResponse) return trialBlockedResponse;
 
+    const url = new URL(request.url);
+    const debugMode = url.searchParams.get('debug') === '1';
     const todayInAmsterdam = formatDateInTimezone(new Date(), AMSTERDAM_TIMEZONE);
     const cutoffWorkDate = addDays(todayInAmsterdam, -2);
 
@@ -671,7 +673,17 @@ export async function GET(request: Request) {
         const message = gpsError instanceof Error ? gpsError.message : 'GPS-uren konden niet worden bepaald.';
         return NextResponse.json({ ok: false, message }, { status: 502 });
       }
-      return NextResponse.json({ ok: true, items: gpsItems });
+      return NextResponse.json({
+        ok: true,
+        items: gpsItems,
+        debug: debugMode ? {
+          uid,
+          envUserMatches: uid === process.env.CALVORA_USER_ID,
+          gpsItems: gpsItems.length,
+          planningItems: 0,
+          totalItems: gpsItems.length,
+        } : undefined,
+      });
     }
 
     const dayPromptKeys = Array.from(dayAggregation.keys());
@@ -781,7 +793,24 @@ export async function GET(request: Request) {
       });
 
     if (unresolvedDays.length === 0) {
-      return NextResponse.json({ ok: true, items: [] });
+      let gpsItems: PendingHourPrompt[] = [];
+      try {
+        gpsItems = await buildGpsTrackingPrompts(firestore, uid, todayInAmsterdam);
+      } catch (gpsError) {
+        const message = gpsError instanceof Error ? gpsError.message : 'GPS-uren konden niet worden bepaald.';
+        return NextResponse.json({ ok: false, message }, { status: 502 });
+      }
+      return NextResponse.json({
+        ok: true,
+        items: gpsItems,
+        debug: debugMode ? {
+          uid,
+          envUserMatches: uid === process.env.CALVORA_USER_ID,
+          gpsItems: gpsItems.length,
+          planningItems: 0,
+          totalItems: gpsItems.length,
+        } : undefined,
+      });
     }
 
     const projectAggregation = new Map<string, PendingHourPrompt>();
@@ -914,7 +943,17 @@ export async function GET(request: Request) {
       return left.quoteLabel.localeCompare(right.quoteLabel, 'nl');
     });
 
-    return NextResponse.json({ ok: true, items });
+    return NextResponse.json({
+      ok: true,
+      items,
+      debug: debugMode ? {
+        uid,
+        envUserMatches: uid === process.env.CALVORA_USER_ID,
+        gpsItems: gpsItems.length,
+        planningItems: planningItems.length,
+        totalItems: items.length,
+      } : undefined,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Onbekende fout';
     return NextResponse.json({ ok: false, message }, { status: 500 });

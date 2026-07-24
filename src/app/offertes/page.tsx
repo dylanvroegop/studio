@@ -460,6 +460,14 @@ function getQuoteReferenceDate(quote: QuoteRow): Date | null {
   return quote.updatedAtDate ?? quote.createdAtDate ?? null;
 }
 
+function getQuoteDisplayDate(quote: QuoteRow, planningEntries?: PlanningListEntry[]): Date | null {
+  const plannedWerkbespreking = planningEntries
+    ?.filter((entry) => entry.status !== 'cancelled' && entry.planningType === 'werkbespreking' && entry.startDate)
+    .sort((a, b) => (a.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER))[0];
+
+  return plannedWerkbespreking?.startDate ?? getQuoteReferenceDate(quote);
+}
+
 function mapSettingsForTotals(input: unknown): QuoteCalculationSettings {
   const normalized = normalizeDataJson(input as any);
   const rawInst = (normalized?.instellingen || {}) as any;
@@ -1720,7 +1728,7 @@ export default function OffertesPage() {
                 const totaal = quoteTotalsById[q.id] ?? getStoredQuoteTotal(q);
                 const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
                 const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
-                const datum = q.updatedAtDate ?? q.createdAtDate;
+                const datum = getQuoteDisplayDate(q, planningEntriesByQuoteId[q.id]);
                 const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
                 const klant = getKlantNaam(q);
                 const hoofdTitel = getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || null;
@@ -1917,7 +1925,7 @@ export default function OffertesPage() {
                 const totaal = quoteTotalsById[q.id] ?? getStoredQuoteTotal(q);
                 const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
                 const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
-                const datum = q.updatedAtDate ?? q.createdAtDate;
+                const datum = getQuoteDisplayDate(q, planningEntriesByQuoteId[q.id]);
                 const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
                 const klant = getKlantNaam(q);
                 const hoofdTitel = getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || null;

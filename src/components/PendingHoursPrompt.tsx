@@ -128,13 +128,24 @@ export function PendingHoursPrompt() {
     setIsLoading(true);
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/uren/pending', {
+      const response = await fetch(`/api/uren/pending${options?.manual ? '?debug=1' : ''}`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      const payload = (await response.json().catch(() => null)) as { ok?: boolean; items?: PendingHourPrompt[]; message?: string } | null;
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        items?: PendingHourPrompt[];
+        message?: string;
+        debug?: {
+          uid?: string;
+          envUserMatches?: boolean;
+          gpsItems?: number;
+          planningItems?: number;
+          totalItems?: number;
+        };
+      } | null;
       if (!response.ok || !payload?.ok || !Array.isArray(payload.items)) {
         throw new Error(payload?.message || 'Kon openstaande uren niet laden.');
       }
@@ -144,7 +155,9 @@ export function PendingHoursPrompt() {
         setManualOpen(false);
         toast({
           title: 'Geen openstaande uren',
-          description: 'Er zijn nu geen prompts om te tonen.',
+          description: payload.debug
+            ? `Debug: gps=${payload.debug.gpsItems ?? 0}, planning=${payload.debug.planningItems ?? 0}, uidMatch=${payload.debug.envUserMatches ? 'ja' : 'nee'}`
+            : 'Er zijn nu geen prompts om te tonen.',
         });
       }
       return filteredItems;
