@@ -3253,6 +3253,22 @@ export default function QuotePage() {
         });
     };
 
+    const handleUpdateTransportRatePerKm = async (ratePerKm: number) => {
+        if (!quoteSettings) return;
+        const safeRate = Math.max(0, Number(ratePerKm) || 0);
+        await handleUpdateSettings({
+            ...quoteSettings,
+            extras: {
+                ...quoteSettings.extras,
+                transport: {
+                    ...quoteSettings.extras.transport,
+                    mode: 'perKm',
+                    prijsPerKm: safeRate,
+                },
+            },
+        });
+    };
+
     const handleUpdateWinstMargeAmountExcl = async (amountExcl: number) => {
         if (!quoteSettings) return;
         const safeExcl = roundMoney(Math.max(0, Number(amountExcl) || 0));
@@ -7488,6 +7504,7 @@ export default function QuotePage() {
                                         onUpdateExtraKostenTotal={handleUpdateExtraKostenTotal}
                                         onUpdateMaterialenSubtotal={handleUpdateMaterialenSubtotal}
                                         onUpdateTransportTotal={handleUpdateTransportTotal}
+                                        onUpdateTransportRatePerKm={handleUpdateTransportRatePerKm}
                                         onUpdateWinstMargePercentage={handleUpdateWinstMargePercentage}
                                         onUpdateWinstMargeAmountExcl={handleUpdateWinstMargeAmountExcl}
                                     />

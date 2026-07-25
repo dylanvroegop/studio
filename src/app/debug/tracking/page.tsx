@@ -2,8 +2,9 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle, CalendarDays, CheckCircle2, Clock3, Gauge, MapPin, RefreshCw, Route, Send, ArrowLeft } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PendingHoursPromptPreview } from '@/components/PendingHoursPromptPreview';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/firebase';
 
@@ -78,6 +81,10 @@ function localDateInputValue(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+function isDateInputValue(value: string | null): value is string {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
+
 function getLocalDayRange(dateValue: string): { from: string; to: string } {
   const [year, month, day] = dateValue.split('-').map(Number);
   const fromDate = new Date(year, month - 1, day, 0, 0, 0, 0);
@@ -108,7 +115,9 @@ function formatDuration(start: string | undefined, end: string | undefined): str
   return hours ? `${hours}u ${rest}m` : `${rest}m`;
 }
 
-export default function TrackingDebugPage() {
+function TrackingDebugPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user, isUserLoading } = useUser();
   const [form, setForm] = useState(DEFAULT_POSITION);
@@ -117,7 +126,10 @@ export default function TrackingDebugPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isFetchingTraccar, setIsFetchingTraccar] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(localDateInputValue());
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const dateFromUrl = searchParams.get('date');
+    return isDateInputValue(dateFromUrl) ? dateFromUrl : localDateInputValue();
+  });
   const [dayPositions, setDayPositions] = useState<DayPosition[]>([]);
   const [dayAddresses, setDayAddresses] = useState<Record<string, DayPosition>>({});
   const [isLoadingDay, setIsLoadingDay] = useState(false);
@@ -197,12 +209,13 @@ export default function TrackingDebugPage() {
     });
   }
 
-  async function loadFullDay() {
+  async function loadFullDay(dateValue = selectedDate) {
+    if (!dateValue) return;
     setIsLoadingDay(true);
     setError(null);
     setHasLoadedDay(false);
     try {
-      const range = getLocalDayRange(selectedDate);
+      const range = getLocalDayRange(dateValue);
       const query = new URLSearchParams(range);
       const response = await fetch(`/api/tracking/traccar?${query.toString()}`, {
         headers: await getHeaders(),
@@ -223,6 +236,17 @@ export default function TrackingDebugPage() {
     } finally {
       setIsLoadingDay(false);
     }
+  }
+
+  function handleDateChange(dateValue: string) {
+    setSelectedDate(dateValue);
+    setDayPositions([]);
+    setDayAddresses({});
+    setHasLoadedDay(false);
+    if (!dateValue) return;
+
+    router.replace(`/debug/tracking?date=${encodeURIComponent(dateValue)}`, { scroll: false });
+    void loadFullDay(dateValue);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -340,6 +364,13 @@ export default function TrackingDebugPage() {
           </div>
         </header>
 
+        <Tabs defaultValue="gps-data" className="space-y-4">
+          <TabsList className="w-full justify-start sm:w-auto">
+            <TabsTrigger value="gps-data">GPS-data</TabsTrigger>
+            <TabsTrigger value="popup-preview">Popup-preview</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="gps-data" className="space-y-6">
         {error ? (
           <div className="flex items-start gap-3 rounded-lg border border-red-500/40 bg-red-950/20 p-4 text-sm text-red-100">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -355,10 +386,10 @@ export default function TrackingDebugPage() {
             </div>
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-1">
-                <Label htmlFor="tracking-date">Dag</Label>
+                <Label htmlFor="tracking-date">Testdatum</Label>
                 <div className="relative">
                   <CalendarDays className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input id="tracking-date" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="pl-9" />
+                  <Input id="tracking-date" type="date" value={selectedDate} onChange={(event) => handleDateChange(event.target.value)} className="pl-9" />
                 </div>
               </div>
               <Button type="button" onClick={() => void loadFullDay()} disabled={isLoadingDay || !selectedDate}>
@@ -530,7 +561,29 @@ export default function TrackingDebugPage() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="popup-preview" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Uren-popup bekijken</CardTitle>
+                <CardDescription>Bekijk exact hoe de popup eruitziet zodra deze later wordt ingeschakeld.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PendingHoursPromptPreview />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </main>
+  );
+}
+
+export default function TrackingDebugPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Tracking laden...</div>}>
+      <TrackingDebugPageContent />
+    </Suspense>
   );
 }

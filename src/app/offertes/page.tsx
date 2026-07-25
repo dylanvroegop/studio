@@ -1507,6 +1507,30 @@ export default function OffertesPage() {
               />
             </div>
 
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full justify-between rounded-xl border-border/70 px-4"
+                  aria-label={`Standaardfilter: ${defaultFilterLabel}`}
+                >
+                  <span>Standaard: {defaultFilterLabel}</span>
+                  <span className="text-xs text-muted-foreground">Aanpassen</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[calc(100vw-2rem)] max-w-sm">
+                <DropdownMenuLabel>Open offertes standaard op</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleDefaultFilterSelect('concept')}>
+                  Concept {defaultFilter === 'concept' ? '(actief)' : ''}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleDefaultFilterSelect('geaccepteerd')}>
+                  Geaccepteerd {defaultFilter === 'geaccepteerd' ? '(actief)' : ''}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <div className="-mx-4 overflow-x-auto pb-1">
               <div className="flex w-max items-center gap-2 px-4">
                 {mobileFilterOptions.map((option) => (

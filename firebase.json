@@ -4,5 +4,25 @@
     },
     "storage": {
         "rules": "storage.rules"
-    }
+    },
+    "apphosting": [
+        {
+            "backendId": "studio",
+            "rootDir": ".",
+            "ignore": [
+                "node_modules",
+                ".git",
+                ".next",
+                ".next-stale-*",
+                ".npm-cache",
+                ".idx",
+                ".agent",
+                ".claude",
+                ".cursor",
+                ".browser-profiles",
+                ".vercel",
+                "firebase-debug.log"
+            ]
+        }
+    ]
 }

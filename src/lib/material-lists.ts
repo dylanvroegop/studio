@@ -7,6 +7,7 @@ export interface MaterialList {
   id: string;
   company_id: string;
   userId: string;
+  is_general?: boolean;
   quote_id: string | null;
   quote_number?: number | string | null;
   quote_client_name?: string | null;
@@ -208,11 +209,13 @@ export async function createMaterialList(
     notes?: string;
     quote?: QuoteLinkSnapshot | null;
     status?: MaterialListStatus;
+    isGeneral?: boolean;
   }
 ): Promise<string> {
   const docRef = await addDoc(collection(firestore, 'material_lists'), {
     company_id: params.userId,
     userId: params.userId,
+    is_general: params.isGeneral === true,
     quote_id: params.quote?.id ?? null,
     quote_number: params.quote?.quote_number ?? null,
     quote_client_name: params.quote?.quote_client_name ?? null,

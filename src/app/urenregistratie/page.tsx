@@ -51,6 +51,7 @@ import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import type { TimeEntrySource } from '@/lib/time-entries';
+import { ENABLE_PENDING_HOURS_PROMPT } from '@/lib/pending-hours-feature';
 
 // Types
 interface TimeEntry {
@@ -542,7 +543,7 @@ function UrenRegistratiePageContent() {
                     <Clock className="w-6 h-6 text-emerald-500" />
                     Urenregistratie
                 </h1>
-                {isDevBuild ? (
+                {isDevBuild && ENABLE_PENDING_HOURS_PROMPT ? (
                     <Button
                         variant="outline"
                         size="sm"

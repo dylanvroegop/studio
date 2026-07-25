@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, doc, query, serverTimestamp, updateDoc, where, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, query, serverTimestamp, updateDoc, where, getDocs } from 'firebase/firestore';
 import { normalizeDataJson } from '@/lib/quote-calculations';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -20,9 +20,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Calendar, Clock, Briefcase, Trash2, Navigation } from 'lucide-react';
+import { Loader2, Calendar, Clock, Briefcase, Trash2, Navigation, Search, Check } from 'lucide-react';
 import { PlanningEntry, PlanningEntryType, PlanningSettings, TimelineView } from '@/lib/types-planning';
 import { autoSplitJob, calculateEndDateFromHours } from '@/lib/planning-utils';
 import { usePlanningData } from '@/hooks/usePlanningData';
@@ -32,6 +31,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { buildGoogleMapsDirectionsUrl, resolveQuoteProjectAddress } from '@/lib/maps';
 import { getPlanningQuoteMetrics } from '@/lib/planning-earnings';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface Quote {
     id: string;
@@ -110,6 +110,9 @@ export function ScheduleModal({
 
     const [quotes, setQuotes] = useState<Quote[]>([]);
     const [isLoadingQuotes, setIsLoadingQuotes] = useState(false);
+    const [hasLoadedQuotes, setHasLoadedQuotes] = useState(false);
+    const [isQuotePickerOpen, setIsQuotePickerOpen] = useState(false);
+    const [quoteSearch, setQuoteSearch] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
     const [quoteMetricsById, setQuoteMetricsById] = useState<Record<string, { totalHours: number; totalEarnings: number }>>({});
@@ -120,6 +123,7 @@ export function ScheduleModal({
             ? format(preselectedDate, 'yyyy-MM-dd')
             : format(new Date(), 'yyyy-MM-dd')
     );
+    const [endDate, setEndDate] = useState<string>('');
     const [startTime, setStartTime] = useState<string>(planningSettings.defaultStartTime);
     const [endTime, setEndTime] = useState<string>(planningSettings.defaultEndTime);
     const [totalHours, setTotalHours] = useState<number>(0);
@@ -128,6 +132,7 @@ export function ScheduleModal({
     const [manualProjectAddress, setManualProjectAddress] = useState<string>('');
     const [hasManualProjectAddressOverride, setHasManualProjectAddressOverride] = useState(false);
     const initializedForOpenRef = useRef(false);
+    const hasManualEndDateRef = useRef(false);
     const timeInputRef = useRef<HTMLInputElement | null>(null);
 
     const addOneHourToTime = (timeValue: string) => {
@@ -141,41 +146,75 @@ export function ScheduleModal({
         return format(plusOne, 'HH:mm');
     };
 
-    // Fetch quotes
+    // Load only the quote that is already linked when the modal opens. The full
+    // list is loaded lazily when the picker is opened so the modal appears
+    // immediately, especially for Google Calendar entries without a quote.
     useEffect(() => {
         if (!isOpen || !user || !firestore) return;
 
-        const fetchQuotes = async () => {
-            setIsLoadingQuotes(true);
-            try {
-                const q = query(
-                    collection(firestore, 'quotes'),
-                    where('userId', '==', user.uid)
-                );
-                const snap = await getDocs(q);
-                const data = snap.docs
-                    .map(d => ({
-                        id: d.id,
-                        ...d.data()
-                    }) as Quote & { isCalculationTest?: boolean })
-                    .filter((quote) => quote.isCalculationTest !== true) as Quote[];
+        setQuoteSearch('');
+        setIsQuotePickerOpen(false);
 
-                data.sort((a, b) => {
-                    const numA = a.offerteNummer || 0;
-                    const numB = b.offerteNummer || 0;
-                    return numB - numA;
-                });
+        const linkedQuoteId = existingEntry?.quoteId || preselectedQuoteId || preselectedQuote?.id || '';
+        if (preselectedQuote) {
+            setQuotes((current) => [
+                preselectedQuote,
+                ...current.filter((quote) => quote.id !== preselectedQuote.id),
+            ]);
+        }
+        if (!linkedQuoteId || preselectedQuote?.id === linkedQuoteId) return;
 
-                setQuotes(data);
-            } catch (err) {
-                console.error('Error fetching quotes:', err);
-            } finally {
-                setIsLoadingQuotes(false);
-            }
+        let cancelled = false;
+        void getDoc(doc(firestore, 'quotes', linkedQuoteId)).then((linkedQuoteSnapshot) => {
+            if (cancelled || !linkedQuoteSnapshot.exists()) return;
+            const linkedQuote = {
+                id: linkedQuoteSnapshot.id,
+                ...linkedQuoteSnapshot.data(),
+            } as Quote;
+            setQuotes((current) => [
+                linkedQuote,
+                ...current.filter((quote) => quote.id !== linkedQuote.id),
+            ]);
+        }).catch((err) => {
+            console.error('Error fetching linked quote:', err);
+        });
+
+        return () => {
+            cancelled = true;
         };
+    }, [isOpen, user, firestore, existingEntry, preselectedQuoteId, preselectedQuote]);
 
-        fetchQuotes();
-    }, [isOpen, user, firestore]);
+    const loadQuotes = useCallback(async () => {
+        if (!user || !firestore || hasLoadedQuotes || isLoadingQuotes) return;
+
+        setIsLoadingQuotes(true);
+        try {
+            const q = query(
+                collection(firestore, 'quotes'),
+                where('userId', '==', user.uid)
+            );
+            const snap = await getDocs(q);
+            const data = snap.docs
+                .map(d => ({
+                    id: d.id,
+                    ...d.data()
+                }) as Quote & { isCalculationTest?: boolean })
+                .filter((quote) => quote.isCalculationTest !== true) as Quote[];
+
+            data.sort((a, b) => (b.offerteNummer || 0) - (a.offerteNummer || 0));
+            setQuotes((current) => {
+                const quotesById = new Map(current.map((quote) => [quote.id, quote]));
+                data.forEach((quote) => quotesById.set(quote.id, quote));
+                return Array.from(quotesById.values()).sort((a, b) => (b.offerteNummer || 0) - (a.offerteNummer || 0));
+            });
+            setHasLoadedQuotes(true);
+        } catch (err) {
+            console.error('Error fetching quotes:', err);
+            toast({ variant: 'destructive', title: 'Offertes konden niet worden geladen' });
+        } finally {
+            setIsLoadingQuotes(false);
+        }
+    }, [firestore, hasLoadedQuotes, isLoadingQuotes, toast, user]);
 
     // Reset form when modal closes
     useEffect(() => {
@@ -188,6 +227,8 @@ export function ScheduleModal({
                     ? format(preselectedDate, 'yyyy-MM-dd')
                     : format(new Date(), 'yyyy-MM-dd')
             );
+            setEndDate('');
+            hasManualEndDateRef.current = false;
             setStartTime(preselectedStartTime || planningSettings.defaultStartTime);
             setEndTime(planningSettings.defaultEndTime);
             setTotalHours(preselectedTotalHours || preselectedHours || 0);
@@ -224,6 +265,8 @@ export function ScheduleModal({
             const end = existingEntry.endDate.toDate();
             const existingType = existingEntry.planningType || 'job';
             setStartDate(format(start, 'yyyy-MM-dd'));
+            setEndDate(format(end, 'yyyy-MM-dd'));
+            hasManualEndDateRef.current = true;
             setStartTime(format(start, 'HH:mm'));
             setEndTime(existingType === 'werkbespreking' ? addOneHourToTime(format(start, 'HH:mm')) : format(end, 'HH:mm'));
             setTotalHours(existingType === 'werkbespreking' ? 1 : existingEntry.scheduledHours);
@@ -241,6 +284,8 @@ export function ScheduleModal({
                 setStartDate(format(new Date(), 'yyyy-MM-dd'));
             }
 
+            setEndDate('');
+            hasManualEndDateRef.current = false;
             setStartTime(preselectedStartTime || planningSettings.defaultStartTime);
             setEndTime(planningSettings.defaultEndTime);
             setTotalHours(preselectedTotalHours || preselectedHours || 0);
@@ -387,6 +432,28 @@ export function ScheduleModal({
         return info?.bedrijfsnaam || fullName || 'Onbekende klant';
     };
 
+    const filteredQuotes = useMemo(() => {
+        const normalizedSearch = quoteSearch.trim().toLocaleLowerCase();
+        if (!normalizedSearch) return quotes;
+
+        return quotes.filter((quote) => {
+            const info = quote.klantinformatie;
+            const fullName = [info?.voornaam, info?.achternaam].filter(Boolean).join(' ').trim();
+            const clientName = info?.bedrijfsnaam || fullName || 'Onbekende klant';
+            const quoteLabel = [
+                quote.offerteNummer ? `#${quote.offerteNummer}` : '',
+                clientName,
+                quote.titel || '',
+            ].filter(Boolean).join(' - ');
+            const searchText = [
+                quoteLabel,
+                quote.titel || '',
+                info?.plaats || '',
+            ].join(' ').toLocaleLowerCase();
+            return searchText.includes(normalizedSearch);
+        });
+    }, [quoteSearch, quotes]);
+
     const selectedQuote = useMemo(() => {
         if (selectedQuoteId) {
             return quotes.find((quote) => quote.id === selectedQuoteId)
@@ -494,9 +561,17 @@ export function ScheduleModal({
         planningSettings.pauzeMinuten,
     ]);
 
+    // Keep the default end date in sync with the calculated duration until the
+    // user edits it explicitly. This also updates the date after quote hours
+    // have been loaded asynchronously.
+    useEffect(() => {
+        if (!isOpen || existingEntry || hasManualEndDateRef.current || !computedEndDateTime.date) return;
+        setEndDate(computedEndDateTime.date);
+    }, [isOpen, existingEntry, computedEndDateTime.date]);
+
     const performSave = useCallback(async () => {
         // Validation for single user mode
-        if (!selectedQuoteId || !firestore) {
+        if ((!existingEntry && !selectedQuoteId) || !firestore) {
             setIsSaving(false);
             toast({ variant: 'destructive', title: 'Selecteer een offerte' });
             return;
@@ -508,34 +583,48 @@ export function ScheduleModal({
             return;
         }
 
+        const effectiveEndDate = endDate || computedEndDateTime.date;
+        if (selectedPlanningType !== 'werkbespreking') {
+            const start = new Date(`${startDate}T${startTime || planningSettings.defaultStartTime}`);
+            const end = new Date(`${effectiveEndDate}T${view === 'day' ? endTime : computedEndDateTime.time}`);
+            if (!effectiveEndDate || !Number.isFinite(end.getTime()) || end.getTime() < start.getTime()) {
+                setIsSaving(false);
+                toast({ variant: 'destructive', title: 'Einddatum moet op of na de startdatum liggen' });
+                return;
+            }
+        }
+
         setIsSaving(true);
 
         try {
             const werkbesprekingDurationHours = 1;
             const quote = quotes.find(q => q.id === selectedQuoteId) || preselectedQuote;
-            if (!quote) {
+            if (!quote && !existingEntry) {
                 console.error('Quote not found:', selectedQuoteId);
                 toast({ variant: 'destructive', title: 'Offerte niet gevonden', description: 'Herlaad de pagina.' });
                 setIsSaving(false);
                 return;
             }
 
-            const info = quote.klantinformatie;
-            const clientName = [info?.voornaam, info?.achternaam].filter(Boolean).join(' ') || info?.bedrijfsnaam || '';
-            const address = routeDestinationAddress;
+            const info = quote?.klantinformatie;
+            const clientName = [info?.voornaam, info?.achternaam].filter(Boolean).join(' ') || info?.bedrijfsnaam || existingEntry?.cache.clientName || '';
+            const address = routeDestinationAddress || existingEntry?.cache.projectAddress || '';
+            const projectTitle = quote
+                ? selectedPlanningType === 'werkbespreking'
+                    ? `Werkbespreking${quote.titel ? ` · ${quote.titel}` : ''}`
+                    : (quote.titel || 'Klus')
+                : (existingEntry?.cache.projectTitle || 'Klus');
 
             const cache = {
                 ...(existingEntry?.cache || {}),
                 clientName,
-                projectTitle: selectedPlanningType === 'werkbespreking'
-                    ? `Werkbespreking${quote.titel ? ` · ${quote.titel}` : ''}`
-                    : (quote.titel || 'Klus'),
+                projectTitle,
                 projectAddress: address,
                 totalQuoteHours: selectedPlanningType === 'werkbespreking'
                     ? werkbesprekingDurationHours
-                    : (quoteMetricsById[selectedQuoteId]?.totalHours || totalHours),
-                totalQuoteAmount: Number((quote as any)?.totaalbedrag || (quote as any)?.amount || 0) || 0,
-                totalQuoteEarnings: quoteMetricsById[selectedQuoteId]?.totalEarnings || 0,
+                    : (quoteMetricsById[selectedQuoteId]?.totalHours || totalHours || existingEntry?.cache.totalQuoteHours || 0),
+                totalQuoteAmount: Number((quote as any)?.totaalbedrag || (quote as any)?.amount || existingEntry?.cache.totalQuoteAmount || 0) || 0,
+                totalQuoteEarnings: quoteMetricsById[selectedQuoteId]?.totalEarnings || existingEntry?.cache.totalQuoteEarnings || 0,
             };
 
             if (existingEntry) {
@@ -545,14 +634,15 @@ export function ScheduleModal({
                 const entryEnd = selectedPlanningType === 'werkbespreking'
                     ? new Date(entryStart.getTime() + werkbesprekingDurationHours * 60 * 60 * 1000)
                     : shouldDeriveFromHours
-                        ? calculateEndDateFromHours(entryStart, totalHours, planningSettings.pauzeMinuten ?? 0)
-                        : new Date(`${startDate}T${endTime || planningSettings.defaultEndTime}`);
+                        ? new Date(`${effectiveEndDate}T${computedEndDateTime.time}`)
+                        : new Date(`${effectiveEndDate}T${endTime || planningSettings.defaultEndTime}`);
                 const hours = selectedPlanningType === 'werkbespreking'
                     ? werkbesprekingDurationHours
                     : shouldDeriveFromHours
                         ? totalHours
                         : Math.max(0, (entryEnd.getTime() - entryStart.getTime()) / (1000 * 60 * 60)) || totalHours;
                 await updateEntry(existingEntry.id, {
+                    ...(selectedQuoteId ? { quoteId: selectedQuoteId } : {}),
                     startDate: entryStart,
                     endDate: entryEnd,
                     scheduledHours: hours,
@@ -584,8 +674,8 @@ export function ScheduleModal({
                 const entryEnd = selectedPlanningType === 'werkbespreking'
                     ? new Date(entryStart.getTime() + werkbesprekingDurationHours * 60 * 60 * 1000)
                     : shouldDeriveFromHours
-                        ? calculateEndDateFromHours(entryStart, totalHours, planningSettings.pauzeMinuten ?? 0)
-                        : new Date(`${startDate}T${endTime || planningSettings.defaultEndTime}`);
+                        ? new Date(`${effectiveEndDate}T${computedEndDateTime.time}`)
+                        : new Date(`${effectiveEndDate}T${endTime || planningSettings.defaultEndTime}`);
                 const hours = selectedPlanningType === 'werkbespreking'
                     ? werkbesprekingDurationHours
                     : shouldDeriveFromHours
@@ -603,7 +693,7 @@ export function ScheduleModal({
                 toast({ title: 'Planning aangemaakt' });
             }
 
-            if (selectedPlanningType === 'werkbespreking') {
+            if (selectedPlanningType === 'werkbespreking' && selectedQuoteId) {
                 const meetingStart = new Date(`${startDate}T${startTime || planningSettings.defaultStartTime}`);
                 await updateDoc(doc(firestore, 'quotes', selectedQuoteId), {
                     status: meetingStart.getTime() <= Date.now() ? 'concept' : 'werkbespreking',
@@ -631,10 +721,10 @@ export function ScheduleModal({
         preselectedQuote,
         existingEntry,
         startDate,
+        endDate,
         startTime,
         planningSettings.defaultStartTime,
         planningSettings.defaultEndTime,
-        planningSettings.pauzeMinuten,
         endTime,
         updateEntry,
         splitEntries,
@@ -644,6 +734,7 @@ export function ScheduleModal({
         routeDestinationAddress,
         quoteMetricsById,
         view,
+        computedEndDateTime,
         onClose,
     ]);
 
@@ -730,29 +821,74 @@ export function ScheduleModal({
                             <Briefcase className="w-4 h-4" />
                             Offerte / Klus
                         </Label>
-                        {isLoadingQuotes ? (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                Laden...
-                            </div>
-                        ) : (
-                            <Select
-                                value={selectedQuoteId}
-                                onValueChange={setSelectedQuoteId}
-                                disabled={!!existingEntry}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecteer een offerte" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {quotes.map(quote => (
-                                        <SelectItem key={quote.id} value={quote.id}>
-                                            {getQuoteLabel(quote)}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
+                        <Popover
+                            open={isQuotePickerOpen}
+                            onOpenChange={(open) => {
+                                setIsQuotePickerOpen(open);
+                                if (open) void loadQuotes();
+                                if (!open) setQuoteSearch('');
+                            }}
+                        >
+                            <PopoverTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full justify-between font-normal"
+                                    disabled={isSaving || (!!existingEntry && Boolean(existingEntry.quoteId))}
+                                >
+                                    <span className="truncate text-left">
+                                        {selectedQuote
+                                            ? getQuoteLabel(selectedQuote)
+                                            : selectedQuoteId && existingEntry?.cache.clientName
+                                                ? existingEntry.cache.clientName
+                                                : 'Selecteer een offerte'}
+                                    </span>
+                                    <Search className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-2" align="start">
+                                <div className="relative">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        autoFocus
+                                        value={quoteSearch}
+                                        onChange={(event) => setQuoteSearch(event.target.value)}
+                                        placeholder="Zoek op klant, offerte of titel..."
+                                        className="h-9 pl-9"
+                                    />
+                                </div>
+                                <div className="mt-2 max-h-64 overflow-y-auto">
+                                    {isLoadingQuotes ? (
+                                        <div className="flex items-center gap-2 px-2 py-3 text-sm text-muted-foreground">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Offertes laden...
+                                        </div>
+                                    ) : filteredQuotes.length === 0 ? (
+                                        <p className="px-2 py-3 text-sm text-muted-foreground">
+                                            Geen offertes gevonden.
+                                        </p>
+                                    ) : (
+                                        filteredQuotes.map((quote) => (
+                                            <button
+                                                key={quote.id}
+                                                type="button"
+                                                role="option"
+                                                aria-selected={selectedQuoteId === quote.id}
+                                                className="flex w-full items-center justify-between rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                                                onClick={() => {
+                                                    setSelectedQuoteId(quote.id);
+                                                    setQuoteSearch('');
+                                                    setIsQuotePickerOpen(false);
+                                                }}
+                                            >
+                                                <span className="truncate">{getQuoteLabel(quote)}</span>
+                                                {selectedQuoteId === quote.id && <Check className="ml-2 h-4 w-4 shrink-0" />}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </PopoverContent>
+                        </Popover>
                         <Button
                             type="button"
                             variant="outline"
@@ -827,9 +963,17 @@ export function ScheduleModal({
                                 </Label>
                                 <Input
                                     type="date"
-                                    value={computedEndDateTime.date}
-                                    readOnly
-                                    disabled
+                                    value={endDate || computedEndDateTime.date}
+                                    min={startDate}
+                                    onChange={(e) => {
+                                        hasManualEndDateRef.current = true;
+                                        setEndDate(e.target.value);
+                                        // A manually chosen end date describes one
+                                        // continuous planning item, so disable the
+                                        // automatic multi-day split.
+                                        if (splitEntries) setUseAutoSplit(false);
+                                    }}
+                                    disabled={isSaving}
                                 />
                             </div>
                         )}
@@ -950,7 +1094,7 @@ export function ScheduleModal({
                     <Button
                         variant="success"
                         onClick={handleSaveClick}
-                        disabled={isSaving || !selectedQuoteId || (selectedPlanningType !== 'werkbespreking' && !totalHours)}
+                        disabled={isSaving || (!existingEntry && !selectedQuoteId) || (selectedPlanningType !== 'werkbespreking' && !totalHours)}
                     >
                         {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         {existingEntry ? 'Bijwerken' : selectedPlanningType === 'werkbespreking' ? 'Werkbespreking inplannen' : 'Klus inplannen'}

@@ -1470,11 +1470,23 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
     const computedOneWayCost = toNumber(transportDistanceKmOneWay, 0) * toNumber(prijsPerKm, 0);
     const storedOneWayCost = Number(transportBerekening?.oneWayTravelCost);
     const hasStoredOneWayCost = Number.isFinite(storedOneWayCost) && storedOneWayCost > 0;
-    const transportOneWayCost = hasStoredOneWayCost ? storedOneWayCost : computedOneWayCost;
+    // The per-kilometre rate is quote-specific. Once a quote has a valid
+    // distance and rate, always recalculate from those values instead of
+    // reusing a previously stored travel amount from an older rate.
+    const hasDistanceAndRate = transportDistanceKmOneWay > 0 && prijsPerKm > 0;
+    const transportOneWayCost = hasDistanceAndRate
+        ? computedOneWayCost
+        : hasStoredOneWayCost
+            ? storedOneWayCost
+            : computedOneWayCost;
     const computedRoundTripCost = transportOneWayCost * 2;
     const storedRoundTripCost = Number(transportBerekening?.roundTripTravelCost);
     const hasStoredRoundTripCost = Number.isFinite(storedRoundTripCost) && storedRoundTripCost > 0;
-    const transportRoundTripCost = hasStoredRoundTripCost ? storedRoundTripCost : computedRoundTripCost;
+    const transportRoundTripCost = hasDistanceAndRate
+        ? computedRoundTripCost
+        : hasStoredRoundTripCost
+            ? storedRoundTripCost
+            : computedRoundTripCost;
     const transportPerDagFromDistance = transportRoundTripCost > 0
         ? transportRoundTripCost
         : toNumber(afstandKm, 0) * toNumber(prijsPerKm, 0);

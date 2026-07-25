@@ -17,6 +17,7 @@ interface CostSummaryCardProps {
     onUpdateMaterialenSubtotal?: (value: number) => void;
     onUpdateExtraKostenTotal?: (value: number) => void;
     onUpdateTransportTotal?: (value: number) => void;
+    onUpdateTransportRatePerKm?: (value: number) => void;
     onUpdateWinstMargePercentage?: (value: number) => void;
     onUpdateWinstMargeAmountExcl?: (value: number) => void;
 }
@@ -39,6 +40,7 @@ export function CostSummaryCard({
     onUpdateMaterialenSubtotal,
     onUpdateExtraKostenTotal,
     onUpdateTransportTotal,
+    onUpdateTransportRatePerKm,
     onUpdateWinstMargePercentage,
     onUpdateWinstMargeAmountExcl,
 }: CostSummaryCardProps) {
@@ -49,6 +51,8 @@ export function CostSummaryCard({
     const [tempHours, setTempHours] = useState<string>('');
     const [isEditingLowVatHours, setIsEditingLowVatHours] = useState(false);
     const [tempLowVatHours, setTempLowVatHours] = useState<string>('');
+    const [isEditingTransportRate, setIsEditingTransportRate] = useState(false);
+    const [tempTransportRate, setTempTransportRate] = useState<string>('');
     const [editingField, setEditingField] = useState<null | 'groot' | 'verbruik' | 'extra' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount'>(null);
     const [tempFieldValue, setTempFieldValue] = useState<string>('');
     const skipNextBlurSaveRef = useRef(false);
@@ -116,6 +120,30 @@ export function CostSummaryCard({
 
     const cancelEditingLowVatHours = () => {
         setIsEditingLowVatHours(false);
+    };
+
+    const startEditingTransportRate = () => {
+        setTempTransportRate(totals?.transportRatePerKm?.toLocaleString('nl-NL', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }) ?? '');
+        setIsEditingTransportRate(true);
+    };
+
+    const saveTransportRate = () => {
+        if (skipNextBlurSaveRef.current) {
+            skipNextBlurSaveRef.current = false;
+            return;
+        }
+        const newRate = parseLocalizedNumber(tempTransportRate);
+        if (!Number.isNaN(newRate) && onUpdateTransportRatePerKm) {
+            onUpdateTransportRatePerKm(Math.max(0, newRate));
+        }
+        setIsEditingTransportRate(false);
+    };
+
+    const cancelEditingTransportRate = () => {
+        setIsEditingTransportRate(false);
     };
 
     const parseLocalizedNumber = (value: string): number => {
@@ -495,7 +523,31 @@ export function CostSummaryCard({
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">
                             <span className="block">
-                                Transport ({totals.transportRatePerKm.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} x {totals.transportDistanceKmOneWay.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}km = {formatCurrency(totals.transportOneWayCost)} x 2 = {formatCurrency(totals.transportRoundTripCost)} x {totals.transportAantalDagen} dagen)
+                                Transport (
+                                {isEditingTransportRate ? (
+                                    <Input
+                                        autoFocus
+                                        type="text"
+                                        value={tempTransportRate}
+                                        onChange={(e) => setTempTransportRate(e.target.value)}
+                                        onBlur={saveTransportRate}
+                                        onFocus={selectAllOnFocus}
+                                        className="mx-1 inline-flex h-6 w-16 px-1 py-0 text-sm bg-muted border-border text-right"
+                                        onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingTransportRate)}
+                                        aria-label="Prijs per kilometer voor deze offerte"
+                                    />
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="mx-1 inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                                        onClick={startEditingTransportRate}
+                                        aria-label="Prijs per kilometer voor deze offerte bewerken"
+                                    >
+                                        {totals.transportRatePerKm.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        <Pencil size={11} className="text-muted-foreground" />
+                                    </button>
+                                )}
+                                x {totals.transportDistanceKmOneWay.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}km = {formatCurrency(totals.transportOneWayCost)} x 2 = {formatCurrency(totals.transportRoundTripCost)} x {totals.transportAantalDagen} dagen)
                             </span>
                         </span>
                         {renderAmountColumns(

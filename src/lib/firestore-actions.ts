@@ -145,6 +145,56 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
         console.error("Error fetching user settings for new quote defaults:", e);
     }
 
+    const rawSettings = settings as any;
+    const rawTransport = rawSettings.standaardTransport ?? {};
+    const standardTransport = {
+        mode: rawTransport.mode === 'none' || rawTransport.mode === 'perKm' || rawTransport.mode === 'fixed'
+            ? rawTransport.mode
+            : rawTransport.vasteTransportkosten != null
+                ? 'fixed'
+                : 'perKm',
+        ...(rawTransport.prijsPerKm != null ? { prijsPerKm: Number(rawTransport.prijsPerKm) } : {}),
+        ...(rawTransport.vasteTransportkosten != null ? { vasteTransportkosten: Number(rawTransport.vasteTransportkosten) } : {}),
+    };
+    const rawMargin = rawSettings.standaardWinstMarge ?? {};
+    const standardMargin = {
+        mode: rawMargin.mode === 'none' || rawMargin.mode === 'fixed' || rawMargin.mode === 'percentage'
+            ? rawMargin.mode
+            : rawMargin.fixedAmount != null
+                ? 'fixed'
+                : 'percentage',
+        ...(rawMargin.percentage != null ? { percentage: Number(rawMargin.percentage) } : {}),
+        ...(rawMargin.fixedAmount != null ? { fixedAmount: Number(rawMargin.fixedAmount) } : {}),
+        ...(rawMargin.basis ? { basis: rawMargin.basis } : {}),
+    };
+
+    const selectedPackageItems = (
+        packages: unknown,
+        selectedId: unknown,
+    ): Array<Record<string, unknown>> => {
+        if (!Array.isArray(packages)) return [];
+        const selected = packages.find((pkg: any) => pkg?.id === selectedId);
+        if (!Array.isArray(selected?.items)) return [];
+        return selected.items
+            .map((item: any) => ({
+                id: String(item?.id ?? ''),
+                naam: String(item?.naam ?? '').trim(),
+                prijs: Number(item?.prijs),
+                per: item?.per || 'klus',
+                isVast: Boolean(item?.isVast),
+            }))
+            .filter((item: Record<string, unknown>) => item.naam && Number.isFinite(item.prijs) && Number(item.prijs) > 0);
+    };
+
+    const standardBouwplaatsItems = selectedPackageItems(
+        rawSettings.bouwplaatsKostenPakketten,
+        rawSettings.bouwplaatsKostenStandaardId,
+    );
+    const standardVerzendItems = selectedPackageItems(
+        rawSettings.verzendKostenPakketten,
+        rawSettings.verzendKostenStandaardId,
+    );
+
     const docRef = await addDoc(collection(firestore, 'quotes'), {
         userId,
         status: 'werkbespreking',
@@ -161,14 +211,10 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
             uurTariefExclBtw: settings.standaardUurtarief ?? DEFAULT_STANDARD_HOURLY_RATE,
         },
         extras: {
-            transport: settings.standaardTransport ?? {
-                mode: 'fixed',
-                vasteTransportkosten: 45.00
-            },
-            winstMarge: settings.standaardWinstMarge ?? {
-                mode: 'percentage',
-                percentage: 10
-            },
+            transport: standardTransport,
+            winstMarge: standardMargin,
+            ...(standardBouwplaatsItems.length > 0 ? { materieel: standardBouwplaatsItems } : {}),
+            ...(standardVerzendItems.length > 0 ? { verzendkosten: standardVerzendItems } : {}),
         },
         ...(defaultPdfTeksten ? { pdfTeksten: defaultPdfTeksten } : {}),
         ...(defaultAlgemeneVoorwaarden ? { algemeneVoorwaarden: defaultAlgemeneVoorwaarden } : {})

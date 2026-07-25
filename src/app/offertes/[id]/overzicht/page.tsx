@@ -54,6 +54,7 @@ import {
 } from '@/components/ui/tooltip';
 
 import type { Quote, Job } from '@/lib/types';
+import { normalizeDataJson } from '@/lib/quote-calculations';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
@@ -492,6 +493,83 @@ function getStandaardUurTarief(instellingen?: GebruikerInstellingen | null): num
     ?? instellingen.standaardUurTarief
     ?? null;
   return typeof normalized === 'number' && Number.isFinite(normalized) ? normalized : null;
+}
+
+function getQuoteSnapshotRoots(data: any): any[] {
+  const candidates = [
+    data,
+    data?.calculationSnapshot,
+    data?.data_json,
+    data?.calculation?.data_json,
+  ];
+
+  return candidates
+    .filter((candidate) => candidate && typeof candidate === 'object')
+    .map((candidate) => {
+      try {
+        return normalizeDataJson(candidate);
+      } catch {
+        return candidate;
+      }
+    })
+    .filter(Boolean);
+}
+
+function getStoredQuoteSetting(data: any, key: 'transport' | 'winstMarge' | 'materieel' | 'verzendkosten'): any {
+  for (const root of getQuoteSnapshotRoots(data)) {
+    const direct = root?.extras?.[key];
+    if (direct !== undefined && direct !== null) return direct;
+
+    const nested = root?.instellingen?.extras?.[key];
+    if (nested !== undefined && nested !== null) return nested;
+
+    const instellingen = root?.instellingen ?? {};
+    if (key === 'transport' && (
+      instellingen.reiskosten_prijs_per_km != null
+      || instellingen.transportPrijsPerKm != null
+      || instellingen.reiskosten_type != null
+    )) {
+      return {
+        mode: instellingen.reiskosten_type === 'vast' ? 'fixed' : 'perKm',
+        ...(instellingen.reiskosten_prijs_per_km != null
+          ? { prijsPerKm: instellingen.reiskosten_prijs_per_km }
+          : {}),
+        ...(instellingen.transportPrijsPerKm != null
+          ? { prijsPerKm: instellingen.transportPrijsPerKm }
+          : {}),
+      };
+    }
+
+    if (key === 'winstMarge' && instellingen.winstmarge_percentage != null) {
+      return {
+        mode: 'percentage',
+        percentage: instellingen.winstmarge_percentage,
+        basis: 'totaal',
+      };
+    }
+  }
+
+  return null;
+}
+
+function getStoredQuoteHourlyRate(data: any): number | null {
+  for (const root of getQuoteSnapshotRoots(data)) {
+    const candidates = [
+      root?.instellingen?.uurTariefExclBtw,
+      root?.instellingen?.uurTarief,
+      root?.uurTariefExclBtw,
+      root?.uurTarief,
+    ];
+
+    for (const candidate of candidates) {
+      const value = typeof candidate === 'number'
+        ? candidate
+        : euroNLToNumberOrNull(candidate);
+      if (value !== null && value > 0) return value;
+    }
+  }
+
+  return null;
 }
 
 /* ---------------------------------------------
@@ -996,35 +1074,22 @@ export default function OverzichtPage() {
         setStandaardVerzendPakketId(stdVerzendPackId || '');
         setGeselecteerdVerzendPakketId(stdVerzendPackId || '');
 
-        // Quote extras
-        const extras: any = (data as any)?.extras ?? null;
-
         // UI defaults
         setTransportMode('perKm');
         setPrijsPerKm('');
         setVasteTransportkosten('');
         setTunnelkosten('');
-        const snapshotInst = ((data as any)?.calculationSnapshot?.instellingen
-          || (data as any)?.data_json?.instellingen
-          || {}) as any;
-        const quoteInstForRate = (data.instellingen || {}) as any;
-        const rawUurTarief = quoteInstForRate?.uurTariefExclBtw
-          ?? quoteInstForRate?.uurTarief
-          ?? snapshotInst?.uurTariefExclBtw
-          ?? snapshotInst?.uurTarief;
-        const parsedRawUurTarief = typeof rawUurTarief === 'number'
-          ? rawUurTarief
-          : euroNLToNumberOrNull(rawUurTarief);
-        const savedUurTarief = typeof parsedRawUurTarief === 'number' && Number.isFinite(parsedRawUurTarief)
-          ? parsedRawUurTarief
-          : null;
+        const savedUurTarief = getStoredQuoteHourlyRate(data);
         const rawSource = (data.instellingen as any)?.uurTariefSource;
         const savedSource: UurTariefSource | null =
           rawSource === 'custom' || rawSource === 'default'
             ? rawSource
             : null;
         const effectiveSource: UurTariefSource = savedSource ?? 'default';
-        const effectiveUurTarief = savedUurTarief ?? standaardUurTariefWaarde ?? 50;
+        // A user-level standard is only for newly created quotes. Older quotes
+        // must stay on their own snapshot, with a stable legacy fallback when
+        // no historical rate was stored at all.
+        const effectiveUurTarief = savedUurTarief ?? 50;
 
         setUurTariefSource(effectiveSource);
         setUurTarief(numberToEuroInputString(effectiveUurTarief));
@@ -1034,23 +1099,24 @@ export default function OverzichtPage() {
         setVerzendkosten([]);
         setWinstMarge({ mode: 'percentage', percentage: 10, fixedAmount: null, basis: 'totaal' });
 
-        const quoteInstExtras = ((data as any)?.instellingen?.extras ?? {}) as any;
-        const quoteTransport = extras?.transport ?? quoteInstExtras?.transport ?? null;
-        const quoteWinstMarge = extras?.winstMarge ?? quoteInstExtras?.winstMarge ?? null;
+        const quoteTransport = getStoredQuoteSetting(data, 'transport');
+        const quoteWinstMarge = getStoredQuoteSetting(data, 'winstMarge');
+        const quoteBouwplaats = getStoredQuoteSetting(data, 'materieel');
+        const quoteVerzendkosten = getStoredQuoteSetting(data, 'verzendkosten');
         const heeftTransportInQuote = !!quoteTransport;
         const heeftWinstInQuote = !!quoteWinstMarge;
-        const heeftBouwplaatsInQuote = Array.isArray(extras?.materieel) && extras.materieel.length > 0;
-        const heeftVerzendInQuote = Array.isArray(extras?.verzendkosten) && extras.verzendkosten.length > 0;
+        const heeftBouwplaatsInQuote = Array.isArray(quoteBouwplaats);
+        const heeftVerzendInQuote = Array.isArray(quoteVerzendkosten);
 
-        // Transport: quote extras, anders user standaard
+        // Transport: alleen de offerte-snapshot; gebruikersstandaard nooit als fallback.
         const applyTransport = (t: any) => {
-          const mode = (t?.mode as TransportMode) ?? 'perKm';
+          const mode = String(t?.mode ?? 'perKm');
           setTunnelkosten(numberToEuroInputString(t?.tunnelkosten ?? null));
           if (mode === 'perKm') {
             setTransportMode('perKm');
             setPrijsPerKm(numberToEuroInputString(t?.prijsPerKm ?? null));
             setVasteTransportkosten('');
-          } else if (mode === 'fixed') {
+          } else if (mode === 'fixed' || mode === 'vast') {
             setTransportMode('fixed');
             setVasteTransportkosten(numberToEuroInputString(t?.vasteTransportkosten ?? null));
             setPrijsPerKm('');
@@ -1063,9 +1129,9 @@ export default function OverzichtPage() {
         };
 
         if (heeftTransportInQuote) applyTransport(quoteTransport);
-        else if (instellingen.standaardTransport) applyTransport(instellingen.standaardTransport);
+        else setTransportMode('none');
 
-        // Winstmarge: quote extras, anders user standaard
+        // Winstmarge: alleen de offerte-snapshot; gebruikersstandaard nooit als fallback.
         const applyWinst = (w: any) => {
           const mode = (w?.mode as WinstMargeMode) ?? 'percentage';
           const basis = (w?.basis as any) || 'totaal';
@@ -1082,23 +1148,20 @@ export default function OverzichtPage() {
         };
 
         if (heeftWinstInQuote) applyWinst(quoteWinstMarge);
-        else if (instellingen.standaardWinstMarge) applyWinst(instellingen.standaardWinstMarge);
+        else setWinstMarge({ mode: 'none', percentage: null, fixedAmount: null, basis: 'totaal' });
 
-        // Bouwplaatskosten: quote extras, anders standaard pakket
+        // Bouwplaatskosten: alleen de offerte-snapshot; geen huidig standaardpakket.
         if (heeftBouwplaatsInQuote) {
-          setBouwplaatskosten(mapOpslagenKostenNaarItems(extras.materieel, defaultBouwplaatskosten));
+          setBouwplaatskosten(mapOpslagenKostenNaarItems(quoteBouwplaats, defaultBouwplaatskosten));
         } else {
-          const gekozen = packs.find((p) => p.id === stdPackId) ?? null;
-          // If no packet selected, load defaults
-          setBouwplaatskosten(pakketNaarItems(gekozen, defaultBouwplaatskosten));
+          setBouwplaatskosten([]);
         }
 
-        // Verzendkosten: quote extras, anders standaard pakket
+        // Verzendkosten: alleen de offerte-snapshot; geen huidig standaardpakket.
         if (heeftVerzendInQuote) {
-          setVerzendkosten(normalizeVerzendkostenItems(mapOpslagenKostenNaarItems(extras.verzendkosten, defaultVerzendkosten)));
+          setVerzendkosten(normalizeVerzendkostenItems(mapOpslagenKostenNaarItems(quoteVerzendkosten, defaultVerzendkosten)));
         } else {
-          const gekozen = verzendPacks.find((p) => p.id === stdVerzendPackId) ?? null;
-          setVerzendkosten(normalizeVerzendkostenItems(pakketNaarItems(gekozen, defaultVerzendkosten)));
+          setVerzendkosten([]);
         }
 
         isHydratingRef.current = false;

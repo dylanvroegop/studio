@@ -65,10 +65,13 @@ export async function POST(request: Request) {
       if (entrySnap.exists && entrySnap.data()?.userId !== decoded.uid) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
+      if (!entrySnap.exists) {
+        return NextResponse.json({ ok: true, action: 'delete', alreadyDeleted: true });
+      }
 
       // Google Calendar is the external source of truth for synced planning.
       // Deleting a Calvora planning row must never delete the Google event.
-      await entryRef.set({ googleCalendarEventId: null, updatedAt: new Date() }, { merge: true });
+      await entryRef.update({ googleCalendarEventId: null, updatedAt: new Date() });
       return NextResponse.json({ ok: true, action: 'delete' });
     }
 

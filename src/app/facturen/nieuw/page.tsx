@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -143,6 +143,8 @@ function NieuweFactuurPageContent() {
   const [existingVoorschotId, setExistingVoorschotId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [voorschotBedragStr, setVoorschotBedragStr] = useState<string>('');
+  const [voorschotAftrekStr, setVoorschotAftrekStr] = useState<string>('');
+  const isEditingVoorschotAftrekRef = useRef(false);
   const [handmatigEindbedrag, setHandmatigEindbedrag] = useState(false);
   const [handmatigEindbedragStr, setHandmatigEindbedragStr] = useState<string>('');
   const [eindfactuurOpmerking, setEindfactuurOpmerking] = useState<string>('');
@@ -254,15 +256,19 @@ function NieuweFactuurPageContent() {
   const voorschotBedrag = useMemo(() => roundCurrency(totalIncl * (pct / 100)), [totalIncl, pct]);
 
   useEffect(() => {
-    if (totalIncl > 0) {
+    if (totalIncl > 0 && !isEditingVoorschotAftrekRef.current) {
       const bedrag = roundCurrency(totalIncl * (pct / 100));
       setVoorschotBedragStr(bedrag.toFixed(2));
+      setVoorschotAftrekStr(bedrag.toFixed(2));
     }
-  }, [totalIncl]); // only sync on initial load
+  }, [totalIncl, pct]);
   const hasVoorschotFactuur = !!existingVoorschotId;
+  const voorschotAftrekParsed = useMemo(() => parseCurrencyInput(voorschotAftrekStr), [voorschotAftrekStr]);
   const berekendeAftrek = useMemo(
-    () => (hasVoorschotFactuur && voorschotIngeschakeld ? voorschotBedrag : 0),
-    [hasVoorschotFactuur, voorschotIngeschakeld, voorschotBedrag]
+    () => (hasVoorschotFactuur && voorschotIngeschakeld && voorschotAftrekParsed !== null
+      ? roundCurrency(Math.min(totalIncl, Math.max(0, voorschotAftrekParsed)))
+      : 0),
+    [hasVoorschotFactuur, voorschotIngeschakeld, voorschotAftrekParsed, totalIncl]
   );
   const berekendEindBedrag = useMemo(() => roundCurrency(Math.max(0, totalIncl - berekendeAftrek)), [totalIncl, berekendeAftrek]);
   const handmatigEindbedragParsed = useMemo(() => parseCurrencyInput(handmatigEindbedragStr), [handmatigEindbedragStr]);
@@ -338,7 +344,7 @@ function NieuweFactuurPageContent() {
         calculationSnapshot: quote.calculationSnapshot,
         originalTotalInclBtw: totalIncl,
         totalsInclBtw: effectiefEindBedrag,
-        voorschotAftrekInclBtw: existingId && voorschotIngeschakeld ? voorschotBedrag : 0,
+        voorschotAftrekInclBtw: existingId && voorschotIngeschakeld ? berekendeAftrek : 0,
         voorschotFactuurSnapshot: voorschotSnapshot,
         handmatigEindbedrag,
         opmerking: eindfactuurOpmerking.trim()
@@ -453,9 +459,11 @@ function NieuweFactuurPageContent() {
                               value={voorschotPercentage}
                               onChange={(e) => {
                                 const newPct = Number(e.target.value);
+                                isEditingVoorschotAftrekRef.current = false;
                                 setVoorschotPercentage(newPct);
                                 const newBedrag = roundCurrency(totalIncl * (clampPct(newPct) / 100));
                                 setVoorschotBedragStr(newBedrag.toFixed(2));
+                                setVoorschotAftrekStr(newBedrag.toFixed(2));
                               }}
                               className="pr-10"
                             />
@@ -548,9 +556,11 @@ function NieuweFactuurPageContent() {
                               value={voorschotPercentage}
                               onChange={(e) => {
                                 const newPct = Number(e.target.value);
+                                isEditingVoorschotAftrekRef.current = false;
                                 setVoorschotPercentage(newPct);
                                 const newBedrag = roundCurrency(totalIncl * (clampPct(newPct) / 100));
                                 setVoorschotBedragStr(newBedrag.toFixed(2));
+                                setVoorschotAftrekStr(newBedrag.toFixed(2));
                               }}
                               disabled={!voorschotIngeschakeld}
                               className="pr-10"
@@ -560,9 +570,32 @@ function NieuweFactuurPageContent() {
                         </div>
                         <div className="space-y-2">
                           <Label>Voorschot in mindering (incl. BTW)</Label>
-                          <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
-                            <span className="text-sm text-muted-foreground">Aftrek</span>
-                            <span className="text-sm font-semibold">{formatCurrency(berekendeAftrek)}</span>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={totalIncl}
+                              step="0.01"
+                              value={voorschotAftrekStr}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                isEditingVoorschotAftrekRef.current = true;
+                                setVoorschotAftrekStr(value);
+                                const parsed = parseCurrencyInput(value);
+                                if (parsed !== null) {
+                                  setVoorschotPercentage(clampPct(Math.round((parsed / totalIncl) * 100 * 100) / 100));
+                                }
+                              }}
+                              onBlur={() => {
+                                if (voorschotAftrekParsed !== null) {
+                                  setVoorschotAftrekStr(Math.min(totalIncl, Math.max(0, voorschotAftrekParsed)).toFixed(2));
+                                }
+                                isEditingVoorschotAftrekRef.current = false;
+                              }}
+                              disabled={!voorschotIngeschakeld}
+                              className="pr-8"
+                            />
+                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">€</span>
                           </div>
                         </div>
                       </div>
@@ -617,9 +650,28 @@ function NieuweFactuurPageContent() {
                         />
                       </div>
 
-                      <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Te betalen eindfactuur</span>
-                        <span className="text-sm font-semibold">{formatCurrency(effectiefEindBedrag)}</span>
+                      <div className="space-y-2">
+                        <Label>Te betalen eindfactuur (incl. BTW)</Label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={totalIncl}
+                            step="0.01"
+                            value={handmatigEindbedragStr}
+                            onChange={(e) => {
+                              setHandmatigEindbedrag(true);
+                              setHandmatigEindbedragStr(e.target.value);
+                            }}
+                            onBlur={() => {
+                              if (handmatigEindbedragParsed !== null) {
+                                setHandmatigEindbedragStr(Math.min(totalIncl, Math.max(0, handmatigEindbedragParsed)).toFixed(2));
+                              }
+                            }}
+                            className="pr-8"
+                          />
+                          <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">€</span>
+                        </div>
                       </div>
                       {handmatigEindbedrag && effectiefAftrek > 0 ? (
                         <div className="text-xs text-muted-foreground">

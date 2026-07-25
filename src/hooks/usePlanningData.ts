@@ -247,6 +247,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
     const updateEntry = useCallback(async (
         entryId: string,
         data: Partial<{
+            quoteId: string;
             startDate: Date;
             endDate: Date;
             scheduledHours: number;
@@ -271,6 +272,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             updatedAt: serverTimestamp()
         };
 
+        if (data.quoteId !== undefined) updateData.quoteId = data.quoteId;
         if (data.startDate !== undefined) updateData.startDate = Timestamp.fromDate(data.startDate);
         if (data.endDate !== undefined) updateData.endDate = Timestamp.fromDate(data.endDate);
         if (data.scheduledHours !== undefined) updateData.scheduledHours = data.scheduledHours;
@@ -280,14 +282,14 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         if (data.cache !== undefined) updateData.cache = data.cache;
 
         await updateDoc(docRef, updateData);
-        if (data.startDate !== undefined || data.endDate !== undefined || data.cache !== undefined || data.planningType !== undefined || data.notes !== undefined) {
+        if (data.quoteId !== undefined || data.startDate !== undefined || data.endDate !== undefined || data.cache !== undefined || data.planningType !== undefined || data.notes !== undefined) {
             const currentEntry = entries.find((entry) => entry.id === entryId);
             if (currentEntry?.source === 'google') return;
             const effectiveStartDate = data.startDate
                 || (currentEntry?.startDate instanceof Timestamp ? currentEntry.startDate.toDate() : undefined);
             const effectiveEndDate = data.endDate
                 || (currentEntry?.endDate instanceof Timestamp ? currentEntry.endDate.toDate() : undefined);
-            const effectiveQuoteId = currentEntry?.quoteId;
+            const effectiveQuoteId = data.quoteId || currentEntry?.quoteId;
             const effectiveCache = data.cache || currentEntry?.cache;
             const effectiveType = data.planningType || currentEntry?.planningType;
             const effectiveNotes = data.notes ?? currentEntry?.notes;
@@ -314,14 +316,20 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         if (!user || !firestore) throw new Error('Not authenticated');
 
         const currentEntry = entries.find((entry) => entry.id === entryId) as (PlanningEntry & { googleCalendarEventId?: string | null }) | undefined;
-        await syncEntryToGoogleCalendar({
+        // Removing the local planning row is the user-facing action. Do not
+        // block it on the Google Calendar bookkeeping request; a slow or
+        // unavailable Calendar API should not leave the delete dialog spinning.
+        const syncPromise = syncEntryToGoogleCalendar({
             action: 'delete',
             entryId,
             googleCalendarEventId: currentEntry?.googleCalendarEventId || null,
+        }).catch((error) => {
+            console.error('Google Calendar cleanup after planning delete failed:', error);
         });
 
         const docRef = doc(firestore, 'planning_entries', entryId);
         await deleteDoc(docRef);
+        void syncPromise;
     }, [user, firestore, entries, syncEntryToGoogleCalendar]);
 
     const deleteEntriesForQuote = useCallback(async (quoteId: string) => {

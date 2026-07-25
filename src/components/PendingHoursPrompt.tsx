@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react';
 
 import { useUser } from '@/firebase';
 import type { PendingHourPrompt } from '@/lib/time-entries';
+import { ENABLE_PENDING_HOURS_PROMPT } from '@/lib/pending-hours-feature';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -175,7 +176,7 @@ export function PendingHoursPrompt() {
   }, [toast, user]);
 
   useEffect(() => {
-    if (isUserLoading || !user || dismissedForSession) return;
+    if (!ENABLE_PENDING_HOURS_PROMPT || isUserLoading || !user || dismissedForSession) return;
     if (!pathname || pathname.startsWith('/login')) return;
     if (!canAutoOpenForPath(pathname)) return;
     void loadPending();
@@ -183,7 +184,7 @@ export function PendingHoursPrompt() {
 
   useEffect(() => {
     const onManualOpen = () => {
-      if (!user || isUserLoading) return;
+      if (!ENABLE_PENDING_HOURS_PROMPT || !user || isUserLoading) return;
       setDismissedForSession(false);
       setManualOpen(true);
       resolvedPromptKeysRef.current.clear();
@@ -396,7 +397,7 @@ export function PendingHoursPrompt() {
     }
   };
 
-  if (!user || isUserLoading || (!manualOpen && dismissedForSession) || !pathname || pathname.startsWith('/login')) {
+  if (!ENABLE_PENDING_HOURS_PROMPT || !user || isUserLoading || (!manualOpen && dismissedForSession) || !pathname || pathname.startsWith('/login')) {
     return null;
   }
 
