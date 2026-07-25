@@ -18,6 +18,7 @@ import {
 import {
   Archive,
   BarChart3,
+  CalendarDays,
   FileText,
   Loader2,
   MoreHorizontal,
@@ -60,7 +61,7 @@ import { buildGoogleMapsDirectionsUrl, resolveQuoteProjectAddress } from '@/lib/
 import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-type FilterMode = 'alle' | 'concept' | 'in_afwachting' | 'verzonden' | 'geaccepteerd' | 'werkbespreking' | 'archief';
+type FilterMode = 'alle' | 'concept' | 'vandaag' | 'in_afwachting' | 'verzonden' | 'geaccepteerd' | 'werkbespreking' | 'archief';
 const OFFERTES_FILTER_STORAGE_KEY = 'offertes:last-filter';
 type DefaultFilterMode = 'concept' | 'geaccepteerd';
 const OFFERTES_DEFAULT_FILTER_STORAGE_KEY = 'offertes:default-filter';
@@ -131,6 +132,7 @@ function isFilterMode(value: unknown): value is FilterMode {
   return (
     value === 'alle' ||
     value === 'concept' ||
+    value === 'vandaag' ||
     value === 'in_afwachting' ||
     value === 'verzonden' ||
     value === 'geaccepteerd' ||
@@ -316,6 +318,25 @@ function formatPlanningDateRange(entry: PlanningListEntry): string {
     ? `${entry.scheduledHours.toLocaleString('nl-NL')}u`
     : '';
   return [dateLabel, hours].filter(Boolean).join(' · ');
+}
+
+function isPlanningEntryOnDate(entry: PlanningListEntry, date: Date): boolean {
+  if (entry.status === 'cancelled' || !entry.startDate) return false;
+
+  const dayStart = new Date(date);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(date);
+  dayEnd.setHours(23, 59, 59, 999);
+
+  const start = entry.startDate.getTime();
+  const end = (entry.endDate || entry.startDate).getTime();
+  return start <= dayEnd.getTime() && end >= dayStart.getTime();
+}
+
+function getFirstPlanningEntryOnDate(entries: PlanningListEntry[] | undefined, date: Date): PlanningListEntry | null {
+  return entries
+    ?.filter((entry) => isPlanningEntryOnDate(entry, date))
+    .sort((a, b) => (a.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER))[0] ?? null;
 }
 
 function getPlanningSummary(entries: PlanningListEntry[] | undefined): string | null {
@@ -1165,8 +1186,23 @@ export default function OffertesPage() {
     });
   }, [quotes, selectedYear]);
 
+  const todaysQuotes = useMemo(() => {
+    const today = new Date();
+    return quotes
+      .filter((quote) => {
+        if (quote.archived) return false;
+        return getFirstPlanningEntryOnDate(planningEntriesByQuoteId[quote.id], today) !== null;
+      })
+      .sort((a, b) => {
+        const aEntry = getFirstPlanningEntryOnDate(planningEntriesByQuoteId[a.id], today);
+        const bEntry = getFirstPlanningEntryOnDate(planningEntriesByQuoteId[b.id], today);
+        return (aEntry?.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (bEntry?.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER);
+      });
+  }, [planningEntriesByQuoteId, quotes]);
+
   const filterCountsByMode = useMemo(() => {
     const countFor = (mode: FilterMode): number => {
+      if (mode === 'vandaag') return todaysQuotes.length;
       if (mode === 'archief') {
         return quotesForSelectedYear.filter((q) => !!q.archived).length;
       }
@@ -1194,19 +1230,22 @@ export default function OffertesPage() {
     return {
       alle: countFor('alle'),
       concept: countFor('concept'),
+      vandaag: countFor('vandaag'),
       in_afwachting: countFor('in_afwachting'),
       verzonden: countFor('verzonden'),
       geaccepteerd: countFor('geaccepteerd'),
       werkbespreking: countFor('werkbespreking'),
       archief: countFor('archief'),
     } as Record<FilterMode, number>;
-  }, [quotesForSelectedYear, acceptedQuoteIdsFromInvoices]);
+  }, [quotesForSelectedYear, acceptedQuoteIdsFromInvoices, todaysQuotes]);
 
   const filteredQuotes = useMemo(() => {
     const s = search.trim().toLowerCase();
-    let result = [...quotesForSelectedYear];
+    let result = filter === 'vandaag' ? [...todaysQuotes] : [...quotesForSelectedYear];
 
-    if (filter === 'archief') {
+    if (filter === 'vandaag') {
+      // Vandaag is gebaseerd op planning_entries en staat los van het gekozen offertejaar.
+    } else if (filter === 'archief') {
       result = result.filter((q) => !!q.archived);
     } else {
       result = result.filter((q) => !q.archived);
@@ -1225,7 +1264,7 @@ export default function OffertesPage() {
       const detail = (getQuoteDetailSummary(q, planningEntriesByQuoteId[q.id]) || '').toLowerCase();
       return klant.includes(s) || nr.includes(s) || titel.includes(s) || detail.includes(s);
     });
-  }, [filter, quotesForSelectedYear, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId, planningEntriesByQuoteId]);
+  }, [filter, quotesForSelectedYear, todaysQuotes, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId, planningEntriesByQuoteId]);
 
   const filteredClients = useMemo(() => {
     const s = clientSearch.trim().toLowerCase();
@@ -1449,6 +1488,7 @@ export default function OffertesPage() {
     { value: 'alle', label: 'Alle', count: filterCountsByMode.alle },
     { value: 'geaccepteerd', label: 'Geaccepteerd', count: filterCountsByMode.geaccepteerd },
     { value: 'concept', label: 'Concept', count: filterCountsByMode.concept },
+    { value: 'vandaag', label: 'Vandaag', count: filterCountsByMode.vandaag },
     { value: 'in_afwachting', label: 'Afwachten', count: filterCountsByMode.in_afwachting },
     { value: 'verzonden', label: 'Verzonden', count: filterCountsByMode.verzonden },
     { value: 'werkbespreking', label: 'Werkbespreking', count: filterCountsByMode.werkbespreking },
@@ -1457,6 +1497,7 @@ export default function OffertesPage() {
   const mobileFilterOptions: Array<{ value: FilterMode; label: string; count: number }> = [
     { value: 'werkbespreking', label: 'Werkbespreking', count: filterCountsByMode.werkbespreking },
     { value: 'concept', label: 'Concept', count: filterCountsByMode.concept },
+    { value: 'vandaag', label: 'Vandaag', count: filterCountsByMode.vandaag },
     { value: 'geaccepteerd', label: 'Geaccepteerd', count: filterCountsByMode.geaccepteerd },
     { value: 'alle', label: 'Alle', count: filterCountsByMode.alle },
     { value: 'in_afwachting', label: 'Afwachten', count: filterCountsByMode.in_afwachting },
@@ -1546,6 +1587,7 @@ export default function OffertesPage() {
                         : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
                     )}
                   >
+                    {option.value === 'vandaag' ? <CalendarDays className="mr-1 h-3.5 w-3.5" /> : null}
                     <span>{option.label}</span>
                     <span className={cn(
                       'ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold',
@@ -1707,6 +1749,7 @@ export default function OffertesPage() {
                         : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
                     )}
                   >
+                    {option.value === 'vandaag' ? <CalendarDays className="mr-1 h-3.5 w-3.5" /> : null}
                     <span>{option.label}</span>
                     <span className={cn(
                       'ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold',
@@ -1729,11 +1772,21 @@ export default function OffertesPage() {
           ) : filteredQuotes.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center space-y-3">
-                <div className="font-semibold">{filter === 'archief' ? 'Geen gearchiveerde offertes gevonden' : 'Geen offertes gevonden'}</div>
-                <div className="text-sm text-muted-foreground">
-                  {filter === 'archief' ? 'Archiveer een offerte om die hier te zien.' : 'Maak een nieuwe lege offerte om te starten.'}
+                <div className="font-semibold">
+                  {filter === 'archief'
+                    ? 'Geen gearchiveerde offertes gevonden'
+                    : filter === 'vandaag'
+                      ? 'Geen afspraken voor vandaag'
+                      : 'Geen offertes gevonden'}
                 </div>
-                {filter !== 'archief' && (
+                <div className="text-sm text-muted-foreground">
+                  {filter === 'archief'
+                    ? 'Archiveer een offerte om die hier te zien.'
+                    : filter === 'vandaag'
+                      ? 'Plan een klus of werkbespreking in om die hier automatisch te zien.'
+                      : 'Maak een nieuwe lege offerte om te starten.'}
+                </div>
+                {filter !== 'archief' && filter !== 'vandaag' && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1752,7 +1805,10 @@ export default function OffertesPage() {
                 const totaal = quoteTotalsById[q.id] ?? getStoredQuoteTotal(q);
                 const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
                 const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
-                const datum = getQuoteDisplayDate(q, planningEntriesByQuoteId[q.id]);
+                const todayEntry = filter === 'vandaag'
+                  ? getFirstPlanningEntryOnDate(planningEntriesByQuoteId[q.id], new Date())
+                  : null;
+                const datum = todayEntry?.startDate ?? getQuoteDisplayDate(q, planningEntriesByQuoteId[q.id]);
                 const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
                 const klant = getKlantNaam(q);
                 const hoofdTitel = getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || null;
@@ -1949,7 +2005,10 @@ export default function OffertesPage() {
                 const totaal = quoteTotalsById[q.id] ?? getStoredQuoteTotal(q);
                 const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
                 const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
-                const datum = getQuoteDisplayDate(q, planningEntriesByQuoteId[q.id]);
+                const todayEntry = filter === 'vandaag'
+                  ? getFirstPlanningEntryOnDate(planningEntriesByQuoteId[q.id], new Date())
+                  : null;
+                const datum = todayEntry?.startDate ?? getQuoteDisplayDate(q, planningEntriesByQuoteId[q.id]);
                 const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
                 const klant = getKlantNaam(q);
                 const hoofdTitel = getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || null;

@@ -317,6 +317,18 @@ function normalizeLineItem(item: ProjectCostLineItem): ProjectCostLineItem {
   };
 }
 
+function hasLineItemContent(item: ProjectCostLineItem): boolean {
+  const normalized = normalizeLineItem(item);
+  return Boolean(
+    normalized.description
+    || normalized.quantity !== 1
+    || normalized.unit !== 'st'
+    || normalized.unit_price !== 0
+    || normalized.total_price !== 0
+    || normalized.total_incl_btw !== undefined
+  );
+}
+
 function euroToCents(value: number): number {
   return Math.round(roundEuro(value) * 100);
 }
@@ -475,9 +487,7 @@ function KostenPageContent() {
   const skipNextPendingDismissRef = useRef(false);
 
   const [form, setForm] = useState<KostenFormState>(createDefaultFormState());
-  const [lineItems, setLineItems] = useState<ProjectCostLineItem[]>([
-    createEmptyLineItem(),
-  ]);
+  const [lineItems, setLineItems] = useState<ProjectCostLineItem[]>([]);
   const initialOfferteIdFromUrl = safeString(searchParams?.get('offerteId'));
   const initialPendingImportId = safeString(searchParams?.get('pendingId'));
   const shouldOpenCreateFromUrl = safeString(searchParams?.get('open')) === '1';
@@ -653,14 +663,16 @@ function KostenPageContent() {
           ? safeString(pending.offerte_id)
           : parseOfferteReferenceToQuoteId(pending.offerte_reference || null, quotes);
         const extractedLineItems = Array.isArray(pending.line_items) && pending.line_items.length > 0
-          ? pending.line_items.map((item) =>
-            normalizeLineItem({
-              ...item,
-              category: item.category || pending.suggested_category || 'materiaal',
-              offerte_id: safeString(item.offerte_id) || matchedOfferteId || null,
-            })
-          )
-          : [createEmptyLineItem()];
+          ? pending.line_items
+            .map((item) =>
+              normalizeLineItem({
+                ...item,
+                category: item.category || pending.suggested_category || 'materiaal',
+                offerte_id: safeString(item.offerte_id) || matchedOfferteId || null,
+              })
+            )
+            .filter(hasLineItemContent)
+          : [];
         const extractedAmountExcl = roundEuro(safeNumber(pending.amount_excl_btw));
         const extractedLineItemsTotal = roundEuro(
           extractedLineItems.reduce((sum, item) => sum + roundEuro(item.total_price), 0)
@@ -837,7 +849,7 @@ function KostenPageContent() {
     setEditingCostId(null);
     setPendingImportId(null);
     setForm(createDefaultFormState());
-    setLineItems([createEmptyLineItem()]);
+    setLineItems([]);
     setQuoteSearch('');
     setSelectedFile(null);
     setEntryMode('upload');
@@ -951,7 +963,7 @@ function KostenPageContent() {
   const removeLineItem = (index: number) => {
     setLineItems((prev) => {
       const next = prev.filter((_, currentIndex) => currentIndex !== index);
-      return next.length > 0 ? next : [createEmptyLineItem()];
+      return next;
     });
   };
 
@@ -1129,15 +1141,17 @@ function KostenPageContent() {
         ? safeString(extracted.offerte_id)
         : parseOfferteReferenceToQuoteId(extracted.offerte_reference || null, quotes);
       const extractedLineItems = Array.isArray(extracted.line_items) && extracted.line_items.length > 0
-        ? extracted.line_items.map((item) =>
-          normalizeLineItem({
-            ...item,
-            category: item.category || extracted.suggested_category || 'materiaal',
-            offerte_id:
-              safeString(item.offerte_id) || matchedOfferteId || null,
-          })
-        )
-        : [createEmptyLineItem()];
+        ? extracted.line_items
+          .map((item) =>
+            normalizeLineItem({
+              ...item,
+              category: item.category || extracted.suggested_category || 'materiaal',
+              offerte_id:
+                safeString(item.offerte_id) || matchedOfferteId || null,
+            })
+          )
+          .filter(hasLineItemContent)
+        : [];
       const extractedAmountExcl = roundEuro(safeNumber(extracted.amount_excl_btw));
       const extractedLineItemsTotal = roundEuro(
         extractedLineItems.reduce((sum, item) => sum + roundEuro(item.total_price), 0)
@@ -1222,14 +1236,16 @@ function KostenPageContent() {
     const rowCategory = normalizeProjectCostCategory(cost.category);
     const rowOfferteId = safeString(cost.offerte_id) || null;
     const initialLineItems = Array.isArray(cost.line_items) && cost.line_items.length > 0
-      ? cost.line_items.map((item) =>
-        normalizeLineItem({
-          ...item,
-          category: item.category || rowCategory,
-          offerte_id: safeString(item.offerte_id) || rowOfferteId,
-        })
-      )
-      : [createEmptyLineItem()];
+      ? cost.line_items
+        .map((item) =>
+          normalizeLineItem({
+            ...item,
+            category: item.category || rowCategory,
+            offerte_id: safeString(item.offerte_id) || rowOfferteId,
+          })
+        )
+        .filter(hasLineItemContent)
+      : [];
     const amountExclForCost = roundEuro(safeNumber(cost.amount_excl_btw));
     const normalizedOpenLineItems = (
       initialLineItems.length > 0

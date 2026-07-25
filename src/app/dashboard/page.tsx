@@ -165,7 +165,11 @@ function ProjectRow(props: {
   const projectLabel = project.offerteNummer ? `#${project.offerteNummer}` : project.title;
   const encodedProjectId = encodeURIComponent(project.projectId);
   const openHoursEditor = () => onEditHours(project);
-  const openCostEditor = () => onNavigate(`/kosten?offerteId=${encodedProjectId}&open=1`);
+  const openCostEditor = () => {
+    window.dispatchEvent(new CustomEvent('calvora:open-cost-dialog', {
+      detail: { offerteId: project.projectId },
+    }));
+  };
   const openQuoteEditor = () => onNavigate(`/offertes/${encodedProjectId}`);
 
   const status = !project.hasActualData
