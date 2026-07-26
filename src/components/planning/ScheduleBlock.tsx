@@ -125,16 +125,13 @@ export function ScheduleBlock({
     const block = (
         <div
             className={cn(
-                "group relative box-border min-w-0 cursor-pointer overflow-hidden rounded-[4px] border px-2 py-1 transition-[filter,box-shadow] hover:brightness-110 hover:shadow-sm",
+                "group relative box-border min-w-0 cursor-pointer overflow-hidden rounded-[4px] px-2 py-1 transition-[filter] hover:brightness-110",
                 view === 'day' ? 'flex items-center gap-2' : 'w-full text-xs leading-[1.2]'
             )}
             style={{
                 backgroundColor: view === 'day'
                     ? blendWithBackground(planningTypeColor, 0.26)
                     : blendWithBackground(planningTypeColor, 0.38),
-                borderColor: blendWithBackground(planningTypeColor, 0.42, '#3a3a3d'),
-                borderLeft: `3px solid ${planningTypeColor}`,
-                boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.04)',
                 ...getBlockStyle()
             }}
             onClick={(e) => {

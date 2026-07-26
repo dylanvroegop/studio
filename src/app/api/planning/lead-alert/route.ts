@@ -110,10 +110,28 @@ function getSnoozeUntil(value: unknown): Date | null {
     return date && date.getTime() > Date.now() ? date : null;
 }
 
-function getWindowDates(now = new Date()): string[] {
+function getIsoWeekday(date: string): number {
+    const [year, month, day] = date.split('-').map(Number);
+    const weekday = new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay();
+    return weekday === 0 ? 7 : weekday;
+}
+
+function getWindowDates(now = new Date(), workDays: number[] = [1, 2, 3, 4, 5]): string[] {
     const current = amsterdamDateParts(now);
     const today = dateOnly(current.year, current.month, current.day);
-    return Array.from({ length: WINDOW_DAYS }, (_, index) => nextDateOnly(today, index));
+    const normalizedWorkDays = new Set(workDays.filter((day) => Number.isInteger(day) && day >= 1 && day <= 7));
+    const dates: string[] = [];
+    // The current day is intentionally excluded: it is too late to acquire
+    // another client for today's schedule.
+    let offset = 1;
+
+    while (dates.length < WINDOW_DAYS && offset < 14) {
+        const candidate = nextDateOnly(today, offset);
+        if (normalizedWorkDays.has(getIsoWeekday(candidate))) dates.push(candidate);
+        offset += 1;
+    }
+
+    return dates;
 }
 
 function isPauseCommand(value: unknown): boolean {
@@ -153,11 +171,15 @@ export async function GET(request: Request) {
         const userData = userSnap.data() || {};
         const settings = (userData.settings || {}) as {
             planningLeadAlert?: { enabled?: unknown; snoozeUntil?: unknown };
+            planningSettings?: { workDays?: unknown };
         };
         const alertSettings = settings.planningLeadAlert || {};
         const enabled = alertSettings.enabled !== false;
         const snoozeUntil = getSnoozeUntil(alertSettings.snoozeUntil);
-        const dates = getWindowDates();
+        const configuredWorkDays = Array.isArray(settings.planningSettings?.workDays)
+            ? settings.planningSettings.workDays.filter((day): day is number => typeof day === 'number')
+            : [1, 2, 3, 4, 5];
+        const dates = getWindowDates(new Date(), configuredWorkDays);
         const entries = planningSnapshot.docs
             .map((document) => document.data())
             .filter((entry) => entry.status !== 'cancelled' && isWerkbesprekingEntry(entry));

@@ -1535,7 +1535,7 @@ function InstellingenPageContent() {
                                     Nieuwe-lead melding
                                 </CardTitle>
                                 <CardDescription>
-                                    De Telegram-bot controleert dagelijks om 12:00 vandaag en de twee volgende dagen op een werkbespreking.
+                                    De Telegram-bot controleert dagelijks om 12:00 de drie volgende werkdagen vanaf morgen op een werkbespreking.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-3">
