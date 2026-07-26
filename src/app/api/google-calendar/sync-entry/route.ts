@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { reportGoogleCalendarAlert } from '@/lib/google-calendar-alerts';
 import { getCalendarClient, isGoogleInvalidGrantError } from '@/lib/integrations/google-calendar';
+import { GOOGLE_CALENDAR_RED_COLOR_ID } from '@/lib/planning-colors';
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -10,7 +11,6 @@ function extractBearerToken(authHeader: string | null): string | null {
 
 type SyncAction = 'upsert' | 'delete';
 
-const GOOGLE_CALENDAR_RED_COLOR_ID = '11';
 const PLANNING_TIME_ZONE = 'Europe/Amsterdam';
 
 function getFirstName(label: string): string {

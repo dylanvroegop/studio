@@ -3,6 +3,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { reportGoogleCalendarAlert } from '@/lib/google-calendar-alerts';
 import { getCalendarClient, isGoogleInvalidGrantError } from '@/lib/integrations/google-calendar';
+import { GOOGLE_CALENDAR_RED_COLOR_ID } from '@/lib/planning-colors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -344,7 +345,10 @@ export async function POST(request: Request) {
           startDate: Timestamp.fromDate(parsedRange.startDate),
           endDate: Timestamp.fromDate(parsedRange.endDate),
           scheduledHours,
-          planningType: existing?.planningType || 'job',
+          planningType: existing?.planningType === 'werkbespreking'
+            || event.colorId === GOOGLE_CALENDAR_RED_COLOR_ID
+            ? 'werkbespreking'
+            : 'job',
           isAutoSplit: existing?.isAutoSplit || false,
           parentEntryId: existing?.parentEntryId || null,
           status: 'scheduled',

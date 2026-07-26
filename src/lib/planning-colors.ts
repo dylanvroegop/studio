@@ -21,6 +21,8 @@ export const GOOGLE_CALENDAR_COLORS: Record<string, PlanningColor> = {
     '11': { background: '#dc2127', foreground: '#fff1f2' },
 };
 
+export const GOOGLE_CALENDAR_RED_COLOR_ID = '11';
+
 const DEFAULT_COLORS: Record<PlanningEntryType, PlanningColor> = {
     job: { background: '#10b981', foreground: '#ecfdf5' },
     werkbespreking: { background: '#22d3ee', foreground: '#ecfeff' },

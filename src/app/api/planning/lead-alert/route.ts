@@ -3,6 +3,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { GOOGLE_CALENDAR_RED_COLOR_ID } from '@/lib/planning-colors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,7 +78,27 @@ function dateOnlyInAmsterdam(value: unknown): string | null {
     return dateOnly(parts.year, parts.month, parts.day);
 }
 
-function isEntryOnDate(entry: { startDate?: unknown; endDate?: unknown }, target: string): boolean {
+function isWerkbesprekingEntry(entry: {
+    planningType?: unknown;
+    googleCalendarColorId?: unknown;
+    cache?: { projectTitle?: unknown; clientName?: unknown };
+}): boolean {
+    if (entry.planningType === 'werkbespreking') return true;
+    if (String(entry.googleCalendarColorId || '') === GOOGLE_CALENDAR_RED_COLOR_ID) return true;
+
+    const title = `${String(entry.cache?.projectTitle || '')} ${String(entry.cache?.clientName || '')}`;
+    if (/werkbespreking/i.test(title)) return true;
+    return false;
+}
+
+function isEntryOnDate(entry: {
+    planningType?: unknown;
+    googleCalendarColorId?: unknown;
+    startDate?: unknown;
+    endDate?: unknown;
+    cache?: { projectTitle?: unknown; clientName?: unknown };
+}, target: string): boolean {
+    if (!isWerkbesprekingEntry(entry)) return false;
     const start = dateOnlyInAmsterdam(entry.startDate);
     const end = dateOnlyInAmsterdam(entry.endDate);
     return Boolean(start && end && start <= target && end >= target);
@@ -139,7 +160,7 @@ export async function GET(request: Request) {
         const dates = getWindowDates();
         const entries = planningSnapshot.docs
             .map((document) => document.data())
-            .filter((entry) => entry.planningType === 'werkbespreking' && entry.status !== 'cancelled');
+            .filter((entry) => entry.status !== 'cancelled' && isWerkbesprekingEntry(entry));
 
         const days = dates.map((date) => ({
             date,
