@@ -91,7 +91,7 @@ export function ScheduleBlock({
             ? projectTitle
             : clientName;
 
-    const blendWithBackground = (hex: string, alpha: number, base: string = '#0f0f12') => {
+    const blendWithBackground = (hex: string, alpha: number, base: string = '#1c1c1f') => {
         const toRgb = (value: string) => {
             const normalized = value.replace('#', '');
             const full = normalized.length === 3
@@ -125,14 +125,16 @@ export function ScheduleBlock({
     const block = (
         <div
             className={cn(
-                "rounded-sm px-2 py-1 cursor-pointer transition-colors group relative box-border min-w-0 overflow-hidden",
-                view === 'day' ? 'flex items-center gap-2' : 'text-xs w-full leading-tight'
+                "group relative box-border min-w-0 cursor-pointer overflow-hidden rounded-[4px] border px-2 py-1 transition-[filter,box-shadow] hover:brightness-110 hover:shadow-sm",
+                view === 'day' ? 'flex items-center gap-2' : 'w-full text-xs leading-[1.2]'
             )}
             style={{
                 backgroundColor: view === 'day'
-                    ? blendWithBackground(planningTypeColor, 0.2)
-                    : blendWithBackground(planningTypeColor, 0.3),
-                borderLeft: `2px solid ${planningTypeColor}`,
+                    ? blendWithBackground(planningTypeColor, 0.26)
+                    : blendWithBackground(planningTypeColor, 0.38),
+                borderColor: blendWithBackground(planningTypeColor, 0.42, '#3a3a3d'),
+                borderLeft: `3px solid ${planningTypeColor}`,
+                boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.04)',
                 ...getBlockStyle()
             }}
             onClick={(e) => {
@@ -164,17 +166,17 @@ export function ScheduleBlock({
             )}
 
             <div className="min-w-0 flex-1 overflow-hidden">
-                <span className="block font-medium truncate text-white/80 select-none">
+                <span className="block truncate font-medium text-white/90 select-none">
                     {displayTitle}
                 </span>
             </div>
             {view === 'day' && (
-                <span className="text-xs text-white/60 shrink-0 select-none">
+                <span className="shrink-0 text-xs text-white/60 select-none">
                     {timeLabel}
                 </span>
             )}
             {view !== 'day' && (
-                <div className="text-[11px] text-white/45 truncate select-none mt-0.5">
+                <div className="mt-0.5 truncate text-[11px] text-white/55 select-none">
                     {timeLabel}
                 </div>
             )}
