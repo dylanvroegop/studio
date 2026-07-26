@@ -352,6 +352,7 @@ function PlanningPageContent() {
                 imported?: number;
                 updated?: number;
                 missing?: number;
+                removed?: number;
                 hidden?: number;
                 skipped?: number;
             } | null;
@@ -363,7 +364,7 @@ function PlanningPageContent() {
             const details = [
                 result?.imported ? `${result.imported} Google-item(s) geïmporteerd` : '',
                 `${result?.updated || 0} planning-item(s) bijgewerkt`,
-                result?.hidden ? `${result.hidden} oud(e) Google-item(s) verborgen` : '',
+                result?.removed ? `${result.removed} lokale planning-item(s) verwijderd` : '',
                 result?.missing ? `${result.missing} verwijderd Google-item niet overgenomen` : '',
                 result?.skipped ? `${result.skipped} item(s) overgeslagen` : '',
             ].filter(Boolean).join('. ');
@@ -854,7 +855,7 @@ function PlanningPageContent() {
                             onClick={handleRefreshGoogleCalendar}
                             disabled={isRefreshingGoogleCalendar}
                             aria-label="Wijzigingen uit Google Calendar ophalen"
-                            title="Wijzigingen uit Google Calendar ophalen"
+                            title="Google Calendar is leidend en overschrijft deze planning"
                         >
                             <RefreshCw className={cn("h-4 w-4", isRefreshingGoogleCalendar && "animate-spin")} />
                             <span className="hidden xl:inline">Google verversen</span>

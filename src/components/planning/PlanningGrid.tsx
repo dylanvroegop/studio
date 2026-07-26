@@ -85,7 +85,7 @@ export function PlanningGrid({
                                 </button>
                                 <div className="relative min-h-14" style={{ gridColumn: '2 / -1' }} data-role="day-slot" data-date={day.toISOString()}>
                                     {dayEntries.map((entry) => (
-                                        <ScheduleBlock key={entry.id} entry={entry} view={view} day={day} hours={hours} pauseMinutes={pauseMinutes} onClick={() => onEntryClick(entry)} onDragStart={onDragStart} />
+                                        <ScheduleBlock key={entry.id} entry={entry} view={view} day={day} pauseMinutes={pauseMinutes} onClick={() => onEntryClick(entry)} onDragStart={onDragStart} />
                                     ))}
                                 </div>
                             </div>
@@ -124,7 +124,7 @@ export function PlanningGrid({
                                         <div className="relative mt-5 flex min-w-0 flex-col gap-1">
                                             {holidayName && <div className="truncate rounded bg-rose-500/20 px-1 py-0.5 text-[10px] text-rose-200">Feestdag: {holidayName}</div>}
                                             {dayEntries.map((entry, entryIndex) => (
-                                                <ScheduleBlock key={entry.id} entry={entry} view={view} day={day} hours={hours} pauseMinutes={pauseMinutes} stackIndex={entryIndex} onClick={() => !isDragging && !suppressClick && onEntryClick(entry)} onDragStart={onDragStart} />
+                                                <ScheduleBlock key={entry.id} entry={entry} view={view} day={day} pauseMinutes={pauseMinutes} stackIndex={entryIndex} onClick={() => !isDragging && !suppressClick && onEntryClick(entry)} onDragStart={onDragStart} />
                                             ))}
                                         </div>
                                     </button>
@@ -152,7 +152,7 @@ export function PlanningGrid({
                             return (
                                 <button type="button" key={dayNumber} disabled={!valid} className={cn('min-h-[60px] border-r border-border p-1 text-left text-[10px]', !valid && 'bg-muted/30')} onClick={() => valid && onEmptyCellClick(day)} data-date={valid ? day.toISOString() : undefined} data-role={valid ? 'month-slot' : undefined}>
                                     {valid && <span className="text-muted-foreground">{dayNumber}</span>}
-                                    {dayEntries.map((entry, entryIndex) => <ScheduleBlock key={entry.id} entry={entry} view={view} day={day} hours={hours} stackIndex={entryIndex} pauseMinutes={pauseMinutes} onClick={() => onEntryClick(entry)} onDragStart={onDragStart} />)}
+                                    {dayEntries.map((entry, entryIndex) => <ScheduleBlock key={entry.id} entry={entry} view={view} day={day} stackIndex={entryIndex} pauseMinutes={pauseMinutes} onClick={() => onEntryClick(entry)} onDragStart={onDragStart} />)}
                                 </button>
                             );
                         })}

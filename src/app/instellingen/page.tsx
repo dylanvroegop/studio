@@ -16,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users, Palette, MoonStar, Sun, ReceiptText } from 'lucide-react';
+import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users, Palette, MoonStar, Sun, ReceiptText, BellRing } from 'lucide-react';
 import {
     UserSettings,
     DEFAULT_USER_SETTINGS,
@@ -1528,6 +1528,40 @@ function InstellingenPageContent() {
                     {/* --- PLANNING --- */}
                     <TabsContent value="planning" className="space-y-4">
                         <GoogleCalendarSettingsCard />
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <BellRing className="h-4 w-4" />
+                                    Nieuwe-lead melding
+                                </CardTitle>
+                                <CardDescription>
+                                    De Telegram-bot controleert dagelijks om 12:00 vandaag en de twee volgende dagen op een werkbespreking.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+                                    <div className="space-y-1">
+                                        <Label className="font-semibold">Telegram-meldingen inschakelen</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Je krijgt een bericht zodra minimaal één dag geen werkbespreking heeft.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={settings.planningLeadAlert?.enabled ?? true}
+                                        onCheckedChange={(checked) => updateDeep('planningLeadAlert', 'enabled', checked)}
+                                    />
+                                </div>
+                                {settings.planningLeadAlert?.snoozeUntil ? (
+                                    <p className="text-sm text-amber-500">
+                                        Tijdelijk uitgezet tot {new Date(settings.planningLeadAlert.snoozeUntil).toLocaleString('nl-NL')}.
+                                    </p>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">
+                                        Pauzeren kan rechtstreeks in Telegram met: <span className="font-medium">turn off for 1 week</span>.
+                                    </p>
+                                )}
+                            </CardContent>
+                        </Card>
                         <Card>
                             <CardHeader>
                                 <CardTitle>Werkdag Instellingen</CardTitle>

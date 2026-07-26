@@ -13,12 +13,12 @@ import {
 } from '@/components/ui/tooltip';
 import { MapPin, Clock, Briefcase } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getPlanningColor } from '@/lib/planning-colors';
 
 interface ScheduleBlockProps {
     entry: PlanningEntry;
     view: TimelineView;
     day: Date;
-    hours: number[];
     stackIndex?: number;
     onClick: () => void;
     onDragStart?: (e: React.PointerEvent, entryId: string, type: 'move' | 'resize-start' | 'resize-end') => void;
@@ -29,7 +29,6 @@ export function ScheduleBlock({
     entry,
     view,
     day,
-    hours,
     stackIndex = 0,
     onClick,
     onDragStart,
@@ -74,7 +73,8 @@ export function ScheduleBlock({
     const planningType = entry.planningType || 'job';
 
     const planningTypeLabel = planningType === 'werkbespreking' ? 'Werkbespreking' : 'Klus';
-    const planningTypeColor = planningType === 'werkbespreking' ? '#22d3ee' : '#10b981';
+    const planningColor = getPlanningColor(entry);
+    const planningTypeColor = planningColor.background;
     const projectTitleRaw = entry.cache.projectTitle || '';
     const projectTitle = planningType === 'werkbespreking'
         ? projectTitleRaw
@@ -131,7 +131,7 @@ export function ScheduleBlock({
             style={{
                 backgroundColor: view === 'day'
                     ? blendWithBackground(planningTypeColor, 0.2)
-                    : planningTypeColor + '14',
+                    : blendWithBackground(planningTypeColor, 0.3),
                 borderLeft: `2px solid ${planningTypeColor}`,
                 ...getBlockStyle()
             }}
@@ -202,7 +202,7 @@ export function ScheduleBlock({
                         </div>
 
                         <div className="border-t border-zinc-700 pt-2">
-                            <div className="mt-1 text-xs font-medium" style={{ color: planningTypeColor }}>
+                            <div className="mt-1 text-xs font-medium" style={{ color: planningColor.background }}>
                                 {planningTypeLabel}
                             </div>
                         </div>

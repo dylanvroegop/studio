@@ -23,6 +23,7 @@ export interface PlanningEntry {
     status: PlanningStatus;
     notes?: string;
     googleCalendarEventId?: string | null;
+    googleCalendarColorId?: string | null;
     source?: 'calvora' | 'google';
     googleCalendarHtmlLink?: string | null;
     isAllDay?: boolean;

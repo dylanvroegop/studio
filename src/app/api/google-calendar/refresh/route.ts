@@ -93,6 +93,58 @@ function googleEventDocId(eventId: string): string {
   return `google_${eventId.replace(/\//g, '_')}`;
 }
 
+function timestampToDate(value: unknown): Date | null {
+  if (value instanceof Timestamp) return value.toDate();
+  if (value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
+    const date = value.toDate();
+    return date instanceof Date && Number.isFinite(date.getTime()) ? date : null;
+  }
+  return null;
+}
+
+function planningEntryOverlapsRange(
+  entry: { startDate?: unknown; endDate?: unknown },
+  rangeStart: Date,
+  rangeEnd: Date,
+): boolean {
+  const startDate = timestampToDate(entry.startDate);
+  const endDate = timestampToDate(entry.endDate);
+  return Boolean(startDate && endDate && overlapsRange(startDate, endDate, rangeStart, rangeEnd));
+}
+
+function samePlanningRange(
+  entry: { startDate?: unknown; endDate?: unknown },
+  startDate: Date,
+  endDate: Date,
+): boolean {
+  const entryStart = timestampToDate(entry.startDate);
+  const entryEnd = timestampToDate(entry.endDate);
+  return entryStart?.getTime() === startDate.getTime() && entryEnd?.getTime() === endDate.getTime();
+}
+
+function getFirstName(label: string): string {
+  return label.trim().split(/\s+/)[0] || 'Planning';
+}
+
+function getStartHour(date: Date): string {
+  return new Intl.DateTimeFormat('nl-NL', {
+    hour: 'numeric',
+    hourCycle: 'h23',
+    timeZone: AMSTERDAM_TIME_ZONE,
+  }).format(date);
+}
+
+interface GoogleCalendarEvent {
+  id?: string | null;
+  status?: string | null;
+  summary?: string | null;
+  description?: string | null;
+  colorId?: string | null;
+  htmlLink?: string | null;
+  start?: { dateTime?: string | null; date?: string | null } | null;
+  end?: { dateTime?: string | null; date?: string | null } | null;
+}
+
 export async function POST(request: Request) {
   try {
     const token = extractBearerToken(request.headers.get('authorization'));
@@ -158,25 +210,28 @@ export async function POST(request: Request) {
     const planningSnapshot = await firestore.collection('planning_entries')
       .where('userId', '==', decoded.uid)
       .get();
-    const linkedEntries = planningSnapshot.docs.filter((planningDoc) => {
-      const eventId = planningDoc.data().googleCalendarEventId;
-      return typeof eventId === 'string' && eventId.trim().length > 0;
-    });
 
     let updated = 0;
     let unchanged = 0;
-    const missing = 0;
     let skipped = 0;
     let imported = 0;
-    let hidden = 0;
+    let removed = 0;
 
-    const linkedEntriesByGoogleId = new Map<string, typeof linkedEntries[number]>();
-    linkedEntries.forEach((planningDoc) => {
+    type PlanningDocument = (typeof planningSnapshot.docs)[number];
+    const localEntriesByGoogleId = new Map<string, PlanningDocument>();
+    planningSnapshot.docs.forEach((planningDoc) => {
       const eventId = String(planningDoc.data().googleCalendarEventId || '').trim();
-      if (eventId) linkedEntriesByGoogleId.set(eventId, planningDoc);
+      if (eventId && !localEntriesByGoogleId.has(eventId)) {
+        localEntriesByGoogleId.set(eventId, planningDoc);
+      }
     });
 
     const googleEventIdsInRange = new Set<string>();
+    const googleEventsInRange: Array<{
+      eventId: string;
+      event: GoogleCalendarEvent;
+      parsedRange: { startDate: Date; endDate: Date; allDay: boolean };
+    }> = [];
     let pageToken: string | undefined;
     do {
       const listResponse = await calendar.events.list({
@@ -202,35 +257,96 @@ export async function POST(request: Request) {
         }
 
         googleEventIdsInRange.add(eventId);
-        const existingDoc = linkedEntriesByGoogleId.get(eventId);
-        const entryRef = existingDoc?.ref || firestore.collection('planning_entries').doc(googleEventDocId(eventId));
-        const existing = existingDoc?.data() as {
-          startDate?: Timestamp;
-          endDate?: Timestamp;
-          cache?: { clientName?: string; projectTitle?: string; projectAddress?: string };
-          notes?: string;
-          status?: string;
-        } | undefined;
+        googleEventsInRange.push({ eventId, event, parsedRange });
+      }
 
-        const summary = event.summary?.trim() || 'Google Calendar';
-        const description = event.description?.trim() || '';
-        const scheduledHours = Math.max(
-          0,
-          (parsedRange.endDate.getTime() - parsedRange.startDate.getTime()) / 3_600_000,
-        );
-        const nextData = {
+      pageToken = listResponse.data.nextPageToken || undefined;
+    } while (pageToken);
+
+    // Google Calendar is the source of truth. Replace every local planning row
+    // in the requested range, including legacy Calvora rows without an event ID.
+    // This prevents an old local row and its Google counterpart from surviving
+    // side by side after a refresh.
+    const localEntriesToReplace = planningSnapshot.docs.filter((planningDoc) => {
+      const data = planningDoc.data();
+      const eventId = String(data.googleCalendarEventId || '').trim();
+      return planningEntryOverlapsRange(data, rangeStart, rangeEnd)
+        || (eventId && googleEventIdsInRange.has(eventId));
+    });
+
+    const targetDocs = new Set<string>();
+    const usedFallbackDocs = new Set<string>();
+    const writes: Array<{ ref: FirebaseFirestore.DocumentReference; data: Record<string, unknown> }> = [];
+
+    for (const { eventId, event, parsedRange } of googleEventsInRange) {
+      const directMatch = localEntriesByGoogleId.get(eventId);
+      const summary = event.summary?.trim() || 'Google Calendar';
+      const description = event.description?.trim() || '';
+      const scheduledHours = Math.max(
+        0,
+        (parsedRange.endDate.getTime() - parsedRange.startDate.getTime()) / 3_600_000,
+      );
+
+      // Older rows may have been created before the Google event ID was saved.
+      // Reuse one exact date match when possible so quote links and financial
+      // metadata are not lost during the authoritative replacement.
+      const fallbackMatch = !directMatch
+        ? localEntriesToReplace.find((planningDoc) => {
+            if (usedFallbackDocs.has(planningDoc.id)) return false;
+            const data = planningDoc.data() as {
+              googleCalendarEventId?: string;
+              cache?: { clientName?: string };
+              startDate?: unknown;
+              endDate?: unknown;
+            };
+            if (data.googleCalendarEventId) return false;
+            if (!samePlanningRange(data, parsedRange.startDate, parsedRange.endDate)) return false;
+            const clientName = data.cache?.clientName?.trim() || '';
+            const generatedSummary = `${getFirstName(clientName)} ${getStartHour(parsedRange.startDate)}`;
+            return !clientName || clientName === summary || generatedSummary === summary;
+          })
+        : undefined;
+      const existingDoc = directMatch || fallbackMatch;
+      if (fallbackMatch) usedFallbackDocs.add(fallbackMatch.id);
+
+      const existing = existingDoc?.data() as {
+        quoteId?: string;
+        source?: 'calvora' | 'google';
+        planningType?: string;
+        isAutoSplit?: boolean;
+        parentEntryId?: string | null;
+        cache?: { projectTitle?: string; projectAddress?: string; totalQuoteAmount?: number; totalQuoteEarnings?: number };
+        notes?: string;
+        createdAt?: unknown;
+      } | undefined;
+      const targetRef = existingDoc?.ref || firestore.collection('planning_entries').doc(googleEventDocId(eventId));
+      targetDocs.add(targetRef.path);
+
+      const sameDates = existingDoc && samePlanningRange(existingDoc.data(), parsedRange.startDate, parsedRange.endDate);
+      const sameTitle = existingDoc?.data().cache?.clientName === summary && existingDoc?.data().status === 'scheduled';
+      if (!existingDoc) imported += 1;
+      else if (sameDates && sameTitle) unchanged += 1;
+      else updated += 1;
+
+      writes.push({
+        ref: targetRef,
+        data: {
           userId: decoded.uid,
-          quoteId: existingDoc?.data()?.quoteId || '',
+          quoteId: existing?.quoteId || '',
           googleCalendarEventId: eventId,
+          googleCalendarColorId: event.colorId || null,
           googleCalendarHtmlLink: event.htmlLink || null,
           isAllDay: parsedRange.allDay,
-          source: existingDoc?.data()?.source || (existingDoc ? 'calvora' : 'google'),
+          // Keep Calvora ownership for entries that were created locally so
+          // later edits can continue to update their Google event. Standalone
+          // Google events remain Google-owned and are overwritten on refresh.
+          source: existing?.source || (existingDoc ? 'calvora' : 'google'),
           startDate: Timestamp.fromDate(parsedRange.startDate),
           endDate: Timestamp.fromDate(parsedRange.endDate),
           scheduledHours,
-          planningType: existingDoc?.data()?.planningType || 'job',
-          isAutoSplit: existingDoc?.data()?.isAutoSplit || false,
-          parentEntryId: existingDoc?.data()?.parentEntryId || null,
+          planningType: existing?.planningType || 'job',
+          isAutoSplit: existing?.isAutoSplit || false,
+          parentEntryId: existing?.parentEntryId || null,
           status: 'scheduled',
           notes: description || existing?.notes || '',
           cache: {
@@ -238,64 +354,44 @@ export async function POST(request: Request) {
             projectTitle: existing?.cache?.projectTitle || summary,
             projectAddress: existing?.cache?.projectAddress || '',
             totalQuoteHours: scheduledHours,
-            totalQuoteAmount: existingDoc?.data()?.cache?.totalQuoteAmount || 0,
-            totalQuoteEarnings: existingDoc?.data()?.cache?.totalQuoteEarnings || 0,
+            totalQuoteAmount: existing?.cache?.totalQuoteAmount || 0,
+            totalQuoteEarnings: existing?.cache?.totalQuoteEarnings || 0,
           },
           updatedAt: new Date(),
-          createdAt: existingDoc?.data()?.createdAt || new Date(),
-        };
+          createdAt: existing?.createdAt || new Date(),
+        },
+      });
+    }
 
-        const currentStart = existing?.startDate?.toMillis();
-        const currentEnd = existing?.endDate?.toMillis();
-        const sameDates = currentStart === parsedRange.startDate.getTime() && currentEnd === parsedRange.endDate.getTime();
-        const sameTitle = existing?.cache?.clientName === summary && existing?.status === 'scheduled';
-
-        await entryRef.set(nextData, { merge: true });
-
-        if (!existingDoc) {
-          imported += 1;
-        } else if (sameDates && sameTitle) {
-          unchanged += 1;
-        } else {
-          updated += 1;
-        }
+    const writeBatches = <T,>(items: T[], callback: (batch: FirebaseFirestore.WriteBatch, item: T) => void): FirebaseFirestore.WriteBatch[] => {
+      const batches: FirebaseFirestore.WriteBatch[] = [];
+      for (let index = 0; index < items.length; index += 450) {
+        const batch = firestore.batch();
+        items.slice(index, index + 450).forEach((item) => callback(batch, item));
+        batches.push(batch);
       }
+      return batches;
+    };
 
-      pageToken = listResponse.data.nextPageToken || undefined;
-    } while (pageToken);
+    // Write the authoritative Google state first, then remove stale local rows.
+    // Chunking keeps this safe for larger calendar ranges under Firestore's
+    // 500-operation batch limit.
+    await Promise.all(writeBatches(writes, (batch, write) => batch.set(write.ref, write.data)).map((batch) => batch.commit()));
 
-    const linkedEntriesInRange = linkedEntries.filter((planningDoc) => {
-      const entry = planningDoc.data() as {
-        startDate?: Timestamp;
-        endDate?: Timestamp;
-        source?: string;
-      };
-      const startDate = entry.startDate?.toDate();
-      const endDate = entry.endDate?.toDate();
-      return entry.source === 'google'
-        && startDate
-        && endDate
-        && overlapsRange(startDate, endDate, rangeStart, rangeEnd);
-    });
-
-    await Promise.all(linkedEntriesInRange.map(async (planningDoc) => {
-      const eventId = String(planningDoc.data().googleCalendarEventId || '').trim();
-      if (!eventId || googleEventIdsInRange.has(eventId)) return;
-      await planningDoc.ref.set({
-        status: 'cancelled',
-        updatedAt: new Date(),
-      }, { merge: true });
-      hidden += 1;
-    }));
+    const staleEntries = localEntriesToReplace.filter((planningDoc) => !targetDocs.has(planningDoc.ref.path));
+    removed = staleEntries.length;
+    await Promise.all(writeBatches(staleEntries, (batch, planningDoc) => batch.delete(planningDoc.ref)).map((batch) => batch.commit()));
 
     return NextResponse.json({
       ok: true,
-      checked: linkedEntries.length,
+      checked: planningSnapshot.size,
       imported,
       updated,
       unchanged,
-      missing,
-      hidden,
+      removed,
+      // Kept as a compatibility alias for older clients.
+      hidden: removed,
+      missing: 0,
       skipped,
     });
   } catch (error) {

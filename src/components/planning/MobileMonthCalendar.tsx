@@ -18,6 +18,7 @@ import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { getDutchHolidaysForYear } from '@/lib/planning-utils';
 import { Timestamp } from 'firebase/firestore';
+import { getPlanningColor } from '@/lib/planning-colors';
 
 interface MobileMonthCalendarProps {
     currentDate: Date;
@@ -167,7 +168,7 @@ export function MobileMonthCalendar({
                                 {dayEntries.slice(0, 2).map((entry) => {
                                     const start = toDate(entry.startDate);
                                     const label = (entry.cache?.clientName || 'Planning').slice(0, 16);
-                                    const isWerkbespreking = (entry.planningType || 'job') === 'werkbespreking';
+                                    const planningColor = getPlanningColor(entry);
                                     const timeLabel = entry.isAllDay ? 'Hele dag' : format(start, 'HH:mm', { locale: nl });
 
                                     return (
@@ -177,12 +178,11 @@ export function MobileMonthCalendar({
                                                 event.stopPropagation();
                                                 onEntryClick(entry);
                                             }}
-                                            className={cn(
-                                                'truncate rounded px-1 py-0.5 text-[10px] font-medium',
-                                                isWerkbespreking
-                                                    ? 'bg-cyan-500/25 text-cyan-200'
-                                                    : 'bg-emerald-500/20 text-emerald-200'
-                                            )}
+                                            className="truncate rounded px-1 py-0.5 text-[10px] font-medium"
+                                            style={{
+                                                backgroundColor: `${planningColor.background}40`,
+                                                color: planningColor.foreground,
+                                            }}
                                             title={`${label} · ${timeLabel}`}
                                         >
                                             {timeLabel} {label}

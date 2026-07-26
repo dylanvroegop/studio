@@ -63,7 +63,7 @@ import { cn } from '@/lib/utils';
 
 type FilterMode = 'alle' | 'concept' | 'vandaag' | 'in_afwachting' | 'verzonden' | 'geaccepteerd' | 'werkbespreking' | 'archief';
 const OFFERTES_FILTER_STORAGE_KEY = 'offertes:last-filter';
-type DefaultFilterMode = 'concept' | 'geaccepteerd';
+type DefaultFilterMode = 'concept' | 'geaccepteerd' | 'vandaag';
 const OFFERTES_DEFAULT_FILTER_STORAGE_KEY = 'offertes:default-filter';
 
 type QuoteRow = Quote & {
@@ -142,7 +142,7 @@ function isFilterMode(value: unknown): value is FilterMode {
 }
 
 function isDefaultFilterMode(value: unknown): value is DefaultFilterMode {
-  return value === 'concept' || value === 'geaccepteerd';
+  return value === 'concept' || value === 'geaccepteerd' || value === 'vandaag';
 }
 
 function naarDate(value: unknown): Date | null {
@@ -1504,7 +1504,11 @@ export default function OffertesPage() {
     { value: 'verzonden', label: 'Verzonden', count: filterCountsByMode.verzonden },
   ];
 
-  const defaultFilterLabel = defaultFilter === 'geaccepteerd' ? 'Geaccepteerd' : 'Concept';
+  const defaultFilterLabel = defaultFilter === 'geaccepteerd'
+    ? 'Geaccepteerd'
+    : defaultFilter === 'vandaag'
+      ? 'Vandaag'
+      : 'Concept';
 
   function handleDefaultFilterSelect(nextDefaultFilter: DefaultFilterMode): void {
     if (typeof window !== 'undefined') {
@@ -1568,6 +1572,9 @@ export default function OffertesPage() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleDefaultFilterSelect('geaccepteerd')}>
                   Geaccepteerd {defaultFilter === 'geaccepteerd' ? '(actief)' : ''}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleDefaultFilterSelect('vandaag')}>
+                  Vandaag {defaultFilter === 'vandaag' ? '(actief)' : ''}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1646,6 +1653,9 @@ export default function OffertesPage() {
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleDefaultFilterSelect('geaccepteerd')}>
                       Geaccepteerd {defaultFilter === 'geaccepteerd' ? '(actief)' : ''}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleDefaultFilterSelect('vandaag')}>
+                      Vandaag {defaultFilter === 'vandaag' ? '(actief)' : ''}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

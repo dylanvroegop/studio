@@ -28,6 +28,11 @@ export interface PlanningSettings {
     pauzeMinuten?: number;
 }
 
+export interface PlanningLeadAlertSettings {
+    enabled: boolean;
+    snoozeUntil?: string | null;
+}
+
 export interface LeverancierContact {
     id: string;
     naam: string;
@@ -140,6 +145,7 @@ export interface UserSettings {
 
     // 5. Planning Instellingen
     planningSettings: PlanningSettings;
+    planningLeadAlert?: PlanningLeadAlertSettings;
 
     // 6. Leveranciers voor materiaallijst-export
     leveranciers: LeverancierContact[];
@@ -197,6 +203,10 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
         defaultStartTime: '08:00',
         defaultEndTime: '17:00',
         workDays: [1, 2, 3, 4, 5]
+    },
+    planningLeadAlert: {
+        enabled: true,
+        snoozeUntil: null,
     },
     leveranciers: [],
     defaultLeverancierId: '',

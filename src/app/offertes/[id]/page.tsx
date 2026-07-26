@@ -94,6 +94,7 @@ import {
 } from '@/lib/material-presentations';
 import { createMaterialList, MATERIAL_LIST_STATUS_LABELS, type MaterialList } from '@/lib/material-lists';
 import { saveQuoteBackup } from '@/lib/quote-backup';
+import type { MeldcodeResolution } from '@/lib/meldcode-context';
 
 function forceSummaryIntoWorkScope(value: WorkDescriptionStructured): WorkDescriptionStructured {
     const activeIndex = Math.max(
@@ -2565,10 +2566,45 @@ export default function QuotePage() {
             eenheid: String(material?.eenheid || '').trim() || 'stuk',
             row_id: material?.row_id || material?.id || null,
             material_ref_id: material?.id || material?.row_id || null,
+            meldcode: material?.meldcode || null,
+            meldcode_bron: material?.meldcode_bron || material?.meldcodeBron || null,
+            meldcode_toepassing: material?.meldcode_toepassing || material?.meldcodeToepassing || null,
+            meldcode_status: material?.meldcode_status || material?.meldcodeStatus || null,
         };
 
         handleAddItem(activeCategory, newItem);
         setActiveCategory(null);
+    };
+
+    const handleApplyMeldcode = async (materialKey: string, resolution: MeldcodeResolution) => {
+        const [category, indexValue] = materialKey.split(':');
+        const index = Number(indexValue);
+        if ((category !== 'groot' && category !== 'verbruik') || !Number.isInteger(index)) return;
+
+        const candidate = resolution.selectedCandidate;
+        const updates: Partial<MaterialItem> = {
+            meldcode: candidate?.meldcode || null,
+            meldcode_bron: candidate?.bron || null,
+            meldcode_bron_url: candidate?.bronUrl || null,
+            meldcode_toepassing: resolution.application,
+            meldcode_context: resolution.context,
+            meldcode_status: resolution.status,
+            meldcode_confidence: resolution.confidence,
+            meldcode_updated_at: new Date().toISOString(),
+        };
+
+        if (category === 'groot') {
+            await handleUpdateGrootItem(index, updates);
+        } else {
+            await handleUpdateVerbruiksItem(index, updates);
+        }
+
+        toast({
+            title: candidate ? 'Meldcode opgeslagen' : 'Materiaalcontext opgeslagen',
+            description: candidate
+                ? `${candidate.meldcode} is gekoppeld aan de materiaalregel.`
+                : 'Er is geen zekere meldcode gevonden. Je kunt dit later aanpassen.',
+        });
     };
 
     const persistMaterialPackages = async (
@@ -3632,27 +3668,38 @@ export default function QuotePage() {
     }, [materials.groot, materials.verbruik]);
 
     const werkbeschrijvingMaterialContext = useMemo(() => {
-        const toRow = (item: MaterialItem, type: 'groot' | 'verbruik') => {
+        const toRow = (item: MaterialItem, type: 'groot' | 'verbruik', index: number) => {
             const name = String(item?.product || '').trim();
             if (!name || isIgnoredWorkDeliveryMaterial(name)) return null;
             if (!isCustomerRelevantWorkDeliveryProduct(name, type)) return null;
             const quantity = Number(item?.aantal);
             const unit = String((item as any)?.eenheid || 'stuk').trim() || 'stuk';
             return {
+                key: `${type}:${index}`,
                 name,
                 quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
                 unit,
                 type,
+                meldcode: String((item as any)?.meldcode || '').trim() || null,
+                meldcodeToepassing: String((item as any)?.meldcode_toepassing || '').trim() || null,
+                meldcodeStatus: String((item as any)?.meldcode_status || '').trim() || null,
             };
         };
 
         const rows = [
-            ...materials.groot.map((item) => toRow(item, 'groot')),
-            ...materials.verbruik.map((item) => toRow(item, 'verbruik')),
-        ].filter((row): row is { name: string; quantity: number; unit: string; type: 'groot' | 'verbruik' } => row !== null);
+            ...materials.groot.map((item, index) => toRow(item, 'groot', index)),
+            ...materials.verbruik.map((item, index) => toRow(item, 'verbruik', index)),
+        ].filter((row): row is Exclude<typeof row, null> => row !== null);
 
         return rows;
     }, [materials.groot, materials.verbruik]);
+
+    const meldcodeContextText = useMemo(() => truncatePromptText([
+        quote?.titel ? `Offertetitel: ${quote.titel}` : '',
+        workDescriptionStructured.title ? `Werk & Levering titel: ${workDescriptionStructured.title}` : '',
+        flattenStructuredWorkDescription(workDescriptionStructured).join('\n'),
+        buildQuoteNotesContextWithoutLinks(quoteNoteSections),
+    ].filter(Boolean).join('\n\n'), 12000), [quote, workDescriptionStructured, quoteNoteSections]);
 
     const materialExportContext = useMemo<MaterialListExportMeta>(() => ({
         offerteNummer: (quote as any)?.offerteNummer || null,
@@ -5873,7 +5920,7 @@ export default function QuotePage() {
                 const kind = item.type === 'groot' ? 'grootmateriaal' : 'verbruiksmateriaal';
                 return [item.name, amount ? `(${amount}, ${kind})` : `(${kind})`].join(' ');
             };
-            const materialPromptLines = werkbeschrijvingMaterialContext.length > 0 && noteJobs.length === 0
+            const materialPromptLines = werkbeschrijvingMaterialContext.length > 0
                 ? [
                     'Klant-relevante productkeuzes uit de calculatie (gebruik als scope-signalen, geen aparte productenlijst maken):',
                     ...werkbeschrijvingMaterialContext.map((item) => `- ${formatMaterialPromptLine(item)}`),
@@ -7892,6 +7939,9 @@ export default function QuotePage() {
                                         isGenerating={isGeneratingWorkDescription}
                                         templateLabel={detectedWorkDescriptionTemplate?.label || null}
                                         onApplyTemplate={detectedWorkDescriptionTemplate ? handleApplyWorkDescriptionTemplate : undefined}
+                                        materialContext={werkbeschrijvingMaterialContext}
+                                        meldcodeContextText={meldcodeContextText}
+                                        onApplyMeldcode={handleApplyMeldcode}
                                     />
                                     <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6">
                                         <div className="mx-auto flex max-w-7xl flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-lg sm:flex-row sm:items-center sm:justify-between">

@@ -21,6 +21,8 @@ import {
   validateWorkDeliveryScope,
 } from '@/lib/work-delivery';
 import { WorkDescriptionSectionEditor } from './WorkDescriptionSectionEditor';
+import { MeldcodeAssistant } from './MeldcodeAssistant';
+import type { MeldcodeMaterialContext, MeldcodeResolution } from '@/lib/meldcode-context';
 
 type Mode = 'edit' | 'preview';
 type AiAction = 'full' | 'uitvoering-only' | 'improve';
@@ -36,6 +38,9 @@ interface WorkDescriptionWorkspaceProps {
   isAutoSaving?: boolean;
   templateLabel?: string | null;
   onApplyTemplate?: () => void;
+  materialContext?: MeldcodeMaterialContext[];
+  meldcodeContextText?: string;
+  onApplyMeldcode?: (materialKey: string, resolution: MeldcodeResolution) => void | Promise<void>;
 }
 
 function rows(value: unknown): string[] {
@@ -389,6 +394,9 @@ export function WorkDescriptionWorkspace({
   onChange,
   onGenerate,
   isGenerating,
+  materialContext = [],
+  meldcodeContextText = '',
+  onApplyMeldcode,
 }: WorkDescriptionWorkspaceProps) {
   const cleanedValue = useMemo(() => stripRemovedWorkDeliveryToggles(value), [value]);
   const jobs = useMemo(() => normalizeJobs(cleanedValue), [cleanedValue]);
@@ -601,6 +609,14 @@ export function WorkDescriptionWorkspace({
           </div>
         </CardContent>
       </Card>
+
+      {onApplyMeldcode && materialContext.length > 0 && (
+        <MeldcodeAssistant
+          materials={materialContext}
+          additionalContext={meldcodeContextText}
+          onApply={onApplyMeldcode}
+        />
+      )}
 
       <Card className="border-border bg-card/50">
         <CardContent className="grid gap-3 pt-6 md:grid-cols-2">

@@ -33,6 +33,7 @@ interface SyncBody {
   action: SyncAction;
   entryId: string;
   googleCalendarEventId?: string | null;
+  googleCalendarColorId?: string | null;
   quoteId?: string;
   startDate?: string;
   endDate?: string;
@@ -129,7 +130,9 @@ export async function POST(request: Request) {
 
     const entryRef = firestore.collection('planning_entries').doc(body.entryId);
     const entrySnap = await entryRef.get();
-    const entryData = entrySnap.exists ? entrySnap.data() as { googleCalendarEventId?: string } : {};
+    const entryData = entrySnap.exists
+      ? entrySnap.data() as { googleCalendarEventId?: string; googleCalendarColorId?: string | null }
+      : {};
     const calendarEventId = body.googleCalendarEventId || entryData.googleCalendarEventId;
 
     if (!body.startDate || !body.endDate) {
@@ -150,7 +153,9 @@ export async function POST(request: Request) {
     const payload = {
       summary: title,
       description,
-      colorId: GOOGLE_CALENDAR_RED_COLOR_ID,
+      // Preserve a color selected in Google when a linked Calvora entry is
+      // edited. Brand-new Calvora entries use the existing red default.
+      colorId: body.googleCalendarColorId || entryData.googleCalendarColorId || GOOGLE_CALENDAR_RED_COLOR_ID,
       start: { dateTime: body.startDate },
       end: { dateTime: body.endDate },
       reminders: {
