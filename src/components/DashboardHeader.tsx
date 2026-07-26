@@ -28,6 +28,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 
 interface DashboardProfileCache {
   logoUrl: string | null;
@@ -76,7 +77,15 @@ function withRetryToken(url: string, retryCount: number): string {
   return `${url}${separator}avatar_retry=${retryCount}`;
 }
 
-export function DashboardHeader({ user, title }: { user: User | null; title?: string }) {
+export function DashboardHeader({
+  user,
+  title,
+  hideAccountOnMobile = false,
+}: {
+  user: User | null;
+  title?: string;
+  hideAccountOnMobile?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
@@ -331,7 +340,10 @@ export function DashboardHeader({ user, title }: { user: User | null; title?: st
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center gap-1 rounded-full border border-border bg-background/80 px-1 py-1 hover:bg-accent transition-colors"
+                className={cn(
+                  'flex items-center gap-1 rounded-full border border-border bg-background/80 px-1 py-1 hover:bg-accent transition-colors',
+                  hideAccountOnMobile && 'hidden md:flex'
+                )}
                 aria-label="Account menu"
               >
                 <Avatar className="h-9 w-9">
