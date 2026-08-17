@@ -275,6 +275,11 @@ export type MeerwerkbonStatus =
 
 export type MeerwerkbonTemplatePreset = 'compact' | 'uitgebreid';
 
+export type MeerwerkbonPricingMode =
+  | 'begroot'
+  | 'uren_nacalculatie'
+  | 'uren_materialen_nacalculatie';
+
 export interface MeerwerkbonTemplateSettings {
   preset: MeerwerkbonTemplatePreset;
   showIntroText: boolean;
@@ -334,7 +339,10 @@ export interface Meerwerkbon {
     label: string;
   };
   status: MeerwerkbonStatus;
+  pricingMode?: MeerwerkbonPricingMode;
+  geschatteArbeidsuren?: number;
   template: MeerwerkbonTemplateSettings;
+  opmerking?: string;
   introText?: string;
   voorwaardenText?: string;
   lineItems: MeerwerkbonLineItem[];

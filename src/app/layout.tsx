@@ -6,6 +6,7 @@ import { MeasurementUnitProvider } from '@/context/MeasurementUnitContext';
 import { ThemeModeProvider } from '@/context/ThemeModeContext';
 import { DeferredAuthGuards } from '@/components/DeferredAuthGuards';
 import { QuoteWorkMeetingStatusSync } from '@/components/QuoteWorkMeetingStatusSync';
+import { GoogleCalendarAutoRefresh } from '@/components/GoogleCalendarAutoRefresh';
 import { PendingCostImportPrompt } from '@/components/PendingCostImportPrompt';
 
 export const metadata: Metadata = {
@@ -56,6 +57,7 @@ export default function RootLayout({
             <MeasurementUnitProvider>
               <DeferredAuthGuards />
               <QuoteWorkMeetingStatusSync />
+              <GoogleCalendarAutoRefresh />
               <PendingCostImportPrompt />
               {children}
               <Toaster />

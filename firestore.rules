@@ -126,7 +126,13 @@ service cloud.firestore {
 
     // Rules for the 'counters' collection (Quote Numbers)
     match /counters/{counterId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // A transaction must be able to read a counter before it creates it.
+      // For a missing counter there is no resource.data to validate yet;
+      // existing counters remain restricted to their owner.
+      allow get: if isSignedIn()
+                 && (!exists(/databases/$(database)/documents/counters/$(counterId))
+                     || resource.data.userId == request.auth.uid);
+      allow list: if isSignedIn() && (request.query.where.userId == request.auth.uid);
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn()
                             && resource.data.userId == request.auth.uid

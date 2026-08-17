@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteField,
   doc,
   getDoc,
   runTransaction,
@@ -15,6 +16,7 @@ import type {
   Meerwerkbon,
   MeerwerkbonClientSnapshot,
   MeerwerkbonLineItem,
+  MeerwerkbonPricingMode,
   MeerwerkbonStatus,
   MeerwerkbonTemplatePreset,
   MeerwerkbonTemplateSettings,
@@ -123,6 +125,7 @@ export async function createMeerwerkbon(
     lineItems?: Partial<MeerwerkbonLineItem>[];
     clientSnapshot?: MeerwerkbonClientSnapshot;
     templatePreset?: MeerwerkbonTemplatePreset;
+    opmerking?: string;
     introText?: string;
     voorwaardenText?: string;
     userSettings?: UserSettings | null;
@@ -160,9 +163,11 @@ export async function createMeerwerkbon(
     primaryQuoteId: params.primaryQuoteId,
     linkedQuoteIds,
     status: 'concept',
+    pricingMode: 'begroot' satisfies MeerwerkbonPricingMode,
     numbering,
     clientSnapshot,
     template,
+    opmerking: (params.opmerking ?? '').toString(),
     lineItems: normalizedLineItems,
     totals,
     introText: (params.introText ?? resolvedSettings.standaardMeerwerkbonIntroTekst ?? '').toString(),
@@ -178,11 +183,37 @@ export async function createMeerwerkbon(
   return created.id;
 }
 
+export async function updateMeerwerkbonPricingMode(
+  firestore: Firestore,
+  params: {
+    meerwerkbonId: string;
+    pricingMode: MeerwerkbonPricingMode;
+  }
+): Promise<void> {
+  const ref = doc(firestore, 'meerwerkbonnen', params.meerwerkbonId);
+  await updateDoc(ref, {
+    pricingMode: params.pricingMode,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateMeerwerkbonEstimatedHours(
+  firestore: Firestore,
+  params: { meerwerkbonId: string; estimatedHours: number | null }
+): Promise<void> {
+  const ref = doc(firestore, 'meerwerkbonnen', params.meerwerkbonId);
+  await updateDoc(ref, {
+    geschatteArbeidsuren: params.estimatedHours && params.estimatedHours > 0 ? params.estimatedHours : null,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function updateMeerwerkbonLineItems(
   firestore: Firestore,
   params: {
     meerwerkbonId: string;
     lineItems: Partial<MeerwerkbonLineItem>[];
+    opmerking?: string;
     introText?: string;
     voorwaardenText?: string;
   }
@@ -191,13 +222,19 @@ export async function updateMeerwerkbonLineItems(
   const totals = calculateMeerwerkbonTotals(normalizedLineItems);
   const ref = doc(firestore, 'meerwerkbonnen', params.meerwerkbonId);
 
-  await updateDoc(ref, removeEmptyFields({
+  const payload = removeEmptyFields({
     lineItems: normalizedLineItems,
     totals,
     introText: params.introText,
     voorwaardenText: params.voorwaardenText,
     updatedAt: serverTimestamp(),
-  }) as any);
+  }) as Record<string, unknown>;
+
+  if (params.opmerking !== undefined) {
+    payload.opmerking = params.opmerking.trim() ? params.opmerking : deleteField();
+  }
+
+  await updateDoc(ref, payload as any);
 }
 
 export async function updateMeerwerkbonTemplate(

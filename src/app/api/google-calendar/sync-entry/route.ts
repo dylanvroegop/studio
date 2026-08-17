@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { reportGoogleCalendarAlert } from '@/lib/google-calendar-alerts';
 import { getCalendarClient, isGoogleInvalidGrantError } from '@/lib/integrations/google-calendar';
-import { GOOGLE_CALENDAR_RED_COLOR_ID } from '@/lib/planning-colors';
+import {
+  GOOGLE_CALENDAR_BLUE_COLOR_ID,
+  GOOGLE_CALENDAR_RED_COLOR_ID,
+} from '@/lib/planning-colors';
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -150,12 +153,16 @@ export async function POST(request: Request) {
       body.quoteId ? `Offerte: ${body.quoteId}` : '',
     ].filter(Boolean).join('\n');
 
+    const defaultColorId = isWerkbespreking
+      ? GOOGLE_CALENDAR_RED_COLOR_ID
+      : GOOGLE_CALENDAR_BLUE_COLOR_ID;
+
     const payload = {
       summary: title,
       description,
       // Preserve a color selected in Google when a linked Calvora entry is
-      // edited. Brand-new Calvora entries use the existing red default.
-      colorId: body.googleCalendarColorId || entryData.googleCalendarColorId || GOOGLE_CALENDAR_RED_COLOR_ID,
+      // edited. New entries use the color associated with their planning type.
+      colorId: body.googleCalendarColorId || entryData.googleCalendarColorId || defaultColorId,
       start: { dateTime: body.startDate },
       end: { dateTime: body.endDate },
       reminders: {

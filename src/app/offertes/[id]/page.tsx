@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuoteData } from '@/hooks/useQuoteData';
+import { useTodayQuoteHours } from '@/hooks/useTodayQuoteHours';
 import {
     calculateQuoteTotals,
     QuoteSettings as QuoteCalculationSettings,
@@ -25,7 +26,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy, MoreHorizontal } from 'lucide-react';
+import { Euro, Package, Clock, FileText, FileSignature, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy, MoreHorizontal } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -67,6 +68,7 @@ import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
 import { AppNavigation } from '@/components/AppNavigation';
 import { LogoUpload } from '@/components/settings/LogoUpload';
 import { findExistingVoorschotInvoiceId } from '@/lib/invoice-actions';
+import { createMeerwerkbon } from '@/lib/meerwerkbon-actions';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn, parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
@@ -81,6 +83,8 @@ import {
 import { cloneTemplateSections, findWorkDescriptionTemplate } from '@/lib/work-description/templates';
 import { isIgnoredWorkDeliveryMaterial, validateWorkDeliveryScope } from '@/lib/work-delivery';
 import { capitalizeSentenceStarts } from '@/lib/text-formatting';
+import { formatHoursCompact, getQuoteDriveMinutes } from '@/lib/quote-time-summary';
+import type { QuoteWithAddress } from '@/lib/tracking-analysis';
 
 import { Quote, ReceiptAttachment, QuotePhotoAttachment, type MaterialPresentation } from "@/lib/types";
 import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
@@ -1101,6 +1105,9 @@ export default function QuotePage() {
     // Firebase hooks
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
+    const todayHoursByQuoteId = useTodayQuoteHours(
+        quote ? [quote as unknown as QuoteWithAddress] : [],
+    );
 
     const [quoteSettings, setQuoteSettings] = useState<QuoteCalculationSettings | null>(null);
     const [klantInfo, setKlantInfo] = useState<KlantInformatie | null>(null);
@@ -3362,6 +3369,7 @@ export default function QuotePage() {
     const [isSplittingQuote, setIsSplittingQuote] = useState(false);
     const [isDuplicateQuoteOpen, setIsDuplicateQuoteOpen] = useState(false);
     const [isDuplicatingQuote, setIsDuplicatingQuote] = useState(false);
+    const [isCreatingMeerwerkbon, setIsCreatingMeerwerkbon] = useState(false);
     const [splitQuoteDrafts, setSplitQuoteDrafts] = useState<SplitQuoteDraft[]>([]);
     const [splitMaterialAssignments, setSplitMaterialAssignments] = useState<Record<string, string>>({});
     const [splitKlusAssignments, setSplitKlusAssignments] = useState<Record<string, string>>({});
@@ -5488,6 +5496,9 @@ export default function QuotePage() {
         calculation?.status === 'pending' ||
         calculation?.status === 'processing';
     const laborTotalHours = (calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0;
+    const todaySummary = todayHoursByQuoteId[id];
+    const todayWorkedHours = todaySummary?.workedHours || 0;
+    const todayDriveMinutes = todaySummary?.driveMinutes || getQuoteDriveMinutes(normalizedData || calculation?.data_json, { laborHoursPerDay });
     const laborRateExcl = Number(quoteSettings?.uurTariefExclBtw) || 0;
     const laborTotalExcl = (Number(laborTotalHours) || 0) * laborRateExcl;
     const footerVatRate = Number(quoteSettings?.btwTarief) || 21;
@@ -6391,6 +6402,30 @@ export default function QuotePage() {
         const redirect = encodeURIComponent(`/offertes/${id}`);
         router.push(`/offertes/${id}/klant?successRedirect=${redirect}`);
     }, [id, router]);
+    const handleCreateMeerwerkbon = useCallback(async () => {
+        if (!user || !firestore || !quote || isCreatingMeerwerkbon) return;
+
+        setIsCreatingMeerwerkbon(true);
+        try {
+            const meerwerkbonId = await createMeerwerkbon(firestore, {
+                userId: user.uid,
+                primaryQuoteId: id,
+                linkedQuoteIds: [],
+                quoteMap: { [id]: quote },
+            });
+
+            router.push(`/meerwerkbon/${meerwerkbonId}`);
+        } catch (error: unknown) {
+            console.error('Kon meerwerkbon niet maken vanuit offerte:', error);
+            toast({
+                title: 'Meerwerkbon maken mislukt',
+                description: error instanceof Error ? error.message : 'Onbekende fout',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsCreatingMeerwerkbon(false);
+        }
+    }, [firestore, id, isCreatingMeerwerkbon, quote, router, toast, user]);
     const handleCreateLinkedMaterialList = useCallback(async () => {
         if (!user || !firestore || !quote || isCreatingLinkedMaterialList) return;
         setIsCreatingLinkedMaterialList(true);
@@ -6513,6 +6548,13 @@ export default function QuotePage() {
                                     <CalendarDays className="mr-2 h-4 w-4" />
                                     Inplannen
                                 </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => void handleCreateMeerwerkbon()}
+                                    disabled={loading || !quote || isCreatingMeerwerkbon}
+                                >
+                                    {isCreatingMeerwerkbon ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSignature className="mr-2 h-4 w-4" />}
+                                    Meerwerkbon maken
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setIsPdfSettingsOpen(true)}>
                                     <Settings className="mr-2 h-4 w-4" />
                                     PDF instellingen
@@ -6577,10 +6619,20 @@ export default function QuotePage() {
                                     </Button>
                                 </div>
                             )}
+                            {todayWorkedHours > 0 ? (
+                                <Link
+                                    href={`/urenregistratie?tab=history&quoteId=${encodeURIComponent(id)}`}
+                                    className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-300 transition-colors hover:text-emerald-200"
+                                >
+                                    <Clock className="h-3.5 w-3.5" />
+                                    Vandaag: {formatHoursCompact(todayWorkedHours)} gewerkt
+                                    {todayDriveMinutes > 0 ? ` + ${formatHoursCompact(todayDriveMinutes / 60)} rijden` : ''}
+                                </Link>
+                            ) : null}
                         </div>
                     </div>
                     {!loading && (
-                        <div className="grid w-full grid-cols-4 gap-2 sm:hidden">
+                        <div className="grid w-full grid-cols-5 gap-2 sm:hidden">
                             <Button
                                 variant="outline"
                                 className="h-11 px-0"
@@ -6589,6 +6641,16 @@ export default function QuotePage() {
                                 title="Maak factuur"
                             >
                                 <ReceiptText size={16} />
+                            </Button>
+                            <Button
+                                variant="success"
+                                className="h-11 px-0"
+                                onClick={() => void handleCreateMeerwerkbon()}
+                                disabled={loading || !quote || isCreatingMeerwerkbon}
+                                aria-label="Meerwerkbon maken"
+                                title="Meerwerkbon maken"
+                            >
+                                {isCreatingMeerwerkbon ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSignature size={16} />}
                             </Button>
                             <Button
                                 variant="outline"
@@ -6696,6 +6758,17 @@ export default function QuotePage() {
                                     title="Calculatie"
                                 >
                                     <PenTool size={16} />
+                                </Button>
+                                <Button
+                                    variant="success"
+                                    size="icon"
+                                    className="h-9 w-9 shrink-0"
+                                    onClick={() => void handleCreateMeerwerkbon()}
+                                    disabled={loading || !quote || isCreatingMeerwerkbon}
+                                    aria-label="Meerwerkbon maken"
+                                    title="Meerwerkbon maken"
+                                >
+                                    {isCreatingMeerwerkbon ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSignature size={16} />}
                                 </Button>
                                 <Button
                                     variant="outline"

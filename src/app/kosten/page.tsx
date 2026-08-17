@@ -79,6 +79,7 @@ type KostenViewMode = 'lijst' | 'galerij';
 type QuoteOption = {
   id: string;
   offerteNummer: number | null;
+  totalInclBtw: number | null;
   clientName: string;
   title: string;
   label: string;
@@ -241,6 +242,22 @@ function getQuoteTitle(rawQuote: Record<string, unknown>): string {
     || safeString(rawQuote.werkomschrijving)
     || 'Project'
   );
+}
+
+function getQuoteTotalInclBtw(rawQuote: Record<string, unknown>): number | null {
+  const candidates = [
+    rawQuote.totaalbedrag,
+    rawQuote.amount,
+    rawQuote.totaalInclBtw,
+    (rawQuote.totals as Record<string, unknown> | undefined)?.totaalInclBtw,
+  ];
+
+  for (const candidate of candidates) {
+    const amount = Number(candidate);
+    if (Number.isFinite(amount) && amount > 0) return Math.round(amount * 100) / 100;
+  }
+
+  return null;
 }
 
 function getQuoteSearchable(rawQuote: Record<string, unknown>, docId: string, label: string, clientName: string, title: string, offerteNummer: number | null): string {
@@ -541,13 +558,16 @@ function KostenPageContent() {
         const offerteNummer = Number.isFinite(Number(raw.offerteNummer))
           ? Number(raw.offerteNummer)
           : null;
-        const label = offerteNummer
-          ? `#${offerteNummer} • ${clientName} • ${title}`
-          : `${clientName} • ${title}`;
+        const totalInclBtw = getQuoteTotalInclBtw(raw);
+      const totalLabel = totalInclBtw !== null ? formatCurrency(totalInclBtw) : 'bedrag onbekend';
+      const label = offerteNummer
+        ? `#${offerteNummer} • ${totalLabel} • ${clientName} • ${title}`
+        : `${totalLabel} • ${clientName} • ${title}`;
 
         return {
           id: docSnap.id,
           offerteNummer,
+          totalInclBtw,
           clientName,
           title,
           label,
@@ -564,6 +584,7 @@ function KostenPageContent() {
       .map((item) => ({
         id: item.id,
         offerteNummer: item.offerteNummer,
+        totalInclBtw: item.totalInclBtw,
         clientName: item.clientName,
         title: item.title,
         label: item.label,

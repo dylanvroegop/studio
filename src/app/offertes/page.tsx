@@ -19,15 +19,21 @@ import {
   Archive,
   BarChart3,
   CalendarDays,
+  CheckCircle2,
+  Clock3,
   FileText,
+  List,
   Loader2,
   MoreHorizontal,
   Navigation,
   Plus,
   RotateCcw,
   Search,
+  Send,
+  Settings2,
+  type LucideIcon,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { addDays, format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
 import { AppNavigation } from '@/components/AppNavigation';
@@ -58,6 +64,9 @@ import { createEmptyQuote } from '@/lib/firestore-actions';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-status';
 import { buildGoogleMapsDirectionsUrl, resolveQuoteProjectAddress } from '@/lib/maps';
+import { useQuoteWorkedHours } from '@/hooks/useQuoteWorkedHours';
+import { formatHoursCompact, getQuoteDriveMinutes } from '@/lib/quote-time-summary';
+import type { QuoteWithAddress } from '@/lib/tracking-analysis';
 import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -65,6 +74,30 @@ type FilterMode = 'alle' | 'concept' | 'vandaag' | 'in_afwachting' | 'verzonden'
 const OFFERTES_FILTER_STORAGE_KEY = 'offertes:last-filter';
 type DefaultFilterMode = 'concept' | 'geaccepteerd' | 'vandaag';
 const OFFERTES_DEFAULT_FILTER_STORAGE_KEY = 'offertes:default-filter';
+type TodayRangeMode = 'vandaag' | 'vandaag_en_morgen';
+const OFFERTES_TODAY_RANGE_STORAGE_KEY = 'offertes:today-range';
+
+const MOBILE_FILTER_ICONS: Record<FilterMode, LucideIcon> = {
+  alle: List,
+  concept: FileText,
+  vandaag: CalendarDays,
+  in_afwachting: Clock3,
+  verzonden: Send,
+  geaccepteerd: CheckCircle2,
+  werkbespreking: CalendarDays,
+  archief: Archive,
+};
+
+const MOBILE_FILTER_COLORS: Record<FilterMode, string> = {
+  alle: 'text-slate-300 border-slate-400/35 bg-slate-400/10 hover:bg-slate-400/20',
+  concept: 'text-blue-400 border-blue-400/40 bg-blue-400/10 hover:bg-blue-400/20',
+  vandaag: 'text-cyan-400 border-cyan-400/40 bg-cyan-400/10 hover:bg-cyan-400/20',
+  in_afwachting: 'text-amber-400 border-amber-400/40 bg-amber-400/10 hover:bg-amber-400/20',
+  verzonden: 'text-violet-400 border-violet-400/40 bg-violet-400/10 hover:bg-violet-400/20',
+  geaccepteerd: 'text-emerald-400 border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20',
+  werkbespreking: 'text-red-400 border-red-400/40 bg-red-400/10 hover:bg-red-400/20',
+  archief: 'text-zinc-300 border-zinc-400/35 bg-zinc-400/10 hover:bg-zinc-400/20',
+};
 
 type QuoteRow = Quote & {
   id: string;
@@ -122,7 +155,9 @@ type PlanningListEntry = {
   endDate: Date | null;
   scheduledHours?: number;
   status?: string;
+  isAllDay?: boolean;
   cache?: {
+    clientName?: string;
     projectTitle?: string;
     projectAddress?: string;
   };
@@ -159,6 +194,13 @@ function naarDate(value: unknown): Date | null {
 function formatCurrency(amount?: number): string {
   const n = typeof amount === 'number' && Number.isFinite(amount) ? amount : 0;
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
+}
+
+function formatDays(days: number): string {
+  return new Intl.NumberFormat('nl-NL', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(days);
 }
 
 function getKlantNaam(q: QuoteRow): string {
@@ -307,6 +349,17 @@ function formatPlanningDateRange(entry: PlanningListEntry): string {
   if (!start) return '';
 
   const dateLabel = format(start, 'd MMM yyyy', { locale: nl });
+  if (entry.isAllDay) {
+    const end = entry.endDate;
+    const spansMultipleDays = end
+      && (start.getFullYear() !== end.getFullYear()
+        || start.getMonth() !== end.getMonth()
+        || start.getDate() !== end.getDate());
+    return spansMultipleDays
+      ? `${dateLabel} - ${format(end, 'd MMM yyyy', { locale: nl })}, Hele dag`
+      : `${dateLabel}, Hele dag`;
+  }
+
   const startTime = format(start, 'HH:mm', { locale: nl });
   const endTime = entry.endDate ? format(entry.endDate, 'HH:mm', { locale: nl }) : '';
 
@@ -336,6 +389,65 @@ function isPlanningEntryOnDate(entry: PlanningListEntry, date: Date): boolean {
 function getFirstPlanningEntryOnDate(entries: PlanningListEntry[] | undefined, date: Date): PlanningListEntry | null {
   return entries
     ?.filter((entry) => isPlanningEntryOnDate(entry, date))
+    .sort((a, b) => (a.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER))[0] ?? null;
+}
+
+function normalizePlanningClientName(value: string): string {
+  return value
+    .replace(/^\d{1,2}:\d{2}\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function planningQuoteStatusPriority(status: Quote['status'] | undefined): number {
+  switch (status) {
+    case 'geaccepteerd': return 0;
+    case 'in_afwachting': return 1;
+    case 'verzonden': return 2;
+    case 'concept': return 3;
+    case 'in_behandeling': return 4;
+    case 'werkbespreking': return 5;
+    default: return 6;
+  }
+}
+
+function selectPlanningQuoteMatch(quotes: QuoteRow[]): QuoteRow | null {
+  return [...quotes].sort((a, b) => {
+    const statusDifference = planningQuoteStatusPriority(a.status) - planningQuoteStatusPriority(b.status);
+    if (statusDifference !== 0) return statusDifference;
+    return (b.updatedAtDate?.getTime() ?? 0) - (a.updatedAtDate?.getTime() ?? 0);
+  })[0] ?? null;
+}
+
+function findQuoteForUnlinkedPlanning(entry: PlanningListEntry, quotes: QuoteRow[]): QuoteRow | null {
+  const planningName = normalizePlanningClientName(entry.cache?.clientName || entry.cache?.projectTitle || '');
+  if (!planningName) return null;
+
+  const activeQuotes = quotes.filter((quote) => !quote.archived);
+  const exactMatches = activeQuotes.filter((quote) => normalizePlanningClientName(getKlantNaam(quote)) === planningName);
+  if (exactMatches.length > 0) return selectPlanningQuoteMatch(exactMatches);
+
+  const firstName = planningName.split(' ')[0];
+  const firstNameMatches = activeQuotes.filter((quote) => {
+    const quoteName = normalizePlanningClientName(getKlantNaam(quote));
+    return quoteName.split(' ')[0] === firstName;
+  });
+
+  return selectPlanningQuoteMatch(firstNameMatches);
+}
+
+function isTodayRangeMode(value: unknown): value is TodayRangeMode {
+  return value === 'vandaag' || value === 'vandaag_en_morgen';
+}
+
+function getFirstPlanningEntryInDateRange(
+  entries: PlanningListEntry[] | undefined,
+  dates: Date[],
+): PlanningListEntry | null {
+  return dates
+    .map((date) => getFirstPlanningEntryOnDate(entries, date))
+    .filter((entry): entry is PlanningListEntry => entry !== null)
     .sort((a, b) => (a.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER))[0] ?? null;
 }
 
@@ -623,6 +735,8 @@ export default function OffertesPage() {
   const [defaultFilter, setDefaultFilter] = useState<DefaultFilterMode>('concept');
   const [filterPreferencesHydrated, setFilterPreferencesHydrated] = useState(false);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [todayRangeMode, setTodayRangeMode] = useState<TodayRangeMode>('vandaag');
+  const [unlinkedPlanningEntries, setUnlinkedPlanningEntries] = useState<PlanningListEntry[]>([]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [creatingQuote, setCreatingQuote] = useState(false);
@@ -637,10 +751,26 @@ export default function OffertesPage() {
   const [updatingAcceptanceQuoteId, setUpdatingAcceptanceQuoteId] = useState<string | null>(null);
   const [updatingDashboardQuoteId, setUpdatingDashboardQuoteId] = useState<string | null>(null);
   const [profitByQuoteId, setProfitByQuoteId] = useState<Record<string, number>>({});
+  const [hoursPerDay, setHoursPerDay] = useState(8);
+  const workedHoursByQuoteId = useQuoteWorkedHours(quotes as QuoteWithAddress[]);
   const isSyncingTotalsRef = useRef(false);
   const isSyncingHoofdtitelsRef = useRef(false);
   const fetchedHoofdtitelIdsRef = useRef<Set<string>>(new Set());
   const didCompleteInitialHoofdtitelSyncRef = useRef(false);
+
+  useEffect(() => {
+    if (!firestore || !user) {
+      setHoursPerDay(8);
+      return;
+    }
+
+    return onSnapshot(doc(firestore, 'users', user.uid), (snapshot) => {
+      const configuredHours = Number(snapshot.data()?.settings?.planningSettings?.defaultWorkdayHours);
+      setHoursPerDay(Number.isFinite(configuredHours) && configuredHours > 0 ? configuredHours : 8);
+    }, () => {
+      setHoursPerDay(8);
+    });
+  }, [firestore, user]);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -679,6 +809,14 @@ export default function OffertesPage() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(OFFERTES_DEFAULT_FILTER_STORAGE_KEY, defaultFilter);
   }, [defaultFilter, filterPreferencesHydrated]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedTodayRange = window.localStorage.getItem(OFFERTES_TODAY_RANGE_STORAGE_KEY);
+    if (isTodayRangeMode(storedTodayRange)) {
+      setTodayRangeMode(storedTodayRange);
+    }
+  }, []);
 
   useEffect(() => {
     if (!user || !firestore) return;
@@ -782,33 +920,40 @@ export default function OffertesPage() {
       q,
       (snapshot) => {
         const grouped: Record<string, PlanningListEntry[]> = {};
+        const unlinked: PlanningListEntry[] = [];
 
         snapshot.docs.forEach((docSnap) => {
           const raw = docSnap.data() as Record<string, unknown>;
           const quoteId = cleanDisplayText(raw.quoteId);
-          if (!quoteId) return;
           const cache = isPlainObject(raw.cache) ? raw.cache : null;
 
           const entry: PlanningListEntry = {
             id: docSnap.id,
-            quoteId,
+            quoteId: quoteId || undefined,
             planningType: raw.planningType === 'werkbespreking' ? 'werkbespreking' : 'job',
             startDate: naarDate(raw.startDate),
             endDate: naarDate(raw.endDate),
             scheduledHours: Number(raw.scheduledHours),
             status: cleanDisplayText(raw.status),
+            isAllDay: raw.isAllDay === true,
             cache: cache
               ? {
+                clientName: cleanDisplayText(cache.clientName),
                 projectTitle: cleanDisplayText(cache.projectTitle),
                 projectAddress: cleanDisplayText(cache.projectAddress),
               }
               : undefined,
           };
 
-          grouped[quoteId] = [...(grouped[quoteId] || []), entry];
+          if (quoteId) {
+            grouped[quoteId] = [...(grouped[quoteId] || []), entry];
+          } else {
+            unlinked.push(entry);
+          }
         });
 
         setPlanningEntriesByQuoteId(grouped);
+        setUnlinkedPlanningEntries(unlinked);
       },
       (err: unknown) => {
         console.warn('Fout bij ophalen planninginformatie voor offertes:', err);
@@ -1186,19 +1331,37 @@ export default function OffertesPage() {
     });
   }, [quotes, selectedYear]);
 
-  const todaysQuotes = useMemo(() => {
+  const todaysPlanningEntryByQuoteId = useMemo(() => {
     const today = new Date();
+    const dates = todayRangeMode === 'vandaag_en_morgen' ? [today, addDays(today, 1)] : [today];
+    const entriesByQuoteId: Record<string, PlanningListEntry> = {};
+
+    quotes.forEach((quote) => {
+      if (quote.archived) return;
+      const entry = getFirstPlanningEntryInDateRange(planningEntriesByQuoteId[quote.id], dates);
+      if (entry) entriesByQuoteId[quote.id] = entry;
+    });
+
+    unlinkedPlanningEntries
+      .filter((entry) => dates.some((date) => isPlanningEntryOnDate(entry, date)))
+      .sort((a, b) => (a.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER))
+      .forEach((entry) => {
+        const quote = findQuoteForUnlinkedPlanning(entry, quotes);
+        if (quote && !entriesByQuoteId[quote.id]) entriesByQuoteId[quote.id] = entry;
+      });
+
+    return entriesByQuoteId;
+  }, [planningEntriesByQuoteId, quotes, todayRangeMode, unlinkedPlanningEntries]);
+
+  const todaysQuotes = useMemo(() => {
     return quotes
-      .filter((quote) => {
-        if (quote.archived) return false;
-        return getFirstPlanningEntryOnDate(planningEntriesByQuoteId[quote.id], today) !== null;
-      })
+      .filter((quote) => todaysPlanningEntryByQuoteId[quote.id])
       .sort((a, b) => {
-        const aEntry = getFirstPlanningEntryOnDate(planningEntriesByQuoteId[a.id], today);
-        const bEntry = getFirstPlanningEntryOnDate(planningEntriesByQuoteId[b.id], today);
+        const aEntry = todaysPlanningEntryByQuoteId[a.id];
+        const bEntry = todaysPlanningEntryByQuoteId[b.id];
         return (aEntry?.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (bEntry?.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER);
       });
-  }, [planningEntriesByQuoteId, quotes]);
+  }, [quotes, todaysPlanningEntryByQuoteId]);
 
   const filterCountsByMode = useMemo(() => {
     const countFor = (mode: FilterMode): number => {
@@ -1519,6 +1682,42 @@ export default function OffertesPage() {
     setFilter(nextDefaultFilter);
   }
 
+  function handleTodayRangeModeSelect(nextTodayRangeMode: TodayRangeMode): void {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(OFFERTES_TODAY_RANGE_STORAGE_KEY, nextTodayRangeMode);
+    }
+    setTodayRangeMode(nextTodayRangeMode);
+  }
+
+  const TodayFilterSettings = () => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 shrink-0 rounded-full border-border/70 bg-background/50"
+          aria-label="Instellingen voor Vandaag-filter"
+          title="Instellingen voor Vandaag-filter"
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuLabel>
+          Vandaag: {todayRangeMode === 'vandaag_en_morgen' ? 'vandaag + morgen' : 'alleen vandaag'}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => handleTodayRangeModeSelect('vandaag')}>
+          Alleen vandaag {todayRangeMode === 'vandaag' ? '✓' : ''}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleTodayRangeModeSelect('vandaag_en_morgen')}>
+          Vandaag + morgen {todayRangeMode === 'vandaag_en_morgen' ? '✓' : ''}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <div className="app-shell min-h-screen bg-background">
       <AppNavigation />
@@ -1528,12 +1727,36 @@ export default function OffertesPage() {
 
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
         <div className="w-full max-w-5xl space-y-5">
-          <div className="sm:hidden space-y-3">
+          <div className="sm:hidden space-y-2.5">
             <div className="flex items-center justify-between pl-12 pr-1 pt-1">
               <h1 className="text-xl font-semibold text-foreground">Offertes</h1>
-              <div className="h-8 w-8 rounded-full border border-border/80 bg-card/70 text-xs font-medium text-muted-foreground flex items-center justify-center">
-                {((user?.displayName || user?.email || 'U').trim().charAt(0) || 'U').toUpperCase()}
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 rounded-full border-border/80 bg-card/70"
+                    aria-label={`Standaardfilter: ${defaultFilterLabel}`}
+                    title={`Standaardfilter: ${defaultFilterLabel}`}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Standaardfilter: {defaultFilterLabel}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleDefaultFilterSelect('concept')}>
+                    Concept {defaultFilter === 'concept' ? '(actief)' : ''}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDefaultFilterSelect('geaccepteerd')}>
+                    Geaccepteerd {defaultFilter === 'geaccepteerd' ? '(actief)' : ''}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDefaultFilterSelect('vandaag')}>
+                    Vandaag {defaultFilter === 'vandaag' ? '(actief)' : ''}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {error && (
@@ -1548,61 +1771,36 @@ export default function OffertesPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Zoek op klant, offertennummer of titel..."
-                className="h-11 rounded-xl pl-10"
+                className="h-10 rounded-xl pl-10"
               />
             </div>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 w-full justify-between rounded-xl border-border/70 px-4"
-                  aria-label={`Standaardfilter: ${defaultFilterLabel}`}
-                >
-                  <span>Standaard: {defaultFilterLabel}</span>
-                  <span className="text-xs text-muted-foreground">Aanpassen</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[calc(100vw-2rem)] max-w-sm">
-                <DropdownMenuLabel>Open offertes standaard op</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleDefaultFilterSelect('concept')}>
-                  Concept {defaultFilter === 'concept' ? '(actief)' : ''}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleDefaultFilterSelect('geaccepteerd')}>
-                  Geaccepteerd {defaultFilter === 'geaccepteerd' ? '(actief)' : ''}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleDefaultFilterSelect('vandaag')}>
-                  Vandaag {defaultFilter === 'vandaag' ? '(actief)' : ''}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
 
             <div className="-mx-4 overflow-x-auto pb-1">
               <div className="flex w-max items-center gap-2 px-4">
                 {mobileFilterOptions.map((option) => (
-                  <Button
-                    key={`mobile-${option.value}`}
-                    type="button"
-                    variant={filter === option.value ? 'default' : 'ghost'}
-                    onClick={() => setFilter(option.value)}
-                    className={cn(
-                      'h-9 shrink-0 rounded-full px-4 text-sm transition-all duration-200 active:scale-[0.98]',
-                      filter === option.value
-                        ? 'bg-cyan-500/90 text-white hover:bg-cyan-400'
-                        : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
-                    )}
-                  >
-                    {option.value === 'vandaag' ? <CalendarDays className="mr-1 h-3.5 w-3.5" /> : null}
-                    <span>{option.label}</span>
-                    <span className={cn(
-                      'ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold',
-                      filter === option.value ? 'bg-black/20 text-white' : 'bg-muted/50 text-foreground/80'
-                    )}>
-                      {option.count}
-                    </span>
-                  </Button>
+                  <div key={`mobile-${option.value}`} className="inline-flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setFilter(option.value)}
+                      aria-label={`${option.label}: ${option.count}`}
+                      title={`${option.label}: ${option.count}`}
+                      className={cn(
+                        'relative h-9 w-9 shrink-0 rounded-full border p-0 transition-all duration-200 active:scale-[0.96]',
+                        MOBILE_FILTER_COLORS[option.value],
+                        filter === option.value ? 'shadow-[0_0_14px_currentColor] ring-1 ring-current' : 'opacity-65'
+                      )}
+                    >
+                      {(() => {
+                        const Icon = MOBILE_FILTER_ICONS[option.value];
+                        return <Icon className="h-4 w-4" aria-hidden="true" />;
+                      })()}
+                      <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-background bg-background px-1 text-[9px] font-bold leading-none text-foreground">
+                        {option.count}
+                      </span>
+                    </Button>
+                    {option.value === 'vandaag' ? <TodayFilterSettings /> : null}
+                  </div>
                 ))}
               </div>
             </div>
@@ -1747,27 +1945,29 @@ export default function OffertesPage() {
 
               <div className="flex flex-wrap gap-2.5">
                 {filterOptions.map((option) => (
-                  <Button
-                    key={option.value}
-                    type="button"
-                    variant={filter === option.value ? 'default' : 'ghost'}
-                    onClick={() => setFilter(option.value)}
-                    className={cn(
-                      'h-9 rounded-full px-4 transition-all duration-200 active:scale-[0.98]',
-                      filter === option.value
-                        ? 'bg-cyan-500/90 text-white hover:bg-cyan-400'
-                        : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
-                    )}
-                  >
-                    {option.value === 'vandaag' ? <CalendarDays className="mr-1 h-3.5 w-3.5" /> : null}
-                    <span>{option.label}</span>
-                    <span className={cn(
-                      'ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold',
-                      filter === option.value ? 'bg-black/20 text-white' : 'bg-muted/50 text-foreground/80'
-                    )}>
-                      {option.count}
-                    </span>
-                  </Button>
+                  <div key={option.value} className="inline-flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant={filter === option.value ? 'default' : 'ghost'}
+                      onClick={() => setFilter(option.value)}
+                      className={cn(
+                        'h-9 rounded-full px-4 transition-all duration-200 active:scale-[0.98]',
+                        filter === option.value
+                          ? 'bg-cyan-500/90 text-white hover:bg-cyan-400'
+                          : 'border border-border/70 bg-transparent text-muted-foreground/85 hover:border-cyan-500/25 hover:bg-cyan-500/8 hover:text-cyan-200'
+                      )}
+                    >
+                      {option.value === 'vandaag' ? <CalendarDays className="mr-1 h-3.5 w-3.5" /> : null}
+                      <span>{option.label}</span>
+                      <span className={cn(
+                        'ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold',
+                        filter === option.value ? 'bg-black/20 text-white' : 'bg-muted/50 text-foreground/80'
+                      )}>
+                        {option.count}
+                      </span>
+                    </Button>
+                    {option.value === 'vandaag' ? <TodayFilterSettings /> : null}
+                  </div>
                 ))}
               </div>
             </CardContent>
@@ -1816,7 +2016,7 @@ export default function OffertesPage() {
                 const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
                 const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
                 const todayEntry = filter === 'vandaag'
-                  ? getFirstPlanningEntryOnDate(planningEntriesByQuoteId[q.id], new Date())
+                  ? todaysPlanningEntryByQuoteId[q.id]
                   : null;
                 const datum = todayEntry?.startDate ?? getQuoteDisplayDate(q, planningEntriesByQuoteId[q.id]);
                 const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
@@ -1836,6 +2036,9 @@ export default function OffertesPage() {
                 const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
                 const quoteProfit = profitByQuoteId[q.id];
                 const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
+                const todaySummary = workedHoursByQuoteId[q.id];
+                const todayWorkedHours = todaySummary?.workedHours || 0;
+                const driveMinutes = getQuoteDriveMinutes((q as QuoteRowWithDetails).data_json, { laborHoursPerDay: hoursPerDay });
                 const routeDestinationAddress = resolveQuoteProjectAddress(q);
                 const routeMapsUrl = buildGoogleMapsDirectionsUrl(routeDestinationAddress);
 
@@ -1843,7 +2046,7 @@ export default function OffertesPage() {
                   <div
                     key={`mobile-${q.id}`}
                     className={cn(
-                      'group relative cursor-pointer rounded-xl border border-l-[3px] border-border/80 px-3.5 py-3 shadow-sm transition-all duration-150 active:scale-[0.995]',
+                      'group relative cursor-pointer rounded-xl border border-l-[3px] border-border/80 px-3 py-2.5 shadow-sm transition-all duration-150 active:scale-[0.995]',
                       statusStyles.sideBorderClass,
                       statusStyles.rowTintClass
                     )}
@@ -1857,17 +2060,21 @@ export default function OffertesPage() {
                       }
                     }}
                   >
-                    <div className="relative z-10 space-y-2.5">
+                    <div className="relative z-10 space-y-2">
                       <div className="flex min-w-0 items-center gap-2">
-                        <div className="truncate text-base font-bold text-foreground">{klant}</div>
+                        <div className="truncate text-[15px] font-bold text-foreground">{klant}</div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground/70">
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground/70">
                         <span className="truncate">{nrLabel}</span>
                         <span className="opacity-40">•</span>
                         <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
                       </div>
-                      {rowDescription ? (
-                        <div className="truncate text-xs text-muted-foreground/90">{rowDescription}</div>
+                      {todayWorkedHours > 0 ? (
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-300">
+                          <Clock3 className="h-3.5 w-3.5" />
+                          Vandaag: {formatHoursCompact(todayWorkedHours)} gewerkt
+                          {driveMinutes > 0 ? ` + ${formatHoursCompact(driveMinutes / 60)} rijden` : ''}
+                        </div>
                       ) : null}
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0 space-y-0.5 tabular-nums">
@@ -1893,7 +2100,7 @@ export default function OffertesPage() {
                             variant="outline"
                             size="sm"
                             disabled={!routeMapsUrl}
-                            className="h-9 gap-1.5 px-2.5"
+                            className="h-8 gap-1.5 px-2"
                             aria-label={routeMapsUrl ? `Route naar ${routeDestinationAddress}` : 'Geen adres beschikbaar'}
                             title={routeMapsUrl ? `Route naar ${routeDestinationAddress}` : 'Geen adres beschikbaar'}
                             onClick={(e) => {
@@ -2016,7 +2223,7 @@ export default function OffertesPage() {
                 const hasCalculated = typeof totaal === 'number' && Number.isFinite(totaal) && totaal > 0;
                 const effectiveStatus = getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id));
                 const todayEntry = filter === 'vandaag'
-                  ? getFirstPlanningEntryOnDate(planningEntriesByQuoteId[q.id], new Date())
+                  ? todaysPlanningEntryByQuoteId[q.id]
                   : null;
                 const datum = todayEntry?.startDate ?? getQuoteDisplayDate(q, planningEntriesByQuoteId[q.id]);
                 const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
@@ -2036,6 +2243,9 @@ export default function OffertesPage() {
                 const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
                 const quoteProfit = profitByQuoteId[q.id];
                 const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
+                const todaySummary = workedHoursByQuoteId[q.id];
+                const todayWorkedHours = todaySummary?.workedHours || 0;
+                const driveMinutes = getQuoteDriveMinutes((q as QuoteRowWithDetails).data_json, { laborHoursPerDay: hoursPerDay });
                 const amountClass = cn(
                   'text-2xl font-bold tabular-nums',
                   showUncalculatedPlaceholder ? 'text-blue-300' : 'text-blue-400'
@@ -2078,6 +2288,13 @@ export default function OffertesPage() {
                         </div>
                         {rowDescription ? (
                           <div className="mt-1 truncate text-xs text-muted-foreground/90">{rowDescription}</div>
+                        ) : null}
+                        {todayWorkedHours > 0 ? (
+                          <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-emerald-300">
+                            <Clock3 className="h-3.5 w-3.5" />
+                            Vandaag: {formatHoursCompact(todayWorkedHours)} gewerkt
+                            {driveMinutes > 0 ? ` + ${formatHoursCompact(driveMinutes / 60)} rijden` : ''}
+                          </div>
                         ) : null}
                         <div className={cn('sm:hidden', amountMobileClass)}>
                           {showUncalculatedPlaceholder ? (

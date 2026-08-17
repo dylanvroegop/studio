@@ -52,6 +52,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import type { TimeEntrySource } from '@/lib/time-entries';
 import { ENABLE_PENDING_HOURS_PROMPT } from '@/lib/pending-hours-feature';
+import { TrackingDayIntelligence } from '@/components/tracking/TrackingDayIntelligence';
 
 // Types
 interface TimeEntry {
@@ -530,8 +531,6 @@ function UrenRegistratiePageContent() {
         return `${h}u ${m}m`;
     };
 
-    if (!mounted) return null;
-
     const needsQuoteSelection = !selectedQuoteId || selectedQuoteId === 'none';
 
     return (
@@ -553,6 +552,8 @@ function UrenRegistratiePageContent() {
                     </Button>
                 ) : null}
             </div>
+
+            <TrackingDayIntelligence quotes={quotes} history={history} />
 
             <div className="container max-w-md mx-auto p-4 space-y-6">
                 {/* Main Tabs */}

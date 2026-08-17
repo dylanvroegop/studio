@@ -20,7 +20,9 @@ import {
   FileSignature,
   Loader2,
   Mail,
+  MessageCircle,
   Plus,
+  Save,
   Settings,
   Trash2,
 } from 'lucide-react';
@@ -47,14 +49,18 @@ import type {
   MeerwerkbonApproval,
   MeerwerkbonClientSnapshot,
   MeerwerkbonLineItem,
+  MeerwerkbonPricingMode,
   MeerwerkbonTemplatePreset,
   MeerwerkbonTemplateSettings,
 } from '@/lib/types';
+import type { KlantInformatie } from '@/lib/quote-calculations';
 import { calculateMeerwerkbonTotals, clientSnapshotKey, formatCurrency, normalizeMeerwerkbonLineItem, recalcMeerwerkbonLineItems, safeNumber } from '@/lib/meerwerkbon-utils';
 import {
   createCombinedInvoiceConceptFromMeerwerkbon,
   updateMeerwerkbonClientSnapshot,
+  updateMeerwerkbonEstimatedHours,
   updateMeerwerkbonLineItems,
+  updateMeerwerkbonPricingMode,
   updateMeerwerkbonStatus,
   updateMeerwerkbonTemplate,
 } from '@/lib/meerwerkbon-actions';
@@ -62,9 +68,11 @@ import { DEFAULT_USER_SETTINGS, type UserSettings } from '@/lib/types-settings';
 import { generateMeerwerkbonPDF, type PDFMeerwerkbonData } from '@/lib/generate-meerwerkbon-pdf';
 import { PDFPreviewMeerwerkbon } from '@/components/meerwerk/PDFPreviewMeerwerkbon';
 import { SendMeerwerkbonModal } from '@/components/meerwerk/SendMeerwerkbonModal';
+import { SendQuoteWhatsAppModal } from '@/components/quote/SendQuoteWhatsAppModal';
 import { MeerwerkbonStatusBadge } from '@/components/meerwerk/MeerwerkbonStatusBadge';
 import { toast } from '@/hooks/use-toast';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
+import { getIdTokenResult } from 'firebase/auth';
 
 function naarDate(value: any): Date | null {
   if (!value) return null;
@@ -113,14 +121,39 @@ function statusLabel(status: Meerwerkbon['status']): string {
   return map[status] || status;
 }
 
+function pricingModeLabel(mode: MeerwerkbonPricingMode): string {
+  if (mode === 'uren_nacalculatie') return 'Uren op nacalculatie';
+  if (mode === 'uren_materialen_nacalculatie') return 'Uren + materialen op nacalculatie';
+  return 'Begrote kosten';
+}
+
+function pricingModeDescription(mode: MeerwerkbonPricingMode, hourlyRateExclBtw: number, estimatedHours?: number): string {
+  const hourlyRate = formatCurrency(hourlyRateExclBtw);
+  const estimate = estimatedHours && estimatedHours > 0
+    ? ` De schatting is ongeveer ${new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2 }).format(estimatedHours)} uur.`
+    : '';
+  if (mode === 'uren_nacalculatie') return `Dit is geen vaste prijs of urenakkoord. Werkelijke uren worden achteraf afgerekend tegen ${hourlyRate} per uur excl. btw.${estimate}`;
+  if (mode === 'uren_materialen_nacalculatie') return `Dit is geen vaste prijs of urenakkoord. Werkelijke uren worden achteraf afgerekend tegen ${hourlyRate} per uur excl. btw; materialen volgen op nacalculatie.${estimate}`;
+  return 'De werkzaamheden worden afgerekend op basis van de begrote kosten op deze meerwerkbon.';
+}
+
+function pricingModeRateLabel(mode: MeerwerkbonPricingMode, hourlyRateExclBtw: number): string {
+  const hourlyRate = formatCurrency(hourlyRateExclBtw);
+  if (mode === 'uren_nacalculatie') return `${hourlyRate} per uur excl. btw`;
+  if (mode === 'uren_materialen_nacalculatie') return `${hourlyRate} per uur + materialen achteraf`;
+  return 'Vaste voorafgaande inschatting';
+}
+
 function serializeRulesState(
   items: Partial<MeerwerkbonLineItem>[],
+  opmerking: string,
   introText: string,
   voorwaardenText: string
 ): string {
   const normalized = recalcMeerwerkbonLineItems(items);
   return JSON.stringify({
     lineItems: normalized,
+    opmerking: (opmerking || '').toString(),
     introText: (introText || '').toString(),
     voorwaardenText: (voorwaardenText || '').toString(),
   });
@@ -177,6 +210,10 @@ export default function MeerwerkbonDetailPage() {
   const [businessData, setBusinessData] = useState<any>(null);
 
   const [lineItems, setLineItems] = useState<MeerwerkbonLineItem[]>([]);
+  const [pricingMode, setPricingMode] = useState<MeerwerkbonPricingMode>('begroot');
+  const [geschatteArbeidsuren, setGeschatteArbeidsuren] = useState('');
+  const [opgeslagenArbeidsuren, setOpgeslagenArbeidsuren] = useState('');
+  const [opmerking, setOpmerking] = useState('');
   const [introText, setIntroText] = useState('');
   const [voorwaardenText, setVoorwaardenText] = useState('');
   const [template, setTemplate] = useState<MeerwerkbonTemplateSettings>(defaultTemplateByPreset('uitgebreid'));
@@ -184,16 +221,15 @@ export default function MeerwerkbonDetailPage() {
     naam: '',
     plaats: '',
     datum: toDateInputValue(new Date()),
-    opmerking: '',
   });
 
-  const [savingRules, setSavingRules] = useState(false);
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [rulesSavedAt, setRulesSavedAt] = useState<number | null>(null);
-  const [templateSavedAt, setTemplateSavedAt] = useState<number | null>(null);
+  const [savingAll, setSavingAll] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [sendOpen, setSendOpen] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [hasDeveloperWhatsAppAccess, setHasDeveloperWhatsAppAccess] = useState(false);
   const [creatingCombinedInvoice, setCreatingCombinedInvoice] = useState(false);
   const [pdfSettingsOpen, setPdfSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overzicht' | 'regels' | 'pdf'>('overzicht');
@@ -208,14 +244,42 @@ export default function MeerwerkbonDetailPage() {
   const [updatingClient, setUpdatingClient] = useState(false);
 
   const hydratedRef = useRef(false);
-  const rulesAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const templateAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSyncedRulesRef = useRef<string>('');
   const lastSyncedTemplateRef = useRef<string>('');
+  const lastSyncedPricingModeRef = useRef<MeerwerkbonPricingMode>('begroot');
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
   }, [user, isUserLoading, router]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!user) {
+      setHasDeveloperWhatsAppAccess(false);
+      setIsWhatsAppModalOpen(false);
+      return;
+    }
+
+    const resolveDeveloperAccess = async () => {
+      try {
+        const token = await getIdTokenResult(user, false);
+        const allowed = token.claims.dev === true || token.claims.admin === true;
+        if (cancelled) return;
+        setHasDeveloperWhatsAppAccess(allowed);
+        if (!allowed) setIsWhatsAppModalOpen(false);
+      } catch {
+        if (cancelled) return;
+        setHasDeveloperWhatsAppAccess(false);
+        setIsWhatsAppModalOpen(false);
+      }
+    };
+
+    void resolveDeveloperAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!user || !firestore || !id) return;
@@ -235,12 +299,25 @@ export default function MeerwerkbonDetailPage() {
         }
         const data = { ...(snap.data() as any), id: snap.id } as Meerwerkbon;
         const nextLineItems = Array.isArray(data.lineItems) ? recalcMeerwerkbonLineItems(data.lineItems) : [];
+        const nextOpmerking = (data.opmerking || data.approval?.opmerking || '').toString();
         const nextIntroText = (data.introText || '').toString();
         const nextVoorwaardenText = (data.voorwaardenText || '').toString();
         const nextTemplate = data.template || defaultTemplateByPreset('uitgebreid');
 
         setMeerwerkbon(data);
         setLineItems(nextLineItems);
+        setPricingMode(data.pricingMode || 'begroot');
+        setGeschatteArbeidsuren(
+          typeof data.geschatteArbeidsuren === 'number' && data.geschatteArbeidsuren > 0
+            ? String(data.geschatteArbeidsuren)
+            : ''
+        );
+        setOpgeslagenArbeidsuren(
+          typeof data.geschatteArbeidsuren === 'number' && data.geschatteArbeidsuren > 0
+            ? String(data.geschatteArbeidsuren)
+            : ''
+        );
+        setOpmerking(nextOpmerking);
         setIntroText(nextIntroText);
         setVoorwaardenText(nextVoorwaardenText);
         setTemplate(nextTemplate);
@@ -248,10 +325,10 @@ export default function MeerwerkbonDetailPage() {
           naam: data.approval?.naam || data.clientSnapshot?.naam || '',
           plaats: data.approval?.plaats || data.clientSnapshot?.plaats || '',
           datum: data.approval?.datum || toDateInputValue(new Date()),
-          opmerking: data.approval?.opmerking || '',
         });
-        lastSyncedRulesRef.current = serializeRulesState(nextLineItems, nextIntroText, nextVoorwaardenText);
+        lastSyncedRulesRef.current = serializeRulesState(nextLineItems, nextOpmerking, nextIntroText, nextVoorwaardenText);
         lastSyncedTemplateRef.current = serializeTemplateState(nextTemplate);
+        lastSyncedPricingModeRef.current = data.pricingMode || 'begroot';
         hydratedRef.current = true;
         setLoading(false);
       },
@@ -412,116 +489,131 @@ export default function MeerwerkbonDetailPage() {
       linkedQuotes,
       lineItems: recalcMeerwerkbonLineItems(lineItems),
       totals,
+      pricingMode,
+      uurTariefExclBtw: Number(settings.standaardUurtarief) || 0,
+      geschatteArbeidsuren: Number(geschatteArbeidsuren.replace(',', '.')) > 0
+        ? Number(geschatteArbeidsuren.replace(',', '.'))
+        : undefined,
+      opmerking,
       introText,
       voorwaardenText,
       approval: {
         naam: approvalForm.naam,
         plaats: approvalForm.plaats,
         datum: approvalForm.datum,
-        opmerking: approvalForm.opmerking,
       },
       template,
     };
-  }, [meerwerkbon, settings, businessData, linkedQuotes, lineItems, totals, introText, voorwaardenText, approvalForm, template]);
+  }, [meerwerkbon, settings, businessData, linkedQuotes, lineItems, totals, pricingMode, geschatteArbeidsuren, opmerking, introText, voorwaardenText, approvalForm, template]);
 
   const serializedRulesState = useMemo(
-    () => serializeRulesState(lineItems, introText, voorwaardenText),
-    [lineItems, introText, voorwaardenText]
+    () => serializeRulesState(lineItems, opmerking, introText, voorwaardenText),
+    [lineItems, opmerking, introText, voorwaardenText]
   );
   const serializedTemplateState = useMemo(
     () => serializeTemplateState(template),
     [template]
   );
-
-  useEffect(() => {
-    if (!firestore || !meerwerkbon || !hydratedRef.current) return;
-    if (serializedRulesState === lastSyncedRulesRef.current) return;
-
-    if (rulesAutosaveTimerRef.current) {
-      clearTimeout(rulesAutosaveTimerRef.current);
-    }
-
-    rulesAutosaveTimerRef.current = setTimeout(async () => {
-      const normalizedLineItems = recalcMeerwerkbonLineItems(lineItems);
-      const invalid = normalizedLineItems.some((item) => !item.omschrijving.trim() || safeNumber(item.aantal, 0) <= 0);
-      if (invalid) return;
-
-      setSavingRules(true);
-      try {
-        await updateMeerwerkbonLineItems(firestore, {
-          meerwerkbonId: meerwerkbon.id,
-          lineItems: normalizedLineItems,
-          introText,
-          voorwaardenText,
-        });
-        lastSyncedRulesRef.current = serializeRulesState(normalizedLineItems, introText, voorwaardenText);
-        setRulesSavedAt(Date.now());
-      } catch (err: any) {
-        console.error(err);
-        toast({
-          title: 'Autosave mislukt',
-          description: err?.message || 'Kon regels niet automatisch opslaan.',
-          variant: 'destructive',
-        });
-      } finally {
-        setSavingRules(false);
-      }
-    }, 700);
-
-    return () => {
-      if (rulesAutosaveTimerRef.current) {
-        clearTimeout(rulesAutosaveTimerRef.current);
-      }
-    };
-  }, [serializedRulesState, firestore, meerwerkbon?.id, lineItems, introText, voorwaardenText]);
-
-  useEffect(() => {
-    if (!firestore || !meerwerkbon || !hydratedRef.current) return;
-    if (serializedTemplateState === lastSyncedTemplateRef.current) return;
-
-    if (templateAutosaveTimerRef.current) {
-      clearTimeout(templateAutosaveTimerRef.current);
-    }
-
-    templateAutosaveTimerRef.current = setTimeout(async () => {
-      setSavingTemplate(true);
-      try {
-        await updateMeerwerkbonTemplate(firestore, {
-          meerwerkbonId: meerwerkbon.id,
-          template,
-        });
-        lastSyncedTemplateRef.current = serializeTemplateState(template);
-        setTemplateSavedAt(Date.now());
-      } catch (err: any) {
-        console.error(err);
-        toast({
-          title: 'Autosave mislukt',
-          description: err?.message || 'Kon PDF-instellingen niet automatisch opslaan.',
-          variant: 'destructive',
-        });
-      } finally {
-        setSavingTemplate(false);
-      }
-    }, 500);
-
-    return () => {
-      if (templateAutosaveTimerRef.current) {
-        clearTimeout(templateAutosaveTimerRef.current);
-      }
-    };
-  }, [serializedTemplateState, firestore, meerwerkbon?.id, template]);
-
-  useEffect(() => {
-    return () => {
-      if (rulesAutosaveTimerRef.current) clearTimeout(rulesAutosaveTimerRef.current);
-      if (templateAutosaveTimerRef.current) clearTimeout(templateAutosaveTimerRef.current);
-    };
-  }, []);
+  const normalizedEstimatedHours = useMemo(() => {
+    const parsed = Number(geschatteArbeidsuren.replace(',', '.'));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }, [geschatteArbeidsuren]);
+  const hasUnsavedChanges = hydratedRef.current && (
+    serializedRulesState !== lastSyncedRulesRef.current ||
+    serializedTemplateState !== lastSyncedTemplateRef.current ||
+    pricingMode !== lastSyncedPricingModeRef.current ||
+    geschatteArbeidsuren !== opgeslagenArbeidsuren
+  );
 
   const linkedQuoteCount = useMemo(
     () => (Array.isArray(meerwerkbon?.linkedQuoteIds) ? meerwerkbon!.linkedQuoteIds.length : 0),
     [meerwerkbon?.linkedQuoteIds]
   );
+  const hourlyRateExclBtw = Number(settings.standaardUurtarief) || 0;
+
+  const whatsappKlantInfo = useMemo<KlantInformatie | null>(() => {
+    const snapshot = meerwerkbon?.clientSnapshot;
+    if (!snapshot) return null;
+
+    const naam = snapshot.naam.trim() || 'klant';
+    const nameParts = naam.split(/\s+/).filter(Boolean);
+    return {
+      klanttype: 'Particulier',
+      voornaam: nameParts[0] || naam,
+      achternaam: nameParts.slice(1).join(' '),
+      bedrijfsnaam: naam,
+      emailadres: snapshot.email || '',
+      telefoonnummer: snapshot.telefoon || '',
+      straat: snapshot.adres || '',
+      huisnummer: '',
+      postcode: snapshot.postcode || '',
+      plaats: snapshot.plaats || '',
+      afwijkendProjectadres: false,
+    };
+  }, [meerwerkbon?.clientSnapshot]);
+
+  const handlePricingModeChange = (nextMode: MeerwerkbonPricingMode): void => {
+    if (nextMode === pricingMode) return;
+    setPricingMode(nextMode);
+  };
+
+  const handleSaveMeerwerkbon = async (): Promise<void> => {
+    if (!firestore || !meerwerkbon || savingAll || !hasUnsavedChanges) return;
+
+    const normalizedLineItems = recalcMeerwerkbonLineItems(lineItems);
+    const invalid = normalizedLineItems.some((item) => !item.omschrijving.trim() || safeNumber(item.aantal, 0) <= 0);
+    if (invalid) {
+      toast({
+        title: 'Opslaan niet mogelijk',
+        description: 'Vul bij elke regel een omschrijving en een aantal groter dan nul in.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingAll(true);
+    try {
+      await Promise.all([
+        updateMeerwerkbonPricingMode(firestore, {
+          meerwerkbonId: meerwerkbon.id,
+          pricingMode,
+        }),
+        updateMeerwerkbonEstimatedHours(firestore, {
+          meerwerkbonId: meerwerkbon.id,
+          estimatedHours: normalizedEstimatedHours,
+        }),
+        updateMeerwerkbonLineItems(firestore, {
+          meerwerkbonId: meerwerkbon.id,
+          lineItems: normalizedLineItems,
+          opmerking,
+          introText,
+          voorwaardenText,
+        }),
+        updateMeerwerkbonTemplate(firestore, {
+          meerwerkbonId: meerwerkbon.id,
+          template,
+        }),
+      ]);
+
+      lastSyncedRulesRef.current = serializeRulesState(normalizedLineItems, opmerking, introText, voorwaardenText);
+      lastSyncedTemplateRef.current = serializedTemplateState;
+      lastSyncedPricingModeRef.current = pricingMode;
+      const normalizedEstimateValue = normalizedEstimatedHours === null ? '' : String(normalizedEstimatedHours);
+      setGeschatteArbeidsuren(normalizedEstimateValue);
+      setOpgeslagenArbeidsuren(normalizedEstimateValue);
+      setLastSavedAt(Date.now());
+      toast({ title: 'Meerwerkbon opgeslagen', description: 'Alle wijzigingen zijn opgeslagen.' });
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: 'Opslaan mislukt',
+        description: err?.message || 'Kon de meerwerkbon niet opslaan.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingAll(false);
+    }
+  };
   const clientSelectionLockedByQuote = linkedQuoteCount > 0;
 
   const selectedClientOptionId = useMemo(() => {
@@ -606,7 +698,6 @@ export default function MeerwerkbonDetailPage() {
             naam: approvalForm.naam.trim(),
             plaats: approvalForm.plaats.trim(),
             datum: approvalForm.datum.trim(),
-            opmerking: (approvalForm.opmerking || '').trim(),
           }
           : undefined,
       });
@@ -765,6 +856,18 @@ export default function MeerwerkbonDetailPage() {
           </div>
 
           <div className="flex gap-3 w-full sm:w-auto">
+            {hasDeveloperWhatsAppAccess && (
+              <Button
+                type="button"
+                variant="success"
+                className="flex-1 sm:flex-none gap-2"
+                onClick={() => setIsWhatsAppModalOpen(true)}
+                disabled={!pdfData}
+              >
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
+              </Button>
+            )}
             <Button type="button" variant="outline" className="flex-1 sm:flex-none gap-2" onClick={() => setSendOpen(true)} disabled={!pdfData}>
               <Mail className="h-4 w-4" />
               Versturen
@@ -777,7 +880,7 @@ export default function MeerwerkbonDetailPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
+      <main className="mx-auto max-w-7xl p-4 pb-28 sm:p-6 sm:pb-28">
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as 'overzicht' | 'regels' | 'pdf')}
@@ -858,11 +961,11 @@ export default function MeerwerkbonDetailPage() {
                     </div>
 
                     <div className="text-xs text-muted-foreground">
-                      {savingTemplate
-                        ? 'PDF instellingen worden automatisch opgeslagen...'
-                        : templateSavedAt
-                          ? `PDF instellingen automatisch opgeslagen om ${new Date(templateSavedAt).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
-                          : 'PDF instellingen worden automatisch opgeslagen.'}
+                      {hasUnsavedChanges
+                        ? 'PDF-wijzigingen worden opgeslagen met de knop onderaan.'
+                        : lastSavedAt
+                          ? `Alles opgeslagen om ${new Date(lastSavedAt).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
+                          : 'Wijzigingen worden opgeslagen met de knop onderaan.'}
                     </div>
                   </div>
                 </DialogContent>
@@ -887,7 +990,9 @@ export default function MeerwerkbonDetailPage() {
                   <MeerwerkbonStatusBadge status={meerwerkbon.status} />
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-muted-foreground">Totaal incl. BTW</div>
+                  <div className="text-xs text-muted-foreground">
+                    {pricingMode === 'begroot' ? 'Totaal incl. BTW' : 'Begroot totaal incl. BTW'}
+                  </div>
                   <div className="font-semibold">{formatCurrency(totals.totaalInclBtw)}</div>
                 </div>
               </CardTitle>
@@ -927,7 +1032,90 @@ export default function MeerwerkbonDetailPage() {
             </CardContent>
           </Card>
 
-            <TabsContent value="overzicht" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Prijswijze</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">Kies hoe het meerwerk met de klant wordt afgerekend.</p>
+              <div className="grid gap-2 md:grid-cols-3">
+                <Button
+                  type="button"
+                  variant={pricingMode === 'begroot' ? 'success' : 'outline'}
+                  className="h-auto min-h-11 justify-start whitespace-normal px-3 py-2 text-left"
+                  onClick={() => void handlePricingModeChange('begroot')}
+                >
+                  <span>
+                    <span className="block font-medium">Begrote kosten</span>
+                    <span className="block text-xs font-normal opacity-80">Vaste voorafgaande inschatting</span>
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={pricingMode === 'uren_nacalculatie' ? 'success' : 'outline'}
+                  className="h-auto min-h-11 justify-start whitespace-normal px-3 py-2 text-left"
+                  onClick={() => void handlePricingModeChange('uren_nacalculatie')}
+                >
+                  <span>
+                    <span className="block font-medium">Uren op nacalculatie</span>
+                    <span className="block text-xs font-normal opacity-80">{pricingModeRateLabel('uren_nacalculatie', hourlyRateExclBtw)}</span>
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={pricingMode === 'uren_materialen_nacalculatie' ? 'success' : 'outline'}
+                  className="h-auto min-h-11 justify-start whitespace-normal px-3 py-2 text-left"
+                  onClick={() => void handlePricingModeChange('uren_materialen_nacalculatie')}
+                >
+                  <span>
+                    <span className="block font-medium">Uren + materialen op nacalculatie</span>
+                    <span className="block text-xs font-normal opacity-80">{pricingModeRateLabel('uren_materialen_nacalculatie', hourlyRateExclBtw)}</span>
+                  </span>
+                </Button>
+              </div>
+              <div className="rounded-md border border-border/60 bg-card/30 p-3 text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">{pricingModeLabel(pricingMode)}:</span>{' '}
+                {pricingModeDescription(
+                  pricingMode,
+                  hourlyRateExclBtw,
+                  Number(geschatteArbeidsuren.replace(',', '.')) > 0 ? Number(geschatteArbeidsuren.replace(',', '.')) : undefined
+                )}
+              </div>
+
+              {pricingMode !== 'begroot' && (
+                <div className="rounded-md border border-amber-400/30 bg-amber-400/5 p-4 space-y-3">
+                  <div>
+                    <Label htmlFor="geschatte-arbeidsuren" className="text-foreground">
+                      Schatting uren voor arbeid
+                    </Label>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      Vul bijvoorbeeld 10 uur in. Dit is alleen een indicatie en geen vaste prijs of akkoord op een maximum aantal uren.
+                      De werkelijke uren worden achteraf afgerekend: ongeveer 10 uur geschat en 13 uur gewerkt betekent 13 uur factureren; 7 uur gewerkt betekent 7 uur factureren.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 max-w-xs">
+                    <Input
+                      id="geschatte-arbeidsuren"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={geschatteArbeidsuren}
+                      onChange={(event) => setGeschatteArbeidsuren(event.target.value)}
+                      placeholder="Bijv. 10"
+                    />
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">uur (ongeveer)</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {geschatteArbeidsuren !== opgeslagenArbeidsuren
+                      ? 'Er zijn niet-opgeslagen wijzigingen. Gebruik de knop onderaan om alles op te slaan.'
+                      : 'Deze schatting wordt op de meerwerkbon en in de PDF vermeld.'}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <TabsContent value="overzicht" className="space-y-4">
               <Card>
                 <CardHeader>
                   <CardTitle>Akkoordgegevens klant</CardTitle>
@@ -977,9 +1165,23 @@ export default function MeerwerkbonDetailPage() {
                     <Label>Datum</Label>
                     <Input type="date" value={approvalForm.datum} onChange={(e) => setApprovalForm((prev) => ({ ...prev, datum: e.target.value }))} />
                   </div>
-                  <div className="space-y-2 md:col-span-3">
-                    <Label>Opmerking (optioneel)</Label>
-                    <Textarea value={approvalForm.opmerking || ''} onChange={(e) => setApprovalForm((prev) => ({ ...prev, opmerking: e.target.value }))} />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Werkzaamheden</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Label>Opmerking / omschrijving van het meerwerk</Label>
+                  <Textarea
+                    rows={5}
+                    value={opmerking}
+                    onChange={(e) => setOpmerking(e.target.value)}
+                    placeholder="Beschrijf duidelijk welk extra werk wordt uitgevoerd..."
+                  />
+                  <div className="text-xs text-muted-foreground">
+                    Deze omschrijving komt op de meerwerkbon en in de PDF.
                   </div>
                 </CardContent>
               </Card>
@@ -998,11 +1200,11 @@ export default function MeerwerkbonDetailPage() {
                     <Textarea rows={6} value={voorwaardenText} onChange={(e) => setVoorwaardenText(e.target.value)} />
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {savingRules
-                      ? 'Wijzigingen worden automatisch opgeslagen...'
-                      : rulesSavedAt
-                        ? `Automatisch opgeslagen om ${new Date(rulesSavedAt).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
-                        : 'Wijzigingen worden automatisch opgeslagen.'}
+                    {hasUnsavedChanges
+                      ? 'Wijzigingen worden opgeslagen met de knop onderaan.'
+                      : lastSavedAt
+                        ? `Alles opgeslagen om ${new Date(lastSavedAt).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
+                        : 'Wijzigingen worden opgeslagen met de knop onderaan.'}
                   </div>
                 </CardContent>
               </Card>
@@ -1106,11 +1308,11 @@ export default function MeerwerkbonDetailPage() {
                   </div>
 
                   <div className="text-xs text-muted-foreground">
-                    {savingRules
-                      ? 'Regels worden automatisch opgeslagen...'
-                      : rulesSavedAt
-                        ? `Regels automatisch opgeslagen om ${new Date(rulesSavedAt).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
-                        : 'Regels worden automatisch opgeslagen.'}
+                    {hasUnsavedChanges
+                      ? 'Regelwijzigingen worden opgeslagen met de knop onderaan.'
+                      : lastSavedAt
+                        ? `Alles opgeslagen om ${new Date(lastSavedAt).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
+                        : 'Regelwijzigingen worden opgeslagen met de knop onderaan.'}
                   </div>
                 </CardContent>
               </Card>
@@ -1123,6 +1325,30 @@ export default function MeerwerkbonDetailPage() {
         </Tabs>
       </main>
 
+      <footer className="fixed inset-x-0 bottom-0 z-[60] border-t border-border bg-background/95 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.2)] backdrop-blur-md sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs text-muted-foreground">
+            {savingAll
+              ? 'Meerwerkbon wordt opgeslagen...'
+              : hasUnsavedChanges
+                ? 'Er zijn niet-opgeslagen wijzigingen.'
+                : lastSavedAt
+                  ? `Alles opgeslagen om ${new Date(lastSavedAt).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`
+                  : 'Alle wijzigingen worden opgeslagen met één knop.'}
+          </div>
+          <Button
+            type="button"
+            variant="success"
+            className="w-full gap-2 sm:w-auto"
+            onClick={() => void handleSaveMeerwerkbon()}
+            disabled={savingAll || !hasUnsavedChanges}
+          >
+            {savingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {savingAll ? 'Opslaan...' : 'Meerwerkbon opslaan'}
+          </Button>
+        </div>
+      </footer>
+
       <SendMeerwerkbonModal
         isOpen={sendOpen}
         onClose={() => setSendOpen(false)}
@@ -1132,6 +1358,20 @@ export default function MeerwerkbonDetailPage() {
         totaalInclBtw={totals.totaalInclBtw}
         bedrijfsnaam={settings.bedrijfsnaam || businessData?.bedrijfsnaam || ''}
         onDownloadPDF={handleDownloadPdf}
+      />
+
+      <SendQuoteWhatsAppModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        klantInfo={whatsappKlantInfo}
+        clientName={meerwerkbon.clientSnapshot?.naam || 'klant'}
+        quotePdfUrl=""
+        requireDocumentUrl={false}
+        documentLabel="meerwerkbon"
+        documentLinkToken="{{meerwerkbon_link}}"
+        storageKey="whatsapp_meerwerkbon_message_preset_v1"
+        successDescription="De officiële meerwerkbon-PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur."
+        onDownloadOfficialPdf={handleDownloadPdf}
       />
 
       <MaterialSelectionModal

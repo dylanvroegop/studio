@@ -83,6 +83,12 @@ export default function NieuweMeerwerkbonPage() {
     postcode: '',
     plaats: '',
   });
+  const [requestedPrimaryQuoteId, setRequestedPrimaryQuoteId] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setRequestedPrimaryQuoteId(params.get('primaryQuoteId') || params.get('quoteId') || '');
+  }, []);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -112,6 +118,9 @@ export default function NieuweMeerwerkbonPage() {
 
         if (!cancelled) {
           setQuotes(rows);
+          if (requestedPrimaryQuoteId && rows.some((quote) => quote.id === requestedPrimaryQuoteId)) {
+            setPrimaryQuoteId(requestedPrimaryQuoteId);
+          }
           const merged = { ...DEFAULT_USER_SETTINGS, ...nextSettings } as UserSettings;
           setSettings(merged);
           setTemplatePreset(merged.standaardMeerwerkbonTemplatePreset || 'uitgebreid');
@@ -133,7 +142,7 @@ export default function NieuweMeerwerkbonPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, firestore]);
+  }, [firestore, requestedPrimaryQuoteId, user]);
 
   const quoteMap = useMemo(() => {
     const entries = quotes.map((quote) => [quote.id, quote] as const);

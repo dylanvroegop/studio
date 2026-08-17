@@ -65,38 +65,50 @@ function resolveTotalFromQuote(quote: any): number {
   return 0;
 }
 
-function mapSettingsForTotals(input: unknown): CalculationQuoteSettings {
+function mapSettingsForTotals(input: unknown, quote?: any): CalculationQuoteSettings {
   const normalized = normalizeDataJson(input as any);
   const rawInst = (normalized?.instellingen || {}) as any;
   const rawExtras = (normalized?.extras || {}) as any;
+  const quoteInst = (quote?.instellingen || {}) as any;
+  const quoteExtras = (quote?.extras || {}) as any;
 
   return {
-    btwTarief: rawInst?.btwTarief || 21,
-    uurTariefExclBtw: rawInst?.uurTariefExclBtw || rawInst?.uurTarief || 50,
-    schattingUren: rawInst?.schattingUren ?? false,
+    btwTarief: quoteInst?.btwTarief ?? rawInst?.btwTarief ?? 21,
+    btwMode: quoteInst?.btwMode ?? rawInst?.btwMode ?? 'normaal',
+    arbeidBtwLaagUren: quoteInst?.arbeidBtwLaagUren ?? rawInst?.arbeidBtwLaagUren ?? 0,
+    arbeidBtwLaagTarief: quoteInst?.arbeidBtwLaagTarief ?? rawInst?.arbeidBtwLaagTarief ?? 9,
+    uurTariefExclBtw: quoteInst?.uurTariefExclBtw ?? quoteInst?.uurTarief ?? rawInst?.uurTariefExclBtw ?? rawInst?.uurTarief ?? 50,
+    schattingUren: quoteInst?.schattingUren ?? rawInst?.schattingUren ?? false,
     extras: {
       transport: {
-        prijsPerKm: rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? rawInst?.transportPrijsPerKm,
-        vasteTransportkosten: rawExtras?.transport?.vasteTransportkosten ?? rawInst?.extras?.transport?.vasteTransportkosten,
-        tunnelkosten: rawExtras?.transport?.tunnelkosten ?? rawInst?.extras?.transport?.tunnelkosten,
-        mode: rawExtras?.transport?.mode ?? rawInst?.extras?.transport?.mode,
+        prijsPerKm: quoteExtras?.transport?.prijsPerKm ?? quoteInst?.extras?.transport?.prijsPerKm ?? rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? rawInst?.transportPrijsPerKm,
+        vasteTransportkosten: quoteExtras?.transport?.vasteTransportkosten ?? quoteInst?.extras?.transport?.vasteTransportkosten ?? rawExtras?.transport?.vasteTransportkosten ?? rawInst?.extras?.transport?.vasteTransportkosten,
+        tunnelkosten: quoteExtras?.transport?.tunnelkosten ?? quoteInst?.extras?.transport?.tunnelkosten ?? rawExtras?.transport?.tunnelkosten ?? rawInst?.extras?.transport?.tunnelkosten,
+        mode: quoteExtras?.transport?.mode
+          ?? (quoteInst?.reiskosten_type === 'vast'
+            ? 'vast'
+            : quoteInst?.reiskosten_type === 'perKm'
+              ? 'perKm'
+              : quoteInst?.extras?.transport?.mode)
+          ?? rawExtras?.transport?.mode
+          ?? rawInst?.extras?.transport?.mode,
       },
       winstMarge: {
-        percentage: rawExtras?.winstMarge?.percentage ?? rawInst?.extras?.winstMarge?.percentage ?? 10,
-        fixedAmount: rawExtras?.winstMarge?.fixedAmount ?? 0,
-        mode: rawExtras?.winstMarge?.mode ?? 'percentage',
-        basis: rawExtras?.winstMarge?.basis ?? 'totaal',
+        percentage: quoteExtras?.winstMarge?.percentage ?? quoteInst?.extras?.winstMarge?.percentage ?? rawExtras?.winstMarge?.percentage ?? rawInst?.extras?.winstMarge?.percentage ?? 10,
+        fixedAmount: quoteExtras?.winstMarge?.fixedAmount ?? quoteInst?.extras?.winstMarge?.fixedAmount ?? rawExtras?.winstMarge?.fixedAmount ?? 0,
+        mode: quoteExtras?.winstMarge?.mode ?? quoteInst?.extras?.winstMarge?.mode ?? rawExtras?.winstMarge?.mode ?? 'percentage',
+        basis: quoteExtras?.winstMarge?.basis ?? quoteInst?.extras?.winstMarge?.basis ?? rawExtras?.winstMarge?.basis ?? 'totaal',
       },
     },
   };
 }
 
-function resolveTotalFromCalculation(dataJson: unknown): number | null {
+function resolveTotalFromCalculation(dataJson: unknown, quote?: any, laborHoursPerDay = 8): number | null {
   if (!dataJson) return null;
 
   try {
-    const settings = mapSettingsForTotals(dataJson);
-    const totals = calculateQuoteTotals(dataJson as any, settings);
+    const settings = mapSettingsForTotals(dataJson, quote);
+    const totals = calculateQuoteTotals(dataJson as any, settings, laborHoursPerDay);
     const total = toNumber(totals?.totaalInclBtw);
     if (total !== null && total > 0) return total;
   } catch {
@@ -162,13 +174,14 @@ function NieuweFactuurPageContent() {
         const userRef = doc(firestore, 'users', user.uid);
         const userSnap = await getDoc(userRef);
         const s = userSnap.exists() ? (userSnap.data() as any)?.settings : null;
+        const laborHoursPerDay = Number(s?.planningSettings?.defaultWorkdayHours) || 8;
         if (!cancelled) setSettings(s as UserSettings);
 
         const quoteRef = doc(firestore, 'quotes', quoteId);
         const quoteSnap = await getDoc(quoteRef);
         let q = quoteSnap.exists() ? ({ id: quoteSnap.id, ...(quoteSnap.data() as any) }) : null;
 
-        let resolvedTotal = resolveTotalFromQuote(q);
+        let resolvedTotal = 0;
 
         if (q) {
           try {
@@ -179,30 +192,18 @@ function NieuweFactuurPageContent() {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
               },
-              body: JSON.stringify({ quoteIds: [quoteId] }),
+              body: JSON.stringify({ quoteId, latestOnly: true, preferCompletedFallback: true }),
             });
 
             const payload = await response.json().catch(() => null);
-            if (response.ok && payload?.ok === true && Array.isArray(payload?.rows)) {
-              const rows = payload.rows as Array<{ quoteid: string; data_json: unknown }>;
-              const forQuote = rows.filter((row) => row?.quoteid === quoteId);
-              for (const row of forQuote) {
-                if (row?.data_json) {
-                  q = {
-                    ...q,
-                    calculationSnapshot: row.data_json,
-                  };
-                }
-                const calculatedTotal = resolveTotalFromCalculation(row?.data_json);
-                if (resolvedTotal <= 0 && calculatedTotal && calculatedTotal > 0) {
-                  resolvedTotal = calculatedTotal;
-                  q = {
-                    ...q,
-                    amount: calculatedTotal,
-                    totaalbedrag: calculatedTotal,
-                  };
-                  break;
-                }
+            if (response.ok && payload?.ok === true && payload?.row?.data_json) {
+              q = {
+                ...q,
+                calculationSnapshot: payload.row.data_json,
+              };
+              const calculatedTotal = resolveTotalFromCalculation(payload.row.data_json, q, laborHoursPerDay);
+              if (calculatedTotal && calculatedTotal > 0) {
+                resolvedTotal = calculatedTotal;
               }
             }
           } catch (err) {
@@ -210,7 +211,11 @@ function NieuweFactuurPageContent() {
           }
         }
 
-        if (q && resolvedTotal > 0 && resolveTotalFromQuote(q) <= 0) {
+        if (resolvedTotal <= 0) {
+          resolvedTotal = resolveTotalFromQuote(q);
+        }
+
+        if (q && resolvedTotal > 0 && Math.abs(resolveTotalFromQuote(q) - resolvedTotal) > 0.01) {
           try {
             await updateDoc(quoteRef, {
               amount: resolvedTotal,

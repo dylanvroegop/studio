@@ -16,11 +16,6 @@ const DeferredBusinessProfileGate = dynamic(
   { ssr: false }
 );
 
-const DeferredPendingHoursPrompt = dynamic(
-  () => import('@/components/PendingHoursPrompt').then((mod) => mod.PendingHoursPrompt),
-  { ssr: false }
-);
-
 const PUBLIC_PATH_PREFIXES = [
   '/',
   '/login',
@@ -79,7 +74,6 @@ export function DeferredAuthGuards() {
     <>
       <DeferredAuthSessionSync />
       <DeferredBusinessProfileGate />
-      <DeferredPendingHoursPrompt />
     </>
   );
 }

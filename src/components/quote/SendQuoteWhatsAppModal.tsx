@@ -56,10 +56,12 @@ function normalizePhoneForWhatsApp(raw: string): string {
   return digits;
 }
 
-function buildWhatsAppUrl(phone: string, message: string): string {
+function buildWhatsAppUrl(phone: string, message: string, useWebApp: boolean): string {
   const normalizedPhone = normalizePhoneForWhatsApp(phone);
   const encodedMessage = encodeURIComponent(message);
-  return `https://web.whatsapp.com/send?phone=${normalizedPhone}&text=${encodedMessage}`;
+  return useWebApp
+    ? `https://web.whatsapp.com/send?phone=${normalizedPhone}&text=${encodedMessage}`
+    : `https://wa.me/${normalizedPhone}?text=${encodedMessage}`;
 }
 
 const FIRST_NAME_TOKEN = '{{voornaam}}';
@@ -200,7 +202,8 @@ export function SendQuoteWhatsAppModal({
         }
       }
 
-      const waUrl = buildWhatsAppUrl(normalizedPhone, outgoingMessage);
+      const isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+      const waUrl = buildWhatsAppUrl(normalizedPhone, outgoingMessage, !isMobileDevice);
       if (popup && !popup.closed) {
         popup.location.href = waUrl;
       } else {

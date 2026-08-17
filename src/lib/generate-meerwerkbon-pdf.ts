@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf';
 import type {
   MeerwerkbonApproval,
   MeerwerkbonLineItem,
+  MeerwerkbonPricingMode,
   MeerwerkbonTemplateSettings,
   MeerwerkbonTotals,
 } from '@/lib/types';
@@ -39,10 +40,30 @@ export interface PDFMeerwerkbonData {
   }>;
   lineItems: MeerwerkbonLineItem[];
   totals: MeerwerkbonTotals;
+  pricingMode: MeerwerkbonPricingMode;
+  uurTariefExclBtw: number;
+  geschatteArbeidsuren?: number;
+  opmerking?: string;
   introText?: string;
   voorwaardenText?: string;
   approval?: MeerwerkbonApproval | null;
   template: MeerwerkbonTemplateSettings;
+}
+
+function getPricingModeLabel(mode: MeerwerkbonPricingMode): string {
+  if (mode === 'uren_nacalculatie') return 'Uren op nacalculatie';
+  if (mode === 'uren_materialen_nacalculatie') return 'Uren + materialen op nacalculatie';
+  return 'Begrote kosten';
+}
+
+function getPricingModeDescription(mode: MeerwerkbonPricingMode, uurTariefExclBtw: number, geschatteArbeidsuren?: number): string {
+  const hourlyRate = `${formatCurrency(uurTariefExclBtw)} per uur excl. btw`;
+  const estimate = geschatteArbeidsuren && geschatteArbeidsuren > 0
+    ? ` De geschatte arbeidsduur is ongeveer ${new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2 }).format(geschatteArbeidsuren)} uur.`
+    : '';
+  if (mode === 'uren_nacalculatie') return `Dit is geen vaste prijs of urenakkoord. Werkelijke uren worden achteraf afgerekend tegen ${hourlyRate}.${estimate}`;
+  if (mode === 'uren_materialen_nacalculatie') return `Dit is geen vaste prijs of urenakkoord. Werkelijke uren worden achteraf afgerekend tegen ${hourlyRate}; materialen volgen op nacalculatie.${estimate}`;
+  return 'De werkzaamheden worden afgerekend op basis van de begrote kosten op deze meerwerkbon.';
 }
 
 async function urlToBase64(url: string): Promise<string> {
@@ -185,98 +206,136 @@ export async function generateMeerwerkbonPDF(data: PDFMeerwerkbonData): Promise<
     drawDivider();
   }
 
+  ensureSpace(18);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10.5);
-  doc.text('Meerwerk specificatie', margin, y);
-  y += 6;
-
-  doc.setFontSize(8.8);
-  doc.setFont('helvetica', 'bold');
-  const hasVatColumn = data.template.showVatColumn;
-
-  // Keep deterministic column widths + gutters so numbers don't visually collide.
-  const columnGap = 2;
-  const omschrijvingWidth = hasVatColumn ? 74 : 78;
-  const aantalWidth = hasVatColumn ? 14 : 16;
-  const eenheidWidth = hasVatColumn ? 20 : 24;
-  const prijsWidth = hasVatColumn ? 22 : 24;
-  const btwWidth = hasVatColumn ? 10 : 0;
-  const totaalWidth = hasVatColumn ? 28 : 28;
-
-  const xOmschrijving = margin;
-  const xAantal = xOmschrijving + omschrijvingWidth + columnGap;
-  const xEenheid = xAantal + aantalWidth + columnGap;
-  const xPrijs = xEenheid + eenheidWidth + columnGap;
-  const xBtw = xPrijs + prijsWidth + columnGap;
-  const xTotaalLeft = hasVatColumn
-    ? xBtw + btwWidth + columnGap
-    : xPrijs + prijsWidth + columnGap;
-  const xTotaal = xTotaalLeft + totaalWidth - 1;
-
-  const xAantalRight = xAantal + aantalWidth - 1;
-  const xPrijsRight = xPrijs + prijsWidth - 1;
-  const xBtwRight = xBtw + btwWidth - 1;
-
-  y = drawRow(doc, y, [
-    { x: xOmschrijving, text: 'Omschrijving' },
-    { x: xAantalRight, text: 'Aantal', align: 'right' },
-    { x: xEenheid + 1, text: 'Eenheid' },
-    { x: xPrijsRight, text: 'Prijs excl.', align: 'right' },
-    ...(hasVatColumn ? [{ x: xBtwRight, text: 'BTW', align: 'right' as const }] : []),
-    { x: xTotaal, text: 'Totaal incl.', align: 'right' },
-  ]);
-  doc.setDrawColor(100);
-  doc.line(margin, y - 1.5, pageWidth - margin, y - 1.5);
-  y += 2;
-
+  doc.text('Prijswijze', margin, y);
+  y += 5;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.7);
-  data.lineItems.forEach((item) => {
-    ensureSpace(10);
-    const descLines = doc.splitTextToSize(item.omschrijving || '-', omschrijvingWidth - 2);
-    const rows = Math.max(1, descLines.length);
-    for (let i = 0; i < rows; i += 1) {
-      const isFirst = i === 0;
-      drawRow(doc, y, [
-        { x: xOmschrijving, text: descLines[i] || '' },
-        ...(isFirst
-          ? [
-            { x: xAantalRight, text: String(item.aantal || 0), align: 'right' as const },
-            { x: xEenheid + 1, text: item.eenheid || '-' },
-            { x: xPrijsRight, text: formatCurrency(item.prijsPerEenheidExclBtw || 0), align: 'right' as const },
-            ...(hasVatColumn
-              ? [{ x: xBtwRight, text: `${item.btwTarief || 0}%`, align: 'right' as const }]
-              : []),
-            { x: xTotaal, text: formatCurrency(item.totaalInclBtw || 0), align: 'right' as const },
-          ]
-          : []),
-      ]);
-      y += 4.8;
-    }
+  doc.setFontSize(9.5);
+  doc.text(getPricingModeLabel(data.pricingMode), margin, y);
+  y += 4.2;
+  const pricingDescription = doc.splitTextToSize(getPricingModeDescription(data.pricingMode, data.uurTariefExclBtw, data.geschatteArbeidsuren), pageWidth - margin * 2);
+  pricingDescription.forEach((line: string) => {
+    ensureSpace(6);
+    doc.text(line, margin, y);
+    y += 4.2;
   });
-
   y += 2;
-  doc.setDrawColor(100);
-  doc.line(pageWidth - 75, y, pageWidth - margin, y);
-  y += 5;
+  drawDivider();
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  drawRow(doc, y, [
-    { x: pageWidth - 75, text: 'Subtotaal excl.' },
-    { x: xTotaal, text: formatCurrency(data.totals.subtotaalExclBtw), align: 'right' },
-  ]);
-  y += 5;
-  drawRow(doc, y, [
-    { x: pageWidth - 75, text: 'BTW totaal' },
-    { x: xTotaal, text: formatCurrency(data.totals.btwTotaal), align: 'right' },
-  ]);
-  y += 5;
-  drawRow(doc, y, [
-    { x: pageWidth - 75, text: 'Totaal incl.' },
-    { x: xTotaal, text: formatCurrency(data.totals.totaalInclBtw), align: 'right' },
-  ]);
-  y += 8;
+  if ((data.opmerking || '').trim()) {
+    ensureSpace(28);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.text('Omschrijving werkzaamheden', margin, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    const description = doc.splitTextToSize(data.opmerking!.trim(), pageWidth - margin * 2);
+    description.forEach((line: string) => {
+      ensureSpace(6);
+      doc.text(line, margin, y);
+      y += 4.2;
+    });
+    y += 2;
+    drawDivider();
+  }
+
+  if (data.pricingMode === 'begroot') {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.text('Meerwerk specificatie', margin, y);
+    y += 6;
+
+    doc.setFontSize(8.8);
+    doc.setFont('helvetica', 'bold');
+    const hasVatColumn = data.template.showVatColumn;
+
+    // Keep deterministic column widths + gutters so numbers don't visually collide.
+    const columnGap = 2;
+    const omschrijvingWidth = hasVatColumn ? 74 : 78;
+    const aantalWidth = hasVatColumn ? 14 : 16;
+    const eenheidWidth = hasVatColumn ? 20 : 24;
+    const prijsWidth = hasVatColumn ? 22 : 24;
+    const btwWidth = hasVatColumn ? 10 : 0;
+    const totaalWidth = hasVatColumn ? 28 : 28;
+
+    const xOmschrijving = margin;
+    const xAantal = xOmschrijving + omschrijvingWidth + columnGap;
+    const xEenheid = xAantal + aantalWidth + columnGap;
+    const xPrijs = xEenheid + eenheidWidth + columnGap;
+    const xBtw = xPrijs + prijsWidth + columnGap;
+    const xTotaalLeft = hasVatColumn
+      ? xBtw + btwWidth + columnGap
+      : xPrijs + prijsWidth + columnGap;
+    const xTotaal = xTotaalLeft + totaalWidth - 1;
+
+    const xAantalRight = xAantal + aantalWidth - 1;
+    const xPrijsRight = xPrijs + prijsWidth - 1;
+    const xBtwRight = xBtw + btwWidth - 1;
+
+    y = drawRow(doc, y, [
+      { x: xOmschrijving, text: 'Omschrijving' },
+      { x: xAantalRight, text: 'Aantal', align: 'right' },
+      { x: xEenheid + 1, text: 'Eenheid' },
+      { x: xPrijsRight, text: 'Prijs excl.', align: 'right' },
+      ...(hasVatColumn ? [{ x: xBtwRight, text: 'BTW', align: 'right' as const }] : []),
+      { x: xTotaal, text: 'Totaal incl.', align: 'right' },
+    ]);
+    doc.setDrawColor(100);
+    doc.line(margin, y - 1.5, pageWidth - margin, y - 1.5);
+    y += 2;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.7);
+    data.lineItems.forEach((item) => {
+      ensureSpace(10);
+      const descLines = doc.splitTextToSize(item.omschrijving || '-', omschrijvingWidth - 2);
+      const rows = Math.max(1, descLines.length);
+      for (let i = 0; i < rows; i += 1) {
+        const isFirst = i === 0;
+        drawRow(doc, y, [
+          { x: xOmschrijving, text: descLines[i] || '' },
+          ...(isFirst
+            ? [
+              { x: xAantalRight, text: String(item.aantal || 0), align: 'right' as const },
+              { x: xEenheid + 1, text: item.eenheid || '-' },
+              { x: xPrijsRight, text: formatCurrency(item.prijsPerEenheidExclBtw || 0), align: 'right' as const },
+              ...(hasVatColumn
+                ? [{ x: xBtwRight, text: `${item.btwTarief || 0}%`, align: 'right' as const }]
+                : []),
+              { x: xTotaal, text: formatCurrency(item.totaalInclBtw || 0), align: 'right' as const },
+            ]
+            : []),
+        ]);
+        y += 4.8;
+      }
+    });
+
+    y += 2;
+    doc.setDrawColor(100);
+    doc.line(pageWidth - 75, y, pageWidth - margin, y);
+    y += 5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    drawRow(doc, y, [
+      { x: pageWidth - 75, text: 'Subtotaal excl.' },
+      { x: xTotaal, text: formatCurrency(data.totals.subtotaalExclBtw), align: 'right' },
+    ]);
+    y += 5;
+    drawRow(doc, y, [
+      { x: pageWidth - 75, text: 'BTW totaal' },
+      { x: xTotaal, text: formatCurrency(data.totals.btwTotaal), align: 'right' },
+    ]);
+    y += 5;
+    drawRow(doc, y, [
+      { x: pageWidth - 75, text: 'Totaal incl.' },
+      { x: xTotaal, text: formatCurrency(data.totals.totaalInclBtw), align: 'right' },
+    ]);
+    y += 8;
+  }
 
   if (data.template.showVoorwaarden && (data.voorwaardenText || '').trim()) {
     ensureSpace(30);

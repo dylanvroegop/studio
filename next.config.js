@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Keep development output separate from production builds. Running
+  // `next build` while `next dev` is active must not invalidate dev chunks.
+  distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   eslint: {
     ignoreDuringBuilds: true,
   },
