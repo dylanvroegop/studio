@@ -45,6 +45,8 @@ export async function GET(request: Request) {
   try {
     const identity = await resolveBankIdentity(request);
     const url = new URL(request.url);
+    const requestedProvider = url.searchParams.get('provider');
+    const provider = requestedProvider === 'enablebanking' || requestedProvider === 'gocardless' ? requestedProvider : 'bunq';
     const profile = normalizeBunqProfile(url.searchParams.get('profile'));
     const linkRef = `bunq:${profile}:${identity.bankUserId}`;
     const trialBlockedResponse = await ensureDemoTrialActiveByUid(identity.firebaseUid);
@@ -53,11 +55,13 @@ export async function GET(request: Request) {
       return trialBlockedResponse;
     }
 
-    const contextResult = await supabaseAdmin
-      .from('bunq_context')
-      .select('id')
-      .eq('profile', profile)
-      .maybeSingle();
+    const contextResult = provider === 'bunq'
+      ? await supabaseAdmin
+        .from('bunq_context')
+        .select('id')
+        .eq('profile', profile)
+        .maybeSingle()
+      : { data: null, error: null };
 
     if (contextResult.error) {
       return NextResponse.json(
@@ -66,16 +70,25 @@ export async function GET(request: Request) {
       );
     }
 
-    let connectionResult = await supabaseAdmin
-      .from('bank_connections')
-      .select('id,institution_name,status,last_synced_at,linked_account_ids')
-      .eq('provider', 'bunq')
-      .eq('link_ref', linkRef)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    let connectionResult = provider !== 'bunq'
+      ? await supabaseAdmin
+        .from('bank_connections')
+        .select('id,institution_name,status,last_synced_at,linked_account_ids')
+        .eq('provider', provider)
+        .eq('user_id', identity.bankUserId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      : await supabaseAdmin
+        .from('bank_connections')
+        .select('id,institution_name,status,last_synced_at,linked_account_ids')
+        .eq('provider', 'bunq')
+        .eq('link_ref', linkRef)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (!connectionResult.error && !connectionResult.data && profile === 'personal') {
+    if (provider === 'bunq' && !connectionResult.error && !connectionResult.data && profile === 'personal') {
       // Backward compatibility for pre-profile bunq links.
       connectionResult = await supabaseAdmin
         .from('bank_connections')
@@ -100,7 +113,7 @@ export async function GET(request: Request) {
         : null;
 
     const connectionView = mapConnectionView(connectionResult.data)
-      || (contextResult.data
+      || (provider === 'bunq' && contextResult.data
         ? {
           id: realConnectionId || '00000000-0000-0000-0000-000000000000',
           institutionName: 'bunq',

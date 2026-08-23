@@ -112,22 +112,34 @@ function last30DaysRange(): DateRange {
 
 async function loadTransactionsForAnalysis(params: {
   bankUserId: string;
+  providerRaw: unknown;
   profileRaw: unknown;
   periodRaw: unknown;
 }): Promise<InputTransaction[]> {
+  const requestedProvider = safeString(params.providerRaw);
+  const provider = requestedProvider === 'enablebanking' || requestedProvider === 'gocardless' ? requestedProvider : 'bunq';
   const profile = normalizeBunqProfile(params.profileRaw);
   const linkRef = `bunq:${profile}:${params.bankUserId}`;
 
-  let connectionResult = await supabaseAdmin
-    .from('bank_connections')
-    .select('id')
-    .eq('provider', 'bunq')
-    .eq('link_ref', linkRef)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let connectionResult = provider !== 'bunq'
+    ? await supabaseAdmin
+      .from('bank_connections')
+      .select('id')
+      .eq('provider', provider)
+      .eq('user_id', params.bankUserId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    : await supabaseAdmin
+      .from('bank_connections')
+      .select('id')
+      .eq('provider', 'bunq')
+      .eq('link_ref', linkRef)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (!connectionResult.error && !connectionResult.data && profile === 'personal') {
+  if (provider === 'bunq' && !connectionResult.error && !connectionResult.data && profile === 'personal') {
     connectionResult = await supabaseAdmin
       .from('bank_connections')
       .select('id')
@@ -464,6 +476,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
     const transactions = await loadTransactionsForAnalysis({
       bankUserId: identity.bankUserId,
+      providerRaw: body?.provider,
       profileRaw: body?.profile,
       periodRaw: body?.period,
     });

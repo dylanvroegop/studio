@@ -22,6 +22,11 @@ type ApiSyncResponse = {
   error?: string;
 };
 
+type BankInstitution = {
+  id: string;
+  name: string;
+};
+
 type ClarificationAnswer = {
   transactionId: string;
   answer: string;
@@ -94,6 +99,9 @@ export default function BankOverzichtPage() {
     }>;
   }) | null>(null);
   const [clarificationDraft, setClarificationDraft] = useState<Record<string, string>>({});
+  const [knabInstitution, setKnabInstitution] = useState<BankInstitution | null>(null);
+  const [connectingKnab, setConnectingKnab] = useState(false);
+  const [setupMessage, setSetupMessage] = useState<string | null>(null);
 
   const hasSyncedOnMount = useRef(false);
 
@@ -107,7 +115,7 @@ export default function BankOverzichtPage() {
     setError(null);
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/bank/overview?profile=personal', {
+      const response = await fetch('/api/bank/overview?provider=enablebanking', {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
       });
@@ -130,16 +138,20 @@ export default function BankOverzichtPage() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    void fetchFromSupabase(false);
+  }, [fetchFromSupabase, user]);
+
   const handleSync = useCallback(async () => {
     if (!user) return;
     setSyncing(true);
     setError(null);
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/bank/sync-bunq', {
+      const response = await fetch('/api/bank/sync-enablebanking', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile: 'personal' }),
       });
       const data = (await response.json().catch(() => null)) as ApiSyncResponse | null;
       if (!response.ok || !data?.ok) throw new Error(data?.error || 'Synchronisatie mislukt.');
@@ -158,12 +170,54 @@ export default function BankOverzichtPage() {
     }
   }, [fetchFromSupabase, toast, user]);
 
-  // Auto-sync once on page visit, then read fresh data from Supabase
+  const handleConnectKnab = useCallback(async () => {
+    if (!user || !knabInstitution) return;
+    setConnectingKnab(true);
+    setError(null);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/bank/enablebanking/connect', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ institutionId: knabInstitution.id }),
+      });
+      const data = await response.json().catch(() => null) as { ok?: boolean; link?: string; message?: string } | null;
+      if (!response.ok || !data?.ok || !data.link) throw new Error(data?.message || 'Knab koppelen is mislukt.');
+      window.location.assign(data.link);
+    } catch (connectError) {
+      const message = connectError instanceof Error ? connectError.message : 'Knab koppelen is mislukt.';
+      setError(message);
+      toast({ title: 'Knab koppelen mislukt', description: message, variant: 'destructive' });
+      setConnectingKnab(false);
+    }
+  }, [knabInstitution, toast, user]);
+
   useEffect(() => {
-    if (!user || hasSyncedOnMount.current) return;
+    if (!user) return;
+    void (async () => {
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/bank/enablebanking/institutions?country=nl', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        const data = await response.json().catch(() => null) as { ok?: boolean; institutions?: BankInstitution[]; message?: string } | null;
+        if (!response.ok || !data?.ok) throw new Error(data?.message || 'Enable Banking is nog niet ingesteld.');
+        const institution = (data.institutions || []).find((item) => /knab/i.test(item.name));
+        setKnabInstitution(institution || null);
+        if (!institution) setSetupMessage('Knab staat niet in de Enable Banking Sandbox. Voor echte Knab-transacties is een Production-app nodig; gebruik Mock ASPSP of Rabobank om de sandboxflow te testen.');
+      } catch (institutionError) {
+        setSetupMessage(institutionError instanceof Error ? institutionError.message : 'Enable Banking is nog niet ingesteld.');
+      }
+    })();
+  }, [user]);
+
+  // Sync alleen automatisch als er al een Enable Banking-koppeling bestaat.
+  useEffect(() => {
+    if (!user || !connection || connection.status !== 'connected' || hasSyncedOnMount.current) return;
     hasSyncedOnMount.current = true;
     void handleSync();
-  }, [user, handleSync]);
+  }, [connection, handleSync, user]);
 
   // Keep selected tab valid when account list changes.
   useEffect(() => {
@@ -202,7 +256,7 @@ export default function BankOverzichtPage() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ period: 'this_month', profile: 'personal', answers }),
+        body: JSON.stringify({ period: 'this_month', provider: 'enablebanking', profile: 'personal', answers }),
       });
       const data = (await response.json().catch(() => null)) as SpendingAnalysisResponse | null;
       if (!response.ok || !data?.ok || !data.analysis) {
@@ -296,14 +350,21 @@ export default function BankOverzichtPage() {
                         <Landmark className="h-5 w-5 text-lime-400" />
                         Banktransacties
                       </CardTitle>
-                      <div className="text-sm text-muted-foreground">bunq synchronisatie voor je interne dashboard.</div>
+                        <div className="text-sm text-muted-foreground">Knab-transacties via Enable Banking.</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{connectionLabel(connection)}</Badge>
-                      <Button type="button" onClick={handleSync} disabled={syncing} className="gap-2">
-                        {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                        {syncing ? 'Synchroniseren...' : 'Synchroniseer nu'}
-                      </Button>
+                      {connection?.status === 'connected' ? (
+                        <Button type="button" onClick={handleSync} disabled={syncing} className="gap-2">
+                          {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                          {syncing ? 'Synchroniseren...' : 'Synchroniseer nu'}
+                        </Button>
+                      ) : (
+                        <Button type="button" onClick={() => void handleConnectKnab()} disabled={connectingKnab || !knabInstitution} className="gap-2">
+                          {connectingKnab ? <Loader2 className="h-4 w-4 animate-spin" /> : <Landmark className="h-4 w-4" />}
+                          {connectingKnab ? 'Knab openen...' : 'Koppel Knab'}
+                        </Button>
+                      )}
                       <Button type="button" variant="outline" className="gap-2" onClick={() => void runSpendingAnalysis()} disabled={analysisLoading}>
                         {analysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                         {analysisLoading ? 'Analyse draait...' : 'AI analyse op uitgaven (alle rekeningen)'}
@@ -314,7 +375,7 @@ export default function BankOverzichtPage() {
                   <div className="grid gap-3 md:grid-cols-4">
                     <div className="rounded-xl border border-border/70 bg-card/55 p-4">
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">Bank</div>
-                      <div className="mt-1 text-sm font-medium">bunq personal</div>
+                      <div className="mt-1 text-sm font-medium">{connection?.institutionName || 'Knab'}</div>
                     </div>
                     <div className="rounded-xl border border-border/70 bg-card/55 p-4">
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">Laatste synchronisatie</div>
@@ -332,8 +393,12 @@ export default function BankOverzichtPage() {
 
                   {accounts.length === 0 && (
                     <div className="rounded-lg border border-border/70 bg-card/55 p-3 text-sm text-muted-foreground">
-                      Nog geen rekeningen gevonden. Klik op 'Synchroniseer nu' om bunq-data op te halen.
+                      Nog geen Knab-rekening gekoppeld. Klik op &apos;Koppel Knab&apos; om veilig toestemming te geven.
                     </div>
+                  )}
+
+                  {setupMessage && (
+                    <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">{setupMessage}</div>
                   )}
 
                   {error && (
