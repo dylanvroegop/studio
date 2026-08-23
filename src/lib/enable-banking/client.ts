@@ -76,17 +76,19 @@ function base64Url(value: string): string {
   return Buffer.from(value).toString('base64url');
 }
 
-function requireConfig(): { applicationId: string; privateKeyPath: string } {
+function requireConfig(): { applicationId: string; privateKey: string } {
   const applicationId = safeString(process.env.ENABLE_BANKING_APPLICATION_ID);
+  const privateKeyFromEnvironment = safeString(process.env.ENABLE_BANKING_PRIVATE_KEY).replace(/\\n/g, '\n');
   const privateKeyPath = safeString(process.env.ENABLE_BANKING_PRIVATE_KEY_PATH);
-  if (!applicationId || !privateKeyPath) {
-    throw new Error('Enable Banking-gegevens ontbreken. Stel application ID en private key path in.');
+  const privateKey = privateKeyFromEnvironment || (privateKeyPath ? readFileSync(privateKeyPath, 'utf8') : '');
+  if (!applicationId || !privateKey) {
+    throw new Error('Enable Banking-gegevens ontbreken. Stel application ID en private key in.');
   }
-  return { applicationId, privateKeyPath };
+  return { applicationId, privateKey };
 }
 
 function createJwt(): string {
-  const { applicationId, privateKeyPath } = requireConfig();
+  const { applicationId, privateKey } = requireConfig();
   const now = Math.floor(Date.now() / 1000);
   const header = base64Url(JSON.stringify({ typ: 'JWT', alg: 'RS256', kid: applicationId }));
   const body = base64Url(JSON.stringify({
@@ -98,7 +100,7 @@ function createJwt(): string {
   const signer = createSign('RSA-SHA256');
   signer.update(`${header}.${body}`);
   signer.end();
-  const signature = signer.sign(readFileSync(privateKeyPath)).toString('base64url');
+  const signature = signer.sign(privateKey).toString('base64url');
   return `${header}.${body}.${signature}`;
 }
 
