@@ -59,8 +59,8 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
         iconColorClassActive: 'text-teal-300',
     },
     {
-        href: '/bank-overzicht',
-        label: 'Bankoverzicht',
+        href: '/financieen',
+        label: 'Financiën',
         icon: Landmark,
         iconColorClass: 'text-lime-400',
         iconColorClassActive: 'text-lime-300',

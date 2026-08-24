@@ -2,7 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowDownRight, ArrowUpRight, Landmark, Loader2, RefreshCcw } from 'lucide-react';
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CircleAlert,
+  Euro,
+  Landmark,
+  Loader2,
+  RefreshCcw,
+  Receipt,
+  TrendingUp,
+  WalletCards,
+} from 'lucide-react';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
@@ -14,6 +25,13 @@ import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { exportSpendingAnalysisPdf, type SpendingAnalysisReport } from '@/lib/export-spending-analysis-pdf';
 import type { BankAccountView, BankConnectionView, BankOverviewSummary, BankTransactionView } from '@/lib/bank-overzicht';
+import {
+  PROJECT_COST_CATEGORY_LABELS,
+  normalizeProjectCostCategory,
+  type ProjectCostCategory,
+  type ProjectCostRow,
+} from '@/lib/project-costs';
+import type { WinstMetricsResponse } from '@/lib/winst-types';
 
 type ApiSyncResponse = {
   ok: boolean;
@@ -86,6 +104,10 @@ export default function BankOverzichtPage() {
   const [summary, setSummary] = useState<BankOverviewSummary>({ incomeThisMonth: 0, expensesThisMonth: 0 });
   const [accounts, setAccounts] = useState<BankAccountView[]>([]);
   const [transactions, setTransactions] = useState<BankTransactionView[]>([]);
+  const [costs, setCosts] = useState<ProjectCostRow[]>([]);
+  const [financeMetrics, setFinanceMetrics] = useState<WinstMetricsResponse | null>(null);
+  const [financeDataLoading, setFinanceDataLoading] = useState(true);
+  const [financeDataError, setFinanceDataError] = useState<string | null>(null);
   const [activeTabId, setActiveTabId] = useState<string>(OVERVIEW_TAB_ID);
   const [currentPage, setCurrentPage] = useState(1);
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -138,10 +160,59 @@ export default function BankOverzichtPage() {
     }
   }, [user]);
 
+  const fetchFinanceData = useCallback(async () => {
+    if (!user) return;
+    setFinanceDataLoading(true);
+    setFinanceDataError(null);
+    try {
+      const token = await user.getIdToken();
+      const [costsResponse, metricsResponse] = await Promise.all([
+        fetch('/api/kosten/list', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        }),
+        fetch('/api/winst/metrics', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ periodType: 'month', periodRange: 24, jobTypes: [], clientIds: [], projectIds: [] }),
+          cache: 'no-store',
+        }),
+      ]);
+
+      const costsPayload = await costsResponse.json().catch(() => null) as { ok?: boolean; data?: ProjectCostRow[]; message?: string } | null;
+      const metricsPayload = await metricsResponse.json().catch(() => null) as { ok?: boolean; data?: WinstMetricsResponse; message?: string } | null;
+
+      if (!costsResponse.ok || !costsPayload?.ok || !Array.isArray(costsPayload.data)) {
+        throw new Error(costsPayload?.message || 'Kosten konden niet worden geladen.');
+      }
+      if (!metricsResponse.ok || !metricsPayload?.ok || !metricsPayload.data) {
+        throw new Error(metricsPayload?.message || 'Financiële cijfers konden niet worden geladen.');
+      }
+
+      setCosts(costsPayload.data.map((row) => ({
+        ...row,
+        category: normalizeProjectCostCategory(row.category),
+      })));
+      setFinanceMetrics(metricsPayload.data);
+    } catch (financeError) {
+      setFinanceDataError(financeError instanceof Error ? financeError.message : 'Financiële cijfers konden niet worden geladen.');
+    } finally {
+      setFinanceDataLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     void fetchFromSupabase(false);
   }, [fetchFromSupabase, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    void fetchFinanceData();
+  }, [fetchFinanceData, user]);
 
   const handleSync = useCallback(async () => {
     if (!user) return;
@@ -160,7 +231,7 @@ export default function BankOverzichtPage() {
         title: 'Synchronisatie voltooid',
         description: `${data.newCount ?? 0} nieuwe transacties, ${data.accountsSynced ?? 0} rekeningen verwerkt.`,
       });
-      await fetchFromSupabase(false);
+      await Promise.all([fetchFromSupabase(false), fetchFinanceData()]);
     } catch (syncError) {
       const message = syncError instanceof Error ? syncError.message : 'Synchronisatie mislukt.';
       setError(message);
@@ -168,7 +239,7 @@ export default function BankOverzichtPage() {
     } finally {
       setSyncing(false);
     }
-  }, [fetchFromSupabase, toast, user]);
+  }, [fetchFinanceData, fetchFromSupabase, toast, user]);
 
   const handleConnectKnab = useCallback(async () => {
     if (!user || !knabInstitution) return;
@@ -244,6 +315,31 @@ export default function BankOverzichtPage() {
   const totalPages = Math.max(1, Math.ceil(accountTransactions.length / PAGE_SIZE));
 
   const totalBalance = accounts.reduce((sum, a) => sum + (a.latestBalanceAmount ?? 0), 0);
+  const costSummary = useMemo(() => {
+    const byCategory = new Map<ProjectCostCategory, number>();
+    let totalIncl = 0;
+    let totalExcl = 0;
+    let unlinked = 0;
+
+    costs.forEach((cost) => {
+      const amountIncl = Number(cost.amount_incl_btw) || 0;
+      const amountExcl = Number(cost.amount_excl_btw) || 0;
+      totalIncl += amountIncl;
+      totalExcl += amountExcl;
+      if (!cost.offerte_id) unlinked += 1;
+      const category = normalizeProjectCostCategory(cost.category);
+      byCategory.set(category, (byCategory.get(category) || 0) + amountIncl);
+    });
+
+    return {
+      totalIncl,
+      totalExcl,
+      unlinked,
+      byCategory: Array.from(byCategory.entries())
+        .map(([category, amount]) => ({ category, label: PROJECT_COST_CATEGORY_LABELS[category], amount }))
+        .sort((a, b) => b.amount - a.amount),
+    };
+  }, [costs]);
   const runSpendingAnalysis = useCallback(async (answers: ClarificationAnswer[] = []) => {
     if (!user) return;
     setAnalysisLoading(true);
@@ -304,10 +400,10 @@ export default function BankOverzichtPage() {
   return (
     <div className="app-shell min-h-screen bg-background">
       <AppNavigation />
-      <DashboardHeader user={user} title="Bank Overzicht" />
+      <DashboardHeader user={user} title="Financiën" />
 
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
-        <div className="w-full max-w-6xl space-y-5">
+        <div className="w-full max-w-7xl space-y-5">
           <Tabs
             value={activeTabId}
             onValueChange={(id) => {
@@ -342,6 +438,179 @@ export default function BankOverzichtPage() {
             </TabsList>
 
             <TabsContent value={OVERVIEW_TAB_ID} className="mt-4 space-y-4">
+              <section className="overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-500/[0.12] via-card/55 to-cyan-500/[0.08] p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="flex items-center gap-2 text-sm font-medium text-emerald-200">
+                      <WalletCards className="h-4 w-4" />
+                      Financiële cockpit
+                    </p>
+                    <h1 className="mt-1 text-2xl font-semibold tracking-tight">Alles op één plek</h1>
+                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                      Bank, facturen, geregistreerde kosten en cashflow voor je bedrijf. De bankcijfers worden automatisch bijgewerkt na synchronisatie.
+                    </p>
+                  </div>
+                  {financeDataLoading ? <Loader2 className="h-5 w-5 animate-spin text-emerald-300" /> : null}
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {[
+                    { label: 'Totaal saldo', value: formatCurrency(totalBalance), icon: WalletCards, tone: 'text-emerald-300' },
+                    { label: 'Inkomsten deze maand', value: formatCurrency(summary.incomeThisMonth), icon: TrendingUp, tone: 'text-cyan-300' },
+                    { label: 'Uitgaven deze maand', value: formatCurrency(Math.abs(summary.expensesThisMonth)), icon: Receipt, tone: 'text-rose-300' },
+                    { label: 'Geregistreerde kosten', value: formatCurrency(costSummary.totalIncl), icon: Euro, tone: 'text-amber-300' },
+                    { label: 'Nog te ontvangen', value: formatCurrency(financeMetrics?.totals.openAmount || 0), icon: CircleAlert, tone: 'text-amber-300' },
+                    { label: 'Te late betalingen', value: financeMetrics ? `${financeMetrics.totals.overdueCount} (${formatCurrency(financeMetrics.totals.overdueAmount)})` : '-', icon: CircleAlert, tone: 'text-rose-300' },
+                    { label: 'Cash-winst (24 mnd)', value: financeMetrics ? formatCurrency(financeMetrics.totals.netProfitCashBasis) : '-', icon: TrendingUp, tone: financeMetrics && financeMetrics.totals.netProfitCashBasis >= 0 ? 'text-emerald-300' : 'text-rose-300' },
+                    { label: 'Kosten zonder offerte', value: String(costSummary.unlinked), icon: Receipt, tone: 'text-violet-300' },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <div key={item.label} className="rounded-xl border border-border/70 bg-background/30 p-4">
+                        <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                          <Icon className="h-3.5 w-3.5" />
+                          {item.label}
+                        </div>
+                        <div className={`mt-2 text-xl font-semibold ${item.tone}`}>{item.value}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {financeDataError ? (
+                  <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+                    Sommige financiële cijfers konden niet worden geladen: {financeDataError}
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Kosten uit Kosten</CardTitle>
+                    <p className="text-sm text-muted-foreground">Alle geregistreerde kosten, inclusief btw, gegroepeerd per soort.</p>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {costSummary.byCategory.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nog geen kosten geregistreerd.</p>
+                    ) : (
+                      costSummary.byCategory.map((item) => (
+                        <div key={item.category} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/30 px-3 py-2.5">
+                          <span className="text-sm">{item.label}</span>
+                          <span className="font-medium text-amber-200">{formatCurrency(item.amount)}</span>
+                        </div>
+                      ))
+                    )}
+                    <div className="flex items-center justify-between border-t border-border/70 pt-3 text-sm font-semibold">
+                      <span>Totaal kosten incl. btw</span>
+                      <span className="text-amber-200">{formatCurrency(costSummary.totalIncl)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Exclusief btw</span>
+                      <span>{formatCurrency(costSummary.totalExcl)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Facturen & cashflow</CardTitle>
+                    <p className="text-sm text-muted-foreground">Wat is al binnen en wat moet nog worden opgevolgd?</p>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Ontvangen volgens facturen</div>
+                      <div className="mt-1 text-2xl font-semibold text-emerald-300">{formatCurrency(financeMetrics?.totals.receivedCashIncl || 0)}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border border-border/60 bg-background/30 p-3">
+                        <div className="text-xs text-muted-foreground">Openstaand</div>
+                        <div className="mt-1 font-semibold text-amber-200">{formatCurrency(financeMetrics?.totals.openAmount || 0)}</div>
+                      </div>
+                      <div className="rounded-lg border border-border/60 bg-background/30 p-3">
+                        <div className="text-xs text-muted-foreground">Te laat</div>
+                        <div className="mt-1 font-semibold text-rose-200">{financeMetrics?.totals.overdueCount || 0}</div>
+                      </div>
+                    </div>
+                    <button type="button" className="w-full rounded-lg border border-border/70 px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-background/40 hover:text-foreground" onClick={() => router.push('/facturen')}>
+                      Open facturen en volg betalingen op →
+                    </button>
+                  </CardContent>
+                </Card>
+              </section>
+
+              {financeMetrics ? (
+                <section className="grid gap-4 lg:grid-cols-[1fr_1.25fr]">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Offertes & belasting</CardTitle>
+                      <p className="text-sm text-muted-foreground">De cijfers die eerder op het dashboard stonden.</p>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          ['Geoffreerde omzet', formatCurrency(financeMetrics.totals.quotedRevenueIncl)],
+                          ['Werkelijke kosten', formatCurrency(financeMetrics.totals.actualCostExcl)],
+                          ['Marge', `${(financeMetrics.totals.marginPct * 100).toFixed(1)}%`],
+                          ['Btw te betalen', formatCurrency(financeMetrics.vatSummary.netVatPayable)],
+                        ].map(([label, value]) => (
+                          <div key={label} className="rounded-lg border border-border/60 bg-background/30 p-3">
+                            <div className="text-xs text-muted-foreground">{label}</div>
+                            <div className="mt-1 font-semibold">{value}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="border-t border-border/70 pt-3">
+                        <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Offertestatus</div>
+                        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                          {[
+                            ['Concept', financeMetrics.quoteStatusSummary.concept],
+                            ['Verzonden', financeMetrics.quoteStatusSummary.verzonden],
+                            ['Geaccepteerd', financeMetrics.quoteStatusSummary.geaccepteerd],
+                          ].map(([label, value]) => (
+                            <div key={label} className="rounded-lg border border-border/60 bg-background/30 p-2">
+                              <div className="text-muted-foreground">{label}</div>
+                              <div className="mt-1 text-base font-semibold">{value}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Projectresultaten</CardTitle>
+                      <p className="text-sm text-muted-foreground">Snelle controle op omzet, kosten en cash per project.</p>
+                    </CardHeader>
+                    <CardContent>
+                      {financeMetrics.projectPerformances.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nog geen projectcijfers beschikbaar.</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <div className="min-w-[560px] divide-y divide-border/60">
+                            <div className="grid grid-cols-[1.2fr_1fr_130px_130px] gap-3 px-2 pb-2 text-xs uppercase tracking-wide text-muted-foreground">
+                              <div>Project</div>
+                              <div>Klant</div>
+                              <div className="text-right">Omzet</div>
+                              <div className="text-right">Cash</div>
+                            </div>
+                            {financeMetrics.projectPerformances.slice(0, 8).map((project) => (
+                              <div key={project.projectId} className="grid grid-cols-[1.2fr_1fr_130px_130px] gap-3 px-2 py-2 text-sm">
+                                <div className="truncate font-medium">{project.offerteNummer ? `#${project.offerteNummer}` : project.title}</div>
+                                <div className="truncate text-muted-foreground">{project.clientName}</div>
+                                <div className="text-right">{formatCurrency(project.quotedRevenueIncl)}</div>
+                                <div className={project.receivedCashIncl > 0 ? 'text-right text-emerald-300' : 'text-right text-muted-foreground'}>{formatCurrency(project.receivedCashIncl)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </section>
+              ) : null}
+
               <Card>
                 <CardHeader className="space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">

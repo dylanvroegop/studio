@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function appRedirect(request: Request, result: 'connected' | 'error', message?: string): NextResponse {
-  const fallback = new URL('/bank-overzicht', request.url);
+  const fallback = new URL('/financieen', request.url);
   fallback.searchParams.set('bank', result);
   if (message) fallback.searchParams.set('message', message.slice(0, 180));
   return NextResponse.redirect(fallback);

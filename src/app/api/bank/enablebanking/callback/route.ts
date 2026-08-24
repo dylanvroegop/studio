@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function appRedirect(request: Request, result: 'connected' | 'error', message?: string): NextResponse {
-  const url = new URL('/bank-overzicht', request.url);
+  const url = new URL('/financieen', request.url);
   url.searchParams.set('bank', result);
   if (message) url.searchParams.set('message', message.slice(0, 180));
   return NextResponse.redirect(url);

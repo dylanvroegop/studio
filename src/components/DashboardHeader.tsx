@@ -217,7 +217,7 @@ export function DashboardHeader({
         iconClassName: 'text-teal-400',
       };
     }
-    if (pathname.startsWith('/bank-overzicht')) {
+    if (pathname.startsWith('/bank-overzicht') || pathname.startsWith('/financieen')) {
       return {
         icon: Landmark,
         iconClassName: 'text-lime-400',

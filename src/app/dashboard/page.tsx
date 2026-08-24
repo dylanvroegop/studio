@@ -139,6 +139,8 @@ function FilterPopover(props: {
   );
 }
 
+// Kept for the legacy dashboard data model; financial KPI rendering moved to Financiën.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function KPIItem(props: {
   label: string;
   value: string;
@@ -154,6 +156,8 @@ function KPIItem(props: {
   );
 }
 
+// Kept for the legacy project data model; project results moved to Financiën.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ProjectRow(props: {
   project: ProjectRowData;
   onNavigate: (path: string) => void;
@@ -387,7 +391,7 @@ export default function WinstPage() {
   const [metrics, setMetrics] = useState<WinstMetricsResponse | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState<boolean>(false);
   const [metricsError, setMetricsError] = useState<string | null>(null);
-  const [projectSearch, setProjectSearch] = useState<string>('');
+  const [projectSearch] = useState<string>('');
   const [hoursEditorProject, setHoursEditorProject] = useState<ProjectRowData | null>(null);
   const [hoursEditorDate, setHoursEditorDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [hoursEditorValue, setHoursEditorValue] = useState<string>('');
@@ -398,7 +402,7 @@ export default function WinstPage() {
   const [hoursEntryToDelete, setHoursEntryToDelete] = useState<TimeEntryRow | null>(null);
   const [hoursDeleting, setHoursDeleting] = useState<boolean>(false);
   const [metricsRefreshTick, setMetricsRefreshTick] = useState<number>(0);
-  const [hourlyToggleSavingId, setHourlyToggleSavingId] = useState<string | null>(null);
+  const [, setHourlyToggleSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -513,6 +517,8 @@ export default function WinstPage() {
     };
   }, [hoursEditorProject, toast, user]);
 
+  // Retained for the legacy hours dialog state; the dashboard no longer renders project cards.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleOpenHoursEditor = (project: ProjectRowData) => {
     setHoursEditorProject(project);
     setHoursEditorDate(format(new Date(), 'yyyy-MM-dd'));
@@ -522,6 +528,8 @@ export default function WinstPage() {
     setHoursEntryToDelete(null);
   };
 
+  // Retained for backwards-compatible dashboard data handling; editing now belongs with project/finance details.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleToggleHourlyWork = async (project: ProjectRowData) => {
     if (!firestore || !user) return;
     const nextValue = !project.hourlyWorkMaterialPassthrough;
@@ -875,6 +883,8 @@ export default function WinstPage() {
     });
   }, [derived.projectRows, projectSearch]);
 
+  // Used by the legacy project presentation; the visible summary now lives on Financiën.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const projectTotals = useMemo(() => {
     const totalOmzet = filteredProjects.reduce((sum, project) => (
       sum + (project.hourlyWorkMaterialPassthrough
@@ -978,78 +988,30 @@ export default function WinstPage() {
             </div>
           ) : null}
 
-          <section className="overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500/[0.10] via-background/95 to-cyan-500/[0.06]">
-            <div className="flex flex-wrap">
-                <KPIItem
-                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
-                  label="Geoffreerde omzet"
-                  value={formatCurrency(derived.sumQuotedRevenue)}
-                  tone="warning"
-                />
-                <KPIItem
-                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
-                  label="Winst na btw arbeid + marge"
-                  value={formatCurrency(derived.projectedProfitAfterLaborMarginVat)}
-                  tone={derived.projectedProfitAfterLaborMarginVat >= 0 ? 'positive' : 'negative'}
-                />
-                <KPIItem
-                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
-                  label="Winst met arbeid + marge incl. btw"
-                  value={formatCurrency(derived.projectedProfitInclBtw)}
-                  tone={derived.projectedProfitInclBtw >= 0 ? 'positive' : 'negative'}
-                />
-                <KPIItem
-                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
-                  label="Werkelijke winst"
-                  value={derived.actualProfitKnown === null ? 'Onbekend' : formatCurrency(derived.actualProfitKnown)}
-                  tone={
-                    derived.actualProfitKnown === null
-                      ? 'unknown'
-                      : derived.actualProfitKnown >= 0
-                        ? 'positive'
-                        : 'negative'
-                  }
-                />
-                <KPIItem
-                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
-                  label="Ontvangen cash"
-                  value={formatCurrency(metrics.totals.receivedCashIncl)}
-                  tone="positive"
-                />
-                <KPIItem
-                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
-                  label={`Omzetbelasting (${metrics.vatSummary.periodLabel})`}
-                  value={formatCurrency(metrics.vatSummary.netVatPayable)}
-                  tone={metrics.vatSummary.netVatPayable >= 0 ? 'warning' : 'positive'}
-                />
-                <KPIItem
-                  className="basis-full border-b border-white/10 sm:basis-1/2 xl:basis-1/3 2xl:basis-1/6 2xl:border-b-0"
-                  label="Verdiensten per dag"
-                  value={derived.realizedProfitPerDayOverall === null ? 'Onbekend' : formatCurrency(derived.realizedProfitPerDayOverall)}
-                  tone={derived.realizedProfitPerDayOverall === null ? 'unknown' : 'neutral'}
-                />
+          <section className="overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-r from-cyan-500/[0.10] via-background/95 to-emerald-500/[0.06]">
+            <div className="border-b border-white/10 px-5 py-4 sm:px-6">
+              <p className="text-sm font-semibold text-foreground">Opvolging voor vandaag</p>
+              <p className="mt-1 text-sm text-muted-foreground">De financiële totalen staan op Financiën. Hier zie je alleen wat aandacht nodig heeft.</p>
             </div>
-            <div className="border-t border-white/10 px-5 py-3 sm:px-6">
-              <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Werkelijke kosten</p>
-                  <p className="mt-0.5 text-sm font-semibold text-foreground">{formatCurrency(derived.sumActualCostKnown)}</p>
+            <div className="grid grid-cols-2 gap-px bg-white/10 md:grid-cols-3 xl:grid-cols-6">
+              {[
+                { label: 'Openstaand', value: formatCurrency(metrics.totals.openAmount), tone: 'text-amber-300' },
+                { label: 'Te late betalingen', value: `${metrics.totals.overdueCount}`, tone: 'text-red-300' },
+                { label: 'Alle offertes', value: `${metrics.quoteStatusSummary.total}`, tone: 'text-cyan-300' },
+                { label: 'Geaccepteerd', value: `${metrics.quoteStatusSummary.geaccepteerd}`, tone: 'text-emerald-300' },
+                { label: 'Zonder nacalculatie', value: `${metrics.dataQuality.projectsMissingActual}`, tone: 'text-amber-300' },
+                { label: 'Werkelijke dagen', value: metrics.timeTracking.actualDays.toFixed(1), tone: 'text-foreground' },
+              ].map((item) => (
+                <div key={item.label} className="bg-background/35 px-4 py-4">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{item.label}</p>
+                  <p className={cn('mt-1 text-xl font-semibold', item.tone)}>{item.value}</p>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Marge</p>
-                  <p className="mt-0.5 text-sm font-semibold text-foreground">
-                    {derived.actualMarginKnown === null ? 'Onbekend' : formatPercent(derived.actualMarginKnown)}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Ingevulde projecten</p>
-                  <p className="mt-0.5 text-sm font-semibold text-foreground">{derived.withActual.length}</p>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Werkelijke dagen</p>
-                  <p className="mt-0.5 text-sm font-semibold text-foreground">{metrics.timeTracking.actualDays.toFixed(1)}</p>
-                </div>
-              </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 border-t border-white/10 px-5 py-3 sm:px-6">
+              <Button type="button" variant="outline" size="sm" onClick={() => router.push('/facturen')}>Open facturen</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => router.push('/offertes')}>Bekijk offertes</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => router.push('/financieen')}>Open Financiën</Button>
             </div>
           </section>
 
@@ -1077,98 +1039,6 @@ export default function WinstPage() {
                   </div>
                 ))}
               </div>
-            </div>
-          </section>
-
-          <section className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-xl font-semibold tracking-tight">Project prestaties</h2>
-              <Input
-                value={projectSearch}
-                onChange={(event) => setProjectSearch(event.target.value)}
-                placeholder="Zoek project of klant"
-                className="sm:w-72 border-border/60 bg-background/40"
-              />
-            </div>
-
-            <div className="space-y-4">
-              {filteredProjects.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Geen projecten in deze selectie.</p>
-              ) : (
-                <>
-                  <div className="rounded-xl border border-cyan-500/25 bg-gradient-to-r from-cyan-500/[0.14] via-card/55 to-card/40 px-4 py-3">
-                    <div className="mb-3 flex items-center justify-between">
-                      <p className="text-sm font-semibold text-foreground">Totaal (zichtbare projecten)</p>
-                      <span className="text-xs text-muted-foreground">{filteredProjects.length} projecten</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Omzet incl. btw</p>
-                        <p className="mt-0.5 text-sm font-semibold text-foreground">{formatCurrency(projectTotals.totalOmzet)}</p>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Kosten incl. btw</p>
-                        <p className="mt-0.5 text-sm font-semibold text-foreground">
-                          {projectTotals.hasActualCostData ? formatCurrency(projectTotals.totalKosten) : '—'}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Marge</p>
-                        <p
-                          className={cn(
-                            'mt-0.5 text-sm font-semibold',
-                            projectTotals.marge === null
-                              ? 'text-muted-foreground'
-                              : projectTotals.marge < 0
-                                ? 'text-red-300'
-                                : 'text-emerald-300'
-                          )}
-                        >
-                          {projectTotals.marge === null ? 'Onbekend' : formatPercent(projectTotals.marge)}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">€/dag</p>
-                        <p
-                          className={cn(
-                            'mt-0.5 text-sm font-semibold',
-                            projectTotals.euroPerDay === null
-                              ? 'text-muted-foreground'
-                              : projectTotals.doelPerDay !== null && projectTotals.euroPerDay < projectTotals.doelPerDay
-                                ? 'text-red-300'
-                                : 'text-emerald-300'
-                          )}
-                        >
-                          {projectTotals.euroPerDay === null ? 'Onbekend' : formatCurrency(projectTotals.euroPerDay)}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Dagen</p>
-                        <p className="mt-0.5 text-sm font-semibold text-foreground">
-                          {projectTotals.totalActualDays.toFixed(1)} / {projectTotals.totalQuotedDays.toFixed(1)}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
-                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Doel €/dag</p>
-                        <p className="mt-0.5 text-sm font-semibold text-foreground">
-                          {projectTotals.doelPerDay === null ? 'Onbekend' : formatCurrency(projectTotals.doelPerDay)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {filteredProjects.map((project) => (
-                    <ProjectRow
-                      key={project.projectId}
-                      project={project}
-                      onNavigate={router.push}
-                      onEditHours={handleOpenHoursEditor}
-                      onToggleHourlyWork={handleToggleHourlyWork}
-                      isTogglingHourlyWork={hourlyToggleSavingId === project.projectId}
-                    />
-                  ))}
-                </>
-              )}
             </div>
           </section>
 
