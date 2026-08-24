@@ -75,6 +75,8 @@ function normalizeDateOnly(value: string | null): string | null {
 
 function buildTransactionHash(input: {
   bankAccountId: string;
+  externalTransactionId: string | null;
+  internalTransactionId: string | null;
   bookingDate: string | null;
   amount: number;
   remittanceInformation: string | null;
@@ -82,6 +84,8 @@ function buildTransactionHash(input: {
 }): string {
   const raw = [
     input.bankAccountId,
+    safeString(input.externalTransactionId),
+    safeString(input.internalTransactionId),
     input.bookingDate || '',
     input.amount.toFixed(2),
     safeString(input.remittanceInformation),
@@ -131,6 +135,8 @@ export function mapTransactionsUpsert(bankAccountId: string, transactions: BankT
     const valueDate = normalizeDateOnly(tx.valueDate);
     const hash = buildTransactionHash({
       bankAccountId,
+      externalTransactionId: tx.externalTransactionId,
+      internalTransactionId: tx.internalTransactionId,
       bookingDate,
       amount: tx.amount,
       remittanceInformation: tx.remittanceInformation,

@@ -97,9 +97,13 @@ export async function syncEnableBankingConnection(params: {
       if (balanceResult.error) throw new Error(`Kon Knab-saldo niet opslaan: ${balanceResult.error.message}`);
     }
 
-    const normalized = mapTransactionsUpsert(bankAccountId, transactions.map((tx) => ({
-      externalTransactionId: tx.transactionId,
-      internalTransactionId: tx.transactionId,
+    const transactionsWithIds = transactions.map((tx) => ({
+      tx,
+      providerTransactionId: safeString(tx.transactionId) || fallbackTransactionId(providerAccountId, tx),
+    }));
+    const normalized = mapTransactionsUpsert(bankAccountId, transactionsWithIds.map(({ tx, providerTransactionId }) => ({
+      externalTransactionId: providerTransactionId,
+      internalTransactionId: providerTransactionId,
       bookingDate: parseDateOnly(tx.bookingDate),
       valueDate: parseDateOnly(tx.valueDate),
       amount: tx.amount,
@@ -112,8 +116,7 @@ export async function syncEnableBankingConnection(params: {
       raw: tx.raw,
     })));
     const rows = normalized.map((item, index) => {
-      const tx = transactions[index];
-      const providerTransactionId = safeString(tx.transactionId) || fallbackTransactionId(providerAccountId, tx);
+      const { tx, providerTransactionId } = transactionsWithIds[index];
       return {
         ...item,
         user_id: params.bankUserId,
