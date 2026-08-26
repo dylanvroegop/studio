@@ -217,6 +217,16 @@
     transition: padding-left 200ms ease-out;
   }
 
+  .finance-tabs-footer {
+    left: 0;
+    right: 0;
+    transition: left 200ms ease-out;
+  }
+
+  .app-nav-open .finance-tabs-footer {
+    left: 15.84rem;
+  }
+
   .app-nav-open .app-shell {
     padding-left: 15.84rem;
   }

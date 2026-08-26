@@ -11,6 +11,7 @@ import {
   Loader2,
   RefreshCcw,
   Receipt,
+  Search,
   TrendingUp,
   WalletCards,
 } from 'lucide-react';
@@ -20,6 +21,14 @@ import { DashboardHeader } from '@/components/DashboardHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -63,8 +72,16 @@ type SpendingAnalysisResponse = {
   };
 };
 
-const PAGE_SIZE = 10;
+type CostTimeline = 'month' | 'since-bank-start';
+
+type TransactionPageSize = 10 | 20 | 40 | 'all';
 const OVERVIEW_TAB_ID = 'overview';
+const COSTS_TAB_ID = 'costs';
+const INVOICES_TAB_ID = 'invoices';
+const QUOTES_TAB_ID = 'quotes';
+const PROJECTS_TAB_ID = 'projects';
+const BANK_TAB_ID = 'bank';
+const ANALYSIS_TAB_ID = 'analysis';
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('nl-NL', {
@@ -101,7 +118,7 @@ export default function BankOverzichtPage() {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const [connection, setConnection] = useState<BankConnectionView | null>(null);
-  const [summary, setSummary] = useState<BankOverviewSummary>({ incomeThisMonth: 0, expensesThisMonth: 0 });
+  const [summary, setSummary] = useState<BankOverviewSummary>({ incomeThisMonth: 0, expensesThisMonth: 0, privateWithdrawalsThisMonth: 0, privateWithdrawalsTotal: 0, firstTransactionDate: null });
   const [accounts, setAccounts] = useState<BankAccountView[]>([]);
   const [transactions, setTransactions] = useState<BankTransactionView[]>([]);
   const [costs, setCosts] = useState<ProjectCostRow[]>([]);
@@ -110,6 +127,8 @@ export default function BankOverzichtPage() {
   const [financeDataError, setFinanceDataError] = useState<string | null>(null);
   const [activeTabId, setActiveTabId] = useState<string>(OVERVIEW_TAB_ID);
   const [currentPage, setCurrentPage] = useState(1);
+  const [transactionSearch, setTransactionSearch] = useState('');
+  const [transactionPageSize, setTransactionPageSize] = useState<TransactionPageSize>(10);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisReport, setAnalysisReport] = useState<(SpendingAnalysisReport & {
@@ -124,6 +143,7 @@ export default function BankOverzichtPage() {
   const [knabInstitution, setKnabInstitution] = useState<BankInstitution | null>(null);
   const [connectingKnab, setConnectingKnab] = useState(false);
   const [setupMessage, setSetupMessage] = useState<string | null>(null);
+  const [costTimeline, setCostTimeline] = useState<CostTimeline>('month');
 
   const hasSyncedOnMount = useRef(false);
 
@@ -292,14 +312,14 @@ export default function BankOverzichtPage() {
 
   // Keep selected tab valid when account list changes.
   useEffect(() => {
-    if (activeTabId === OVERVIEW_TAB_ID) return;
+    if ([OVERVIEW_TAB_ID, COSTS_TAB_ID, INVOICES_TAB_ID, QUOTES_TAB_ID, PROJECTS_TAB_ID, BANK_TAB_ID, ANALYSIS_TAB_ID].includes(activeTabId)) return;
     if (!accounts.some((account) => account.id === activeTabId)) {
       setActiveTabId(OVERVIEW_TAB_ID);
       setCurrentPage(1);
     }
   }, [accounts, activeTabId]);
 
-  const activeAccountId = activeTabId === OVERVIEW_TAB_ID ? null : activeTabId;
+  const activeAccountId = accounts.some((account) => account.id === activeTabId) ? activeTabId : null;
   const activeAccount = accounts.find((a) => a.id === activeAccountId) ?? accounts[0] ?? null;
 
   const accountTransactions = useMemo(
@@ -307,21 +327,78 @@ export default function BankOverzichtPage() {
     [transactions, activeAccount]
   );
 
-  const paginatedTransactions = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return accountTransactions.slice(start, start + PAGE_SIZE);
-  }, [currentPage, accountTransactions]);
+  const filteredAccountTransactions = useMemo(() => {
+    const term = transactionSearch.trim().toLocaleLowerCase('nl-NL');
+    if (!term) return accountTransactions;
 
-  const totalPages = Math.max(1, Math.ceil(accountTransactions.length / PAGE_SIZE));
+    return accountTransactions.filter((tx) => {
+      const type = tx.category === 'private'
+        ? 'privé prive'
+        : tx.direction === 'outgoing' ? 'uitgaand' : 'inkomend';
+      const amount = Number.isFinite(tx.amount) ? tx.amount : 0;
+      const searchable = [
+        tx.bookingDate,
+        formatDate(tx.bookingDate),
+        tx.description,
+        tx.counterpartyName,
+        formatCurrency(amount),
+        amount.toFixed(2),
+        amount.toFixed(2).replace('.', ','),
+        type,
+        tx.status,
+      ].join(' ').toLocaleLowerCase('nl-NL');
+      return searchable.includes(term);
+    });
+  }, [accountTransactions, transactionSearch]);
+
+  const paginatedTransactions = useMemo(() => {
+    if (transactionPageSize === 'all') return filteredAccountTransactions;
+    const start = (currentPage - 1) * transactionPageSize;
+    return filteredAccountTransactions.slice(start, start + transactionPageSize);
+  }, [currentPage, filteredAccountTransactions, transactionPageSize]);
+
+  const totalPages = transactionPageSize === 'all'
+    ? 1
+    : Math.max(1, Math.ceil(filteredAccountTransactions.length / transactionPageSize));
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [transactionSearch, transactionPageSize, activeAccountId]);
 
   const totalBalance = accounts.reduce((sum, a) => sum + (a.latestBalanceAmount ?? 0), 0);
+  const costPeriod = useMemo(() => {
+    const now = new Date();
+    if (costTimeline === 'since-bank-start') {
+      const start = summary.firstTransactionDate ? new Date(`${summary.firstTransactionDate.slice(0, 10)}T00:00:00`) : now;
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      return {
+        start,
+        end,
+        label: summary.firstTransactionDate ? `${formatDate(start.toISOString())} → vandaag` : 'Wacht op eerste Knab-transactie',
+      };
+    }
+
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return {
+      start,
+      end,
+      label: `${formatDate(start.toISOString())} → ${formatDate(end.toISOString())}`,
+    };
+  }, [costTimeline, summary.firstTransactionDate]);
+
+  const costsInPeriod = useMemo(() => costs.filter((cost) => {
+    const date = new Date(`${cost.date.slice(0, 10)}T00:00:00`);
+    return !Number.isNaN(date.getTime()) && date >= costPeriod.start && date < costPeriod.end;
+  }), [costPeriod.end, costPeriod.start, costs]);
+
   const costSummary = useMemo(() => {
     const byCategory = new Map<ProjectCostCategory, number>();
     let totalIncl = 0;
     let totalExcl = 0;
     let unlinked = 0;
 
-    costs.forEach((cost) => {
+    costsInPeriod.forEach((cost) => {
       const amountIncl = Number(cost.amount_incl_btw) || 0;
       const amountExcl = Number(cost.amount_excl_btw) || 0;
       totalIncl += amountIncl;
@@ -339,7 +416,7 @@ export default function BankOverzichtPage() {
         .map(([category, amount]) => ({ category, label: PROJECT_COST_CATEGORY_LABELS[category], amount }))
         .sort((a, b) => b.amount - a.amount),
     };
-  }, [costs]);
+  }, [costsInPeriod]);
   const runSpendingAnalysis = useCallback(async (answers: ClarificationAnswer[] = []) => {
     if (!user) return;
     setAnalysisLoading(true);
@@ -402,7 +479,7 @@ export default function BankOverzichtPage() {
       <AppNavigation />
       <DashboardHeader user={user} title="Financiën" />
 
-      <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
+      <main className="flex flex-col items-center p-4 pb-40 md:px-6 md:pb-36 md:pt-6">
         <div className="w-full max-w-7xl space-y-5">
           <Tabs
             value={activeTabId}
@@ -411,32 +488,6 @@ export default function BankOverzichtPage() {
               setCurrentPage(1);
             }}
           >
-            <TabsList className="h-auto w-full justify-start gap-2 overflow-x-auto rounded-2xl border border-border/60 bg-card/70 p-2">
-              <TabsTrigger
-                value={OVERVIEW_TAB_ID}
-                className="h-auto min-w-[180px] rounded-xl px-5 py-3 text-left data-[state=active]:bg-background/80"
-              >
-                <div className="flex flex-col items-start gap-1">
-                  <span className="text-base font-semibold">Overzicht</span>
-                  <span className="text-xs text-muted-foreground">Sync, status en totalen</span>
-                </div>
-              </TabsTrigger>
-              {accounts.map((account) => (
-                <TabsTrigger
-                  key={account.id}
-                  value={account.id}
-                  className="h-auto min-w-[160px] rounded-xl px-5 py-3 text-left data-[state=active]:bg-background/80"
-                >
-                  <div className="flex flex-col items-start gap-1">
-                    <span className="text-base font-semibold">{account.name}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {account.latestBalanceAmount == null ? '-' : formatCurrency(account.latestBalanceAmount)}
-                    </span>
-                  </div>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
             <TabsContent value={OVERVIEW_TAB_ID} className="mt-4 space-y-4">
               <section className="overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-500/[0.12] via-card/55 to-cyan-500/[0.08] p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -458,6 +509,7 @@ export default function BankOverzichtPage() {
                     { label: 'Totaal saldo', value: formatCurrency(totalBalance), icon: WalletCards, tone: 'text-emerald-300' },
                     { label: 'Inkomsten deze maand', value: formatCurrency(summary.incomeThisMonth), icon: TrendingUp, tone: 'text-cyan-300' },
                     { label: 'Uitgaven deze maand', value: formatCurrency(Math.abs(summary.expensesThisMonth)), icon: Receipt, tone: 'text-rose-300' },
+                    { label: 'Privé-opnames deze maand', value: formatCurrency(Math.abs(summary.privateWithdrawalsThisMonth)), icon: WalletCards, tone: 'text-violet-300' },
                     { label: 'Geregistreerde kosten', value: formatCurrency(costSummary.totalIncl), icon: Euro, tone: 'text-amber-300' },
                     { label: 'Nog te ontvangen', value: formatCurrency(financeMetrics?.totals.openAmount || 0), icon: CircleAlert, tone: 'text-amber-300' },
                     { label: 'Te late betalingen', value: financeMetrics ? `${financeMetrics.totals.overdueCount} (${formatCurrency(financeMetrics.totals.overdueAmount)})` : '-', icon: CircleAlert, tone: 'text-rose-300' },
@@ -483,12 +535,39 @@ export default function BankOverzichtPage() {
                   </div>
                 ) : null}
               </section>
+            </TabsContent>
 
-              <section className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+            <TabsContent value={COSTS_TAB_ID} className="mt-4 space-y-4">
+              <section>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Kosten uit Kosten</CardTitle>
-                    <p className="text-sm text-muted-foreground">Alle geregistreerde kosten, inclusief btw, gegroepeerd per soort.</p>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-base">Kosten uit Kosten</CardTitle>
+                        <p className="text-sm text-muted-foreground">Geregistreerde kosten binnen de geselecteerde periode, inclusief btw.</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs uppercase tracking-wide text-muted-foreground">Tijdlijn</span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={costTimeline === 'month' ? 'default' : 'outline'}
+                          onClick={() => setCostTimeline('month')}
+                        >
+                          Deze maand
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={costTimeline === 'since-bank-start' ? 'default' : 'outline'}
+                          onClick={() => setCostTimeline('since-bank-start')}
+                          disabled={!summary.firstTransactionDate}
+                        >
+                          Sinds start Knab
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">Periode: {costPeriod.label} · {costsInPeriod.length} kosten</div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {costSummary.byCategory.length === 0 ? (
@@ -501,6 +580,10 @@ export default function BankOverzichtPage() {
                         </div>
                       ))
                     )}
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2.5">
+                      <span className="text-sm">Privé-opnames (Bunq)</span>
+                      <span className="font-medium text-violet-300">{formatCurrency(Math.abs(summary.privateWithdrawalsTotal))}</span>
+                    </div>
                     <div className="flex items-center justify-between border-t border-border/70 pt-3 text-sm font-semibold">
                       <span>Totaal kosten incl. btw</span>
                       <span className="text-amber-200">{formatCurrency(costSummary.totalIncl)}</span>
@@ -512,6 +595,11 @@ export default function BankOverzichtPage() {
                   </CardContent>
                 </Card>
 
+              </section>
+            </TabsContent>
+
+            <TabsContent value={INVOICES_TAB_ID} className="mt-4 space-y-4">
+              <section>
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base">Facturen & cashflow</CardTitle>
@@ -538,9 +626,11 @@ export default function BankOverzichtPage() {
                   </CardContent>
                 </Card>
               </section>
+            </TabsContent>
 
-              {financeMetrics ? (
-                <section className="grid gap-4 lg:grid-cols-[1fr_1.25fr]">
+            <TabsContent value={QUOTES_TAB_ID} className="mt-4 space-y-4">
+              <section>
+                {financeMetrics ? (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base">Offertes & belasting</CardTitle>
@@ -577,7 +667,13 @@ export default function BankOverzichtPage() {
                       </div>
                     </CardContent>
                   </Card>
+                ) : null}
+              </section>
+            </TabsContent>
 
+            <TabsContent value={PROJECTS_TAB_ID} className="mt-4 space-y-4">
+              <section>
+                {financeMetrics ? (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base">Projectresultaten</CardTitle>
@@ -608,9 +704,11 @@ export default function BankOverzichtPage() {
                       )}
                     </CardContent>
                   </Card>
-                </section>
-              ) : null}
+                ) : null}
+              </section>
+            </TabsContent>
 
+            <TabsContent value={BANK_TAB_ID} className="mt-4 space-y-4">
               <Card>
                 <CardHeader className="space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -634,7 +732,7 @@ export default function BankOverzichtPage() {
                           {connectingKnab ? 'Knab openen...' : 'Koppel Knab'}
                         </Button>
                       )}
-                      <Button type="button" variant="outline" className="gap-2" onClick={() => void runSpendingAnalysis()} disabled={analysisLoading}>
+                      <Button type="button" variant="outline" className="gap-2" onClick={() => { setActiveTabId(ANALYSIS_TAB_ID); void runSpendingAnalysis(); }} disabled={analysisLoading}>
                         {analysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                         {analysisLoading ? 'Analyse draait...' : 'AI analyse op uitgaven (alle rekeningen)'}
                       </Button>
@@ -676,95 +774,59 @@ export default function BankOverzichtPage() {
                   {infoMessage && (
                     <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">{infoMessage}</div>
                   )}
-                  {analysisError && (
-                    <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">{analysisError}</div>
-                  )}
                 </CardHeader>
-                {analysisReport && (
-                  <CardContent className="space-y-4 pt-0">
+              </Card>
+            </TabsContent>
+
+            <TabsContent value={ANALYSIS_TAB_ID} className="mt-4 space-y-4">
+              <Card>
+                <CardHeader className="space-y-3">
+                  <div>
+                    <CardTitle className="text-base">Uitgavenanalyse</CardTitle>
+                    <p className="text-sm text-muted-foreground">Laat de banktransacties indelen in zakelijke, persoonlijke en gemengde uitgaven.</p>
+                  </div>
+                  <Button type="button" variant="outline" className="w-fit gap-2" onClick={() => void runSpendingAnalysis()} disabled={analysisLoading}>
+                    {analysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {analysisLoading ? 'Analyse draait...' : 'Analyseer uitgaven opnieuw'}
+                  </Button>
+                  {analysisError && <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">{analysisError}</div>}
+                </CardHeader>
+                {analysisReport ? (
+                  <CardContent className="space-y-4">
                     <div className="rounded-xl border border-border/70 bg-card/55 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h3 className="text-base font-semibold">Uitgavenanalyse</h3>
-                        <Button type="button" variant="secondary" onClick={() => void handleDownloadSpendingPdf()}>
-                          Open/download PDF
-                        </Button>
+                        <h3 className="text-base font-semibold">Resultaat</h3>
+                        <Button type="button" variant="secondary" onClick={() => void handleDownloadSpendingPdf()}>Open/download PDF</Button>
                       </div>
                       <div className="mt-3 text-sm text-muted-foreground">{analysisReport.periodSummary.shortConclusion}</div>
                       <div className="mt-3 grid gap-3 md:grid-cols-3">
-                        <div className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm">
-                          <div className="text-xs text-muted-foreground">Totale uitgaven</div>
-                          <div className="mt-1 text-lg font-semibold text-rose-300">{formatCurrency(analysisReport.periodSummary.totalOutgoing)}</div>
-                        </div>
-                        <div className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm">
-                          <div className="text-xs text-muted-foreground">Business</div>
-                          <div className="mt-1 text-lg font-semibold text-emerald-300">{formatCurrency(analysisReport.businessPersonalSummary.businessAmount)}</div>
-                        </div>
-                        <div className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm">
-                          <div className="text-xs text-muted-foreground">Personal</div>
-                          <div className="mt-1 text-lg font-semibold text-amber-300">{formatCurrency(analysisReport.businessPersonalSummary.personalAmount)}</div>
-                        </div>
+                        <div className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm"><div className="text-xs text-muted-foreground">Totale uitgaven</div><div className="mt-1 text-lg font-semibold text-rose-300">{formatCurrency(analysisReport.periodSummary.totalOutgoing)}</div></div>
+                        <div className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm"><div className="text-xs text-muted-foreground">Zakelijk</div><div className="mt-1 text-lg font-semibold text-emerald-300">{formatCurrency(analysisReport.businessPersonalSummary.businessAmount)}</div></div>
+                        <div className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm"><div className="text-xs text-muted-foreground">Persoonlijk</div><div className="mt-1 text-lg font-semibold text-amber-300">{formatCurrency(analysisReport.businessPersonalSummary.personalAmount)}</div></div>
                       </div>
                       <div className="mt-4 space-y-2">
                         {analysisReport.categoryBreakdown.slice(0, 8).map((item) => (
-                          <div key={item.category} className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="font-medium">{item.category}</div>
-                              <div className="text-rose-300">{formatCurrency(item.totalAmount)}</div>
-                            </div>
-                            <div className="mt-1 text-xs text-muted-foreground">{item.explanation}</div>
-                          </div>
+                          <div key={item.category} className="rounded-lg border border-border/60 bg-background/40 p-3 text-sm"><div className="flex items-center justify-between gap-2"><div className="font-medium">{item.category}</div><div className="text-rose-300">{formatCurrency(item.totalAmount)}</div></div><div className="mt-1 text-xs text-muted-foreground">{item.explanation}</div></div>
                         ))}
                       </div>
                     </div>
-
                     {(analysisReport.unclearTransactions || []).length > 0 && (
                       <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
                         <h4 className="text-sm font-semibold">Nog onduidelijk: beantwoord deze vragen</h4>
                         <div className="mt-3 space-y-3">
                           {(analysisReport.unclearTransactions || []).map((item) => (
-                            <div key={item.transactionId} className="rounded-lg border border-border/60 bg-background/40 p-3">
-                              <div className="text-sm">{item.question}</div>
-                              <input
-                                value={clarificationDraft[item.transactionId] || ''}
-                                onChange={(event) => {
-                                  const next = event.target.value;
-                                  setClarificationDraft((prev) => ({ ...prev, [item.transactionId]: next }));
-                                }}
-                                placeholder="Typ hier je uitleg over deze transactie..."
-                                className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                              />
-                            </div>
+                            <div key={item.transactionId} className="rounded-lg border border-border/60 bg-background/40 p-3"><div className="text-sm">{item.question}</div><input value={clarificationDraft[item.transactionId] || ''} onChange={(event) => setClarificationDraft((prev) => ({ ...prev, [item.transactionId]: event.target.value }))} placeholder="Typ hier je uitleg over deze transactie..." className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm" /></div>
                           ))}
                         </div>
-                        <div className="mt-3">
-                          <Button type="button" onClick={() => void handleClarificationSubmit()} disabled={analysisLoading} className="gap-2">
-                            {analysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                            Heranalyseer met mijn antwoorden
-                          </Button>
-                        </div>
+                        <div className="mt-3"><Button type="button" onClick={() => void handleClarificationSubmit()} disabled={analysisLoading} className="gap-2">{analysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Heranalyseer met mijn antwoorden</Button></div>
                       </div>
                     )}
-
                     <div className="grid gap-3 md:grid-cols-2">
-                      <div className="rounded-xl border border-border/70 bg-card/55 p-4">
-                        <div className="text-sm font-semibold">Wat was waarschijnlijk nodig?</div>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                          {analysisReport.neededVsAvoidable.likelyNeeded.map((item, index) => (
-                            <li key={`${index}-${item}`}>{item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div className="rounded-xl border border-border/70 bg-card/55 p-4">
-                        <div className="text-sm font-semibold">Wat had je mogelijk niet hoeven uitgeven?</div>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                          {analysisReport.neededVsAvoidable.possiblyAvoidable.map((item, index) => (
-                            <li key={`${index}-${item}`}>{item}</li>
-                          ))}
-                        </ul>
-                      </div>
+                      <div className="rounded-xl border border-border/70 bg-card/55 p-4"><div className="text-sm font-semibold">Wat was waarschijnlijk nodig?</div><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">{analysisReport.neededVsAvoidable.likelyNeeded.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></div>
+                      <div className="rounded-xl border border-border/70 bg-card/55 p-4"><div className="text-sm font-semibold">Wat had je mogelijk niet hoeven uitgeven?</div><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">{analysisReport.neededVsAvoidable.possiblyAvoidable.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></div>
                     </div>
                   </CardContent>
-                )}
+                ) : null}
               </Card>
             </TabsContent>
 
@@ -799,10 +861,25 @@ export default function BankOverzichtPage() {
                   <CardHeader>
                     <CardTitle className="text-base">Transacties</CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-4">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="search"
+                        value={transactionSearch}
+                        onChange={(event) => setTransactionSearch(event.target.value)}
+                        placeholder="Zoek op omschrijving, tegenpartij, datum, bedrag, type of status..."
+                        className="pl-9"
+                        aria-label="Zoek in Knab-transacties"
+                      />
+                    </div>
                     {accountTransactions.length === 0 ? (
                       <div className="rounded-xl border border-border/70 bg-card/55 p-6 text-sm text-muted-foreground">
                         Geen transacties gevonden voor deze rekening.
+                      </div>
+                    ) : filteredAccountTransactions.length === 0 ? (
+                      <div className="rounded-xl border border-border/70 bg-card/55 p-6 text-sm text-muted-foreground">
+                        Geen transacties gevonden voor “{transactionSearch.trim()}”.
                       </div>
                     ) : (
                       <>
@@ -826,7 +903,9 @@ export default function BankOverzichtPage() {
                                 </div>
                                 <div>
                                   <Badge variant="outline" className="text-[10px]">
-                                    {tx.direction === 'outgoing'
+                                    {tx.category === 'private' ? (
+                                      <span className="inline-flex items-center gap-1 text-violet-200">Privé</span>
+                                    ) : tx.direction === 'outgoing'
                                       ? <span className="inline-flex items-center gap-1"><ArrowDownRight className="h-3 w-3" />Uitgaand</span>
                                       : <span className="inline-flex items-center gap-1"><ArrowUpRight className="h-3 w-3" />Inkomend</span>}
                                   </Badge>
@@ -836,8 +915,28 @@ export default function BankOverzichtPage() {
                             ))}
                           </div>
                         </div>
-                        <div className="mt-3 flex items-center justify-between">
-                          <div className="text-xs text-muted-foreground">Pagina {currentPage} van {totalPages}</div>
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <span>
+                              {filteredAccountTransactions.length} {filteredAccountTransactions.length === 1 ? 'transactie' : 'transacties'} · Pagina {currentPage} van {totalPages}
+                            </span>
+                            <Select
+                              value={String(transactionPageSize)}
+                              onValueChange={(value) => {
+                                setTransactionPageSize(value === 'all' ? 'all' : Number(value) as 10 | 20 | 40);
+                              }}
+                            >
+                              <SelectTrigger className="h-8 w-[150px] text-xs" aria-label="Transacties per pagina">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="10">10 per pagina</SelectItem>
+                                <SelectItem value="20">20 per pagina</SelectItem>
+                                <SelectItem value="40">40 per pagina</SelectItem>
+                                <SelectItem value="all">Alle transacties</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <div className="flex items-center gap-2">
                             <Button type="button" variant="outline" size="sm" disabled={currentPage <= 1}
                               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>
@@ -855,6 +954,29 @@ export default function BankOverzichtPage() {
                 </Card>
               </TabsContent>
             ))}
+
+            <footer className="finance-tabs-footer fixed inset-x-0 bottom-0 z-[60] border-t border-border/70 bg-background/95 px-4 pb-3 pt-3 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-background/80 md:px-6">
+              <div className="mx-auto w-full max-w-7xl">
+                <TabsList aria-label="Financiële tabbladen" className="h-auto w-full flex-wrap justify-start gap-2 overflow-hidden rounded-2xl border border-border/60 bg-card/90 p-2 shadow-lg">
+                  <TabsTrigger value={OVERVIEW_TAB_ID} className="h-auto min-w-[120px] rounded-xl px-4 py-3 text-left text-base font-semibold data-[state=active]:bg-background/80">Overzicht</TabsTrigger>
+                  <TabsTrigger value={COSTS_TAB_ID} className="h-auto min-w-[110px] rounded-xl px-4 py-3 text-left text-base font-semibold data-[state=active]:bg-background/80">Kosten</TabsTrigger>
+                  <TabsTrigger value={INVOICES_TAB_ID} className="h-auto min-w-[120px] rounded-xl px-4 py-3 text-left text-base font-semibold data-[state=active]:bg-background/80">Facturen</TabsTrigger>
+                  <TabsTrigger value={QUOTES_TAB_ID} className="h-auto min-w-[115px] rounded-xl px-4 py-3 text-left text-base font-semibold data-[state=active]:bg-background/80">Offertes</TabsTrigger>
+                  <TabsTrigger value={PROJECTS_TAB_ID} className="h-auto min-w-[120px] rounded-xl px-4 py-3 text-left text-base font-semibold data-[state=active]:bg-background/80">Projecten</TabsTrigger>
+                  <TabsTrigger value={BANK_TAB_ID} className="h-auto min-w-[155px] rounded-xl px-4 py-3 text-left text-base font-semibold data-[state=active]:bg-background/80">Banktransacties</TabsTrigger>
+                  <TabsTrigger value={ANALYSIS_TAB_ID} className="h-auto min-w-[105px] rounded-xl px-4 py-3 text-left text-base font-semibold data-[state=active]:bg-background/80">Analyse</TabsTrigger>
+                {accounts.map((account) => (
+                  <TabsTrigger
+                    key={account.id}
+                    value={account.id}
+                    className="h-auto min-w-[155px] rounded-xl px-4 py-3 text-left text-base font-semibold data-[state=active]:bg-background/80"
+                  >
+                    {account.name}
+                  </TabsTrigger>
+                ))}
+                </TabsList>
+              </div>
+            </footer>
           </Tabs>
         </div>
       </main>

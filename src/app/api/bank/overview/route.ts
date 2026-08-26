@@ -132,6 +132,9 @@ export async function GET(request: Request) {
             summary: {
               incomeThisMonth: 0,
               expensesThisMonth: 0,
+              privateWithdrawalsThisMonth: 0,
+              privateWithdrawalsTotal: 0,
+              firstTransactionDate: null,
             },
             accounts: [],
             transactions: [],
@@ -233,9 +236,59 @@ export async function GET(request: Request) {
     const summaryTransactions = summaryTransactionsRaw
       .map((row) => mapTransactionView(row, accountNameById))
       .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    let privateTransactionsRaw: unknown[] = [];
+    if (accountIds.length > 0) {
+      const privateTransactionsResult = await supabaseAdmin
+        .from('bank_transactions')
+        .select('amount')
+        .in('bank_account_id', accountIds)
+        .eq('category', 'private')
+        .lt('amount', 0);
+      if (privateTransactionsResult.error) {
+        return NextResponse.json(
+          { ok: false, message: `Kon privé-opnames niet laden: ${privateTransactionsResult.error.message}` },
+          { status: 500, headers: noStoreHeaders() }
+        );
+      }
+      privateTransactionsRaw = Array.isArray(privateTransactionsResult.data) ? privateTransactionsResult.data : [];
+    }
+
+    const privateWithdrawalsTotal = privateTransactionsRaw.reduce((sum: number, row): number => {
+      const amount = row && typeof row === 'object' ? Number((row as Record<string, unknown>).amount) : 0;
+      return Number.isFinite(amount) ? sum + amount : sum;
+    }, 0);
+
+    let firstTransactionDate: string | null = null;
+    if (accountIds.length > 0) {
+      const firstTransactionResult = await supabaseAdmin
+        .from('bank_transactions')
+        .select('booking_date')
+        .in('bank_account_id', accountIds)
+        .order('booking_date', { ascending: true })
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (firstTransactionResult.error) {
+        return NextResponse.json(
+          { ok: false, message: `Kon startdatum van Knab-transacties niet laden: ${firstTransactionResult.error.message}` },
+          { status: 500, headers: noStoreHeaders() }
+        );
+      }
+      firstTransactionDate = typeof firstTransactionResult.data?.booking_date === 'string'
+        ? firstTransactionResult.data.booking_date
+        : null;
+    }
     const summary = {
       incomeThisMonth: summaryTransactions.filter((tx) => tx.amount >= 0).reduce((sum, tx) => sum + tx.amount, 0),
-      expensesThisMonth: summaryTransactions.filter((tx) => tx.amount < 0).reduce((sum, tx) => sum + tx.amount, 0),
+      expensesThisMonth: summaryTransactions
+        .filter((tx) => tx.amount < 0 && tx.category !== 'private')
+        .reduce((sum, tx) => sum + tx.amount, 0),
+      privateWithdrawalsThisMonth: summaryTransactions
+        .filter((tx) => tx.amount < 0 && tx.category === 'private')
+        .reduce((sum, tx) => sum + tx.amount, 0),
+      privateWithdrawalsTotal,
+      firstTransactionDate,
     };
 
     return NextResponse.json(

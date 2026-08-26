@@ -1,5 +1,6 @@
 export const PROJECT_COST_CATEGORIES = [
   'materiaal',
+  'autokosten',
   'brandstof',
   'gereedschap',
   'eigen_verbruik',
@@ -58,7 +59,8 @@ export interface ProjectCostRow {
 
 export const PROJECT_COST_CATEGORY_LABELS: Record<ProjectCostCategory, string> = {
   materiaal: 'Materiaal',
-  brandstof: 'Autokosten',
+  autokosten: 'Autokosten',
+  brandstof: 'Benzine',
   gereedschap: 'Gereedschap',
   eigen_verbruik: 'Eigen verbruik',
   hotel: 'Hotel',
@@ -84,7 +86,8 @@ export function roundEuro(value: number): number {
 export function normalizeProjectCostCategory(value: unknown): ProjectCostCategory {
   const normalized = safeString(value).toLowerCase();
   if (normalized === 'materiaal') return 'materiaal';
-  if (normalized === 'brandstof' || normalized === 'autokosten' || normalized === 'auto kosten') return 'brandstof';
+  if (normalized === 'autokosten' || normalized === 'auto kosten') return 'autokosten';
+  if (normalized === 'brandstof' || normalized === 'benzine' || normalized === 'diesel') return 'brandstof';
   if (normalized === 'gereedschap') return 'gereedschap';
   if (normalized === 'eigen_verbruik' || normalized === 'eigen verbruik') return 'eigen_verbruik';
   if (normalized === 'hotel' || normalized === 'overnachting') return 'hotel';
@@ -233,6 +236,27 @@ export function inferProjectCostCategory(params: {
 
   if (containsAny(['brandstof toeslag', 'brandstofkosten'])) {
     return 'materiaal';
+  }
+
+  if (
+    containsAny([
+      'autogarage',
+      'garagebedrijf',
+      'apk',
+      'autoverzekering',
+      'wegenbelasting',
+      'motorrijtuigenbelasting',
+      'parkeerkosten',
+      'parkeren',
+      'bandenservice',
+      'autoband',
+      'auto onderhoud',
+      'autoreparatie',
+      'carwash',
+      'wasstraat',
+    ])
+  ) {
+    return 'autokosten';
   }
 
   if (
@@ -411,7 +435,10 @@ export function mapProjectCostRow(input: unknown): ProjectCostRow {
   const row = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
   const lineItems = normalizeProjectCostLineItems(row.line_items);
   const amountExcl = roundEuro(safeNumber(row.amount_excl_btw));
-  const btwPercentage = roundEuro(safeNumber(row.btw_percentage) || 21);
+  const hasBtwPercentage = row.btw_percentage !== undefined
+    && row.btw_percentage !== null
+    && String(row.btw_percentage).trim() !== '';
+  const btwPercentage = hasBtwPercentage ? roundEuro(safeNumber(row.btw_percentage)) : 21;
   const btwAmount = roundEuro(safeNumber(row.btw_amount));
   const amountIncl = roundEuro(safeNumber(row.amount_incl_btw));
   const receiptUrl = safeString(row.receipt_url) || null;

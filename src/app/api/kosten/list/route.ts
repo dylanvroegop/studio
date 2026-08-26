@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { mapProjectCostRow } from '@/lib/project-costs';
+import { deriveBankUserId } from '@/lib/bank-user-id';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -97,8 +99,60 @@ export async function GET(request: Request) {
       return trialBlockedResponse;
     }
 
-    const rows = await fetchProjectCostsViaRest(uid);
-    const mappedRows = rows.map((row) => mapProjectCostRow(row));
+    const [rows, bunqTopUpsResult] = await Promise.all([
+      fetchProjectCostsViaRest(uid),
+      supabaseAdmin
+        .from('bank_transactions')
+        .select('id,booking_date,amount,currency,counterparty_name,remittance_information,created_at')
+        .eq('user_id', deriveBankUserId(uid))
+        .lt('amount', 0)
+        .ilike('counterparty_name', '%top-up via bunq%')
+        .order('booking_date', { ascending: false }),
+    ]);
+
+    if (bunqTopUpsResult.error) {
+      throw new Error(`Bunq App TopUp-transacties konden niet worden geladen: ${bunqTopUpsResult.error.message}`);
+    }
+
+    const projectCosts = rows.map((row) => mapProjectCostRow(row));
+    const bunqTopUps = (bunqTopUpsResult.data || []).map((transaction) => {
+      const amount = Math.abs(Number(transaction.amount) || 0);
+      const description = safeString(transaction.remittance_information) || 'Top-up via bunq';
+      const date = safeString(transaction.booking_date);
+      const createdAt = safeString(transaction.created_at) || `${date}T00:00:00.000Z`;
+      return mapProjectCostRow({
+        id: `bank-bunq-topup-${transaction.id}`,
+        user_id: uid,
+        offerte_id: null,
+        category: 'eigen_verbruik',
+        supplier_name: 'Bunq App TopUp',
+        description,
+        line_items: [{
+          description: 'Bunq App TopUp',
+          quantity: 1,
+          unit: 'st',
+          unit_price: amount,
+          total_price: amount,
+          btw_percentage: 0,
+          category: 'eigen_verbruik',
+        }],
+        amount_excl_btw: amount,
+        btw_percentage: 0,
+        btw_amount: 0,
+        amount_incl_btw: amount,
+        date,
+        receipt_url: null,
+        receipt_files: [],
+        status: 'bank_transaction',
+        created_at: createdAt,
+        updated_at: createdAt,
+      });
+    });
+    const mappedRows = [...projectCosts, ...bunqTopUps].sort((left, right) => {
+      const leftTime = new Date(left.date || left.created_at).getTime();
+      const rightTime = new Date(right.date || right.created_at).getTime();
+      return rightTime - leftTime;
+    });
     if (process.env.NODE_ENV !== 'production') {
       const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
       console.log(

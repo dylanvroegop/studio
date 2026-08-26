@@ -25,12 +25,16 @@ export interface BankTransactionView {
   currency: string;
   direction: 'incoming' | 'outgoing';
   accountName: string;
+  category: string;
   status: string;
 }
 
 export interface BankOverviewSummary {
   incomeThisMonth: number;
   expensesThisMonth: number;
+  privateWithdrawalsThisMonth: number;
+  privateWithdrawalsTotal: number;
+  firstTransactionDate: string | null;
 }
 
 function safeString(value: unknown): string {
@@ -115,6 +119,7 @@ export function mapTransactionView(
     currency: safeString(row.currency) || 'EUR',
     direction,
     accountName: accountNameById.get(bankAccountId) || 'Rekening',
+    category: safeString(row.category) || 'business',
     status: safeString(row.status) || '-',
   };
 }
@@ -125,16 +130,20 @@ export function summarizeThisMonth(transactions: BankTransactionView[]): BankOve
   const year = now.getFullYear();
   let income = 0;
   let expenses = 0;
+  let privateWithdrawals = 0;
   for (const tx of transactions) {
     const date = new Date(tx.bookingDate);
     if (Number.isNaN(date.getTime())) continue;
     if (date.getMonth() !== month || date.getFullYear() !== year) continue;
     if (tx.amount >= 0) income += tx.amount;
-    if (tx.amount < 0) expenses += tx.amount;
+    if (tx.amount < 0 && tx.category === 'private') privateWithdrawals += tx.amount;
+    if (tx.amount < 0 && tx.category !== 'private') expenses += tx.amount;
   }
   return {
     incomeThisMonth: income,
     expensesThisMonth: expenses,
+    privateWithdrawalsThisMonth: privateWithdrawals,
+    privateWithdrawalsTotal: 0,
+    firstTransactionDate: null,
   };
 }
-

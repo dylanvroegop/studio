@@ -11,9 +11,14 @@ import { mapAccountUpsert, mapBalancesInsert, mapTransactionsUpsert } from '@/li
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 const PROVIDER = 'enablebanking';
+const SUPABASE_READ_RETRY_DELAYS_MS = [0, 250, 750] as const;
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function parseDateOnly(value: string | null): string | null {
@@ -48,6 +53,33 @@ async function upsertTransactions(rows: Record<string, unknown>[]): Promise<void
   if (rows.length === 0) return;
   const result = await supabaseAdmin.from('bank_transactions').upsert(rows, { onConflict: 'user_id,external_id' });
   if (result.error) throw new Error(`Kon Knab-transacties niet opslaan: ${result.error.message}`);
+}
+
+async function existingCategoriesByExternalId(externalIds: string[]): Promise<Map<string, string>> {
+  if (externalIds.length === 0) return new Map();
+  let lastError = 'Onbekende databasefout';
+
+  for (const delay of SUPABASE_READ_RETRY_DELAYS_MS) {
+    if (delay > 0) await wait(delay);
+    const result = await supabaseAdmin
+      .from('bank_transactions')
+      .select('external_id,category')
+      .in('external_id', externalIds);
+
+    if (!result.error) {
+      const categories = new Map<string, string>();
+      for (const row of result.data || []) {
+        const externalId = safeString(row.external_id);
+        const category = safeString(row.category);
+        if (externalId && category) categories.set(externalId, category);
+      }
+      return categories;
+    }
+
+    lastError = result.error.message;
+  }
+
+  throw new Error(`Kon bestaande Knab-categorieën na meerdere pogingen niet laden: ${lastError}`);
 }
 
 export async function syncEnableBankingConnection(params: {
@@ -131,7 +163,11 @@ export async function syncEnableBankingConnection(params: {
         status: 'new',
       };
     });
-    await upsertTransactions(rows);
+    const categoriesByExternalId = await existingCategoriesByExternalId(rows.map((row) => safeString(row.external_id)));
+    await upsertTransactions(rows.map((row) => ({
+      ...row,
+      category: categoriesByExternalId.get(safeString(row.external_id)) || 'overig',
+    })));
     newCount += rows.length;
     await supabaseAdmin.from('bank_accounts').update({ status: 'active', updated_at: new Date().toISOString() }).eq('id', bankAccountId);
   }

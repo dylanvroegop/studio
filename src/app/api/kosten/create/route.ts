@@ -372,6 +372,7 @@ async function upsertProfitOverview(params: {
 
   const totals = {
     materiaal: 0,
+    autokosten: 0,
     brandstof: 0,
     gereedschap: 0,
     eigen_verbruik: 0,
@@ -393,7 +394,7 @@ async function upsertProfitOverview(params: {
   const laborCost = laborByQuote.get(params.offerteId)?.costExcl || 0;
 
   const totalMaterialCost = roundEuro(totals.materiaal);
-  const totalFuelCost = roundEuro(totals.brandstof);
+  const totalFuelCost = roundEuro(totals.brandstof + totals.autokosten);
   const totalToolCost = roundEuro(totals.gereedschap);
   const totalOtherCost = roundEuro(totals.overig + totals.eigen_verbruik + totals.hotel + totals.telefoon + totals.leadkosten);
   const totalLaborCost = roundEuro(laborCost);

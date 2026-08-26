@@ -33,6 +33,8 @@ import {
   type ProjectCostLineItem,
   type ProjectCostReceiptFile,
 } from '@/lib/project-costs';
+import { invoiceImpliesAccepted } from '@/lib/quote-status';
+import type { InvoiceStatus } from '@/lib/types';
 
 type PendingCostImport = {
   id: string;
@@ -74,6 +76,27 @@ function safeNumber(value: unknown): number {
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('nl-NL', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function getQuoteAmount(raw: Record<string, unknown>): number | null {
+  const totals = raw.totals && typeof raw.totals === 'object'
+    ? raw.totals as Record<string, unknown>
+    : {};
+  const candidates = [raw.totaalbedrag, raw.amount, raw.totaalInclBtw, totals.totaalInclBtw];
+  for (const candidate of candidates) {
+    const amount = Number(candidate);
+    if (Number.isFinite(amount) && amount > 0) return Math.round(amount * 100) / 100;
+  }
+  return null;
 }
 
 function normalizeLineItem(item: ProjectCostLineItem): ProjectCostLineItem {
@@ -145,7 +168,11 @@ function getQuoteLabel(raw: Record<string, unknown>): string {
   const client = company || name || safeString(raw.klantNaam) || 'Onbekende klant';
   const title = safeString(raw.titel) || safeString(raw.title) || safeString(raw.werkomschrijving) || 'Project';
   const number = safeNumber(raw.offerteNummer);
-  return number ? `#${number} • ${client} • ${title}` : `${client} • ${title}`;
+  const amount = getQuoteAmount(raw);
+  const amountLabel = amount !== null ? formatCurrency(amount) : 'Bedrag onbekend';
+  return number
+    ? `#${number} • ${amountLabel} • ${client} • ${title}`
+    : `${amountLabel} • ${client} • ${title}`;
 }
 
 export function PendingCostImportPrompt() {
@@ -207,10 +234,32 @@ export function PendingCostImportPrompt() {
 
     const loadQuotes = async () => {
       try {
-        const snapshot = await getDocs(query(collection(firestore, 'quotes'), where('userId', '==', user.uid)));
+        const [snapshot, invoicesSnapshot] = await Promise.all([
+          getDocs(query(collection(firestore, 'quotes'), where('userId', '==', user.uid))),
+          getDocs(query(collection(firestore, 'invoices'), where('userId', '==', user.uid))),
+        ]);
         if (cancelled) return;
+
+        const acceptedQuoteIdsFromInvoices = new Set<string>();
+        invoicesSnapshot.docs.forEach((invoiceSnap) => {
+          const invoice = invoiceSnap.data() as {
+            quoteId?: unknown;
+            status?: InvoiceStatus | string;
+            archived?: boolean;
+          };
+          const quoteId = safeString(invoice.quoteId);
+          if (!quoteId || invoice.archived || !invoiceImpliesAccepted(invoice.status)) return;
+          acceptedQuoteIdsFromInvoices.add(quoteId);
+        });
+
         const nextQuotes = snapshot.docs
-          .map((docSnap) => ({ id: docSnap.id, label: getQuoteLabel(docSnap.data() as Record<string, unknown>) }))
+          .map((docSnap) => {
+            const raw = docSnap.data() as Record<string, unknown>;
+            if (raw.archived === true || raw.isCalculationTest === true) return null;
+            if (raw.status !== 'geaccepteerd' && !acceptedQuoteIdsFromInvoices.has(docSnap.id)) return null;
+            return { id: docSnap.id, label: getQuoteLabel(raw) };
+          })
+          .filter((quote): quote is QuoteOption => quote !== null)
           .sort((left, right) => left.label.localeCompare(right.label, 'nl'));
         setQuotes(nextQuotes);
       } catch (error) {
@@ -395,7 +444,8 @@ export function PendingCostImportPrompt() {
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="materiaal">Materiaal</SelectItem>
-                        <SelectItem value="brandstof">Autokosten</SelectItem>
+                        <SelectItem value="autokosten">Autokosten</SelectItem>
+                        <SelectItem value="brandstof">Benzine</SelectItem>
                         <SelectItem value="gereedschap">Gereedschap</SelectItem>
                         <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
                         <SelectItem value="hotel">Hotel</SelectItem>

@@ -158,6 +158,10 @@ function getCostAmountSearchText(cost: ProjectCostRow): string {
     .join(' ');
 }
 
+function isBankTransactionCost(cost: ProjectCostRow): boolean {
+  return cost.status === 'bank_transaction' || cost.id.startsWith('bank-bunq-topup-');
+}
+
 function formatDateLabel(value: string): string {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) return 'Onbekende datum';
@@ -435,6 +439,7 @@ function rebalanceLineItemsToAmount(lineItems: ProjectCostLineItem[], targetAmou
 
 function categoryBadgeClass(category: ProjectCostCategory): string {
   if (category === 'materiaal') return 'border-emerald-500/30 bg-emerald-500/15 text-emerald-200';
+  if (category === 'autokosten') return 'border-lime-500/30 bg-lime-500/15 text-lime-200';
   if (category === 'brandstof') return 'border-amber-500/30 bg-amber-500/15 text-amber-200';
   if (category === 'gereedschap') return 'border-blue-500/30 bg-blue-500/15 text-blue-200';
   if (category === 'eigen_verbruik') return 'border-violet-500/30 bg-violet-500/15 text-violet-200';
@@ -762,7 +767,8 @@ function KostenPageContent() {
   const filterOptions: Array<{ value: CostFilterMode; label: string }> = [
     { value: 'alle', label: 'Alle' },
     { value: 'materiaal', label: 'Materiaal' },
-    { value: 'brandstof', label: 'Autokosten' },
+    { value: 'autokosten', label: 'Autokosten' },
+    { value: 'brandstof', label: 'Benzine' },
     { value: 'gereedschap', label: 'Gereedschap' },
     { value: 'eigen_verbruik', label: 'Eigen verbruik' },
     { value: 'hotel', label: 'Hotel' },
@@ -803,6 +809,7 @@ function KostenPageContent() {
     const totals = {
       alle: 0,
       materiaal: 0,
+      autokosten: 0,
       brandstof: 0,
       gereedschap: 0,
       eigen_verbruik: 0,
@@ -821,6 +828,7 @@ function KostenPageContent() {
     return {
       alle: roundEuro(totals.alle),
       materiaal: roundEuro(totals.materiaal),
+      autokosten: roundEuro(totals.autokosten),
       brandstof: roundEuro(totals.brandstof),
       gereedschap: roundEuro(totals.gereedschap),
       eigen_verbruik: roundEuro(totals.eigen_verbruik),
@@ -1254,6 +1262,7 @@ function KostenPageContent() {
   };
 
   const handleOpenCost = (cost: ProjectCostRow) => {
+    if (isBankTransactionCost(cost)) return;
     const rowCategory = normalizeProjectCostCategory(cost.category);
     const rowOfferteId = safeString(cost.offerte_id) || null;
     const initialLineItems = Array.isArray(cost.line_items) && cost.line_items.length > 0
@@ -1611,7 +1620,8 @@ function KostenPageContent() {
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="materiaal">Materiaal</SelectItem>
-                                      <SelectItem value="brandstof">Autokosten</SelectItem>
+                                      <SelectItem value="autokosten">Autokosten</SelectItem>
+                                      <SelectItem value="brandstof">Benzine</SelectItem>
                                       <SelectItem value="gereedschap">Gereedschap</SelectItem>
                                       <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
                                       <SelectItem value="hotel">Hotel</SelectItem>
@@ -1792,7 +1802,8 @@ function KostenPageContent() {
                                             <SelectContent>
                                               <SelectItem value="materiaal">Materiaal</SelectItem>
                                               <SelectItem value="gereedschap">Gereedschap</SelectItem>
-                                              <SelectItem value="brandstof">Autokosten</SelectItem>
+                                              <SelectItem value="autokosten">Autokosten</SelectItem>
+                                              <SelectItem value="brandstof">Benzine</SelectItem>
                                               <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
                                               <SelectItem value="hotel">Hotel</SelectItem>
                                               <SelectItem value="telefoon">Telefoon</SelectItem>
@@ -2114,7 +2125,10 @@ function KostenPageContent() {
                         return (
                           <tr
                             key={`table-${cost.id}`}
-                            className="cursor-pointer bg-background/10 transition-colors hover:bg-muted/30"
+                            className={cn(
+                              'bg-background/10 transition-colors hover:bg-muted/30',
+                              !isBankTransactionCost(cost) && 'cursor-pointer'
+                            )}
                             onClick={() => handleOpenCost(cost)}
                           >
                             <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{formatDateLabel(cost.date)}</td>
@@ -2139,7 +2153,7 @@ function KostenPageContent() {
                             <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-foreground">
                               <div className="flex items-center justify-end gap-1.5">
                                 <span>{formatCurrency(cost.amount_incl_btw || 0)}</span>
-                                <Button
+                                {!isBankTransactionCost(cost) ? <Button
                                   type="button"
                                   size="icon"
                                   variant="ghost"
@@ -2153,7 +2167,7 @@ function KostenPageContent() {
                                   aria-label={`Verwijder kost van ${cost.supplier_name || 'leverancier'}`}
                                 >
                                   {deletingCostId === cost.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                </Button>
+                                </Button> : <Badge variant="outline" className="text-[10px] text-muted-foreground">Bank</Badge>}
                               </div>
                             </td>
                           </tr>
@@ -2181,7 +2195,10 @@ function KostenPageContent() {
                     key={cost.id}
                     role="button"
                     tabIndex={0}
-                    className="group rounded-xl border border-l-4 border-border/80 border-l-emerald-500/70 bg-card/75 px-4 py-3 shadow-sm transition-all duration-200 hover:bg-card hover:border-border hover:shadow-md sm:px-5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+                    className={cn(
+                      'group rounded-xl border border-l-4 border-border/80 border-l-emerald-500/70 bg-card/75 px-4 py-3 shadow-sm transition-all duration-200 hover:bg-card hover:border-border hover:shadow-md sm:px-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70',
+                      !isBankTransactionCost(cost) && 'cursor-pointer'
+                    )}
                     onClick={() => handleOpenCost(cost)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
@@ -2231,7 +2248,7 @@ function KostenPageContent() {
                             {formatCurrency(cost.amount_incl_btw || 0)}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        {!isBankTransactionCost(cost) ? <div className="flex items-center gap-1">
                           <Button
                             type="button"
                             size="icon"
@@ -2263,7 +2280,7 @@ function KostenPageContent() {
                               <Trash2 className="h-4 w-4" />
                             )}
                           </Button>
-                        </div>
+                        </div> : <Badge variant="outline" className="text-xs text-muted-foreground">Banktransactie</Badge>}
                       </div>
                     </div>
                   </div>

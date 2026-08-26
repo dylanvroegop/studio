@@ -1,0 +1,24 @@
+type;datum;naam;bedrag;details
+knab_zonder_kosten;2026-06-22;DERDENGELDEN BOUWMAAT;524.12;1000VF003206473,1000VF003206964
+knab_zonder_kosten;2026-06-24;GoCardless Ltd;0.01;GC2BWBD
+knab_zonder_kosten;2026-07-20;Vroegop Timmerwerken;200.00;tanken geld
+knab_zonder_kosten;2026-07-20;BCK Toolstation AH;241.66;HAARLEM 20-07-2026 15:54 Pas 3789
+knab_zonder_kosten;2026-07-21;Bouwmaat Haarlem;50.82;HAARLEM 21-07-2026 10:47 Pas 3789
+knab_zonder_kosten;2026-07-21;BCK Toolstation AH;2.71;HAARLEM 21-07-2026 12:29 Pas 3789
+knab_zonder_kosten;2026-07-22;Bouwmaat Haarlem;25.59;HAARLEM 22-07-2026 14:02 Pas 3789
+knab_zonder_kosten;2026-07-24;Parkeren A'dam 15504;2.69;AMSTERDAM 24-07-2026 12:56 Pas 3789
+knab_zonder_kosten;2026-07-24;ESSO EXPRESS VELSERBRO;29.85;VELSERBROEK 24-07-2026 10:48 Pas 3789
+knab_zonder_kosten;2026-07-24;BCK Toolstation CG;36.63;BEVERWIJK 24-07-2026 08:33 Pas 3789
+knab_zonder_kosten;2026-07-27;BCK Bouwmaat Sloterdijk;406.76;AMSTERDAM 25-07-2026 11:18 Pas 3789
+knab_zonder_kosten;2026-07-27;DERDENGELDEN BOUWMAAT;1801.17;5000VF001955694
+knab_zonder_kosten;2026-07-27;BP Larserdreef;9.60;BP Larserdreef 25-07-2026
+knab_zonder_kosten;2026-07-28;OK Rotterdam HS;46.84;ROTTERDAM 28-07-2026 18:28 Pas 3789
+knab_zonder_kosten;2026-08-17;DERDENGELDEN BOUWMAAT;206.84;5000VF001995788,5000VF001995839,5000VF001997668
+kosten_zonder_knab;2026-05-26;DSG Bouwmaten B.V. (Bouwmaat);720.81;Gecombineerde factuur, 3 kostenregels
+kosten_zonder_knab;2026-07-13;Bouwmaat;1873.27;Gecombineerde factuur, 3 kostenregels
+kosten_zonder_knab;2026-07-31;Bouwmaat Alkmaar;2954.19;Gecombineerde factuur, 2 kostenregels
+kosten_zonder_knab;2026-08-04;Bouwmaat Amsterdam B.V.;98.49;EPDM en lijm
+kosten_zonder_knab;2026-08-05;Bouwmaat Amsterdam B.V.;42.35;Retour pallets/goederen
+kosten_zonder_knab;2026-08-05;Bouwmaat Almere;114.40;Gecombineerde factuur, 2 kostenregels
+kosten_zonder_knab;2026-08-06;Bouwmaat Amsterdam B.V. (Sloterdijk);50.09;Factuur 5000VF001997668
+kosten_zonder_knab;2026-08-15;BME Bouwmaten Nederland B.V.;107.85;Roval daktrim
