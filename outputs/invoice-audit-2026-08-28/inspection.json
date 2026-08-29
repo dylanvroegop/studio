@@ -1,0 +1,28 @@
+{
+  "recordCount": 56,
+  "truncated": true,
+  "metadata": {
+    "revision": "cyi59h",
+    "target": {
+      "id": "wb/tpkb46",
+      "beforeLines": 0,
+      "afterLines": 0
+    },
+    "kind": {
+      "requested": "workbook,sheet,table,formula",
+      "tokens": [
+        "workbook",
+        "sheet",
+        "table",
+        "formula"
+      ]
+    },
+    "include": {
+      "tokens": []
+    },
+    "exclude": {
+      "tokens": []
+    },
+    "notices": []
+  }
+}

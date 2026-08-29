@@ -193,9 +193,13 @@ async function fetchProjectCosts(uid: string, quoteIds: string[]): Promise<Winst
       const mapped = row as Record<string, unknown>;
       const quoteId = safeString(mapped.offerte_id);
       if (!quoteId) return;
+      const category = normalizeProjectCostCategory(mapped.category);
+      // Internal transfers to the profit account are cash movements, not
+      // project costs, and must never enter profitability calculations.
+      if (category === 'profit') return;
       output.push({
         quoteId,
-        category: normalizeProjectCostCategory(mapped.category),
+        category,
         amountExcl: safeNumber(mapped.amount_excl_btw),
         amountIncl: safeNumber(mapped.amount_incl_btw),
       });

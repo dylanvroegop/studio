@@ -23,6 +23,8 @@ export const GOOGLE_CALENDAR_COLORS: Record<string, PlanningColor> = {
 
 export const GOOGLE_CALENDAR_RED_COLOR_ID = '11';
 export const GOOGLE_CALENDAR_BLUE_COLOR_ID = '9';
+export const GOOGLE_CALENDAR_GREEN_COLOR_ID = '10';
+export const GOOGLE_CALENDAR_YELLOW_COLOR_ID = '5';
 
 const DEFAULT_COLORS: Record<PlanningEntryType, PlanningColor> = {
     job: { background: '#10b981', foreground: '#ecfdf5' },

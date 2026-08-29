@@ -1,1076 +1,201 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react/no-unescaped-entities */
 'use client';
 
-import React, { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import {
-    Play,
-    Square,
-    Clock,
-    Coffee,
-    Calendar,
-    Trash2,
-    Save,
-    Check
-} from 'lucide-react';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { Clock3 } from 'lucide-react';
+
 import { AppNavigation } from '@/components/AppNavigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { TrackingDayIntelligence } from '@/components/tracking/TrackingDayIntelligence';
+import { TrackingPeriodOverview, type TrackingTimeEntry } from '@/components/tracking/TrackingPeriodOverview';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-    DialogDescription
-} from '@/components/ui/dialog';
-import { Switch } from '@/components/ui/switch';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import {
-    AlertDialog,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogCancel,
-} from '@/components/ui/alert-dialog';
-import { useUser, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { format, differenceInSeconds, eachDayOfInterval, parseISO } from 'date-fns';
-import { nl } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import type { TimeEntrySource } from '@/lib/time-entries';
-import { ENABLE_PENDING_HOURS_PROMPT } from '@/lib/pending-hours-feature';
-import { TrackingDayIntelligence } from '@/components/tracking/TrackingDayIntelligence';
 
-// Types
-interface TimeEntry {
-    id: string;
-    date: string; // ISO date string
-    totalHours: number;
-    source: TimeEntrySource;
-    exactMinutes?: number;
-    roundingRule?: string;
-
-    // Optional legacy/manual fields
-    startTime?: string;
-    endTime?: string;
-    breakDuration?: number;
-
-    quoteId?: string;
-    createdAt: number | string;
+interface TimeEntry extends TrackingTimeEntry {
+  source: TimeEntrySource;
+  createdAt: number | string;
 }
 
-interface UserSettings {
-    defaultStartTime: string;
-    defaultEndTime: string;
-    defaultBreakDuration: number;
-    dailyTargetHours: number;
+interface QuoteLike {
+  id: string;
+  offerteNummer?: number | string;
+  titel?: string;
+  title?: string;
+  isCalculationTest?: boolean;
+  updatedAt?: { toMillis?: () => number };
+  klantinformatie?: {
+    voornaam?: string;
+    achternaam?: string;
+    bedrijfsnaam?: string;
+    straat?: string;
+    huisnummer?: string | number;
+    postcode?: string;
+    plaats?: string;
+  };
 }
 
-const DEFAULT_SETTINGS: UserSettings = {
-    defaultStartTime: '08:00',
-    defaultEndTime: '17:00',
-    defaultBreakDuration: 60, // 1 hour
-    dailyTargetHours: 8,
-};
+type PageTab = 'day' | 'hours' | 'overview';
 
-function getQuoteDisplayTitle(q: any) {
-    if (q?.titel || q?.title) return q.titel || q.title;
-    const info = q?.klantinformatie;
-    if (info?.straat) return `${info.straat} ${info.huisnummer || ''}`.trim();
-    return 'Naamloze klus';
+function numberValue(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : undefined;
 }
 
-function getQuoteLabel(q: any) {
-    const info = q?.klantinformatie;
-    const klantNaam = [info?.voornaam, info?.achternaam].filter(Boolean).join(' ') || info?.bedrijfsnaam;
-    const title = getQuoteDisplayTitle(q);
-
-    const parts = [];
-    if (typeof q.offerteNummer === 'number') parts.push(`#${q.offerteNummer}`);
-    if (klantNaam) parts.push(klantNaam);
-    parts.push(title);
-
-    return parts.join(' - ');
+function mapEntry(row: Record<string, unknown>): TimeEntry {
+  const source = String(row.source || 'gps_tracking_auto') as TimeEntrySource;
+  const exactMinutes = numberValue(row.exact_minutes ?? row.exactMinutes);
+  const rawOnsiteMinutes = numberValue(row.onsite_minutes ?? row.onsiteMinutes);
+  const outboundTravelMinutes = numberValue(row.outbound_travel_minutes ?? row.outboundTravelMinutes);
+  const returnTravelMinutes = numberValue(row.return_travel_minutes ?? row.returnTravelMinutes);
+  const supplierTravelMinutes = numberValue(row.supplier_travel_minutes ?? row.supplierTravelMinutes);
+  const supplierStopMinutes = numberValue(row.supplier_stop_minutes ?? row.supplierStopMinutes);
+  const hasBreakdown = Number(rawOnsiteMinutes || 0)
+    + Number(outboundTravelMinutes || 0)
+    + Number(returnTravelMinutes || 0)
+    + Number(supplierTravelMinutes || 0)
+    + Number(supplierStopMinutes || 0) > 0;
+  return {
+    id: String(row.id || crypto.randomUUID()),
+    date: String(row.work_date || row.date || ''),
+    totalHours: Number(row.worked_hours ?? row.totalHours ?? row.hours ?? 0),
+    quoteId: String(row.quote_id ?? row.quoteId ?? '').trim() || undefined,
+    source,
+    exactMinutes,
+    onsiteMinutes: !hasBreakdown && source.startsWith('gps_tracking_') ? exactMinutes : rawOnsiteMinutes,
+    outboundTravelMinutes,
+    returnTravelMinutes,
+    supplierTravelMinutes,
+    supplierStopMinutes,
+    createdAt: String(row.created_at ?? row.createdAt ?? ''),
+  };
 }
 
-function UrenRegistratiePageContent() {
-    const { toast } = useToast();
-    const { user } = useUser();
-    const firestore = useFirestore();
-    const searchParams = useSearchParams();
-    const isDevBuild = process.env.NODE_ENV !== 'production';
-    const initialQuoteIdFromUrl = searchParams?.get('quoteId')?.trim() || '';
-    const initialTabFromUrl = (searchParams?.get('tab') || '').trim();
+function isGpsEntry(entry: TimeEntry): boolean {
+  const measuredMinutes = Number(entry.onsiteMinutes || 0)
+    + Number(entry.outboundTravelMinutes || 0)
+    + Number(entry.returnTravelMinutes || 0)
+    + Number(entry.supplierTravelMinutes || 0)
+    + Number(entry.supplierStopMinutes || 0);
+  const recordedMinutes = Number(entry.exactMinutes || 0) > 0
+    ? Number(entry.exactMinutes)
+    : Math.round(Number(entry.totalHours || 0) * 60);
+  return measuredMinutes > 0
+    || (entry.source.startsWith('gps_tracking_') && recordedMinutes > 0);
+}
 
-    // State
-    const [mounted, setMounted] = useState(false);
-    const [activeTab, setActiveTab] = useState<'today' | 'timer' | 'manual' | 'history'>(
-        initialTabFromUrl === 'timer' || initialTabFromUrl === 'manual' || initialTabFromUrl === 'history'
-            ? (initialTabFromUrl as 'timer' | 'manual' | 'history')
-            : 'today'
-    );
+function UrenregistratieContent() {
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<PageTab>(
+    requestedTab === 'hours' || requestedTab === 'overview'
+      ? requestedTab
+      : requestedTab === 'history'
+        ? 'overview'
+        : 'day',
+  );
+  const [quotes, setQuotes] = useState<QuoteLike[]>([]);
+  const [history, setHistory] = useState<TimeEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    // Shared State
-    const [quotes, setQuotes] = useState<any[]>([]);
-    const [selectedQuoteId, setSelectedQuoteId] = useState<string>('');
-    const [history, setHistory] = useState<TimeEntry[]>([]);
-    const [historyLoading, setHistoryLoading] = useState(false);
-    const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
-    const [entryToDelete, setEntryToDelete] = useState<TimeEntry | null>(null);
-    const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
+  const loadHistory = useCallback(async () => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/uren/entries?limit=1000', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      const payload = await response.json().catch(() => null) as { ok?: boolean; data?: Record<string, unknown>[]; message?: string } | null;
+      if (!response.ok || !payload?.ok || !Array.isArray(payload.data)) {
+        throw new Error(payload?.message || 'Uren konden niet worden geladen.');
+      }
+      setHistory(payload.data
+        .map(mapEntry)
+        .filter((entry) => /^\d{4}-\d{2}-\d{2}$/.test(entry.date) && isGpsEntry(entry)));
+    } catch (error) {
+      toast({
+        title: 'Uren laden mislukt',
+        description: error instanceof Error ? error.message : 'Onbekende fout',
+        variant: 'destructive',
+      });
+    }
+  }, [toast, user]);
 
-    // Tab 1: Vandaag State
-    const [todayDate, setTodayDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
-    const [endDate, setEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
-    const [dateMode, setDateMode] = useState<'single' | 'range'>('single');
-    const [customHoursOpen, setCustomHoursOpen] = useState(false);
-    const [customHoursValue, setCustomHoursValue] = useState('');
-    const [selectedQuickHours, setSelectedQuickHours] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isUserLoading && !user) setLoading(false);
+  }, [isUserLoading, user]);
 
-    // Tab 2: Timer State
-    const [isTimerRunning, setIsTimerRunning] = useState(false);
-    const [timerStartTime, setTimerStartTime] = useState<Date | null>(null);
-    const [elapsedSeconds, setElapsedSeconds] = useState(0);
-    const [currentBreakMinutes, setCurrentBreakMinutes] = useState(0);
-    const [stopModalOpen, setStopModalOpen] = useState(false);
-
-    // Tab 3: Corrigeren State
-    const [manualDate, setManualDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
-    const [manualHours, setManualHours] = useState('');
-    const [showManualDetails, setShowManualDetails] = useState(false);
-    const [manualStart, setManualStart] = useState('');
-    const [manualEnd, setManualEnd] = useState('');
-    const [manualBreak, setManualBreak] = useState('');
-
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-    const toUnixTime = (value: unknown): number => {
-        if (typeof value === 'number') return value;
-        if (typeof value === 'string') {
-            const parsed = Date.parse(value);
-            return Number.isFinite(parsed) ? parsed : Date.now();
-        }
-        return Date.now();
+  useEffect(() => {
+    if (!user || !firestore) return;
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const quotesQuery = query(collection(firestore, 'quotes'), where('userId', '==', user.uid));
+        const [quotesSnapshot] = await Promise.all([getDocs(quotesQuery), loadHistory()]);
+        if (!active) return;
+        const loadedQuotes = quotesSnapshot.docs
+          .map((document) => ({ id: document.id, ...document.data() } as QuoteLike))
+          .filter((quote) => quote.isCalculationTest !== true)
+          .sort((left, right) => (right.updatedAt?.toMillis?.() || 0) - (left.updatedAt?.toMillis?.() || 0));
+        setQuotes(loadedQuotes);
+      } catch (error) {
+        if (active) toast({ title: 'Offertes laden mislukt', description: error instanceof Error ? error.message : 'Onbekende fout', variant: 'destructive' });
+      } finally {
+        if (active) setLoading(false);
+      }
     };
-
-    const mapApiEntryToHistory = (row: any): TimeEntry => ({
-        id: String(row?.id || crypto.randomUUID()),
-        date: String(row?.work_date || row?.date || format(new Date(), 'yyyy-MM-dd')),
-        totalHours: Number(row?.worked_hours ?? row?.totalHours ?? row?.hours ?? 0),
-        source: (String(row?.source || 'manual') as TimeEntrySource),
-        exactMinutes: row?.exact_minutes == null ? undefined : Number(row.exact_minutes),
-        roundingRule: row?.rounding_rule ?? undefined,
-        startTime: row?.start_time ?? undefined,
-        endTime: row?.end_time ?? undefined,
-        breakDuration: row?.break_duration_minutes == null ? undefined : Number(row.break_duration_minutes),
-        quoteId: row?.quote_id ?? row?.quoteId ?? undefined,
-        createdAt: toUnixTime(row?.created_at ?? row?.createdAt),
-    });
-
-    const fetchHistory = async () => {
-        if (!user) return;
-        setHistoryLoading(true);
-        try {
-            const token = await user.getIdToken();
-            const response = await fetch('/api/uren/entries?limit=500', {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const payload = (await response.json().catch(() => null)) as { ok?: boolean; data?: any[]; message?: string } | null;
-            if (!response.ok || !payload?.ok || !Array.isArray(payload.data)) {
-                throw new Error(payload?.message || 'Kon urenhistorie niet laden.');
-            }
-            setHistory(payload.data.map(mapApiEntryToHistory));
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Onbekende fout';
-            toast({ title: 'Historie laden mislukt', description: message, variant: 'destructive' });
-        } finally {
-            setHistoryLoading(false);
-        }
+    void load();
+    const refresh = () => void loadHistory();
+    window.addEventListener('gps-work-hours:updated', refresh);
+    return () => {
+      active = false;
+      window.removeEventListener('gps-work-hours:updated', refresh);
     };
+  }, [firestore, loadHistory, toast, user]);
 
-    // ------------------------------------------------------------------
-    // Effects
-    // ------------------------------------------------------------------
+  return (
+    <div className="app-shell min-h-screen bg-background pb-10">
+      <AppNavigation />
+      <header className="border-b border-border/70 px-6 py-4">
+        <h1 className="flex items-center gap-2 text-xl font-semibold"><Clock3 className="h-5 w-5 text-emerald-500" />Urenregistratie</h1>
+      </header>
 
-    useEffect(() => {
-        setMounted(true);
-        // Load Settings
-        const savedSettings = localStorage.getItem('urenregistratie_settings');
-        if (savedSettings) setSettings(JSON.parse(savedSettings));
+      <main className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as PageTab)}>
+          <nav aria-label="Urenregistratie tabbladen" className="border-b border-border/70 pb-4">
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-xl border border-border/60 bg-card p-2">
+              <TabsTrigger value="day" className="h-auto min-w-[130px] rounded-lg px-4 py-2.5 text-base font-semibold data-[state=active]:bg-background">Dagoverzicht</TabsTrigger>
+              <TabsTrigger value="hours" className="h-auto min-w-[140px] rounded-lg px-4 py-2.5 text-base font-semibold data-[state=active]:bg-background">Uren gewerkt</TabsTrigger>
+              <TabsTrigger value="overview" className="h-auto min-w-[120px] rounded-lg px-4 py-2.5 text-base font-semibold data-[state=active]:bg-background">Overzicht</TabsTrigger>
+            </TabsList>
+          </nav>
 
-        // Load Active Timer
-        const savedTimer = localStorage.getItem('urenregistratie_active_timer');
-        if (savedTimer) {
-            const { start, breakMinutes, quoteId } = JSON.parse(savedTimer);
-            const startDate = new Date(start);
-            setTimerStartTime(startDate);
-            setCurrentBreakMinutes(breakMinutes || 0);
-            if (quoteId) setSelectedQuoteId(quoteId);
-            setIsTimerRunning(true);
-            const diff = differenceInSeconds(new Date(), startDate);
-            setElapsedSeconds(diff);
-        }
-    }, []);
-
-    // Fetch Quotes
-    useEffect(() => {
-        if (!user || !firestore) return;
-        const fetchQuotes = async () => {
-            try {
-                const q = query(collection(firestore, 'quotes'), where('userId', '==', user.uid));
-                const snap = await getDocs(q);
-                const data = snap.docs
-                    .map(d => ({ id: d.id, ...d.data() } as any))
-                    .filter((quote) => quote.isCalculationTest !== true);
-                data.sort((a, b) => {
-                    const tA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
-                    const tB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
-                    return tB - tA;
-                });
-                setQuotes(data);
-                if (initialQuoteIdFromUrl && data.some((quote) => quote.id === initialQuoteIdFromUrl)) {
-                    setSelectedQuoteId(initialQuoteIdFromUrl);
-                }
-            } catch (err) {
-                console.error("Fout bij ophalen offertes:", err);
-            }
-        };
-        fetchQuotes();
-    }, [user, firestore, initialQuoteIdFromUrl]);
-
-    useEffect(() => {
-        if (!user) return;
-        void fetchHistory();
-    }, [user]);
-
-    // Save Persistence
-    useEffect(() => {
-        if (!mounted) return;
-        localStorage.setItem('urenregistratie_settings', JSON.stringify(settings));
-    }, [settings, mounted]);
-
-    // Timer Logic
-    useEffect(() => {
-        if (isTimerRunning && timerStartTime) {
-            intervalRef.current = setInterval(() => {
-                const now = new Date();
-                setElapsedSeconds(differenceInSeconds(now, timerStartTime));
-            }, 1000);
-        } else {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-        }
-        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-    }, [isTimerRunning, timerStartTime]);
-
-    // Timer Persistence
-    useEffect(() => {
-        if (!mounted) return;
-        if (isTimerRunning && timerStartTime) {
-            localStorage.setItem('urenregistratie_active_timer', JSON.stringify({
-                start: timerStartTime.toISOString(),
-                breakMinutes: currentBreakMinutes,
-                quoteId: selectedQuoteId
-            }));
-        } else {
-            localStorage.removeItem('urenregistratie_active_timer');
-        }
-    }, [isTimerRunning, timerStartTime, currentBreakMinutes, mounted, selectedQuoteId]);
-
-
-    // ------------------------------------------------------------------
-    // Core Functions
-    // ------------------------------------------------------------------
-
-    const saveTimeEntry = async (params: {
-        date: string;
-        quoteId: string;
-        hours: number;
-        source: TimeEntry['source'];
-        exactMinutes?: number;
-        roundingRule?: string;
-        startTime?: string;
-        endTime?: string;
-        breakDuration?: number;
-    }) => {
-        if (!params.hours || params.hours <= 0 || params.hours > 24) {
-            toast({ title: "Ongeldig aantal uren", variant: "destructive" });
-            return false;
-        }
-        if (!user) {
-            toast({ title: 'Je bent niet ingelogd', variant: 'destructive' });
-            return false;
-        }
-
-        try {
-            const token = await user.getIdToken();
-            const response = await fetch('/api/uren/entries', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    quoteId: params.quoteId,
-                    workDate: params.date,
-                    workedHours: params.hours,
-                    source: params.source,
-                    exactMinutes: params.exactMinutes,
-                    roundingRule: params.roundingRule,
-                    startTime: params.startTime,
-                    endTime: params.endTime,
-                    breakDurationMinutes: params.breakDuration,
-                }),
-            });
-
-            const payload = (await response.json().catch(() => null)) as { ok?: boolean; data?: any; message?: string } | null;
-            if (!response.ok || !payload?.ok || !payload.data) {
-                throw new Error(payload?.message || 'Kon uren niet opslaan.');
-            }
-
-            const entry = mapApiEntryToHistory(payload.data);
-            setHistory(prev => [entry, ...prev]);
-            setNewlyAddedId(entry.id);
-            setTimeout(() => setNewlyAddedId(null), 3000);
-
-            toast({
-                title: "Opgeslagen",
-                description: `${formatHours(params.hours)} geboekt op ${format(new Date(params.date), 'd MMM')}`,
-            });
-            return true;
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Onbekende fout';
-            toast({ title: 'Opslaan mislukt', description: message, variant: 'destructive' });
-            return false;
-        }
-    };
-
-    const handleQuickSave = async (hours: number) => {
-        if (!selectedQuoteId || selectedQuoteId === 'none') {
-            toast({ title: "Kies eerst een klus/project", variant: "destructive" });
-            return;
-        }
-
-        if (dateMode === 'single') {
-            await saveTimeEntry({
-                date: todayDate,
-                quoteId: selectedQuoteId,
-                hours: hours,
-                source: 'today_quick'
-            });
-        } else {
-            // Range logic
-            try {
-                const start = parseISO(todayDate);
-                const end = parseISO(endDate);
-                if (end < start) {
-                    toast({ title: "Einddatum moet na startdatum liggen", variant: "destructive" });
-                    return;
-                }
-                const days = eachDayOfInterval({ start, end });
-                for (const day of days) {
-                    await saveTimeEntry({
-                        date: format(day, 'yyyy-MM-dd'),
-                        quoteId: selectedQuoteId,
-                        hours: hours,
-                        source: 'today_quick'
-                    });
-                }
-                toast({ title: `${days.length} dagen geboekt`, description: `Van ${todayDate} t/m ${endDate}` });
-            } catch (e) {
-                console.error(e);
-                toast({ title: "Fout bij verwerken data", variant: "destructive" });
-            }
-        }
-    };
-
-    const handleCustomSave = async () => {
-        const h = parseFloat(customHoursValue);
-        if (isNaN(h)) return;
-        if (!selectedQuoteId || selectedQuoteId === 'none') {
-            toast({ title: "Kies eerst een klus/project", variant: "destructive" });
-            return;
-        }
-
-        if (dateMode === 'single') {
-            await saveTimeEntry({
-                date: todayDate,
-                quoteId: selectedQuoteId,
-                hours: h,
-                source: 'today_quick'
-            });
-        } else {
-            try {
-                const start = parseISO(todayDate);
-                const end = parseISO(endDate);
-                if (end < start) {
-                    toast({ title: "Einddatum moet na startdatum liggen", variant: "destructive" });
-                    return;
-                }
-                const days = eachDayOfInterval({ start, end });
-                for (const day of days) {
-                    await saveTimeEntry({
-                        date: format(day, 'yyyy-MM-dd'),
-                        quoteId: selectedQuoteId,
-                        hours: h,
-                        source: 'today_quick'
-                    });
-                }
-                toast({ title: `${days.length} dagen geboekt`, description: `Van ${todayDate} t/m ${endDate}` });
-            } catch (e) {
-                console.error(e);
-            }
-        }
-        setCustomHoursOpen(false);
-        setCustomHoursValue('');
-    };
-
-    const handleStopTimer = async (choice: 'exact' | number) => {
-        if (!timerStartTime) return;
-
-        let finalHours = 0;
-        let rule = '';
-        const exactMinutes = Math.floor((elapsedSeconds / 60) - currentBreakMinutes);
-        const exactHours = Math.max(0, exactMinutes / 60);
-
-        if (choice === 'exact') {
-            finalHours = exactHours;
-            rule = 'Exact';
-        } else {
-            finalHours = choice;
-            rule = 'Afgerond';
-        }
-
-        const saved = await saveTimeEntry({
-            date: format(timerStartTime, 'yyyy-MM-dd'),
-            quoteId: selectedQuoteId,
-            hours: finalHours,
-            source: choice === 'exact' ? 'timer_exact' : 'timer_rounded',
-            exactMinutes: exactMinutes,
-            roundingRule: rule,
-            startTime: format(timerStartTime, 'HH:mm'),
-            endTime: format(new Date(), 'HH:mm'),
-            breakDuration: currentBreakMinutes
-        });
-
-        if (!saved) return;
-        setIsTimerRunning(false);
-        setTimerStartTime(null);
-        setElapsedSeconds(0);
-        setCurrentBreakMinutes(0);
-        setStopModalOpen(false);
-    };
-
-    const handleManualSave = async () => {
-        if (!selectedQuoteId || selectedQuoteId === 'none') {
-            toast({ title: "Kies eerst een klus", variant: "destructive" });
-            return;
-        }
-
-        let hours = parseFloat(manualHours);
-
-        // Power user override
-        if (showManualDetails && manualStart && manualEnd) {
-            const [startH, startM] = manualStart.split(':').map(Number);
-            const [endH, endM] = manualEnd.split(':').map(Number);
-            const start = new Date(); start.setHours(startH, startM);
-            const end = new Date(); end.setHours(endH, endM);
-            if (end < start) end.setDate(end.getDate() + 1);
-            const diff = differenceInSeconds(end, start);
-            const brk = parseInt(manualBreak) || 0;
-            hours = (diff / 3600) - (brk / 60);
-        }
-
-        if (isNaN(hours)) return;
-
-        const saved = await saveTimeEntry({
-            date: manualDate,
-            quoteId: selectedQuoteId,
-            hours: hours,
-            source: 'manual',
-            startTime: showManualDetails ? manualStart : undefined,
-            endTime: showManualDetails ? manualEnd : undefined,
-            breakDuration: showManualDetails ? (parseInt(manualBreak) || 0) : undefined
-        });
-
-        if (!saved) return;
-        // Reset inputs
-        setManualHours('');
-        setManualStart('');
-        setManualEnd('');
-        setManualBreak('');
-    };
-
-
-    // ------------------------------------------------------------------
-    // Helpers & Renderers
-    // ------------------------------------------------------------------
-
-    const formatTime = (totalSeconds: number) => {
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    };
-
-    const formatHours = (val: number) => {
-        const h = Math.floor(val);
-        const m = Math.round((val - h) * 60);
-        return `${h}u ${m}m`;
-    };
-
-    const needsQuoteSelection = !selectedQuoteId || selectedQuoteId === 'none';
-
-    return (
-        <div className="app-shell min-h-screen bg-background pb-10">
-            <AppNavigation />
-            {/* Header */}
-            <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b px-6 py-4 flex items-center justify-between">
-                <h1 className="text-xl font-bold flex items-center gap-2">
-                    <Clock className="w-6 h-6 text-emerald-500" />
-                    Urenregistratie
-                </h1>
-                {isDevBuild && ENABLE_PENDING_HOURS_PROMPT ? (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => window.dispatchEvent(new Event('pending-hours:open'))}
-                    >
-                        Open prompt (dev)
-                    </Button>
-                ) : null}
-            </div>
-
+          <TabsContent value="day" className="mt-0">
             <TrackingDayIntelligence quotes={quotes} history={history} />
-
-            <div className="container max-w-md mx-auto p-4 space-y-6">
-                {/* Main Tabs */}
-                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="today">Vandaag</TabsTrigger>
-                        <TabsTrigger value="timer">Timer</TabsTrigger>
-                        <TabsTrigger value="manual" className="text-[10px] sm:text-xs px-1">Corrigeren</TabsTrigger>
-                        <TabsTrigger value="history" className="text-[10px] sm:text-xs px-1">Overzicht</TabsTrigger>
-                    </TabsList>
-
-                    {/* === TAB 1: VANDAAG === */}
-                    <TabsContent value="today" className="space-y-6 mt-6">
-                        <Card>
-                            <CardHeader className="pb-4">
-                                <CardTitle>Uren registratie</CardTitle>
-                                <CardDescription>Snel uren boeken op een klus.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-6">
-                                {/* Date & Project */}
-                                <div className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label>Datum</Label>
-                                        <div className="flex items-center gap-4 mb-2">
-                                            <div className="flex bg-muted p-1 rounded-lg">
-                                                <button
-                                                    onClick={() => setDateMode('single')}
-                                                    className={cn(
-                                                        "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                                                        dateMode === 'single' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-                                                    )}
-                                                >
-                                                    Enkele dag
-                                                </button>
-                                                <button
-                                                    onClick={() => setDateMode('range')}
-                                                    className={cn(
-                                                        "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                                                        dateMode === 'range' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-                                                    )}
-                                                >
-                                                    Periode
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {dateMode === 'single' ? (
-                                            <div className="relative">
-                                                <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                                <Input
-                                                    type="date"
-                                                    className="pl-9"
-                                                    value={todayDate}
-                                                    onChange={(e) => setTodayDate(e.target.value)}
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-1">
-                                                    <Label className="text-xs text-muted-foreground">Van</Label>
-                                                    <div className="relative">
-                                                        <Input
-                                                            type="date"
-                                                            value={todayDate}
-                                                            onChange={(e) => setTodayDate(e.target.value)}
-                                                            className="h-9 text-sm"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <Label className="text-xs text-muted-foreground">Tot en met</Label>
-                                                    <div className="relative">
-                                                        <Input
-                                                            type="date"
-                                                            value={endDate}
-                                                            onChange={(e) => setEndDate(e.target.value)}
-                                                            className="h-9 text-sm"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label>Project / Klus</Label>
-                                        <Select value={selectedQuoteId} onValueChange={setSelectedQuoteId}>
-                                            <SelectTrigger className="w-full">
-                                                <SelectValue placeholder="Kies een klus..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="none">Geen offerte</SelectItem>
-                                                {quotes.map(q => (
-                                                    <SelectItem key={q.id} value={q.id}>
-                                                        {getQuoteLabel(q)}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-
-                                {/* Quick Buttons */}
-                                <div className="space-y-3">
-                                    <Label>Snel boeken</Label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {[8, 7.5, 7, 6].map(h => (
-                                            <Button
-                                                key={h}
-                                                variant="outline"
-                                                className={cn(
-                                                    "h-14 text-lg font-medium transition-all",
-                                                    selectedQuickHours === h
-                                                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500"
-                                                        : "hover:bg-emerald-500/10 hover:text-emerald-500 hover:border-emerald-500/50"
-                                                )}
-                                                disabled={needsQuoteSelection}
-                                                onClick={() => setSelectedQuickHours(h)}
-                                            >
-                                                {h} uur
-                                            </Button>
-                                        ))}
-                                    </div>
-                                    <Button
-                                        variant="secondary"
-                                        className="w-full h-12"
-                                        disabled={needsQuoteSelection}
-                                        onClick={() => setCustomHoursOpen(true)}
-                                    >
-                                        Anders...
-                                    </Button>
-
-                                    <Button
-                                        variant="success"
-                                        className="w-full h-14 text-lg mt-4 shadow-emerald-500/20 shadow-xl"
-                                        disabled={needsQuoteSelection || !selectedQuickHours}
-                                        onClick={() => {
-                                            if (selectedQuickHours) handleQuickSave(selectedQuickHours);
-                                        }}
-                                    >
-                                        <Save className="mr-2 h-5 w-5" />
-                                        Opslaan
-                                    </Button>
-
-                                    {needsQuoteSelection && (
-                                        <p className="text-xs text-center text-muted-foreground pt-1">
-                                            Kies eerst een klus om te boeken.
-                                        </p>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    {/* === TAB 2: TIMER === */}
-                    <TabsContent value="timer" className="space-y-6 mt-6">
-                        <Card className={cn(
-                            "border-2 transition-all shadow-lg",
-                            isTimerRunning ? "border-emerald-500/50 bg-emerald-500/5" : "border-border"
-                        )}>
-                            <CardContent className="flex flex-col items-center gap-6 py-10">
-                                {/* Digital Clock Display */}
-                                <div className={cn(
-                                    "text-6xl font-mono font-bold tracking-tighter tabular-nums",
-                                    isTimerRunning ? "text-foreground" : "text-muted-foreground/30"
-                                )}>
-                                    {formatTime(elapsedSeconds)}
-                                </div>
-
-                                {/* Active Job Display */}
-                                <div className="h-8 flex items-center justify-center">
-                                    {isTimerRunning && selectedQuoteId && (
-                                        <div className="bg-background/50 border px-3 py-1 rounded-full text-xs font-medium text-emerald-600 truncate max-w-[300px]">
-                                            {(() => {
-                                                const q = quotes.find(q => q.id === selectedQuoteId);
-                                                return q ? getQuoteLabel(q) : 'Onbekende offerte';
-                                            })()}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Controls */}
-                                <div className="w-full grid grid-cols-1 gap-4 max-w-[280px]">
-                                    {!isTimerRunning ? (
-                                        <div className="space-y-4">
-                                            <div className="space-y-2">
-                                                <Label>Project voor timer</Label>
-                                                <Select value={selectedQuoteId} onValueChange={setSelectedQuoteId}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Kies een klus..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="none">Geen offerte</SelectItem>
-                                                        {quotes.map(q => (
-                                                            <SelectItem key={q.id} value={q.id}>
-                                                                {getQuoteLabel(q)}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <Button
-                                                size="lg"
-                                                variant="success"
-                                                className="w-full h-16 text-xl shadow-emerald-500/20 shadow-xl"
-                                                onClick={() => {
-                                                    setTimerStartTime(new Date());
-                                                    setIsTimerRunning(true);
-                                                    setElapsedSeconds(0);
-                                                }}
-                                                disabled={needsQuoteSelection}
-                                            >
-                                                <Play className="mr-2 w-6 h-6" fill="currentColor" />
-                                                Start
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            <Button
-                                                variant="outline"
-                                                size="lg"
-                                                className="w-full h-12"
-                                                onClick={() => setCurrentBreakMinutes(prev => prev + 15)}
-                                            >
-                                                <Coffee className="mr-2 w-4 h-4 text-orange-500" />
-                                                +15m Pauze ({currentBreakMinutes}m)
-                                            </Button>
-                                            <Button
-                                                variant="destructive"
-                                                size="lg"
-                                                className="w-full h-16 text-xl shadow-red-500/20 shadow-xl"
-                                                onClick={() => setStopModalOpen(true)}
-                                            >
-                                                <Square className="mr-2 w-5 h-5" fill="currentColor" />
-                                                Stop
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    {/* === TAB 3: CORRIGEREN === */}
-                    <TabsContent value="manual" className="space-y-6 mt-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Corrigeren / Handmatig</CardTitle>
-                                <CardDescription>Gedetailleerde invoer of correcties.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-5">
-                                <div className="space-y-2">
-                                    <Label>Datum</Label>
-                                    <div className="relative">
-                                        <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            type="date"
-                                            className="pl-9"
-                                            value={manualDate}
-                                            onChange={(e) => setManualDate(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Project</Label>
-                                    <Select value={selectedQuoteId} onValueChange={setSelectedQuoteId}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Kies klus..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="none">Geen offerte</SelectItem>
-                                            {quotes.map(q => (
-                                                <SelectItem key={q.id} value={q.id}>
-                                                    {getQuoteLabel(q)}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Aantal uren</Label>
-                                    <Input
-                                        type="number"
-                                        placeholder="Bijv. 8 of 4.5"
-                                        value={manualHours}
-                                        onChange={(e) => setManualHours(e.target.value)}
-                                        disabled={showManualDetails}
-                                    />
-                                    {showManualDetails && <p className="text-xs text-muted-foreground">Uren worden berekend op basis van start/eind.</p>}
-                                </div>
-
-                                <div className="flex items-center gap-2 pt-2">
-                                    <Switch checked={showManualDetails} onCheckedChange={setShowManualDetails} id="details-mode" />
-                                    <Label htmlFor="details-mode" className="text-sm text-muted-foreground cursor-pointer">
-                                        Gebruik start/eindtijden (Power User)
-                                    </Label>
-                                </div>
-
-                                {showManualDetails && (
-                                    <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border">
-                                        <div className="space-y-2">
-                                            <Label className="text-xs">Start</Label>
-                                            <Input type="time" value={manualStart} onChange={e => setManualStart(e.target.value)} />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-xs">Eind</Label>
-                                            <Input type="time" value={manualEnd} onChange={e => setManualEnd(e.target.value)} />
-                                        </div>
-                                        <div className="col-span-2 space-y-2">
-                                            <Label className="text-xs">Pauze (min)</Label>
-                                            <Input type="number" placeholder="0" value={manualBreak} onChange={e => setManualBreak(e.target.value)} />
-                                        </div>
-                                    </div>
-                                )}
-
-                                <Button
-                                    variant="success"
-                                    className="w-full h-12"
-                                    onClick={handleManualSave}
-                                >
-                                    <Save className="mr-2 h-4 w-4" />
-                                    Opslaan
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    {/* === TAB 4: OVERZICHT (HISTORY) === */}
-                    <TabsContent value="history" className="space-y-6 mt-6">
-                        <div className="space-y-3">
-                            {historyLoading && (
-                                <div className="text-center py-10 text-muted-foreground italic bg-card/50 rounded-xl border border-dashed">
-                                    Historie laden...
-                                </div>
-                            )}
-                            {!historyLoading && history.length === 0 && (
-                                <div className="text-center py-10 text-muted-foreground italic bg-card/50 rounded-xl border border-dashed">
-                                    Nog geen uren geregistreerd.
-                                </div>
-                            )}
-                            {history.map((entry) => {
-                                const isNew = entry.id === newlyAddedId;
-                                return (
-                                    <div
-                                        key={entry.id}
-                                        className={cn(
-                                            "group bg-card border rounded-xl p-4 flex items-center justify-between shadow-sm transition-all duration-500",
-                                            isNew ? "ring-2 ring-emerald-500 bg-emerald-500/5 scale-[1.02]" : "hover:border-zinc-700"
-                                        )}
-                                    >
-                                        <div className="min-w-0">
-                                            <div className="font-medium text-sm flex items-center gap-2 mb-1">
-                                                {format(new Date(entry.date), 'd MMM yyyy', { locale: nl })}
-                                                {/* Source Badges */}
-                                                {(entry.source === 'timer_rounded' || entry.source === 'timer_exact') && (
-                                                    <span className="bg-blue-500/10 text-blue-500 text-[10px] px-1.5 py-0.5 rounded-full font-bold">TIMER</span>
-                                                )}
-                                            </div>
-
-                                            {entry.quoteId ? (
-                                                <div className="text-sm text-foreground font-medium truncate max-w-[200px] mb-1">
-                                                    {(() => {
-                                                        const quote = quotes.find((q) => q.id === entry.quoteId);
-                                                        return quote ? getQuoteLabel(quote) : 'Offerte';
-                                                    })()}
-                                                </div>
-                                            ) : (
-                                                <div className="text-sm text-muted-foreground italic">Geen klus</div>
-                                            )}
-
-                                            <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                                {entry.source === 'timer_rounded' && <span className="text-muted-foreground">Afgerond</span>}
-                                                {entry.source === 'timer_exact' && <span className="text-muted-foreground">Exact</span>}
-                                                {entry.startTime && <span>{entry.startTime} - {entry.endTime}</span>}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-right">
-                                                <div className="text-lg font-bold tabular-nums text-foreground">
-                                                    {formatHours(entry.totalHours)}
-                                                </div>
-                                            </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 transition-opacity"
-                                                onClick={() => setEntryToDelete(entry)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </TabsContent>
-                </Tabs>
-            </div>
-
-            {/* === MODALS === */}
-
-            {/* Stop Timer Modal */}
-            <Dialog open={stopModalOpen} onOpenChange={setStopModalOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Klus afronden</DialogTitle>
-                        <DialogDescription>
-                            Je hebt <strong>{formatHours((elapsedSeconds / 3600) - (currentBreakMinutes / 60))}</strong> gewerkt.
-                            Hoe wil je dit opslaan?
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid grid-cols-1 gap-2 py-4">
-                        {[8, 7.5, 7, 6, 5, 4].map(h => (
-                            <Button key={h} variant="outline" className="justify-between group" onClick={() => handleStopTimer(h)}>
-                                <span>Rond af naar <strong>{h} uur</strong></span>
-                                <Check className="w-4 h-4 opacity-0 group-hover:opacity-100" />
-                            </Button>
-                        ))}
-                        <Button variant="secondary" className="justify-between" onClick={() => handleStopTimer('exact')}>
-                            <span>Exact opslaan</span>
-                            <span className="text-xs text-muted-foreground">
-                                {formatHours((elapsedSeconds / 3600) - (currentBreakMinutes / 60))}
-                            </span>
-                        </Button>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setStopModalOpen(false)}>Annuleren</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Custom Hours Modal */}
-            <Dialog open={customHoursOpen} onOpenChange={setCustomHoursOpen}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Aantal uren</DialogTitle>
-                        <DialogDescription>Voer het aantal gewerkte uren in.</DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Input
-                            type="number"
-                            autoFocus
-                            placeholder="Bijv. 5.5"
-                            step="0.5"
-                            value={customHoursValue}
-                            onChange={(e) => setCustomHoursValue(e.target.value)}
-                            className="text-lg h-12"
-                        />
-                    </div>
-                    <DialogFooter>
-                        <Button onClick={handleCustomSave} variant="success" className="w-full">Opslaan</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Delete Confirmation */}
-            <AlertDialog open={!!entryToDelete} onOpenChange={(open) => !open && setEntryToDelete(null)}>
-                <AlertDialogContent className="rounded-2xl">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Verwijderen?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Weet je zeker dat je deze boeking van <strong>{entryToDelete && formatHours(entryToDelete.totalHours)}</strong> wilt verwijderen?
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel className="rounded-xl">Annuleren</AlertDialogCancel>
-                        <Button
-                            onClick={async () => {
-                                if (!entryToDelete || !user) return;
-                                try {
-                                    const token = await user.getIdToken();
-                                    const response = await fetch('/api/uren/entries', {
-                                        method: 'DELETE',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            Authorization: `Bearer ${token}`,
-                                        },
-                                        body: JSON.stringify({ id: entryToDelete.id }),
-                                    });
-                                    const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
-                                    if (!response.ok || !payload?.ok) {
-                                        throw new Error(payload?.message || 'Kon boeking niet verwijderen.');
-                                    }
-                                    setHistory(prev => prev.filter(e => e.id !== entryToDelete.id));
-                                    setEntryToDelete(null);
-                                    toast({ description: "Verwijderd." });
-                                } catch (error) {
-                                    const message = error instanceof Error ? error.message : 'Onbekende fout';
-                                    toast({ title: 'Verwijderen mislukt', description: message, variant: 'destructive' });
-                                }
-                            }}
-                            variant="destructiveSoft"
-                        >
-                            Verwijderen
-                        </Button>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
-            {/* Quick Save Safety Confirmation REMOVED */}
-        </div >
-    );
+          </TabsContent>
+          <TabsContent value="hours" className="mt-5">
+            <TrackingPeriodOverview history={history} quotes={quotes} mode="period" loading={loading} />
+          </TabsContent>
+          <TabsContent value="overview" className="mt-5">
+            <TrackingPeriodOverview history={history} quotes={quotes} mode="clients" loading={loading} />
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  );
 }
 
-export default function UrenRegistratiePage() {
-    return (
-        <Suspense
-            fallback={(
-                <div className="flex min-h-screen items-center justify-center bg-background">
-                    <Clock className="h-6 w-6 animate-pulse text-muted-foreground" />
-                </div>
-            )}
-        >
-            <UrenRegistratiePageContent />
-        </Suspense>
-    );
+export default function UrenregistratiePage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-background"><Clock3 className="h-6 w-6 animate-pulse text-muted-foreground" /></div>}>
+      <UrenregistratieContent />
+    </Suspense>
+  );
 }

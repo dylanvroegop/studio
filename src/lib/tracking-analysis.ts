@@ -59,21 +59,27 @@ function positionText(point: TrackingPoint): string {
   ].filter(Boolean).join(' '));
 }
 
-function matchQuote(point: TrackingPoint, quotes: QuoteWithAddress[]): string | null {
+export function matchTrackingPointToQuoteId(point: TrackingPoint, quotes: QuoteWithAddress[]): string | null {
   const location = positionText(point);
   if (!location) return null;
 
   for (const quote of quotes) {
     const address = normalize(resolveQuoteProjectAddress(quote));
-    if (!address) continue;
     const info = quote.klantinformatie || {};
-    const street = normalize(String(info.projectStraat ?? info.straat ?? '')).split(' ').filter(Boolean);
-    const houseNumber = normalize(String(info.projectHuisnummer ?? info.huisnummer ?? ''));
-    const city = normalize(String(info.projectPlaats ?? info.plaats ?? ''));
-    const streetMatches = street.length > 0 && street.every((word) => location.includes(word));
-    const numberMatches = houseNumber.length > 0 && location.includes(houseNumber);
-    const cityMatches = city.length > 0 && location.includes(city);
-    if ((streetMatches && numberMatches) || (streetMatches && cityMatches) || location.includes(address)) {
+    const candidates = [
+      { street: info.projectStraat, number: info.projectHuisnummer, city: info.projectPlaats },
+      { street: info.straat, number: info.huisnummer, city: info.plaats },
+    ];
+    const fieldsMatch = candidates.some((candidate) => {
+      const street = normalize(String(candidate.street ?? '')).split(' ').filter(Boolean);
+      const houseNumber = normalize(String(candidate.number ?? ''));
+      const city = normalize(String(candidate.city ?? ''));
+      const streetMatches = street.length > 0 && street.every((word) => location.includes(word));
+      const numberMatches = houseNumber.length > 0 && location.includes(houseNumber);
+      const cityMatches = city.length > 0 && location.includes(city);
+      return (streetMatches && numberMatches) || (streetMatches && cityMatches);
+    });
+    if (fieldsMatch || (address && location.includes(address))) {
       return quote.id;
     }
   }
@@ -133,7 +139,7 @@ export function getClientTimeSummaries(
 ): Record<string, ClientTimeSummary> {
   const matchedStops = stops.map((stop) => ({
     ...stop,
-    quoteId: matchQuote(stop.point, quotes),
+    quoteId: matchTrackingPointToQuoteId(stop.point, quotes),
   }));
   const result: Record<string, ClientTimeSummary> = {};
 

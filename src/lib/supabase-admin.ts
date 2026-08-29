@@ -1,6 +1,28 @@
 import { createClient } from '@supabase/supabase-js';
 
 let cachedClient: ReturnType<typeof createClient> | null = null;
+const CLOCK_SKEW_RETRY_DELAYS_MS = [750, 1_500, 3_000] as const;
+
+function wait(milliseconds: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+export async function fetchWithSupabaseClockSkewRetry(
+    input: RequestInfo | URL,
+    init?: RequestInit,
+): Promise<Response> {
+    let response = await fetch(input, { ...init, cache: 'no-store' });
+
+    for (const delay of CLOCK_SKEW_RETRY_DELAYS_MS) {
+        if (response.ok) return response;
+        const responseText = await response.clone().text().catch(() => '');
+        if (!/jwt issued at future/i.test(responseText)) return response;
+        await wait(delay);
+        response = await fetch(input, { ...init, cache: 'no-store' });
+    }
+
+    return response;
+}
 
 function getSupabaseAdminClient() {
     if (cachedClient) return cachedClient;
@@ -19,7 +41,7 @@ function getSupabaseAdminClient() {
             autoRefreshToken: false,
         },
         global: {
-            fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
+            fetch: fetchWithSupabaseClockSkewRetry,
         },
     });
 

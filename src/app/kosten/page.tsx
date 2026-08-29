@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Camera,
   CalendarDays,
+  CircleAlert,
   ExternalLink,
   Link2,
   Loader2,
@@ -24,7 +25,8 @@ import {
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
-import { KostenGalleryTab } from '@/components/kosten/KostenGalleryTab';
+import { KostenPdfTab } from '@/components/kosten/KostenPdfTab';
+import { BankOverzichtContent } from '@/components/finance/BankOverzichtContent';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -74,7 +76,36 @@ import { cn } from '@/lib/utils';
 
 type CostFilterMode = 'alle' | ProjectCostCategory;
 type EntryMode = 'manual' | 'upload';
-type KostenViewMode = 'lijst' | 'galerij';
+type KostenViewMode =
+  | 'kosten'
+  | 'pdfs'
+  | 'overview'
+  | 'finance-costs'
+  | 'invoices'
+  | 'quotes'
+  | 'projects'
+  | 'analysis'
+  | 'bouwmaat'
+  | 'knab-account'
+  | 'bunq-personal';
+
+const KOSTEN_PAGE_TABS: Array<{ value: KostenViewMode; label: string; financeTab?: string }> = [
+  { value: 'kosten', label: 'Kosten' },
+  { value: 'pdfs', label: 'PDF-bestanden' },
+  { value: 'overview', label: 'Overzicht', financeTab: 'overview' },
+  { value: 'finance-costs', label: 'Kosten', financeTab: 'costs' },
+  { value: 'invoices', label: 'Facturen', financeTab: 'invoices' },
+  { value: 'quotes', label: 'Offertes', financeTab: 'quotes' },
+  { value: 'projects', label: 'Projecten', financeTab: 'projects' },
+  { value: 'analysis', label: 'Analyse', financeTab: 'analysis' },
+  { value: 'bouwmaat', label: 'Bouwmaat', financeTab: 'bouwmaat' },
+  { value: 'knab-account', label: 'Vroegop Timmerwerken', financeTab: 'knab-account' },
+  { value: 'bunq-personal', label: 'bunq personal', financeTab: 'bunq-personal' },
+];
+
+function isKostenViewMode(value: string | null): value is KostenViewMode {
+  return KOSTEN_PAGE_TABS.some((tab) => tab.value === value);
+}
 
 type QuoteOption = {
   id: string;
@@ -114,6 +145,7 @@ type ExtractedCostData = {
   suggested_category?: ProjectCostCategory;
   receipt_url?: string;
   receipt_files?: ProjectCostReceiptFile[];
+  extraction_warning?: string;
 };
 
 function safeNumber(value: unknown): number {
@@ -159,7 +191,17 @@ function getCostAmountSearchText(cost: ProjectCostRow): string {
 }
 
 function isBankTransactionCost(cost: ProjectCostRow): boolean {
-  return cost.status === 'bank_transaction' || cost.id.startsWith('bank-bunq-topup-');
+  return cost.status === 'bank_transaction'
+    || cost.status === 'internal_profit_transfer'
+    || cost.id.startsWith('bank-bunq-topup-');
+}
+
+function isPrivateBankTransactionCost(cost: ProjectCostRow): boolean {
+  return isBankTransactionCost(cost) && cost.payment_type === 'private';
+}
+
+function isInternalProfitTransferCost(cost: ProjectCostRow): boolean {
+  return cost.status === 'internal_profit_transfer' || cost.category === 'profit';
 }
 
 function formatDateLabel(value: string): string {
@@ -440,6 +482,9 @@ function rebalanceLineItemsToAmount(lineItems: ProjectCostLineItem[], targetAmou
 function categoryBadgeClass(category: ProjectCostCategory): string {
   if (category === 'materiaal') return 'border-emerald-500/30 bg-emerald-500/15 text-emerald-200';
   if (category === 'autokosten') return 'border-lime-500/30 bg-lime-500/15 text-lime-200';
+  if (category === 'boetes') return 'border-red-500/30 bg-red-500/15 text-red-200';
+  if (category === 'schulden') return 'border-fuchsia-500/30 bg-fuchsia-500/15 text-fuchsia-200';
+  if (category === 'afval') return 'border-stone-500/30 bg-stone-500/15 text-stone-200';
   if (category === 'brandstof') return 'border-amber-500/30 bg-amber-500/15 text-amber-200';
   if (category === 'gereedschap') return 'border-blue-500/30 bg-blue-500/15 text-blue-200';
   if (category === 'eigen_verbruik') return 'border-violet-500/30 bg-violet-500/15 text-violet-200';
@@ -484,12 +529,16 @@ function KostenPageContent() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [costReloadVersion, setCostReloadVersion] = useState(0);
   const [costs, setCosts] = useState<ProjectCostRow[]>([]);
   const [quotes, setQuotes] = useState<QuoteOption[]>([]);
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CostFilterMode>('alle');
-  const [viewMode, setViewMode] = useState<KostenViewMode>('lijst');
+  const [viewMode, setViewMode] = useState<KostenViewMode>(() => {
+    const requestedTab = searchParams?.get('tab') || null;
+    return isKostenViewMode(requestedTab) ? requestedTab : 'kosten';
+  });
 
   const [createOpen, setCreateOpen] = useState(false);
   const [entryMode, setEntryMode] = useState<EntryMode>('upload');
@@ -503,6 +552,9 @@ function KostenPageContent() {
   const [quoteSearch, setQuoteSearch] = useState('');
   const [quoteSearchOpen, setQuoteSearchOpen] = useState(false);
   const [editingCostId, setEditingCostId] = useState<string | null>(null);
+  const [selectedBankCost, setSelectedBankCost] = useState<ProjectCostRow | null>(null);
+  const [bankCategoryDraft, setBankCategoryDraft] = useState<ProjectCostCategory>('overig');
+  const [savingBankCategory, setSavingBankCategory] = useState(false);
   const [costPendingDelete, setCostPendingDelete] = useState<ProjectCostRow | null>(null);
   const [pendingImportId, setPendingImportId] = useState<string | null>(null);
   const pendingDismissInFlightRef = useRef<string | null>(null);
@@ -513,6 +565,12 @@ function KostenPageContent() {
   const initialOfferteIdFromUrl = safeString(searchParams?.get('offerteId'));
   const initialPendingImportId = safeString(searchParams?.get('pendingId'));
   const shouldOpenCreateFromUrl = safeString(searchParams?.get('open')) === '1';
+  const activeFinanceTab = KOSTEN_PAGE_TABS.find((tab) => tab.value === viewMode)?.financeTab || null;
+
+  useEffect(() => {
+    const requestedTab = searchParams?.get('tab') || null;
+    if (isKostenViewMode(requestedTab)) setViewMode(requestedTab);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -633,6 +691,11 @@ function KostenPageContent() {
 
   useEffect(() => {
     if (!user || !firestore) return;
+    const needsCostWorkspace = viewMode === 'kosten' || shouldOpenCreateFromUrl || Boolean(initialPendingImportId);
+    if (!needsCostWorkspace) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
 
     const load = async () => {
@@ -657,7 +720,7 @@ function KostenPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [loadCosts, loadQuotes, user, firestore]);
+  }, [costReloadVersion, initialPendingImportId, loadCosts, loadQuotes, shouldOpenCreateFromUrl, user, firestore, viewMode]);
 
   useEffect(() => {
     if (!user || !initialPendingImportId || pendingHydratedRef.current === initialPendingImportId) return;
@@ -768,12 +831,16 @@ function KostenPageContent() {
     { value: 'alle', label: 'Alle' },
     { value: 'materiaal', label: 'Materiaal' },
     { value: 'autokosten', label: 'Autokosten' },
+    { value: 'boetes', label: 'Boetes' },
+    { value: 'schulden', label: 'Schulden' },
+    { value: 'afval', label: 'Afval' },
     { value: 'brandstof', label: 'Benzine' },
     { value: 'gereedschap', label: 'Gereedschap' },
-    { value: 'eigen_verbruik', label: 'Eigen verbruik' },
+    { value: 'eigen_verbruik', label: 'Privé-opnames' },
     { value: 'hotel', label: 'Hotel' },
     { value: 'telefoon', label: 'Telefoon' },
     { value: 'leadkosten', label: 'Leadkosten' },
+    { value: 'profit', label: 'Profit' },
     { value: 'overig', label: 'Overig' },
   ];
 
@@ -781,12 +848,17 @@ function KostenPageContent() {
     const term = search.trim().toLowerCase();
 
     return costs
-      .filter((cost) => (filter === 'alle' ? true : cost.category === filter))
+      .filter((cost) => (filter === 'alle'
+        ? !isPrivateBankTransactionCost(cost) && !isInternalProfitTransferCost(cost)
+        : cost.category === filter))
       .filter((cost) => {
         if (!term) return true;
         const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
         const offerteNummer = quote?.offerteNummer ? String(quote.offerteNummer) : '';
-        const target = `${cost.supplier_name} ${cost.description} ${offerteNummer} ${quote?.label || ''} ${getCostAmountSearchText(cost)}`.toLowerCase();
+        const receiptFilenames = (Array.isArray(cost.receipt_files) ? cost.receipt_files : [])
+          .map((file) => file.filename)
+          .join(' ');
+        const target = `${cost.supplier_name} ${cost.description} ${cost.supplier_invoice_number || ''} ${cost.source_filename || ''} ${receiptFilenames} ${offerteNummer} ${quote?.label || ''} ${getCostAmountSearchText(cost)}`.toLowerCase();
         return target.includes(term);
       })
       .sort((a, b) => {
@@ -810,18 +882,22 @@ function KostenPageContent() {
       alle: 0,
       materiaal: 0,
       autokosten: 0,
+      boetes: 0,
+      schulden: 0,
+      afval: 0,
       brandstof: 0,
       gereedschap: 0,
       eigen_verbruik: 0,
       hotel: 0,
       telefoon: 0,
       leadkosten: 0,
+      profit: 0,
       overig: 0,
     } satisfies Record<CostFilterMode, number>;
 
     for (const cost of costsMatchingSearch) {
       const amountIncl = roundEuro(safeNumber(cost.amount_incl_btw));
-      totals.alle += amountIncl;
+      if (!isPrivateBankTransactionCost(cost) && !isInternalProfitTransferCost(cost)) totals.alle += amountIncl;
       totals[cost.category] += amountIncl;
     }
 
@@ -829,12 +905,16 @@ function KostenPageContent() {
       alle: roundEuro(totals.alle),
       materiaal: roundEuro(totals.materiaal),
       autokosten: roundEuro(totals.autokosten),
+      boetes: roundEuro(totals.boetes),
+      schulden: roundEuro(totals.schulden),
+      afval: roundEuro(totals.afval),
       brandstof: roundEuro(totals.brandstof),
       gereedschap: roundEuro(totals.gereedschap),
       eigen_verbruik: roundEuro(totals.eigen_verbruik),
       hotel: roundEuro(totals.hotel),
       telefoon: roundEuro(totals.telefoon),
       leadkosten: roundEuro(totals.leadkosten),
+      profit: roundEuro(totals.profit),
       overig: roundEuro(totals.overig),
     } satisfies Record<CostFilterMode, number>;
   }, [costs, quoteById, search]);
@@ -1155,6 +1235,7 @@ function KostenPageContent() {
           suggested_category?: ProjectCostCategory;
           receipt_url?: string;
           receipt_files?: ProjectCostReceiptFile[];
+          extraction_warning?: string;
         };
       } | null;
 
@@ -1218,10 +1299,15 @@ function KostenPageContent() {
       }));
       setEntryMode('manual');
 
-      toast({
-        title: 'Gegevens herkend',
-        description: 'Controleer de gegevens en sla daarna op.',
-      });
+      toast(extracted.extraction_warning
+        ? {
+          title: 'Bon opgeslagen',
+          description: 'De foto is veilig bewaard. Vul de gegevens handmatig in en sla de kost daarna op.',
+        }
+        : {
+          title: preparedFile.type.startsWith('image/') ? 'Foto opgeslagen en herkend' : 'Bestand opgeslagen en herkend',
+          description: 'Het origineel is veilig bewaard. Controleer de gegevens en sla daarna de kost op.',
+        });
     } catch (extractError) {
       const message = extractError instanceof Error ? extractError.message : 'Kon bon niet uitlezen.';
       toast({
@@ -1262,7 +1348,11 @@ function KostenPageContent() {
   };
 
   const handleOpenCost = (cost: ProjectCostRow) => {
-    if (isBankTransactionCost(cost)) return;
+    if (isBankTransactionCost(cost)) {
+      setBankCategoryDraft(cost.category);
+      setSelectedBankCost(cost);
+      return;
+    }
     const rowCategory = normalizeProjectCostCategory(cost.category);
     const rowOfferteId = safeString(cost.offerte_id) || null;
     const initialLineItems = Array.isArray(cost.line_items) && cost.line_items.length > 0
@@ -1313,6 +1403,46 @@ function KostenPageContent() {
     setEntryMode('manual');
     setEditingCostId(cost.id);
     setCreateOpen(true);
+  };
+
+  const handleSaveBankCategory = async (): Promise<void> => {
+    if (!user || !selectedBankCost?.paid_bank_transaction_id || savingBankCategory) return;
+
+    setSavingBankCategory(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/kosten/bank-category', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          bank_transaction_id: selectedBankCost.paid_bank_transaction_id,
+          category: bankCategoryDraft,
+        }),
+      });
+      const payload = await response.json().catch(() => null) as { ok?: boolean; message?: string } | null;
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || `HTTP ${response.status}`);
+      }
+
+      const refreshedCosts = await loadCosts();
+      setCosts(refreshedCosts);
+      setSelectedBankCost(null);
+      toast({
+        title: 'Categorie opgeslagen',
+        description: `Deze Knab-afschrijving staat nu onder ${PROJECT_COST_CATEGORY_LABELS[bankCategoryDraft]}.`,
+      });
+    } catch (saveError) {
+      toast({
+        title: 'Categorie niet opgeslagen',
+        description: saveError instanceof Error ? saveError.message : 'Probeer het opnieuw.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingBankCategory(false);
+    }
   };
 
   const requestDeleteCost = (cost: ProjectCostRow) => {
@@ -1438,14 +1568,43 @@ function KostenPageContent() {
 
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
         <div className="w-full max-w-7xl space-y-5">
-          <Card>
-            <CardContent className="space-y-4 pt-5">
-              {error ? (
-                <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-                  {error}
-                </div>
-              ) : null}
+          <div className="flex overflow-x-auto border-b border-border" role="tablist" aria-label="Kosten en financiën">
+            {KOSTEN_PAGE_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                role="tab"
+                aria-selected={viewMode === tab.value}
+                onClick={() => setViewMode(tab.value)}
+                className={cn(
+                  'shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition-colors',
+                  viewMode === tab.value
+                    ? 'border-emerald-500 text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
+          {viewMode === 'kosten' && error ? (
+            <Card className="border-red-500/30">
+              <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
+                <CircleAlert className="h-8 w-8 text-red-300" />
+                <div>
+                  <div className="font-semibold">Kosten konden niet worden geladen</div>
+                  <p className="mt-1 text-sm text-muted-foreground">Oude of lege cijfers worden bewust niet getoond. {error}</p>
+                </div>
+                <Button type="button" variant="outline" onClick={() => setCostReloadVersion((value) => value + 1)}>
+                  Opnieuw proberen
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <Card className={cn((viewMode !== 'kosten' || Boolean(error)) && 'hidden')}>
+            <CardContent className="space-y-4 pt-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -1621,6 +1780,9 @@ function KostenPageContent() {
                                     <SelectContent>
                                       <SelectItem value="materiaal">Materiaal</SelectItem>
                                       <SelectItem value="autokosten">Autokosten</SelectItem>
+                                      <SelectItem value="boetes">Boetes</SelectItem>
+                                      <SelectItem value="schulden">Schulden</SelectItem>
+                                      <SelectItem value="afval">Afval</SelectItem>
                                       <SelectItem value="brandstof">Benzine</SelectItem>
                                       <SelectItem value="gereedschap">Gereedschap</SelectItem>
                                       <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
@@ -1803,6 +1965,9 @@ function KostenPageContent() {
                                               <SelectItem value="materiaal">Materiaal</SelectItem>
                                               <SelectItem value="gereedschap">Gereedschap</SelectItem>
                                               <SelectItem value="autokosten">Autokosten</SelectItem>
+                                              <SelectItem value="boetes">Boetes</SelectItem>
+                                              <SelectItem value="schulden">Schulden</SelectItem>
+                                              <SelectItem value="afval">Afval</SelectItem>
                                               <SelectItem value="brandstof">Benzine</SelectItem>
                                               <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
                                               <SelectItem value="hotel">Hotel</SelectItem>
@@ -2022,32 +2187,6 @@ function KostenPageContent() {
               </div>
 
               <div className="flex flex-wrap gap-2.5">
-                <Button
-                  type="button"
-                  variant={viewMode === 'lijst' ? 'default' : 'ghost'}
-                  onClick={() => setViewMode('lijst')}
-                  className={cn(
-                    'h-9 rounded-full px-4 transition-all duration-200',
-                    viewMode === 'lijst'
-                      ? 'bg-emerald-500 text-white hover:bg-emerald-400'
-                      : 'border border-border/70 bg-transparent text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-200'
-                  )}
-                >
-                  Lijst
-                </Button>
-                <Button
-                  type="button"
-                  variant={viewMode === 'galerij' ? 'default' : 'ghost'}
-                  onClick={() => setViewMode('galerij')}
-                  className={cn(
-                    'h-9 rounded-full px-4 transition-all duration-200',
-                    viewMode === 'galerij'
-                      ? 'bg-emerald-500 text-white hover:bg-emerald-400'
-                      : 'border border-border/70 bg-transparent text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-200'
-                  )}
-                >
-                  Galerij
-                </Button>
                 {filterOptions.map((option) => (
                   <Button
                     key={option.value}
@@ -2078,9 +2217,11 @@ function KostenPageContent() {
             </CardContent>
           </Card>
 
-          {viewMode === 'galerij' ? (
-            <KostenGalleryTab costs={filteredCosts} quoteById={quoteById} onOpenCost={handleOpenCost} />
-          ) : filteredCosts.length === 0 ? (
+          {activeFinanceTab ? (
+            <BankOverzichtContent embedded requestedTabId={activeFinanceTab} />
+          ) : viewMode === 'pdfs' ? (
+            <KostenPdfTab costs={costs} quoteById={quoteById} onOpenCost={handleOpenCost} />
+          ) : error ? null : filteredCosts.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center space-y-3">
                 <div className="font-semibold">Geen kosten gevonden</div>
@@ -2126,8 +2267,7 @@ function KostenPageContent() {
                           <tr
                             key={`table-${cost.id}`}
                             className={cn(
-                              'bg-background/10 transition-colors hover:bg-muted/30',
-                              !isBankTransactionCost(cost) && 'cursor-pointer'
+                              'cursor-pointer bg-background/10 transition-colors hover:bg-muted/30'
                             )}
                             onClick={() => handleOpenCost(cost)}
                           >
@@ -2196,8 +2336,7 @@ function KostenPageContent() {
                     role="button"
                     tabIndex={0}
                     className={cn(
-                      'group rounded-xl border border-l-4 border-border/80 border-l-emerald-500/70 bg-card/75 px-4 py-3 shadow-sm transition-all duration-200 hover:bg-card hover:border-border hover:shadow-md sm:px-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70',
-                      !isBankTransactionCost(cost) && 'cursor-pointer'
+                      'group cursor-pointer rounded-xl border border-l-4 border-border/80 border-l-emerald-500/70 bg-card/75 px-4 py-3 shadow-sm transition-all duration-200 hover:bg-card hover:border-border hover:shadow-md sm:px-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70'
                     )}
                     onClick={() => handleOpenCost(cost)}
                     onKeyDown={(event) => {
@@ -2292,6 +2431,121 @@ function KostenPageContent() {
         </div>
       </main>
 
+      <Dialog open={Boolean(selectedBankCost)} onOpenChange={(open) => !open && setSelectedBankCost(null)}>
+        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
+          {selectedBankCost ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>{selectedBankCost.supplier_name || 'Knab-transactie'}</DialogTitle>
+                <DialogDescription>
+                  Knab-afschrijving van {formatDateLabel(selectedBankCost.date)}. De banktransactie bepaalt het bedrag; documenten leveren de onderbouwing en btw.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-border bg-muted/20 p-3">
+                  <div className="text-xs text-muted-foreground">Incl. btw</div>
+                  <div className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(selectedBankCost.amount_incl_btw)}</div>
+                </div>
+                <div className="rounded-md border border-border bg-muted/20 p-3">
+                  <Label htmlFor="bank-cost-category" className="text-xs font-normal text-muted-foreground">Categorie</Label>
+                  <Select
+                    value={bankCategoryDraft}
+                    onValueChange={(value) => setBankCategoryDraft(normalizeProjectCostCategory(value))}
+                    disabled={savingBankCategory}
+                  >
+                    <SelectTrigger id="bank-cost-category" className="mt-1 h-9 bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(PROJECT_COST_CATEGORY_LABELS).filter(([value]) => value !== 'profit').map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="rounded-md border border-border bg-muted/20 p-3">
+                  <div className="text-xs text-muted-foreground">Excl. btw</div>
+                  <div className="mt-1 font-medium tabular-nums">{formatCurrency(selectedBankCost.amount_excl_btw)}</div>
+                </div>
+                <div className="rounded-md border border-border bg-muted/20 p-3">
+                  <div className="text-xs text-muted-foreground">Btw</div>
+                  <div className="mt-1 font-medium tabular-nums">{formatCurrency(selectedBankCost.btw_amount)}</div>
+                </div>
+              </div>
+
+              <div className="space-y-1 rounded-md border border-border p-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Bankomschrijving</div>
+                <div className="break-words text-sm">{selectedBankCost.description || 'Geen omschrijving'}</div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-semibold">Facturen en bonnen</div>
+                {selectedBankCost.receipt_files.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedBankCost.receipt_files.map((file, index) => (
+                      <a
+                        key={file.path || file.url || `${file.filename}-${index}`}
+                        href={file.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <Receipt className="h-4 w-4 shrink-0 text-emerald-400" />
+                          <span className="truncate">{file.filename || `Document ${index + 1}`}</span>
+                        </span>
+                        <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      </a>
+                    ))}
+                  </div>
+                ) : selectedBankCost.receipt_url ? (
+                  <a
+                    href={selectedBankCost.receipt_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                  >
+                    <span className="flex items-center gap-2"><Receipt className="h-4 w-4 text-emerald-400" />Bekijk document</span>
+                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                  </a>
+                ) : (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                    Nog geen factuur of bon aan deze banktransactie gekoppeld.
+                  </div>
+                )}
+              </div>
+
+              {selectedBankCost.line_items.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold">Inhoud document</div>
+                  <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
+                    {selectedBankCost.line_items.map((item, index) => (
+                      <div key={`${item.description}-${index}`} className="flex items-start justify-between gap-4 px-3 py-2 text-sm">
+                        <span className="min-w-0 break-words">{item.description || 'Kostenregel'}</span>
+                        <span className="shrink-0 tabular-nums">{formatCurrency(item.total_incl_btw ?? item.total_price)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setSelectedBankCost(null)}>Sluiten</Button>
+                <Button
+                  type="button"
+                  onClick={() => void handleSaveBankCategory()}
+                  disabled={savingBankCategory || bankCategoryDraft === selectedBankCost.category}
+                >
+                  {savingBankCategory ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Categorie opslaan
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog
         open={Boolean(costPendingDelete)}
         onOpenChange={(open) => {
@@ -2302,7 +2556,7 @@ function KostenPageContent() {
           <AlertDialogHeader>
             <AlertDialogTitle>Kost verwijderen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Weet je zeker dat je deze kost van "{costPendingDelete?.supplier_name || 'de leverancier'}" wilt verwijderen?
+              Weet je zeker dat je deze kost van “{costPendingDelete?.supplier_name || 'de leverancier'}” wilt verwijderen?
               Deze actie kan je niet ongedaan maken.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -2322,7 +2576,7 @@ function KostenPageContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="fixed bottom-5 right-4 z-40 flex gap-2 sm:hidden">
+      <div className={cn('fixed bottom-5 right-4 z-40 gap-2 sm:hidden', viewMode === 'kosten' ? 'flex' : 'hidden')}>
         <Button
           type="button"
           variant="outline"

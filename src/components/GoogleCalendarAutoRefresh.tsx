@@ -19,9 +19,18 @@ export function GoogleCalendarAutoRefresh(): null {
     if (!user || startedRef.current) return;
     startedRef.current = true;
 
+    const syncWorkedHours = async (token: string): Promise<void> => {
+      const response = await fetch('/api/google-calendar/sync-worked-hours', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) console.debug('Google Calendar gewerkte uren synchroniseren overgeslagen:', response.status);
+    };
+
     const refreshInBackground = async (): Promise<void> => {
       try {
         const token = await user.getIdToken();
+        await syncWorkedHours(token);
         const { startDate, endDate } = getRefreshRange();
         const response = await fetch('/api/google-calendar/refresh', {
           method: 'POST',
@@ -46,6 +55,13 @@ export function GoogleCalendarAutoRefresh(): null {
     };
 
     void refreshInBackground();
+    const handleWorkedHoursUpdate = () => {
+      void user.getIdToken()
+        .then((token) => syncWorkedHours(token))
+        .catch((error) => console.debug('Google Calendar gewerkte uren synchroniseren mislukt:', error));
+    };
+    window.addEventListener('gps-work-hours:updated', handleWorkedHoursUpdate);
+    return () => window.removeEventListener('gps-work-hours:updated', handleWorkedHoursUpdate);
   }, [user]);
 
   return null;

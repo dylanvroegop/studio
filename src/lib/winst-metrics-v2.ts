@@ -87,7 +87,7 @@ export interface WinstNacalculatieSource {
 
 export interface WinstProjectCostSource {
   quoteId: string;
-  category: 'materiaal' | 'autokosten' | 'brandstof' | 'gereedschap' | 'eigen_verbruik' | 'hotel' | 'telefoon' | 'leadkosten' | 'overig';
+  category: 'materiaal' | 'autokosten' | 'boetes' | 'schulden' | 'afval' | 'brandstof' | 'gereedschap' | 'eigen_verbruik' | 'hotel' | 'telefoon' | 'leadkosten' | 'overig';
   amountExcl: number;
   amountIncl?: number;
 }
@@ -152,6 +152,9 @@ const DEFAULT_WORKDAY_HOURS = 8;
 interface ExternalProjectCostSnapshot {
   materiaal: number;
   autokosten: number;
+  boetes: number;
+  schulden: number;
+  afval: number;
   brandstof: number;
   gereedschap: number;
   eigen_verbruik: number;
@@ -437,6 +440,9 @@ function getActualSnapshot(
   const externalCostsTotal =
     safeNumber(externalProjectCosts?.materiaal)
     + safeNumber(externalProjectCosts?.autokosten)
+    + safeNumber(externalProjectCosts?.boetes)
+    + safeNumber(externalProjectCosts?.schulden)
+    + safeNumber(externalProjectCosts?.afval)
     + safeNumber(externalProjectCosts?.brandstof)
     + safeNumber(externalProjectCosts?.gereedschap)
     + safeNumber(externalProjectCosts?.eigen_verbruik)
@@ -454,7 +460,7 @@ function getActualSnapshot(
     const mappedMaterial = safeNumber(externalProjectCosts?.materiaal);
     const mappedTransport = safeNumber(externalProjectCosts?.brandstof) + safeNumber(externalProjectCosts?.autokosten);
     const mappedTools = safeNumber(externalProjectCosts?.gereedschap);
-    const mappedOther = safeNumber(externalProjectCosts?.overig) + safeNumber(externalProjectCosts?.eigen_verbruik) + safeNumber(externalProjectCosts?.hotel) + safeNumber(externalProjectCosts?.telefoon) + safeNumber(externalProjectCosts?.leadkosten);
+    const mappedOther = safeNumber(externalProjectCosts?.overig) + safeNumber(externalProjectCosts?.boetes) + safeNumber(externalProjectCosts?.schulden) + safeNumber(externalProjectCosts?.afval) + safeNumber(externalProjectCosts?.eigen_verbruik) + safeNumber(externalProjectCosts?.hotel) + safeNumber(externalProjectCosts?.telefoon) + safeNumber(externalProjectCosts?.leadkosten);
 
     const externalSnapshot: ActualSnapshot = {
       materialenGroot: mappedMaterial,
@@ -863,6 +869,9 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     const current = projectCostsByQuoteId.get(row.quoteId) || {
       materiaal: 0,
       autokosten: 0,
+      boetes: 0,
+      schulden: 0,
+      afval: 0,
       brandstof: 0,
       gereedschap: 0,
       eigen_verbruik: 0,

@@ -11,6 +11,8 @@ import {
   normalizeProjectCostCategory,
   normalizeProjectCostLineItems,
   normalizeProjectCostReceiptFiles,
+  normalizeProjectCostPaymentStatus,
+  normalizeProjectCostPaymentType,
   roundEuro,
   sumProjectCostLineItems,
 } from '@/lib/project-costs';
@@ -38,6 +40,40 @@ function dateOnly(value: unknown): string {
   const raw = safeString(value);
   if (raw) return raw.slice(0, 10);
   return new Date().toISOString().slice(0, 10);
+}
+
+function addDays(date: string, days: number): string {
+  const parsed = new Date(`${date.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return date.slice(0, 10);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function paymentMetadata(input: Record<string, unknown>, supplierName: string, description: string, date: string) {
+  const isBouwmaat = /bouwmaat|dsg bouwmaten/i.test(supplierName);
+  const invoiceNumber = safeString(input.supplier_invoice_number || input.invoice_number || input.supplier_order_number) || null;
+  let paymentType = normalizeProjectCostPaymentType(input.payment_type);
+  let paymentStatus = normalizeProjectCostPaymentStatus(input.payment_status);
+  const lowerDescription = description.toLowerCase();
+  if (paymentType === 'unknown' && isBouwmaat) {
+    if (/aankoopbon|kassabon|^bon\b|pin\s*[- ]?debit|debit mastercard/.test(lowerDescription)) paymentType = 'bon';
+    if (/factuur|automatisch incasso|nu te betalen/.test(lowerDescription)) paymentType = 'factuur';
+  }
+  if (paymentStatus === 'unknown' && paymentType === 'bon') paymentStatus = 'paid';
+  if (paymentStatus === 'unknown' && paymentType === 'factuur') paymentStatus = 'openstaand';
+  if (paymentType === 'private') paymentStatus = 'private';
+  const explicitDueDate = safeString(input.due_date || input.payment_due_date);
+  const dueDate = explicitDueDate
+    ? explicitDueDate.slice(0, 10)
+    : paymentType === 'factuur' ? addDays(date, 14) : null;
+  return {
+    paymentType,
+    paymentStatus,
+    dueDate,
+    invoiceNumber,
+    reconciliationGroupId: safeString(input.reconciliation_group_id)
+      || (isBouwmaat && invoiceNumber ? `bouwmaat:${invoiceNumber}` : null),
+  };
 }
 
 function sumLineItemsInclBtw(
@@ -229,7 +265,7 @@ export async function POST(request: Request) {
 
     const existing = await supabaseAdmin
       .from('project_costs')
-      .select('id,user_id,offerte_id')
+      .select('id,user_id,offerte_id,payment_type,payment_status,due_date,supplier_invoice_number,reconciliation_group_id,source_email,source_filename')
       .eq('id', costId)
       .maybeSingle();
 
@@ -291,6 +327,14 @@ export async function POST(request: Request) {
     const receiptUrl = safeString(input.receipt_url) || null;
     const receiptFiles = normalizeProjectCostReceiptFiles(input.receipt_files, receiptUrl);
     const status = safeString(input.status) || 'confirmed';
+    // Keep reconciliation metadata when an older edit form does not send the
+    // new Bouwmaat fields. Explicit values from the request still win.
+    const existingMetadata = (existing.data || {}) as Record<string, unknown>;
+    const payment = paymentMetadata({ ...existingMetadata, ...input }, supplierName, description, date);
+    const sourceEmail = safeString(input.source_email) || safeString(existingMetadata.source_email) || null;
+    const sourceFilename = safeString(input.source_filename || input.attachment_file_name)
+      || safeString(existingMetadata.source_filename)
+      || null;
 
     // A single supplier invoice can contain material for multiple quotes. Store a
     // separate cost row per quote so each quote overview receives only its lines.
@@ -352,6 +396,14 @@ export async function POST(request: Request) {
           receipt_url: receiptUrl,
           receipt_files: receiptFiles,
           status,
+          payment_type: payment.paymentType,
+          payment_status: payment.paymentStatus,
+          due_date: payment.dueDate,
+          supplier_invoice_number: payment.invoiceNumber,
+          reconciliation_group_id: payment.reconciliationGroupId,
+          reconciliation_status: payment.paymentType === 'bon' || payment.paymentType === 'private' ? 'not_applicable' : 'unmatched',
+          source_email: sourceEmail,
+          source_filename: sourceFilename,
           updated_at: new Date().toISOString(),
         };
 
@@ -429,6 +481,14 @@ export async function POST(request: Request) {
       receipt_url: receiptUrl,
       receipt_files: receiptFiles,
       status,
+      payment_type: payment.paymentType,
+      payment_status: payment.paymentStatus,
+      due_date: payment.dueDate,
+      supplier_invoice_number: payment.invoiceNumber,
+      reconciliation_group_id: payment.reconciliationGroupId,
+      reconciliation_status: payment.paymentType === 'bon' || payment.paymentType === 'private' ? 'not_applicable' : 'unmatched',
+      source_email: sourceEmail,
+      source_filename: sourceFilename,
       updated_at: new Date().toISOString(),
     };
 

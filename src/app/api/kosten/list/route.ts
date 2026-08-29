@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
-import { mapProjectCostRow } from '@/lib/project-costs';
+import { buildFinanceBankLedger, isProfitAccountTransfer, loadConnectedKnabTransactions } from '@/lib/finance-bank-ledger';
+import { mapProjectCostRow, normalizeProjectCostCategory, roundEuro, type ProjectCostRow } from '@/lib/project-costs';
 import { deriveBankUserId } from '@/lib/bank-user-id';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchWithSupabaseClockSkewRetry, supabaseAdmin } from '@/lib/supabase-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,7 +37,7 @@ async function fetchProjectCostsViaRest(uid: string): Promise<unknown[]> {
   url.searchParams.append('order', 'date.desc');
   url.searchParams.append('order', 'created_at.desc');
 
-  const response = await fetch(url.toString(), {
+  const response = await fetchWithSupabaseClockSkewRetry(url.toString(), {
     method: 'GET',
     headers: {
       apikey: serviceKey,
@@ -99,71 +100,141 @@ export async function GET(request: Request) {
       return trialBlockedResponse;
     }
 
-    const [rows, bunqTopUpsResult] = await Promise.all([
+    const [rows, knabTransactions, categoryOverridesResult] = await Promise.all([
       fetchProjectCostsViaRest(uid),
+      loadConnectedKnabTransactions(deriveBankUserId(uid)),
       supabaseAdmin
-        .from('bank_transactions')
-        .select('id,booking_date,amount,currency,counterparty_name,remittance_information,created_at')
-        .eq('user_id', deriveBankUserId(uid))
-        .lt('amount', 0)
-        .ilike('counterparty_name', '%top-up via bunq%')
-        .order('booking_date', { ascending: false }),
+        .from('bank_transaction_category_overrides')
+        .select('bank_transaction_id,category')
+        .eq('user_id', uid),
     ]);
-
-    if (bunqTopUpsResult.error) {
-      throw new Error(`Bunq App TopUp-transacties konden niet worden geladen: ${bunqTopUpsResult.error.message}`);
-    }
-
+    if (categoryOverridesResult.error) throw new Error(categoryOverridesResult.error.message);
     const projectCosts = rows.map((row) => mapProjectCostRow(row));
-    const bunqTopUps = (bunqTopUpsResult.data || []).map((transaction) => {
-      const amount = Math.abs(Number(transaction.amount) || 0);
-      const description = safeString(transaction.remittance_information) || 'Top-up via bunq';
-      const date = safeString(transaction.booking_date);
-      const createdAt = safeString(transaction.created_at) || `${date}T00:00:00.000Z`;
+    const projectCostById = new Map(projectCosts.map((cost) => [cost.id, cost]));
+    const categoryOverrides = new Map(
+      (categoryOverridesResult.data || []).map((row) => [
+        String(row.bank_transaction_id),
+        normalizeProjectCostCategory(row.category),
+      ])
+    );
+    const ledgerRows = buildFinanceBankLedger({
+      userId: uid,
+      transactions: knabTransactions,
+      costs: projectCosts,
+      categoryOverrides,
+    });
+
+    // Knab is the cost ledger. Each debit is returned exactly once. Imported
+    // invoices and receipts only provide VAT, category, quote and attachments.
+    const mappedRows = ledgerRows.map((ledgerRow) => {
+      const sources = ledgerRow.source_cost_ids
+        .map((costId) => projectCostById.get(costId))
+        .filter((cost): cost is ProjectCostRow => Boolean(cost));
+      const sourceIncl = roundEuro(sources.reduce((sum, cost) => sum + cost.amount_incl_btw, 0));
+      const sourceExcl = roundEuro(sources.reduce((sum, cost) => sum + cost.amount_excl_btw, 0));
+      const sourceBtw = roundEuro(sources.reduce((sum, cost) => sum + cost.btw_amount, 0));
+      const sourceRatio = sourceIncl > 0 ? ledgerRow.amount / sourceIncl : 0;
+      const amountExcl = sources.length > 0
+        ? roundEuro(sourceExcl * sourceRatio)
+        : ledgerRow.amount;
+      const btwAmount = sources.length > 0
+        ? roundEuro(ledgerRow.amount - amountExcl)
+        : 0;
+      const receiptFiles = Array.from(
+        new Map(
+          sources
+            .flatMap((cost) => cost.receipt_files || [])
+            .map((file) => [file.url || file.path || file.filename, file] as const)
+        ).values()
+      );
+      const offerteIds = uniqueStrings(sources.map((cost) => cost.offerte_id || ''));
+      const date = safeString(ledgerRow.booking_date);
+      const createdAt = date ? `${date}T00:00:00.000Z` : new Date(0).toISOString();
+      const category = ledgerRow.is_private ? 'eigen_verbruik' : ledgerRow.category;
+      const btwPercentage = amountExcl !== 0 ? roundEuro((btwAmount / amountExcl) * 100) : 0;
+
       return mapProjectCostRow({
-        id: `bank-bunq-topup-${transaction.id}`,
+        id: `bank-knab-${ledgerRow.bank_transaction_id}`,
         user_id: uid,
-        offerte_id: null,
-        category: 'eigen_verbruik',
-        supplier_name: 'Bunq App TopUp',
-        description,
-        line_items: [{
-          description: 'Bunq App TopUp',
-          quantity: 1,
-          unit: 'st',
-          unit_price: amount,
-          total_price: amount,
-          btw_percentage: 0,
-          category: 'eigen_verbruik',
-        }],
-        amount_excl_btw: amount,
-        btw_percentage: 0,
-        btw_amount: 0,
-        amount_incl_btw: amount,
+        offerte_id: offerteIds.length === 1 ? offerteIds[0] : null,
+        category,
+        supplier_name: ledgerRow.supplier_name,
+        description: ledgerRow.description,
+        line_items: sources.flatMap((cost) => cost.line_items || []),
+        amount_excl_btw: amountExcl,
+        btw_percentage: btwPercentage,
+        btw_amount: btwAmount,
+        amount_incl_btw: ledgerRow.amount,
         date,
-        receipt_url: null,
-        receipt_files: [],
+        receipt_url: receiptFiles[0]?.url || sources.find((cost) => cost.receipt_url)?.receipt_url || null,
+        receipt_files: receiptFiles,
         status: 'bank_transaction',
+        payment_type: ledgerRow.is_private ? 'private' : 'unknown',
+        payment_status: ledgerRow.is_private ? 'private' : 'paid',
+        reconciliation_status: ledgerRow.is_private
+          ? 'not_applicable'
+          : ledgerRow.match_status === 'matched' ? 'matched' : 'unmatched',
+        paid_bank_transaction_id: ledgerRow.bank_transaction_id,
+        paid_at: date || null,
+        source_email: uniqueStrings(sources.map((cost) => cost.source_email || '')).join(', ') || null,
+        source_filename: uniqueStrings(sources.map((cost) => cost.source_filename || '')).join(', ') || null,
         created_at: createdAt,
         updated_at: createdAt,
       });
     });
-    const mappedRows = [...projectCosts, ...bunqTopUps].sort((left, right) => {
+
+    // Transfers to the user's own profit account remain visible for cashflow
+    // tracking, but are deliberately not part of the expense ledger above.
+    // They use a reserved category so the UI can show them on their own tab
+    // without changing business costs, VAT, or profit calculations.
+    const internalTransferRows = knabTransactions
+      .filter((transaction) => isProfitAccountTransfer(transaction))
+      .map((transaction) => {
+        const date = safeString(transaction.booking_date);
+        const createdAt = date ? `${date}T00:00:00.000Z` : new Date(0).toISOString();
+        const amount = roundEuro(Math.abs(Number(transaction.amount) || 0));
+        return mapProjectCostRow({
+          id: `bank-knab-profit-${transaction.id}`,
+          user_id: uid,
+          offerte_id: null,
+          category: 'profit',
+          supplier_name: safeString(transaction.counterparty_name) || 'Eigen winstrekening',
+          description: safeString(transaction.description) || 'Interne overboeking naar winstrekening',
+          line_items: [],
+          amount_excl_btw: amount,
+          btw_percentage: 0,
+          btw_amount: 0,
+          amount_incl_btw: amount,
+          date,
+          receipt_url: null,
+          receipt_files: [],
+          status: 'internal_profit_transfer',
+          payment_type: 'unknown',
+          payment_status: 'paid',
+          reconciliation_status: 'not_applicable',
+          paid_bank_transaction_id: transaction.id,
+          paid_at: date || null,
+          source_email: null,
+          source_filename: null,
+          created_at: createdAt,
+          updated_at: createdAt,
+        });
+      });
+
+    mappedRows.push(...internalTransferRows);
+
+    mappedRows.sort((left, right) => {
       const leftTime = new Date(left.date || left.created_at).getTime();
       const rightTime = new Date(right.date || right.created_at).getTime();
       return rightTime - leftTime;
     });
     if (process.env.NODE_ENV !== 'production') {
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
       console.log(
         '[kosten/list]',
         JSON.stringify({
           uid,
-          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || null,
-          serviceKeyPrefix: serviceKey ? serviceKey.slice(0, 14) : null,
-          source: 'rest',
+          source: 'knab-ledger',
           rowCount: mappedRows.length,
-          rowIds: mappedRows.map((row) => row.id),
         })
       );
     }

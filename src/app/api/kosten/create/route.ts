@@ -13,6 +13,8 @@ import {
   normalizeProjectCostCategory,
   normalizeProjectCostLineItems,
   normalizeProjectCostReceiptFiles,
+  normalizeProjectCostPaymentStatus,
+  normalizeProjectCostPaymentType,
   roundEuro,
   sumProjectCostLineItems,
 } from '@/lib/project-costs';
@@ -71,6 +73,65 @@ function dateOnly(value: unknown): string {
   const raw = safeString(value);
   if (raw) return raw.slice(0, 10);
   return new Date().toISOString().slice(0, 10);
+}
+
+function addDays(date: string, days: number): string {
+  const parsed = new Date(`${date.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return date.slice(0, 10);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function isBouwmaatSupplier(value: string): boolean {
+  return /bouwmaat|dsg bouwmaten/i.test(value);
+}
+
+function normalizePaymentMetadata(input: Record<string, unknown>, params: {
+  supplierName: string;
+  description: string;
+  date: string;
+}): {
+  paymentType: ReturnType<typeof normalizeProjectCostPaymentType>;
+  paymentStatus: ReturnType<typeof normalizeProjectCostPaymentStatus>;
+  dueDate: string | null;
+  invoiceNumber: string | null;
+  reconciliationGroupId: string | null;
+} {
+  const invoiceNumber = safeString(input.supplier_invoice_number || input.invoice_number || input.supplier_order_number) || null;
+  let paymentType = normalizeProjectCostPaymentType(input.payment_type);
+  let paymentStatus = normalizeProjectCostPaymentStatus(input.payment_status);
+  const description = params.description.toLowerCase();
+
+  // Bouwmaat documents have a reliable visual distinction: bon/aankoopbon is
+  // paid at the till, while factuur is collected later from the account.
+  if (paymentType === 'unknown' && isBouwmaatSupplier(params.supplierName)) {
+    if (/aankoopbon|kassabon|^bon\b|pin\s*[- ]?debit|debit mastercard/.test(description)) paymentType = 'bon';
+    if (/factuur|automatisch incasso|nu te betalen/.test(description)) paymentType = 'factuur';
+  }
+  if (paymentStatus === 'unknown' && paymentType === 'bon') paymentStatus = 'paid';
+  if (paymentStatus === 'unknown' && paymentType === 'factuur') paymentStatus = 'openstaand';
+  if (paymentType === 'private') paymentStatus = 'private';
+
+  const explicitDueDate = safeString(input.due_date || input.payment_due_date);
+  const dueDate = explicitDueDate
+    ? explicitDueDate.slice(0, 10)
+    : paymentType === 'factuur'
+      ? addDays(params.date, isBouwmaatSupplier(params.supplierName) ? 14 : 14)
+      : null;
+
+  const providedGroup = safeString(input.reconciliation_group_id);
+  const reconciliationGroupId = providedGroup
+    || (isBouwmaatSupplier(params.supplierName) && invoiceNumber
+      ? `bouwmaat:${invoiceNumber}`
+      : null);
+
+  return {
+    paymentType,
+    paymentStatus,
+    dueDate,
+    invoiceNumber,
+    reconciliationGroupId,
+  };
 }
 
 function euroToCents(value: number): number {
@@ -373,12 +434,16 @@ async function upsertProfitOverview(params: {
   const totals = {
     materiaal: 0,
     autokosten: 0,
+    boetes: 0,
+    schulden: 0,
+    afval: 0,
     brandstof: 0,
     gereedschap: 0,
     eigen_verbruik: 0,
     hotel: 0,
     telefoon: 0,
     leadkosten: 0,
+    profit: 0,
     overig: 0,
   };
 
@@ -396,7 +461,7 @@ async function upsertProfitOverview(params: {
   const totalMaterialCost = roundEuro(totals.materiaal);
   const totalFuelCost = roundEuro(totals.brandstof + totals.autokosten);
   const totalToolCost = roundEuro(totals.gereedschap);
-  const totalOtherCost = roundEuro(totals.overig + totals.eigen_verbruik + totals.hotel + totals.telefoon + totals.leadkosten);
+  const totalOtherCost = roundEuro(totals.overig + totals.boetes + totals.schulden + totals.afval + totals.eigen_verbruik + totals.hotel + totals.telefoon + totals.leadkosten);
   const totalLaborCost = roundEuro(laborCost);
   const totalCosts = roundEuro(
     totalMaterialCost
@@ -516,6 +581,11 @@ export async function POST(request: Request) {
     const receiptUrl = safeString(input.receipt_url) || null;
     const receiptFiles = normalizeProjectCostReceiptFiles(input.receipt_files, receiptUrl);
     const status = safeString(input.status) || 'confirmed';
+    const paymentMetadata = normalizePaymentMetadata(input, {
+      supplierName,
+      description,
+      date,
+    });
 
     const routedLineItems = lineItems.map((item) => {
       const lineCategory = normalizeProjectCostCategory(item.category || category);
@@ -654,6 +724,37 @@ export async function POST(request: Request) {
       amountExclPerGroup = [roundEuro(requestedAmountExcl)];
     }
 
+    // Split invoices can contain mixed VAT rates (for example 21%, 9% and
+    // deposit lines at 0%). Preserve the extracted inclusive line totals per
+    // category instead of applying one invoice-wide VAT rate to every group.
+    let amountInclPerGroup = groupedArray.map((group, groupIndex) => {
+      const inclusiveLineTotal = roundEuro(group.lineItems.reduce((sum, item) => {
+        const explicitInclusive = safeNumber(item.total_incl_btw);
+        if (explicitInclusive !== 0) return sum + explicitInclusive;
+        const exclusive = safeNumber(item.total_price);
+        const lineRate = safeNumber(item.btw_percentage);
+        return sum + roundEuro(exclusive * (1 + lineRate / 100));
+      }, 0));
+
+      if (inclusiveLineTotal !== 0) return inclusiveLineTotal;
+      return roundEuro((amountExclPerGroup[groupIndex] || 0) * (1 + btwPercentage / 100));
+    });
+
+    if (requestedAmountIncl !== 0 && amountInclPerGroup.length > 0) {
+      const currentInclusiveTotal = roundEuro(amountInclPerGroup.reduce((sum, value) => sum + value, 0));
+      const residual = roundEuro(requestedAmountIncl - currentInclusiveTotal);
+      if (residual !== 0) {
+        const largestGroupIndex = amountExclPerGroup.reduce(
+          (bestIndex, value, index, values) =>
+            Math.abs(value) > Math.abs(values[bestIndex] || 0) ? index : bestIndex,
+          0
+        );
+        amountInclPerGroup[largestGroupIndex] = roundEuro(
+          (amountInclPerGroup[largestGroupIndex] || 0) + residual
+        );
+      }
+    }
+
     const insertedRows: any[] = [];
 
     for (const [groupIndex, group] of groupedArray.entries()) {
@@ -669,9 +770,7 @@ export async function POST(request: Request) {
         }) as any;
       }
 
-      const amountIncl = groupedArray.length === 1 && requestedAmountIncl !== 0
-        ? requestedAmountIncl
-        : roundEuro(amountExcl * (1 + btwPercentage / 100));
+      const amountIncl = roundEuro(amountInclPerGroup[groupIndex] || 0);
       const btwAmount = roundEuro(amountIncl - amountExcl);
       const rowDescription = groupedArray.length > 1
         ? `${description} (${group.category})`
@@ -693,6 +792,16 @@ export async function POST(request: Request) {
         receipt_url: receiptUrl,
         receipt_files: receiptFiles,
         status,
+        payment_type: paymentMetadata.paymentType,
+        payment_status: paymentMetadata.paymentStatus,
+        due_date: paymentMetadata.dueDate,
+        supplier_invoice_number: paymentMetadata.invoiceNumber,
+        reconciliation_group_id: paymentMetadata.reconciliationGroupId,
+        reconciliation_status: paymentMetadata.paymentType === 'bon' || paymentMetadata.paymentType === 'private'
+          ? 'not_applicable'
+          : 'unmatched',
+        source_email: safeString(input.source_email) || null,
+        source_filename: safeString(input.source_filename || input.attachment_file_name) || null,
       };
 
       const { data, error } = await insertWithFallback(insertPayload);

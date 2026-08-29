@@ -1,1 +1,5 @@
-export { default } from '@/app/bank-overzicht/page';
+import { redirect } from 'next/navigation';
+
+export default function FinancieenPage() {
+  redirect('/kosten?tab=overview');
+}

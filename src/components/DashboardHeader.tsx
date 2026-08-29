@@ -22,6 +22,7 @@ import {
   Users,
 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { signOut, User } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -336,46 +337,60 @@ export function DashboardHeader({
 
       <div className="flex shrink-0 items-center gap-2">
         {user && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  'flex items-center gap-1 rounded-full border border-border bg-background/80 px-1 py-1 hover:bg-accent transition-colors',
-                  hideAccountOnMobile && 'hidden md:flex'
-                )}
-                aria-label="Account menu"
-              >
-                <Avatar className="h-9 w-9">
-                  {avatarSrc && (
-                    <AvatarImage
-                      src={avatarSrc}
-                      alt="Gebruikerslogo"
-                      className="object-cover"
-                      onLoadingStatusChange={(status) => {
-                        if (status === 'loaded') {
-                          setAvatarRetryCount(0);
-                        }
-                        if (status === 'error') {
-                          handleAvatarImageError();
-                        }
-                      }}
-                    />
+          <>
+            <Link
+              href="/instellingen"
+              aria-label="Instellingen"
+              title="Instellingen"
+              className={cn(
+                'flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background/80 transition-colors hover:bg-accent',
+                pathname.startsWith('/instellingen') && 'border-purple-400/40 bg-purple-400/10 text-purple-300',
+                hideAccountOnMobile && 'hidden md:flex'
+              )}
+            >
+              <Settings className="h-5 w-5" />
+            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    'flex items-center gap-1 rounded-full border border-border bg-background/80 px-1 py-1 hover:bg-accent transition-colors',
+                    hideAccountOnMobile && 'hidden md:flex'
                   )}
-                  <AvatarFallback delayMs={500} className="bg-zinc-500 text-white font-semibold">
-                    {fallbackInitial}
-                  </AvatarFallback>
-                </Avatar>
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground mr-1" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
-                <LogOut className="h-4 w-4" />
-                Uitloggen
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  aria-label="Account menu"
+                >
+                  <Avatar className="h-9 w-9">
+                    {avatarSrc && (
+                      <AvatarImage
+                        src={avatarSrc}
+                        alt="Gebruikerslogo"
+                        className="object-cover"
+                        onLoadingStatusChange={(status) => {
+                          if (status === 'loaded') {
+                            setAvatarRetryCount(0);
+                          }
+                          if (status === 'error') {
+                            handleAvatarImageError();
+                          }
+                        }}
+                      />
+                    )}
+                    <AvatarFallback delayMs={500} className="bg-zinc-500 text-white font-semibold">
+                      {fallbackInitial}
+                    </AvatarFallback>
+                  </Avatar>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground mr-1" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                  <LogOut className="h-4 w-4" />
+                  Uitloggen
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         )}
       </div>
     </header>

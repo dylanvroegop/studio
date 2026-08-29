@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { getIdTokenResult } from 'firebase/auth';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Settings, Clock3, Plus, ClipboardList, Landmark } from 'lucide-react';
+import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Clock3, Plus, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -53,17 +53,10 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
     },
     {
         href: '/kosten',
-        label: 'Kosten',
+        label: 'Finance',
         icon: Receipt,
         iconColorClass: 'text-teal-400',
         iconColorClassActive: 'text-teal-300',
-    },
-    {
-        href: '/financieen',
-        label: 'Financiën',
-        icon: Landmark,
-        iconColorClass: 'text-lime-400',
-        iconColorClassActive: 'text-lime-300',
     },
     {
         href: '/planning',
@@ -99,13 +92,6 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
         icon: Clock3,
         iconColorClass: 'text-indigo-400',
         iconColorClassActive: 'text-indigo-300',
-    },
-    {
-        href: '/instellingen',
-        label: 'Instellingen',
-        icon: Settings,
-        iconColorClass: 'text-purple-400',
-        iconColorClassActive: 'text-purple-300',
     },
 ];
 

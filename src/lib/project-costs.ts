@@ -1,16 +1,24 @@
 export const PROJECT_COST_CATEGORIES = [
   'materiaal',
   'autokosten',
+  'boetes',
+  'schulden',
+  'afval',
   'brandstof',
   'gereedschap',
   'eigen_verbruik',
   'hotel',
   'telefoon',
   'leadkosten',
+  'profit',
   'overig',
 ] as const;
 
 export type ProjectCostCategory = (typeof PROJECT_COST_CATEGORIES)[number];
+
+export type ProjectCostPaymentType = 'bon' | 'factuur' | 'private' | 'unknown';
+export type ProjectCostPaymentStatus = 'paid' | 'openstaand' | 'private' | 'unknown';
+export type ProjectCostReconciliationStatus = 'matched' | 'partial' | 'unmatched' | 'not_applicable';
 
 export interface ProjectCostLineItem {
   description: string;
@@ -53,6 +61,21 @@ export interface ProjectCostRow {
   receipt_url: string | null;
   receipt_files: ProjectCostReceiptFile[];
   status: string;
+  /** How the supplier purchase was paid. Bouwmaat distinguishes bon and factuur. */
+  payment_type: ProjectCostPaymentType;
+  /** Derived or explicitly supplied payment state. */
+  payment_status: ProjectCostPaymentStatus;
+  /** Expected collection date for supplier invoices, normally invoice date + 14 days. */
+  due_date: string | null;
+  supplier_order_number: string | null;
+  supplier_invoice_number: string | null;
+  /** Same value is stored on all rows when one invoice is split across categories/offertes. */
+  reconciliation_group_id: string | null;
+  reconciliation_status: ProjectCostReconciliationStatus;
+  paid_bank_transaction_id: string | null;
+  paid_at: string | null;
+  source_email: string | null;
+  source_filename: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -60,12 +83,16 @@ export interface ProjectCostRow {
 export const PROJECT_COST_CATEGORY_LABELS: Record<ProjectCostCategory, string> = {
   materiaal: 'Materiaal',
   autokosten: 'Autokosten',
+  boetes: 'Boetes',
+  schulden: 'Schulden',
+  afval: 'Afval',
   brandstof: 'Benzine',
   gereedschap: 'Gereedschap',
   eigen_verbruik: 'Eigen verbruik',
   hotel: 'Hotel',
   telefoon: 'Telefoon',
   leadkosten: 'Leadkosten',
+  profit: 'Profit',
   overig: 'Overig',
 };
 
@@ -87,13 +114,41 @@ export function normalizeProjectCostCategory(value: unknown): ProjectCostCategor
   const normalized = safeString(value).toLowerCase();
   if (normalized === 'materiaal') return 'materiaal';
   if (normalized === 'autokosten' || normalized === 'auto kosten') return 'autokosten';
+  if (normalized === 'boetes' || normalized === 'boete' || normalized === 'bekeuring') return 'boetes';
+  if (normalized === 'schulden' || normalized === 'schuld' || normalized === 'aflossing') return 'schulden';
+  if (normalized === 'afval' || normalized === 'afvoer' || normalized === 'afvalverwerking') return 'afval';
   if (normalized === 'brandstof' || normalized === 'benzine' || normalized === 'diesel') return 'brandstof';
   if (normalized === 'gereedschap') return 'gereedschap';
   if (normalized === 'eigen_verbruik' || normalized === 'eigen verbruik') return 'eigen_verbruik';
   if (normalized === 'hotel' || normalized === 'overnachting') return 'hotel';
   if (normalized === 'telefoon' || normalized === 'phone') return 'telefoon';
   if (normalized === 'leadkosten' || normalized === 'lead kosten' || normalized === 'lead cost') return 'leadkosten';
+  if (normalized === 'profit' || normalized === 'winst' || normalized === 'interne overboeking') return 'profit';
   return 'overig';
+}
+
+export function normalizeProjectCostPaymentType(value: unknown): ProjectCostPaymentType {
+  const normalized = safeString(value).toLowerCase();
+  if (normalized === 'bon' || normalized === 'receipt' || normalized === 'kassabon' || normalized === 'aankoopbon') return 'bon';
+  if (normalized === 'factuur' || normalized === 'invoice') return 'factuur';
+  if (normalized === 'private' || normalized === 'privé' || normalized === 'prive') return 'private';
+  return 'unknown';
+}
+
+export function normalizeProjectCostPaymentStatus(value: unknown): ProjectCostPaymentStatus {
+  const normalized = safeString(value).toLowerCase();
+  if (normalized === 'paid' || normalized === 'betaald') return 'paid';
+  if (normalized === 'openstaand' || normalized === 'open' || normalized === 'pending' || normalized === 'te betalen') return 'openstaand';
+  if (normalized === 'private' || normalized === 'privé' || normalized === 'prive') return 'private';
+  return 'unknown';
+}
+
+export function normalizeProjectCostReconciliationStatus(value: unknown): ProjectCostReconciliationStatus {
+  const normalized = safeString(value).toLowerCase();
+  if (normalized === 'matched' || normalized === 'match' || normalized === 'gematcht') return 'matched';
+  if (normalized === 'partial' || normalized === 'gedeeltelijk') return 'partial';
+  if (normalized === 'not_applicable' || normalized === 'not applicable' || normalized === 'nvt') return 'not_applicable';
+  return 'unmatched';
 }
 
 export function normalizeProjectCostLineItem(input: unknown): ProjectCostLineItem {
@@ -201,6 +256,14 @@ export function inferProjectCostCategory(params: {
 
   const containsAny = (needles: string[]) => needles.some((needle) => target.includes(needle));
 
+  if (containsAny(['schuld', 'schuldaflossing', 'aflossing lening', 'leningaflossing', 'crediteur'])) {
+    return 'schulden';
+  }
+
+  if (containsAny(['afvoerbon', 'afvalstort', 'afvalstroom', 'afvalverwerking', 'bouw- en sloopafval', 'afval/afvoer', 'stortkosten', 'containerafvoer', 'puinafvoer'])) {
+    return 'afval';
+  }
+
   if (
     containsAny([
       'boete',
@@ -211,10 +274,10 @@ export function inferProjectCostCategory(params: {
       'cjib',
     ])
   ) {
-    return 'overig';
+    return 'boetes';
   }
 
-  if (containsAny(['hotel', 'overnachting', 'accommodatie', 'logies'])) {
+  if (containsAny(['hotel', 'overnachting', 'accommodatie', 'logies', 'booking.com', 'bastion', 'viaamsterdam', 'via amsterdam'])) {
     return 'hotel';
   }
 
@@ -265,9 +328,12 @@ export function inferProjectCostCategory(params: {
       'bp',
       'esso',
       'total',
+      'ok ',
+      'ok rotterdam',
       'tango',
       'q8',
       'avia',
+      'argos',
       'texaco',
       'tankstation',
       'diesel',
@@ -301,6 +367,7 @@ export function inferProjectCostCategory(params: {
     containsAny([
       'houthandel',
       'bouwmaat',
+      'bouwmaten',
       'gamma',
       'praxis',
       'karwei',
@@ -460,6 +527,17 @@ export function mapProjectCostRow(input: unknown): ProjectCostRow {
     receipt_url: receiptUrl,
     receipt_files: receiptFiles,
     status: safeString(row.status) || 'confirmed',
+    payment_type: normalizeProjectCostPaymentType(row.payment_type),
+    payment_status: normalizeProjectCostPaymentStatus(row.payment_status),
+    due_date: safeString(row.due_date) || null,
+    supplier_order_number: safeString(row.supplier_order_number) || null,
+    supplier_invoice_number: safeString(row.supplier_invoice_number || row.invoice_number) || null,
+    reconciliation_group_id: safeString(row.reconciliation_group_id) || null,
+    reconciliation_status: normalizeProjectCostReconciliationStatus(row.reconciliation_status),
+    paid_bank_transaction_id: safeString(row.paid_bank_transaction_id) || null,
+    paid_at: safeString(row.paid_at) || null,
+    source_email: safeString(row.source_email) || null,
+    source_filename: safeString(row.source_filename) || null,
     created_at: safeString(row.created_at),
     updated_at: safeString(row.updated_at),
   };

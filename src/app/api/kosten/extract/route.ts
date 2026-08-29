@@ -227,7 +227,7 @@ function convertLineItemsFromInclToExcl(
   });
 }
 
-function inferLineItemCategory(description: string): 'materiaal' | 'autokosten' | 'gereedschap' | 'brandstof' | 'hotel' | 'telefoon' | 'leadkosten' | 'overig' {
+function inferLineItemCategory(description: string): 'materiaal' | 'autokosten' | 'boetes' | 'schulden' | 'afval' | 'gereedschap' | 'brandstof' | 'hotel' | 'telefoon' | 'leadkosten' | 'overig' {
   const target = safeString(description).toLowerCase();
   if (!target) return 'materiaal';
 
@@ -235,6 +235,14 @@ function inferLineItemCategory(description: string): 'materiaal' | 'autokosten' 
 
   const scoreContainsAny = (needles: string[], weight = 1): number =>
     needles.reduce((score, needle) => (target.includes(needle) ? score + weight : score), 0);
+
+  if (containsAny(['schuld', 'schuldaflossing', 'aflossing lening', 'leningaflossing', 'crediteur'])) {
+    return 'schulden';
+  }
+
+  if (containsAny(['afvoerbon', 'afvalstort', 'afvalstroom', 'afvalverwerking', 'bouw- en sloopafval', 'afval/afvoer', 'stortkosten', 'containerafvoer', 'puinafvoer'])) {
+    return 'afval';
+  }
 
   if (
     containsAny([
@@ -246,7 +254,7 @@ function inferLineItemCategory(description: string): 'materiaal' | 'autokosten' 
       'cjib',
     ])
   ) {
-    return 'overig';
+    return 'boetes';
   }
 
   if (containsAny(['hotel', 'overnachting', 'accommodatie', 'logies'])) {
@@ -419,7 +427,7 @@ function resolveLineItemCategory(
   extractedCategory?: ProjectCostCategory
 ): ProjectCostCategory {
   const inferredCategory = inferLineItemCategory(description);
-  if (inferredCategory === 'overig') return 'overig';
+  if (inferredCategory === 'boetes' || inferredCategory === 'schulden' || inferredCategory === 'afval' || inferredCategory === 'overig') return inferredCategory;
   return extractedCategory || inferredCategory;
 }
 
@@ -737,6 +745,11 @@ async function callOpenAiExtraction(params: {
 }
 
 export async function POST(request: Request) {
+  let archivedFallback: {
+    receiptUrl: string;
+    receiptFile: ReturnType<typeof toArchivedReceiptFile>;
+  } | null = null;
+
   try {
     const token = extractBearerToken(request.headers.get('authorization'));
     const formData = await request.formData();
@@ -755,11 +768,6 @@ export async function POST(request: Request) {
 
     const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
     if (trialBlockedResponse) return trialBlockedResponse;
-
-    const apiKey = safeString(process.env.OPENAI_API_KEY);
-    if (!apiKey) {
-      return NextResponse.json({ ok: false, message: 'OPENAI_API_KEY ontbreekt op de server.' }, { status: 500 });
-    }
 
     const sourceFile = formData.get('file');
     if (!(sourceFile instanceof File)) {
@@ -788,6 +796,15 @@ export async function POST(request: Request) {
     });
     const receiptUrl = await createTaxDocumentSignedUrl(archivedRecord);
     const archivedReceiptFile = toArchivedReceiptFile(archivedRecord, receiptUrl);
+    archivedFallback = {
+      receiptUrl,
+      receiptFile: archivedReceiptFile,
+    };
+
+    const apiKey = safeString(process.env.OPENAI_API_KEY);
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY ontbreekt op de server.');
+    }
 
     const model = safeString(process.env.OPENAI_RECEIPTS_MODEL) || 'gpt-5.2';
 
@@ -1076,6 +1093,25 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Extractie mislukt.';
+    if (archivedFallback) {
+      return NextResponse.json({
+        ok: true,
+        message: 'De bon is veilig opgeslagen, maar kon niet automatisch worden uitgelezen.',
+        data: {
+          supplier_name: '',
+          description: '',
+          line_items: [],
+          amount_excl_btw: 0,
+          btw_percentage: 21,
+          btw_amount: 0,
+          amount_incl_btw: 0,
+          manual_amount_override: true,
+          receipt_url: archivedFallback.receiptUrl,
+          receipt_files: [archivedFallback.receiptFile],
+          extraction_warning: message,
+        },
+      });
+    }
     return NextResponse.json({ ok: false, message }, { status: 500 });
   }
 }

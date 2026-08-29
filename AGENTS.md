@@ -9,6 +9,35 @@
 
 ---
 
+## Product Direction
+
+This is a personal application built for one user. It is not a SaaS product and is not intended to be sold. This direction takes precedence over older commercial or target-market framing elsewhere in this document.
+
+Prioritize:
+
+- Practical, compact interfaces
+- Direct labels that describe the feature
+- Fast access to information and actions
+- Functionality over presentation or marketing
+- Dense, useful layouts such as tables when they communicate information better than oversized cards
+
+Avoid:
+
+- Marketing copy or sales language
+- Dramatic headings, slogans, or vague “insight” language
+- Explanations of obvious functionality
+- Decorative dashboard sections
+- SaaS-style onboarding and promotional UI
+- Adding unrequested features, visual polish, or business requirements
+
+Use plain Dutch UI text. For example, prefer “Urenregistratie” or “Dagoverzicht” over “Waar was je dag echt aan besteed?”, and remove labels such as “Werkdag intelligence” unless explicitly requested.
+
+When changing an existing page, simplify unnecessary copy and visual decoration where it is directly related to the requested work. Do not redesign unrelated pages without being asked.
+
+Never use browser-native or operating-system pop-ups in the app. Dialogs, confirmations, notifications, and similar interactions must appear inside the application UI.
+
+---
+
 ## Technology Stack
 
 | Layer | Technology |

@@ -17,6 +17,7 @@ const ALLOWED_SOURCES: TimeEntrySource[] = [
   'login_prompt_adjust',
   'gps_tracking_confirm',
   'gps_tracking_adjust',
+  'gps_tracking_auto',
 ];
 
 const PROMPT_SOURCES: TimeEntrySource[] = [

@@ -49,7 +49,9 @@ function isSupportedDocument(contentType: string, filename: string): boolean {
 }
 
 function sourceFromForm(value: unknown): TaxDocumentSource {
-  return safeString(value) === 'n8n_import' ? 'n8n_import' : 'manual_upload';
+  const source = safeString(value);
+  if (source === 'n8n_import' || source === 'import') return source;
+  return 'manual_upload';
 }
 
 export async function POST(request: Request) {
@@ -92,6 +94,7 @@ export async function POST(request: Request) {
       pendingImportId: safeString(formData.get('pending_import_id')) || null,
       metadata: {
         source_attachment_filename: safeString(formData.get('source_attachment_filename')) || null,
+        source_email_ts: safeString(formData.get('source_email_ts')) || null,
         source_message_id: safeString(formData.get('source_message_id')) || null,
       },
     });

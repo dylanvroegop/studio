@@ -117,6 +117,13 @@ async function loadTransactionsForAnalysis(params: {
   periodRaw: unknown;
 }): Promise<InputTransaction[]> {
   const requestedProvider = safeString(params.providerRaw);
+  if (requestedProvider === 'all') {
+    const [knabTransactions, bunqTransactions] = await Promise.all([
+      loadTransactionsForAnalysis({ ...params, providerRaw: 'enablebanking' }),
+      loadTransactionsForAnalysis({ ...params, providerRaw: 'bunq', profileRaw: 'personal' }),
+    ]);
+    return [...knabTransactions, ...bunqTransactions];
+  }
   const provider = requestedProvider === 'enablebanking' || requestedProvider === 'gocardless' ? requestedProvider : 'bunq';
   const profile = normalizeBunqProfile(params.profileRaw);
   const linkRef = `bunq:${profile}:${params.bankUserId}`;

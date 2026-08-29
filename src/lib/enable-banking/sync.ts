@@ -12,6 +12,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 
 const PROVIDER = 'enablebanking';
 const SUPABASE_READ_RETRY_DELAYS_MS = [0, 250, 750] as const;
+const SUPABASE_EXTERNAL_ID_CHUNK_SIZE = 100;
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -57,29 +58,34 @@ async function upsertTransactions(rows: Record<string, unknown>[]): Promise<void
 
 async function existingCategoriesByExternalId(externalIds: string[]): Promise<Map<string, string>> {
   if (externalIds.length === 0) return new Map();
-  let lastError = 'Onbekende databasefout';
+  const categories = new Map<string, string>();
 
-  for (const delay of SUPABASE_READ_RETRY_DELAYS_MS) {
-    if (delay > 0) await wait(delay);
-    const result = await supabaseAdmin
-      .from('bank_transactions')
-      .select('external_id,category')
-      .in('external_id', externalIds);
+  for (let offset = 0; offset < externalIds.length; offset += SUPABASE_EXTERNAL_ID_CHUNK_SIZE) {
+    const chunk = externalIds.slice(offset, offset + SUPABASE_EXTERNAL_ID_CHUNK_SIZE);
+    let lastError = 'Onbekende databasefout';
+    let loaded = false;
 
-    if (!result.error) {
-      const categories = new Map<string, string>();
-      for (const row of result.data || []) {
-        const externalId = safeString(row.external_id);
-        const category = safeString(row.category);
-        if (externalId && category) categories.set(externalId, category);
+    for (const delay of SUPABASE_READ_RETRY_DELAYS_MS) {
+      if (delay > 0) await wait(delay);
+      const result = await supabaseAdmin
+        .from('bank_transactions')
+        .select('external_id,category')
+        .in('external_id', chunk);
+
+      if (!result.error) {
+        for (const row of result.data || []) {
+          const externalId = safeString(row.external_id);
+          const category = safeString(row.category);
+          if (externalId && category) categories.set(externalId, category);
+        }
+        loaded = true;
+        break;
       }
-      return categories;
+      lastError = result.error.message;
     }
-
-    lastError = result.error.message;
+    if (!loaded) throw new Error(`Kon bestaande Knab-categorieën na meerdere pogingen niet laden: ${lastError}`);
   }
-
-  throw new Error(`Kon bestaande Knab-categorieën na meerdere pogingen niet laden: ${lastError}`);
+  return categories;
 }
 
 export async function syncEnableBankingConnection(params: {
@@ -97,7 +103,6 @@ export async function syncEnableBankingConnection(params: {
     return { newCount: 0, accountsSynced: 0, status: session.status || 'pending' };
   }
 
-  await supabaseAdmin.from('bank_accounts').update({ status: 'inactive', updated_at: new Date().toISOString() }).eq('connection_id', connection.id);
   let newCount = 0;
   const linkedAccountIds: string[] = [];
 

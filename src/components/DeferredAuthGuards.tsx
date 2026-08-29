@@ -16,6 +16,11 @@ const DeferredBusinessProfileGate = dynamic(
   { ssr: false }
 );
 
+const DeferredGpsWorkSessionPrompt = dynamic(
+  () => import('@/components/GpsWorkSessionPrompt').then((mod) => mod.GpsWorkSessionPrompt),
+  { ssr: false }
+);
+
 const PUBLIC_PATH_PREFIXES = [
   '/',
   '/login',
@@ -74,6 +79,7 @@ export function DeferredAuthGuards() {
     <>
       <DeferredAuthSessionSync />
       <DeferredBusinessProfileGate />
+      <DeferredGpsWorkSessionPrompt />
     </>
   );
 }

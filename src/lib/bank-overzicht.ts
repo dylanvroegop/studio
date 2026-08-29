@@ -14,6 +14,9 @@ export interface BankAccountView {
   currency: string;
   latestBalanceAmount: number | null;
   latestBalanceDate: string | null;
+  outgoingTotal?: number;
+  businessExpensesTotal?: number;
+  privateWithdrawalsTotal?: number;
 }
 
 export interface BankTransactionView {
@@ -137,7 +140,7 @@ export function summarizeThisMonth(transactions: BankTransactionView[]): BankOve
     if (date.getMonth() !== month || date.getFullYear() !== year) continue;
     if (tx.amount >= 0) income += tx.amount;
     if (tx.amount < 0 && tx.category === 'private') privateWithdrawals += tx.amount;
-    if (tx.amount < 0 && tx.category !== 'private') expenses += tx.amount;
+    if (tx.amount < 0 && tx.category !== 'private' && tx.category !== 'internal') expenses += tx.amount;
   }
   return {
     incomeThisMonth: income,

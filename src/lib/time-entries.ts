@@ -6,7 +6,8 @@ export type TimeEntrySource =
   | 'login_prompt_confirm'
   | 'login_prompt_adjust'
   | 'gps_tracking_confirm'
-  | 'gps_tracking_adjust';
+  | 'gps_tracking_adjust'
+  | 'gps_tracking_auto';
 
 export interface TimeEntryRecord {
   id: string;
@@ -23,6 +24,13 @@ export interface TimeEntryRecord {
   breakDurationMinutes: number | null;
   exactMinutes: number | null;
   roundingRule: string | null;
+  onsiteMinutes?: number | null;
+  outboundTravelMinutes?: number | null;
+  returnTravelMinutes?: number | null;
+  supplierTravelMinutes?: number | null;
+  supplierStopMinutes?: number | null;
+  supplierVisits?: Array<{ name?: string; address?: string; minutes?: number }> | null;
+  gpsWorkSessionId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

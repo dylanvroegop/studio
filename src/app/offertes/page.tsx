@@ -65,7 +65,7 @@ import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculat
 import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-status';
 import { buildGoogleMapsDirectionsUrl, resolveQuoteProjectAddress } from '@/lib/maps';
 import { useQuoteWorkedHours } from '@/hooks/useQuoteWorkedHours';
-import { formatHoursCompact, getQuoteDriveMinutes } from '@/lib/quote-time-summary';
+import { formatHoursCompact } from '@/lib/quote-time-summary';
 import type { QuoteWithAddress } from '@/lib/tracking-analysis';
 import type { InvoiceStatus, Quote } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -751,26 +751,11 @@ export default function OffertesPage() {
   const [updatingAcceptanceQuoteId, setUpdatingAcceptanceQuoteId] = useState<string | null>(null);
   const [updatingDashboardQuoteId, setUpdatingDashboardQuoteId] = useState<string | null>(null);
   const [profitByQuoteId, setProfitByQuoteId] = useState<Record<string, number>>({});
-  const [hoursPerDay, setHoursPerDay] = useState(8);
   const workedHoursByQuoteId = useQuoteWorkedHours(quotes as QuoteWithAddress[]);
   const isSyncingTotalsRef = useRef(false);
   const isSyncingHoofdtitelsRef = useRef(false);
   const fetchedHoofdtitelIdsRef = useRef<Set<string>>(new Set());
   const didCompleteInitialHoofdtitelSyncRef = useRef(false);
-
-  useEffect(() => {
-    if (!firestore || !user) {
-      setHoursPerDay(8);
-      return;
-    }
-
-    return onSnapshot(doc(firestore, 'users', user.uid), (snapshot) => {
-      const configuredHours = Number(snapshot.data()?.settings?.planningSettings?.defaultWorkdayHours);
-      setHoursPerDay(Number.isFinite(configuredHours) && configuredHours > 0 ? configuredHours : 8);
-    }, () => {
-      setHoursPerDay(8);
-    });
-  }, [firestore, user]);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -2038,7 +2023,6 @@ export default function OffertesPage() {
                 const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
                 const todaySummary = workedHoursByQuoteId[q.id];
                 const todayWorkedHours = todaySummary?.workedHours || 0;
-                const driveMinutes = getQuoteDriveMinutes((q as QuoteRowWithDetails).data_json, { laborHoursPerDay: hoursPerDay });
                 const routeDestinationAddress = resolveQuoteProjectAddress(q);
                 const routeMapsUrl = buildGoogleMapsDirectionsUrl(routeDestinationAddress);
 
@@ -2069,15 +2053,21 @@ export default function OffertesPage() {
                         <span className="opacity-40">•</span>
                         <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
                       </div>
-                      {todayWorkedHours > 0 ? (
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-300">
-                          <Clock3 className="h-3.5 w-3.5" />
-                          Vandaag: {formatHoursCompact(todayWorkedHours)} gewerkt
-                          {driveMinutes > 0 ? ` + ${formatHoursCompact(driveMinutes / 60)} rijden` : ''}
-                        </div>
-                      ) : null}
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0 space-y-0.5 tabular-nums">
+                          {todayWorkedHours > 0 ? (
+                            <>
+                              <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-300">
+                                <Clock3 className="h-3.5 w-3.5" />
+                                {formatHoursCompact(todayWorkedHours)} gewerkt
+                              </div>
+                              {(todaySummary.onsiteMinutes + todaySummary.travelMinutes + todaySummary.supplierMinutes) > 0 ? (
+                                <div className="text-[10px] text-muted-foreground">
+                                  Locatie {formatHoursCompact(todaySummary.onsiteMinutes / 60)} · Reis {formatHoursCompact(todaySummary.travelMinutes / 60)} · Leverancier {formatHoursCompact(todaySummary.supplierMinutes / 60)}
+                                </div>
+                              ) : null}
+                            </>
+                          ) : null}
                           <div className={cn('truncate text-lg font-bold', showUncalculatedPlaceholder ? 'text-blue-300' : 'text-blue-400')}>
                           {showUncalculatedPlaceholder ? (
                             <span className="inline-flex items-center gap-2">
@@ -2245,7 +2235,6 @@ export default function OffertesPage() {
                 const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
                 const todaySummary = workedHoursByQuoteId[q.id];
                 const todayWorkedHours = todaySummary?.workedHours || 0;
-                const driveMinutes = getQuoteDriveMinutes((q as QuoteRowWithDetails).data_json, { laborHoursPerDay: hoursPerDay });
                 const amountClass = cn(
                   'text-2xl font-bold tabular-nums',
                   showUncalculatedPlaceholder ? 'text-blue-300' : 'text-blue-400'
@@ -2289,13 +2278,6 @@ export default function OffertesPage() {
                         {rowDescription ? (
                           <div className="mt-1 truncate text-xs text-muted-foreground/90">{rowDescription}</div>
                         ) : null}
-                        {todayWorkedHours > 0 ? (
-                          <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-emerald-300">
-                            <Clock3 className="h-3.5 w-3.5" />
-                            Vandaag: {formatHoursCompact(todayWorkedHours)} gewerkt
-                            {driveMinutes > 0 ? ` + ${formatHoursCompact(driveMinutes / 60)} rijden` : ''}
-                          </div>
-                        ) : null}
                         <div className={cn('sm:hidden', amountMobileClass)}>
                           {showUncalculatedPlaceholder ? (
                             <span className="inline-flex items-center gap-2">
@@ -2310,6 +2292,19 @@ export default function OffertesPage() {
 
                       <div className="relative z-20 flex items-center gap-1 sm:gap-4">
                         <div className="hidden min-w-[160px] text-right sm:block">
+                          {todayWorkedHours > 0 ? (
+                            <>
+                              <div className="mb-0.5 flex items-center justify-end gap-1.5 text-sm font-semibold tabular-nums text-emerald-300">
+                                <Clock3 className="h-3.5 w-3.5" />
+                                {formatHoursCompact(todayWorkedHours)} gewerkt
+                              </div>
+                              {(todaySummary.onsiteMinutes + todaySummary.travelMinutes + todaySummary.supplierMinutes) > 0 ? (
+                                <div className="mb-1 text-[10px] text-muted-foreground">
+                                  Locatie {formatHoursCompact(todaySummary.onsiteMinutes / 60)} · Reis {formatHoursCompact(todaySummary.travelMinutes / 60)} · Leverancier {formatHoursCompact(todaySummary.supplierMinutes / 60)}
+                                </div>
+                              ) : null}
+                            </>
+                          ) : null}
                           <div className={amountClass}>
                             {showUncalculatedPlaceholder ? (
                               <span className="inline-flex items-center gap-2">

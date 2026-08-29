@@ -144,6 +144,7 @@ interface GoogleCalendarEvent {
   htmlLink?: string | null;
   start?: { dateTime?: string | null; date?: string | null } | null;
   end?: { dateTime?: string | null; date?: string | null } | null;
+  extendedProperties?: { private?: Record<string, string> | null } | null;
 }
 
 export async function POST(request: Request) {
@@ -250,6 +251,12 @@ export async function POST(request: Request) {
       for (const event of events) {
         const eventId = event.id?.trim();
         if (!eventId || event.status === 'cancelled') continue;
+        // Completed GPS work is exported for historical reference only. It
+        // must not be imported back as a new planning item.
+        if (event.extendedProperties?.private?.calvoraType === 'worked-hours') {
+          skipped += 1;
+          continue;
+        }
 
         const parsedRange = eventDateRange(event);
         if (!parsedRange || !overlapsRange(parsedRange.startDate, parsedRange.endDate, rangeStart, rangeEnd)) {

@@ -7,11 +7,25 @@ import {
   mapTransactionView,
 } from '@/lib/bank-overzicht';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
+import { isInternalOwnAccountTransfer } from '@/lib/finance-bank-ledger';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { normalizeBunqProfile } from '@/lib/bunq/client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const PRIVATE_TRANSACTION_RE = /top-?up\s+via\s+bunq|paypal\s+top-?up/i;
+
+function isPrivateTransactionRow(row: unknown): boolean {
+  if (!row || typeof row !== 'object') return false;
+  const record = row as Record<string, unknown>;
+  if (record.category === 'private') return true;
+  return PRIVATE_TRANSACTION_RE.test([
+    record.counterparty_name,
+    record.description,
+    record.remittance_information,
+  ].filter((value): value is string => typeof value === 'string').join(' '));
+}
 
 function currentMonthBounds(): { start: string; nextStart: string } {
   const now = new Date();
@@ -169,120 +183,121 @@ export async function GET(request: Request) {
       .filter(Boolean);
 
     let balancesRows: unknown[] = [];
-    if (accountIds.length > 0) {
-      const balancesResult = await supabaseAdmin
-        .from('bank_balances')
-        .select('*')
-        .in('bank_account_id', accountIds)
-        .order('created_at', { ascending: false });
-      if (balancesResult.error) {
-        return NextResponse.json(
-          { ok: false, message: `Kon saldi niet laden: ${balancesResult.error.message}` },
-          { status: 500, headers: noStoreHeaders() }
-        );
-      }
-      balancesRows = Array.isArray(balancesResult.data) ? balancesResult.data : [];
-    }
-
-    const latestBalanceByAccount = latestBalanceMap(balancesRows);
-    const accounts = accountRows
-      .map((row) => mapAccountView(row, latestBalanceByAccount))
-      .filter((row): row is NonNullable<typeof row> => row !== null);
-
-    const accountNameById = new Map<string, string>(accounts.map((item) => [item.id, item.name]));
-
     let transactionsRaw: unknown[] = [];
-    if (accountIds.length > 0) {
-      const txResult = await supabaseAdmin
-        .from('bank_transactions')
-        .select('*')
-        .in('bank_account_id', accountIds)
-        .order('booking_date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(200);
-      if (txResult.error) {
-        return NextResponse.json(
-          { ok: false, message: `Kon transacties niet laden: ${txResult.error.message}` },
-          { status: 500, headers: noStoreHeaders() }
-        );
-      }
-      transactionsRaw = Array.isArray(txResult.data) ? txResult.data : [];
-    }
-
-    const transactions = transactionsRaw
-      .map((row) => mapTransactionView(row, accountNameById))
-      .filter((row): row is NonNullable<typeof row> => row !== null);
-
     let summaryTransactionsRaw: unknown[] = [];
+    let allOutgoingTransactionsRaw: unknown[] = [];
+    let firstTransactionDate: string | null = null;
+
     if (accountIds.length > 0) {
       const bounds = currentMonthBounds();
-      const summaryTxResult = await supabaseAdmin
-        .from('bank_transactions')
-        .select('*')
-        .in('bank_account_id', accountIds)
-        .gte('booking_date', bounds.start)
-        .lt('booking_date', bounds.nextStart)
-        .order('booking_date', { ascending: false });
+      const [balancesResult, txResult, summaryTxResult, allOutgoingTransactionsResult, firstTransactionResult] = await Promise.all([
+        supabaseAdmin
+          .from('bank_balances')
+          .select('*')
+          .in('bank_account_id', accountIds)
+          .order('created_at', { ascending: false }),
+        supabaseAdmin
+          .from('bank_transactions')
+          .select('*')
+          .in('bank_account_id', accountIds)
+          .order('booking_date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(200),
+        supabaseAdmin
+          .from('bank_transactions')
+          .select('*')
+          .in('bank_account_id', accountIds)
+          .gte('booking_date', bounds.start)
+          .lt('booking_date', bounds.nextStart)
+          .order('booking_date', { ascending: false }),
+        supabaseAdmin
+          .from('bank_transactions')
+          .select('amount,bank_account_id,category,counterparty_name,description,remittance_information,raw')
+          .in('bank_account_id', accountIds)
+          .lt('amount', 0),
+        supabaseAdmin
+          .from('bank_transactions')
+          .select('booking_date')
+          .in('bank_account_id', accountIds)
+          .order('booking_date', { ascending: true })
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+      ]);
 
-      if (summaryTxResult.error) {
-        return NextResponse.json(
-          { ok: false, message: `Kon maandtotalen niet laden: ${summaryTxResult.error.message}` },
-          { status: 500, headers: noStoreHeaders() }
-        );
-      }
+      if (balancesResult.error) throw new Error(`Kon saldi niet laden: ${balancesResult.error.message}`);
+      if (txResult.error) throw new Error(`Kon transacties niet laden: ${txResult.error.message}`);
+      if (summaryTxResult.error) throw new Error(`Kon maandtotalen niet laden: ${summaryTxResult.error.message}`);
+      if (allOutgoingTransactionsResult.error) throw new Error(`Kon totale afschriften niet laden: ${allOutgoingTransactionsResult.error.message}`);
+      if (firstTransactionResult.error) throw new Error(`Kon startdatum van Knab-transacties niet laden: ${firstTransactionResult.error.message}`);
+
+      balancesRows = Array.isArray(balancesResult.data) ? balancesResult.data : [];
+      transactionsRaw = Array.isArray(txResult.data) ? txResult.data : [];
       summaryTransactionsRaw = Array.isArray(summaryTxResult.data) ? summaryTxResult.data : [];
-    }
-
-    const summaryTransactions = summaryTransactionsRaw
-      .map((row) => mapTransactionView(row, accountNameById))
-      .filter((row): row is NonNullable<typeof row> => row !== null);
-
-    let privateTransactionsRaw: unknown[] = [];
-    if (accountIds.length > 0) {
-      const privateTransactionsResult = await supabaseAdmin
-        .from('bank_transactions')
-        .select('amount')
-        .in('bank_account_id', accountIds)
-        .eq('category', 'private')
-        .lt('amount', 0);
-      if (privateTransactionsResult.error) {
-        return NextResponse.json(
-          { ok: false, message: `Kon privé-opnames niet laden: ${privateTransactionsResult.error.message}` },
-          { status: 500, headers: noStoreHeaders() }
-        );
-      }
-      privateTransactionsRaw = Array.isArray(privateTransactionsResult.data) ? privateTransactionsResult.data : [];
-    }
-
-    const privateWithdrawalsTotal = privateTransactionsRaw.reduce((sum: number, row): number => {
-      const amount = row && typeof row === 'object' ? Number((row as Record<string, unknown>).amount) : 0;
-      return Number.isFinite(amount) ? sum + amount : sum;
-    }, 0);
-
-    let firstTransactionDate: string | null = null;
-    if (accountIds.length > 0) {
-      const firstTransactionResult = await supabaseAdmin
-        .from('bank_transactions')
-        .select('booking_date')
-        .in('bank_account_id', accountIds)
-        .order('booking_date', { ascending: true })
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (firstTransactionResult.error) {
-        return NextResponse.json(
-          { ok: false, message: `Kon startdatum van Knab-transacties niet laden: ${firstTransactionResult.error.message}` },
-          { status: 500, headers: noStoreHeaders() }
-        );
-      }
+      allOutgoingTransactionsRaw = Array.isArray(allOutgoingTransactionsResult.data) ? allOutgoingTransactionsResult.data : [];
       firstTransactionDate = typeof firstTransactionResult.data?.booking_date === 'string'
         ? firstTransactionResult.data.booking_date
         : null;
     }
+
+    const latestBalanceByAccount = latestBalanceMap(balancesRows);
+    const accountTotals = new Map<string, { outgoing: number; business: number; private: number }>();
+    allOutgoingTransactionsRaw.forEach((row) => {
+      if (!row || typeof row !== 'object') return;
+      const record = row as Record<string, unknown>;
+      const accountId = typeof record.bank_account_id === 'string' ? record.bank_account_id : '';
+      const amount = Math.abs(Number(record.amount) || 0);
+      if (!accountId || amount <= 0) return;
+      const totals = accountTotals.get(accountId) || { outgoing: 0, business: 0, private: 0 };
+      totals.outgoing += amount;
+      if (isInternalOwnAccountTransfer(row)) {
+        accountTotals.set(accountId, totals);
+        return;
+      }
+      if (isPrivateTransactionRow(row)) totals.private += amount;
+      else totals.business += amount;
+      accountTotals.set(accountId, totals);
+    });
+
+    const accounts = accountRows
+      .map((row) => mapAccountView(row, latestBalanceByAccount))
+      .filter((row): row is NonNullable<typeof row> => row !== null)
+      .map((account) => {
+        const totals = accountTotals.get(account.id) || { outgoing: 0, business: 0, private: 0 };
+        return {
+          ...account,
+          outgoingTotal: totals.outgoing,
+          businessExpensesTotal: totals.business,
+          privateWithdrawalsTotal: totals.private,
+        };
+      });
+
+    const accountNameById = new Map<string, string>(accounts.map((item) => [item.id, item.name]));
+
+    const transactions = transactionsRaw
+      .map((row) => mapTransactionView(
+        isInternalOwnAccountTransfer(row) && row && typeof row === 'object'
+          ? { ...(row as Record<string, unknown>), category: 'internal' }
+          : row,
+        accountNameById,
+      ))
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    const summaryTransactions = summaryTransactionsRaw
+      .map((row) => mapTransactionView(
+        isInternalOwnAccountTransfer(row) && row && typeof row === 'object'
+          ? { ...(row as Record<string, unknown>), category: 'internal' }
+          : row,
+        accountNameById,
+      ))
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    const privateWithdrawalsTotal = Array.from(accountTotals.values()).reduce((sum, totals) => sum - totals.private, 0);
+
     const summary = {
       incomeThisMonth: summaryTransactions.filter((tx) => tx.amount >= 0).reduce((sum, tx) => sum + tx.amount, 0),
       expensesThisMonth: summaryTransactions
-        .filter((tx) => tx.amount < 0 && tx.category !== 'private')
+        .filter((tx) => tx.amount < 0 && tx.category !== 'private' && tx.category !== 'internal')
         .reduce((sum, tx) => sum + tx.amount, 0),
       privateWithdrawalsThisMonth: summaryTransactions
         .filter((tx) => tx.amount < 0 && tx.category === 'private')

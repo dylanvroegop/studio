@@ -445,6 +445,9 @@ export function PendingCostImportPrompt() {
                       <SelectContent>
                         <SelectItem value="materiaal">Materiaal</SelectItem>
                         <SelectItem value="autokosten">Autokosten</SelectItem>
+                        <SelectItem value="boetes">Boetes</SelectItem>
+                        <SelectItem value="schulden">Schulden</SelectItem>
+                        <SelectItem value="afval">Afval</SelectItem>
                         <SelectItem value="brandstof">Benzine</SelectItem>
                         <SelectItem value="gereedschap">Gereedschap</SelectItem>
                         <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>

@@ -10,23 +10,13 @@ import {
   CalendarDays,
   Car,
   CheckCircle2,
-  CircleDollarSign,
   Clock3,
   Fuel,
-  Gauge,
-  MapPin,
-  MapPinned,
   Navigation,
-  Pause,
   RefreshCw,
   Route,
   Settings2,
-  ShoppingBasket,
-  Sparkles,
   Target,
-  TreePine,
-  TrendingUp,
-  Users,
   XCircle,
 } from 'lucide-react';
 
@@ -399,16 +389,12 @@ export function TrackingDayIntelligence({ quotes, history }: TrackingDayIntellig
   const stops = useMemo(() => detectStops(enrichedPoints, quotes), [enrichedPoints, quotes]);
   const trips = useMemo(() => detectTrips(enrichedPoints, stops), [enrichedPoints, stops]);
   const distanceKm = useMemo(() => totalDistanceKm(enrichedPoints), [enrichedPoints]);
-  const trackingMinutes = enrichedPoints.length > 1
-    ? Math.max(0, (new Date(enrichedPoints[enrichedPoints.length - 1].recorded_at).getTime() - new Date(enrichedPoints[0].recorded_at).getTime()) / 60_000)
-    : 0;
   const dateHours = useMemo(
     () => history.filter((entry) => entry.date === selectedDate).reduce((total, entry) => total + entry.totalHours, 0),
     [history, selectedDate],
   );
   const fuelLitres = distanceKm / Math.max(0.1, kmPerLitre);
   const fuelCost = fuelLitres * fuelPrice;
-  const avgSpeed = trackingMinutes > 0 ? distanceKm / (trackingMinutes / 60) : 0;
   const clientHours = useMemo(() => {
     const grouped = new Map<string, { quote: QuoteLike; hours: number }>();
     history.filter((entry) => entry.date === selectedDate && entry.quoteId).forEach((entry) => {
@@ -428,34 +414,14 @@ export function TrackingDayIntelligence({ quotes, history }: TrackingDayIntellig
     void reverseGeocode(stops.map((stop) => stop.position)).catch(() => undefined);
   }, [reverseGeocode, stops]);
 
-  const stopIcon = (type: StopEvent['type']) => {
-    if (type === 'supermarket') return <ShoppingBasket className="h-4 w-4 text-amber-300" />;
-    if (type === 'nature') return <TreePine className="h-4 w-4 text-emerald-300" />;
-    if (type === 'home') return <MapPinned className="h-4 w-4 text-blue-300" />;
-    return <Pause className="h-4 w-4 text-violet-300" />;
-  };
-
   return (
     <section className="mx-auto max-w-7xl space-y-6 px-4 pt-6 sm:px-6 lg:px-8">
-      <div className="relative overflow-hidden rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/70 via-background to-background p-6 shadow-2xl shadow-emerald-950/20 sm:p-8">
-        <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300"><Sparkles className="h-4 w-4" /> Werkdag intelligence</div>
-            <div>
-              <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Waar was je dag echt aan besteed?</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Calvora combineert je uren, GPS-route en bezochte locaties tot één controleerbaar dagbeeld. Zo zie je niet alleen hoeveel je werkte, maar ook wat een klus werkelijk kostte.</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="intelligence-date" className="text-xs text-muted-foreground">Analyse van</Label>
-              <div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input id="intelligence-date" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="pl-9" /></div>
-            </div>
-            <Button type="button" onClick={() => void loadDay()} disabled={isLoading || !selectedDate} className="bg-emerald-500 text-slate-950 hover:bg-emerald-400"><RefreshCw className={isLoading ? 'mr-2 h-4 w-4 animate-spin' : 'mr-2 h-4 w-4'} />{isLoading ? 'Analyseren...' : 'Ververs dag'}</Button>
-          </div>
+      <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-card p-4 sm:flex-row sm:items-center sm:justify-end">
+        <div className="relative">
+          <CalendarDays className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input id="intelligence-date" aria-label="Datum" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="w-full pl-9 sm:w-[180px]" />
         </div>
-        <div className="relative mt-5 flex flex-wrap gap-2 text-xs text-muted-foreground"><Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/5 text-emerald-300"><CheckCircle2 className="mr-1 h-3 w-3" /> GPS-bron actief</Badge><Badge variant="outline" className="border-border/70"><BriefcaseBusiness className="mr-1 h-3 w-3" /> uren aan offertes gekoppeld</Badge><Badge variant="outline" className="border-border/70"><Fuel className="mr-1 h-3 w-3" /> brandstof op 13 km/l</Badge></div>
+        <Button type="button" onClick={() => void loadDay()} disabled={isLoading || !selectedDate}><RefreshCw className={isLoading ? 'mr-2 h-4 w-4 animate-spin' : 'mr-2 h-4 w-4'} />{isLoading ? 'Verversen...' : 'Ververs dag'}</Button>
       </div>
 
       {error ? <div className="flex items-start gap-3 rounded-2xl border border-amber-500/40 bg-amber-950/20 p-4 text-sm text-amber-100"><XCircle className="mt-0.5 h-4 w-4 shrink-0" /><div><div className="font-medium">GPS-analyse kon niet worden geladen</div><div className="mt-1 text-amber-100/70">{error}</div></div></div> : null}
@@ -464,12 +430,10 @@ export function TrackingDayIntelligence({ quotes, history }: TrackingDayIntellig
         <Card className="border-dashed"><CardContent className="flex min-h-40 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground"><Activity className="h-5 w-5 animate-pulse text-emerald-400" />{isLoading ? 'De dag wordt opgebouwd uit je GPS-punten...' : 'Kies een datum om de daganalyse te starten.'}</CardContent></Card>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Metric icon={<Clock3 className="h-4 w-4" />} label="Geregistreerde uren" value={formatHours(dateHours)} detail={`${clientHours.length} klant${clientHours.length === 1 ? '' : 'en'} gekoppeld`} tone="emerald" />
             <Metric icon={<Route className="h-4 w-4" />} label="Gereden afstand" value={`${distanceKm.toFixed(1)} km`} detail={`${trips.length} herkende ritten`} tone="blue" />
             <Metric icon={<Fuel className="h-4 w-4" />} label="Brandstof" value={formatCurrency(fuelCost)} detail={`${fuelLitres.toFixed(1)} liter · €${fuelPrice.toFixed(2)}/l`} tone="amber" />
-            <Metric icon={<MapPin className="h-4 w-4" />} label="Locaties" value={String(stops.length)} detail="stops van 8+ minuten" />
-            <Metric icon={<Gauge className="h-4 w-4" />} label="GPS-tijdsvenster" value={formatDuration(trackingMinutes)} detail={`gemiddeld ${avgSpeed.toFixed(0)} km/u`} />
             <Metric icon={<Target className="h-4 w-4" />} label="Werkdagdoel" value={`${Math.round((dateHours / 8) * 100)}%`} detail={dateHours >= 8 ? 'dagdoel gehaald' : `${formatHours(Math.max(0, 8 - dateHours))} tot 8 uur`} tone={dateHours >= 8 ? 'emerald' : 'default'} />
           </div>
 
@@ -479,15 +443,10 @@ export function TrackingDayIntelligence({ quotes, history }: TrackingDayIntellig
             <Card><CardHeader><CardTitle className="flex items-center gap-2"><Fuel className="h-5 w-5 text-amber-300" />Kosten van onderweg</CardTitle><CardDescription>De echte kostprijs van je bewegingen, los van je uurtarief.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="rounded-2xl bg-amber-500/10 p-4"><div className="text-xs text-muted-foreground">Brandstofindicatie</div><div className="mt-1 text-3xl font-semibold text-amber-200">{formatCurrency(fuelCost)}</div><div className="mt-1 text-xs text-muted-foreground">{distanceKm.toFixed(1)} km ÷ {kmPerLitre.toFixed(1)} km/l × {formatCurrency(fuelPrice)}</div></div><div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl border border-border/70 p-3"><div className="text-xs text-muted-foreground">Liter verbruikt</div><div className="mt-1 font-semibold">{fuelLitres.toFixed(1)} l</div></div><div className="rounded-xl border border-border/70 p-3"><div className="text-xs text-muted-foreground">Per werkuur</div><div className="mt-1 font-semibold">{dateHours > 0 ? formatCurrency(fuelCost / dateHours) : '—'}</div></div></div><Button variant="outline" size="sm" onClick={() => setShowSettings((value) => !value)}><Settings2 className="mr-2 h-4 w-4" />Voertuiginstellingen</Button>{showSettings ? <div className="grid gap-3 rounded-xl border border-border/70 bg-muted/10 p-3 sm:grid-cols-2"><div className="space-y-1"><Label className="text-xs">Kilometer per liter</Label><Input type="number" min="1" step="0.1" value={kmPerLitre} onChange={(event) => setKmPerLitre(Number(event.target.value) || DEFAULT_KM_PER_LITRE)} /></div><div className="space-y-1"><Label className="text-xs">Brandstofprijs per liter</Label><Input type="number" min="0.1" step="0.01" value={fuelPrice} onChange={(event) => setFuelPrice(Number(event.target.value) || DEFAULT_FUEL_PRICE)} /></div></div> : null}<div className="flex items-start gap-2 text-xs text-muted-foreground"><Car className="mt-0.5 h-4 w-4 shrink-0" />Op basis van je ingestelde auto: 1 op {kmPerLitre.toFixed(1)}. Dit is een kostprijsindicatie; parkeren, onderhoud en afschrijving komen hier nog bovenop.</div></CardContent></Card>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-            <Card><CardHeader><CardTitle className="flex items-center gap-2"><MapPinned className="h-5 w-5 text-violet-300" />Bezochte locaties</CardTitle><CardDescription>Rustpunten, boodschappen en mogelijke klantlocaties uit de GPS-tijdlijn.</CardDescription></CardHeader><CardContent className="space-y-3">{stops.length === 0 ? <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Geen stops van minimaal 8 minuten gevonden.</div> : stops.map((stop) => <div key={stop.id} className="flex gap-3 rounded-2xl border border-border/70 bg-background/40 p-3"><div className="mt-0.5 rounded-xl bg-muted/60 p-2">{stopIcon(stop.type)}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{positionLabel(stop.position)}</span>{stop.matchedQuote ? <Badge className="bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/15">Klantlocatie</Badge> : null}</div><div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"><span>{formatTime(stop.start)}–{formatTime(stop.end)}</span><span>{formatDuration(stop.durationMinutes)}</span>{stop.matchedQuote ? <span className="text-emerald-300">{quoteClientName(stop.matchedQuote)}</span> : null}</div></div></div>)}</CardContent></Card>
-
-            <Card><CardHeader><CardTitle className="flex items-center gap-2"><BriefcaseBusiness className="h-5 w-5 text-emerald-400" />Uren per klant</CardTitle><CardDescription>De uren uit deze dag, rechtstreeks gekoppeld aan je offertes.</CardDescription></CardHeader><CardContent className="space-y-3">{clientHours.length === 0 ? <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Nog geen uren aan een klant gekoppeld op deze datum. <Link className="text-emerald-300 hover:underline" href={`/urenregistratie?tab=manual`}>Uren boeken</Link></div> : clientHours.map(({ quote, hours }) => { const gpsStop = stops.find((stop) => stop.matchedQuote?.id === quote.id); return <div key={quote.id} className="rounded-2xl border border-border/70 p-3"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><div className="truncate font-medium">{quoteClientName(quote)}</div><div className="truncate text-xs text-muted-foreground">{quoteLabel(quote)}</div></div><div className="text-right"><div className="font-semibold text-emerald-300">{formatHours(hours)}</div><div className="text-xs text-muted-foreground">geregistreerd</div></div></div><div className="mt-3 flex flex-wrap items-center gap-2 text-xs">{gpsStop ? <Badge variant="outline" className="border-emerald-500/30 text-emerald-300"><CheckCircle2 className="mr-1 h-3 w-3" />GPS bevestigt bezoek ({formatDuration(gpsStop.durationMinutes)})</Badge> : <Badge variant="outline" className="border-amber-500/30 text-amber-300"><XCircle className="mr-1 h-3 w-3" />Geen GPS-match</Badge>}<Link href={`/urenregistratie?tab=manual&quoteId=${encodeURIComponent(quote.id)}`} className="ml-auto inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">Aanpassen <ArrowRight className="h-3 w-3" /></Link></div></div>; })}</CardContent></Card>
-          </div>
+          <Card><CardHeader><CardTitle className="flex items-center gap-2"><BriefcaseBusiness className="h-5 w-5 text-emerald-400" />Uren per klant</CardTitle><CardDescription>De uren uit deze dag, rechtstreeks gekoppeld aan je offertes.</CardDescription></CardHeader><CardContent className="space-y-3">{clientHours.length === 0 ? <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Geen klanturen geregistreerd op deze datum.</div> : clientHours.map(({ quote, hours }) => { const gpsStop = stops.find((stop) => stop.matchedQuote?.id === quote.id); return <div key={quote.id} className="rounded-2xl border border-border/70 p-3"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><div className="truncate font-medium">{quoteClientName(quote)}</div><div className="truncate text-xs text-muted-foreground">{quoteLabel(quote)}</div></div><div className="text-right"><div className="font-semibold text-emerald-300">{formatHours(hours)}</div><div className="text-xs text-muted-foreground">geregistreerd</div></div></div><div className="mt-3 flex flex-wrap items-center gap-2 text-xs">{gpsStop ? <Badge variant="outline" className="border-emerald-500/30 text-emerald-300"><CheckCircle2 className="mr-1 h-3 w-3" />GPS bevestigt bezoek ({formatDuration(gpsStop.durationMinutes)})</Badge> : <Badge variant="outline" className="border-amber-500/30 text-amber-300"><XCircle className="mr-1 h-3 w-3" />Geen GPS-match</Badge>}</div></div>; })}</CardContent></Card>
 
           <Card><CardHeader><div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between"><div><CardTitle className="flex items-center gap-2"><Route className="h-5 w-5 text-blue-300" />Ritten en tijdlijn</CardTitle><CardDescription>Afgeleid uit de overgang tussen rustpunten. Kleine GPS-bewegingen worden bewust niet als rit geteld.</CardDescription></div><div className="text-xs text-muted-foreground">{trips.reduce((sum, trip) => sum + trip.distanceKm, 0).toFixed(1)} km in herkende ritten</div></div></CardHeader><CardContent>{trips.length === 0 ? <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Geen ritten van minimaal 500 meter herkend.</div> : <div className="grid gap-3 md:grid-cols-2">{trips.map((trip) => <div key={trip.id} className="flex items-start gap-3 rounded-2xl border border-border/70 p-4"><div className="rounded-xl bg-blue-500/10 p-2"><Car className="h-4 w-4 text-blue-300" /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><span className="font-medium">{trip.distanceKm.toFixed(1)} km</span><span className="text-xs text-muted-foreground">{formatTime(trip.start)}–{formatTime(trip.end)}</span></div><div className="mt-1 truncate text-sm text-muted-foreground">{trip.from} <ArrowRight className="mx-1 inline h-3 w-3" /> {trip.to}</div><div className="mt-2 text-xs text-muted-foreground">Indicatieve brandstof: {formatCurrency((trip.distanceKm / Math.max(0.1, kmPerLitre)) * fuelPrice)}</div></div></div>)}</div>}</CardContent></Card>
 
-          <Card><CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-emerald-400" />Wat je met deze data kunt sturen</CardTitle><CardDescription>Deze dag geeft al drie praktische signalen voor je planning en nacalculatie.</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-3"><div className="rounded-2xl bg-emerald-500/10 p-4"><div className="flex items-center gap-2 text-sm font-medium text-emerald-200"><Users className="h-4 w-4" />Klantwinst</div><p className="mt-2 text-xs leading-5 text-muted-foreground">Vergelijk geregistreerde uren met GPS-aanwezigheid op de klantlocatie. Zo zie je sneller waar reistijd of wachten je marge opeet.</p></div><div className="rounded-2xl bg-blue-500/10 p-4"><div className="flex items-center gap-2 text-sm font-medium text-blue-200"><Navigation className="h-4 w-4" />Reisgedrag</div><p className="mt-2 text-xs leading-5 text-muted-foreground">De ritten laten zien welke klanten ver uit elkaar liggen en welke routes je structureel kunt combineren.</p></div><div className="rounded-2xl bg-amber-500/10 p-4"><div className="flex items-center gap-2 text-sm font-medium text-amber-200"><CircleDollarSign className="h-4 w-4" />Werkelijke kostprijs</div><p className="mt-2 text-xs leading-5 text-muted-foreground">Brandstof staat nu naast je uren. Later kunnen parkeren, onderhoud, afschrijving en materiaalstops aan dezelfde dag worden toegevoegd.</p></div></CardContent></Card>
         </>
       )}
     </section>
