@@ -36,8 +36,10 @@ interface PendingSession {
   onsite_minutes: number;
   outbound_travel_minutes: number;
   return_travel_minutes: number;
+  client_transfer_minutes: number;
   supplier_travel_minutes: number;
   supplier_stop_minutes: number;
+  unallocated_minutes: number;
   supplier_visits: SupplierVisit[];
 }
 
@@ -144,6 +146,7 @@ export function GpsWorkSessionPrompt() {
     return Number(current.onsite_minutes || 0)
       + (includeOutbound ? Number(current.outbound_travel_minutes || 0) : 0)
       + (includeReturn ? Number(current.return_travel_minutes || 0) : 0)
+      + Number(current.client_transfer_minutes || 0)
       + (includeSupplier ? Number(current.supplier_travel_minutes || 0) + Number(current.supplier_stop_minutes || 0) : 0);
   }, [current, includeOutbound, includeReturn, includeSupplier]);
 
@@ -228,9 +231,16 @@ export function GpsWorkSessionPrompt() {
           <div className="space-y-2">
             <BreakdownRow icon={<MapPin className="h-4 w-4" />} label="Op locatie" value={current.onsite_minutes} />
             <BreakdownRow icon={<Navigation className="h-4 w-4" />} label="Heenreis" value={current.outbound_travel_minutes} checked={includeOutbound} onCheckedChange={setIncludeOutbound} optional />
+            <BreakdownRow icon={<Navigation className="h-4 w-4" />} label="Tussen klanten" value={current.client_transfer_minutes} />
             <BreakdownRow icon={<ShoppingCart className="h-4 w-4" />} label="Materiaalrit en leverancier" value={Number(current.supplier_travel_minutes || 0) + Number(current.supplier_stop_minutes || 0)} checked={includeSupplier} onCheckedChange={setIncludeSupplier} optional />
             <BreakdownRow icon={<Navigation className="h-4 w-4 rotate-180" />} label="Terugreis" value={current.return_travel_minutes} checked={includeReturn} onCheckedChange={setIncludeReturn} optional />
           </div>
+
+          {Number(current.unallocated_minutes || 0) > 0 ? (
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+              {duration(current.unallocated_minutes)} niet ingedeeld (pauze of ontbrekende GPS). Dit wordt niet aan de offerte toegevoegd.
+            </div>
+          ) : null}
 
           {supplierNames.length > 0 ? (
             <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm">

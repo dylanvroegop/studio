@@ -2063,7 +2063,7 @@ export default function OffertesPage() {
                               </div>
                               {(todaySummary.onsiteMinutes + todaySummary.travelMinutes + todaySummary.supplierMinutes) > 0 ? (
                                 <div className="text-[10px] text-muted-foreground">
-                                  Locatie {formatHoursCompact(todaySummary.onsiteMinutes / 60)} · Reis {formatHoursCompact(todaySummary.travelMinutes / 60)} · Leverancier {formatHoursCompact(todaySummary.supplierMinutes / 60)}
+                                  Locatie {formatHoursCompact(todaySummary.onsiteMinutes / 60)} · Reis {formatHoursCompact(todaySummary.travelMinutes / 60)} · Leverancier {formatHoursCompact(todaySummary.supplierMinutes / 60)}{todaySummary.unallocatedMinutes > 0 ? ` · Niet ingedeeld ${formatHoursCompact(todaySummary.unallocatedMinutes / 60)}` : ''}
                                 </div>
                               ) : null}
                             </>
@@ -2300,7 +2300,7 @@ export default function OffertesPage() {
                               </div>
                               {(todaySummary.onsiteMinutes + todaySummary.travelMinutes + todaySummary.supplierMinutes) > 0 ? (
                                 <div className="mb-1 text-[10px] text-muted-foreground">
-                                  Locatie {formatHoursCompact(todaySummary.onsiteMinutes / 60)} · Reis {formatHoursCompact(todaySummary.travelMinutes / 60)} · Leverancier {formatHoursCompact(todaySummary.supplierMinutes / 60)}
+                                  Locatie {formatHoursCompact(todaySummary.onsiteMinutes / 60)} · Reis {formatHoursCompact(todaySummary.travelMinutes / 60)} · Leverancier {formatHoursCompact(todaySummary.supplierMinutes / 60)}{todaySummary.unallocatedMinutes > 0 ? ` · Niet ingedeeld ${formatHoursCompact(todaySummary.unallocatedMinutes / 60)}` : ''}
                                 </div>
                               ) : null}
                             </>

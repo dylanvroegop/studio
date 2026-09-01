@@ -26,9 +26,11 @@ create table if not exists public.gps_work_sessions (
   onsite_minutes integer not null default 0 check (onsite_minutes >= 0),
   outbound_travel_minutes integer not null default 0 check (outbound_travel_minutes >= 0),
   return_travel_minutes integer not null default 0 check (return_travel_minutes >= 0),
+  client_transfer_minutes integer not null default 0 check (client_transfer_minutes >= 0),
   supplier_travel_minutes integer not null default 0 check (supplier_travel_minutes >= 0),
   supplier_stop_minutes integer not null default 0 check (supplier_stop_minutes >= 0),
   supplier_visits jsonb not null default '[]'::jsonb,
+  unallocated_minutes integer not null default 0 check (unallocated_minutes >= 0),
   included_minutes integer not null default 0 check (included_minutes >= 0),
   time_entry_id uuid null references public.time_entries(id) on delete set null,
   created_at timestamptz not null default now(),
@@ -43,8 +45,10 @@ alter table public.time_entries
   add column if not exists onsite_minutes integer null check (onsite_minutes is null or onsite_minutes >= 0),
   add column if not exists outbound_travel_minutes integer null check (outbound_travel_minutes is null or outbound_travel_minutes >= 0),
   add column if not exists return_travel_minutes integer null check (return_travel_minutes is null or return_travel_minutes >= 0),
+  add column if not exists client_transfer_minutes integer null check (client_transfer_minutes is null or client_transfer_minutes >= 0),
   add column if not exists supplier_travel_minutes integer null check (supplier_travel_minutes is null or supplier_travel_minutes >= 0),
   add column if not exists supplier_stop_minutes integer null check (supplier_stop_minutes is null or supplier_stop_minutes >= 0),
+  add column if not exists unallocated_minutes integer null check (unallocated_minutes is null or unallocated_minutes >= 0),
   add column if not exists supplier_visits jsonb null,
   add column if not exists gps_work_session_id uuid null references public.gps_work_sessions(id) on delete set null;
 

@@ -23,9 +23,11 @@ export async function confirmGpsWorkSession(
   const onsite = Number(session.onsite_minutes) || 0;
   const outbound = options.includeOutbound ? Number(session.outbound_travel_minutes) || 0 : 0;
   const returnTravel = options.includeReturn ? Number(session.return_travel_minutes) || 0 : 0;
+  const clientTransfer = Number(session.client_transfer_minutes) || 0;
   const supplierTravel = options.includeSupplier ? Number(session.supplier_travel_minutes) || 0 : 0;
   const supplierStop = options.includeSupplier ? Number(session.supplier_stop_minutes) || 0 : 0;
-  const includedMinutes = onsite + outbound + returnTravel + supplierTravel + supplierStop;
+  const unallocated = Number(session.unallocated_minutes) || 0;
+  const includedMinutes = onsite + outbound + returnTravel + clientTransfer + supplierTravel + supplierStop;
   if (includedMinutes <= 0 || includedMinutes > 24 * 60) throw new Error('De berekende werktijd is ongeldig.');
 
   const sessionId = String(session.id || '');
@@ -63,13 +65,15 @@ export async function confirmGpsWorkSession(
     end_time: new Intl.DateTimeFormat('nl-NL', { timeZone: 'Europe/Amsterdam', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(String(session.end_at))),
     exact_minutes: includedMinutes,
     rounding_rule: options.automatic
-      ? 'GPS-werkdag automatisch: locatie, reis en leveranciersbezoek afzonderlijk gemeten'
-      : 'GPS-werkdag: locatie, reis en leveranciersbezoek afzonderlijk gemeten',
+      ? 'GPS-werkdag automatisch: locatie, tussen-klantenreis en leveranciersbezoek afzonderlijk gemeten'
+      : 'GPS-werkdag: locatie, tussen-klantenreis en leveranciersbezoek afzonderlijk gemeten',
     onsite_minutes: onsite,
     outbound_travel_minutes: outbound,
     return_travel_minutes: returnTravel,
+    client_transfer_minutes: clientTransfer,
     supplier_travel_minutes: supplierTravel,
     supplier_stop_minutes: supplierStop,
+    unallocated_minutes: unallocated,
     supplier_visits: supplierVisits,
     gps_work_session_id: sessionId,
     updated_at: new Date().toISOString(),

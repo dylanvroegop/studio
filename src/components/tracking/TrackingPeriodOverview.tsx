@@ -13,7 +13,7 @@ import {
   startOfYear,
 } from 'date-fns';
 import { nl } from 'date-fns/locale';
-import { Building2, CalendarDays, Car, Clock3, MapPin, Store } from 'lucide-react';
+import { AlertTriangle, Building2, CalendarDays, Car, Clock3, MapPin, Store } from 'lucide-react';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -28,8 +28,10 @@ export interface TrackingTimeEntry {
   onsiteMinutes?: number;
   outboundTravelMinutes?: number;
   returnTravelMinutes?: number;
+  clientTransferMinutes?: number;
   supplierTravelMinutes?: number;
   supplierStopMinutes?: number;
+  unallocatedMinutes?: number;
 }
 
 interface TrackingQuote {
@@ -61,15 +63,19 @@ interface Totals {
   onsite: number;
   travel: number;
   supplier: number;
+  unallocated: number;
 }
 
 function entryMinutes(entry: TrackingTimeEntry): Totals {
   const onsite = Number(entry.onsiteMinutes || 0);
-  const travel = Number(entry.outboundTravelMinutes || 0) + Number(entry.returnTravelMinutes || 0);
+  const travel = Number(entry.outboundTravelMinutes || 0)
+    + Number(entry.returnTravelMinutes || 0)
+    + Number(entry.clientTransferMinutes || 0);
   const supplier = Number(entry.supplierTravelMinutes || 0) + Number(entry.supplierStopMinutes || 0);
+  const unallocated = Number(entry.unallocatedMinutes || 0);
   const exact = Number(entry.exactMinutes || 0);
   const recorded = exact > 0 ? exact : Math.round(Number(entry.totalHours || 0) * 60);
-  return { total: recorded, onsite, travel, supplier };
+  return { total: recorded, onsite, travel, supplier, unallocated };
 }
 
 function addTotals(left: Totals, right: Totals): Totals {
@@ -78,6 +84,7 @@ function addTotals(left: Totals, right: Totals): Totals {
     onsite: left.onsite + right.onsite,
     travel: left.travel + right.travel,
     supplier: left.supplier + right.supplier,
+    unallocated: left.unallocated + right.unallocated,
   };
 }
 
@@ -135,11 +142,11 @@ export function TrackingPeriodOverview({ history, quotes, mode, loading = false 
     const date = parseISO(entry.date);
     return isWithinInterval(date, range);
   }), [history, range]);
-  const totals = useMemo(() => filtered.reduce((sum, entry) => addTotals(sum, entryMinutes(entry)), { total: 0, onsite: 0, travel: 0, supplier: 0 }), [filtered]);
+  const totals = useMemo(() => filtered.reduce((sum, entry) => addTotals(sum, entryMinutes(entry)), { total: 0, onsite: 0, travel: 0, supplier: 0, unallocated: 0 }), [filtered]);
 
   const days = useMemo(() => {
     const grouped = new Map<string, Totals>();
-    filtered.forEach((entry) => grouped.set(entry.date, addTotals(grouped.get(entry.date) || { total: 0, onsite: 0, travel: 0, supplier: 0 }, entryMinutes(entry))));
+    filtered.forEach((entry) => grouped.set(entry.date, addTotals(grouped.get(entry.date) || { total: 0, onsite: 0, travel: 0, supplier: 0, unallocated: 0 }, entryMinutes(entry))));
     return Array.from(grouped.entries()).sort(([left], [right]) => right.localeCompare(left));
   }, [filtered]);
 
@@ -149,7 +156,7 @@ export function TrackingPeriodOverview({ history, quotes, mode, loading = false 
       const key = entry.quoteId || 'unassigned';
       const current = grouped.get(key) || {
         quote: quotes.find((quote) => quote.id === entry.quoteId),
-        totals: { total: 0, onsite: 0, travel: 0, supplier: 0 },
+        totals: { total: 0, onsite: 0, travel: 0, supplier: 0, unallocated: 0 },
         dates: new Set<string>(),
       };
       current.totals = addTotals(current.totals, entryMinutes(entry));
@@ -188,20 +195,21 @@ export function TrackingPeriodOverview({ history, quotes, mode, loading = false 
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric label="Totaal gewerkt" value={formatMinutes(totals.total)} icon={<Clock3 className="h-4 w-4" />} />
         <Metric label="Op locatie" value={formatMinutes(totals.onsite)} icon={<MapPin className="h-4 w-4" />} />
         <Metric label="Reistijd" value={formatMinutes(totals.travel)} icon={<Car className="h-4 w-4" />} />
         <Metric label="Leverancier" value={formatMinutes(totals.supplier)} icon={<Store className="h-4 w-4" />} />
+        <Metric label="Niet ingedeeld" value={formatMinutes(totals.unallocated)} icon={<AlertTriangle className="h-4 w-4" />} />
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
         {loading ? <div className="p-8 text-center text-sm text-muted-foreground">Gegevens laden...</div> : null}
         {!loading && mode === 'period' ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-sm">
-              <thead className="border-b bg-muted/20 text-left text-xs text-muted-foreground"><tr><th className="px-4 py-3 font-medium">Datum</th><th className="px-4 py-3 text-right font-medium">Totaal</th><th className="px-4 py-3 text-right font-medium">Locatie</th><th className="px-4 py-3 text-right font-medium">Reis</th><th className="px-4 py-3 text-right font-medium">Leverancier</th></tr></thead>
-              <tbody>{days.map(([date, day]) => <tr key={date} className="border-b border-border/50 last:border-0"><td className="px-4 py-3 font-medium">{format(parseISO(date), 'EEEE d MMMM', { locale: nl })}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{formatMinutes(day.total)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(day.onsite)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(day.travel)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(day.supplier)}</td></tr>)}</tbody>
+            <table className="w-full min-w-[790px] text-sm">
+              <thead className="border-b bg-muted/20 text-left text-xs text-muted-foreground"><tr><th className="px-4 py-3 font-medium">Datum</th><th className="px-4 py-3 text-right font-medium">Totaal</th><th className="px-4 py-3 text-right font-medium">Locatie</th><th className="px-4 py-3 text-right font-medium">Reis</th><th className="px-4 py-3 text-right font-medium">Leverancier</th><th className="px-4 py-3 text-right font-medium">Niet ingedeeld</th></tr></thead>
+              <tbody>{days.map(([date, day]) => <tr key={date} className="border-b border-border/50 last:border-0"><td className="px-4 py-3 font-medium">{format(parseISO(date), 'EEEE d MMMM', { locale: nl })}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{formatMinutes(day.total)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(day.onsite)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(day.travel)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(day.supplier)}</td><td className="px-4 py-3 text-right tabular-nums text-amber-300">{formatMinutes(day.unallocated)}</td></tr>)}</tbody>
             </table>
             {days.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground">Geen geregistreerde uren in deze periode.</div> : null}
           </div>
@@ -209,9 +217,9 @@ export function TrackingPeriodOverview({ history, quotes, mode, loading = false 
 
         {!loading && mode === 'clients' ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-sm">
-              <thead className="border-b bg-muted/20 text-left text-xs text-muted-foreground"><tr><th className="px-4 py-3 font-medium">Klant</th><th className="px-4 py-3 font-medium">Offerte</th><th className="px-4 py-3 text-right font-medium">Dagen</th><th className="px-4 py-3 text-right font-medium">Totaal</th><th className="px-4 py-3 text-right font-medium">Locatie</th><th className="px-4 py-3 text-right font-medium">Reis</th><th className="px-4 py-3 text-right font-medium">Leverancier</th></tr></thead>
-              <tbody>{clients.map((client, index) => <tr key={client.quote?.id || `unassigned-${index}`} className="border-b border-border/50 last:border-0"><td className="px-4 py-3"><div className="flex items-center gap-2 font-medium"><Building2 className="h-4 w-4 text-muted-foreground" />{clientName(client.quote)}</div></td><td className="px-4 py-3 text-muted-foreground">{quoteLabel(client.quote)}</td><td className="px-4 py-3 text-right tabular-nums">{client.dates.size}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{formatMinutes(client.totals.total)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(client.totals.onsite)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(client.totals.travel)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(client.totals.supplier)}</td></tr>)}</tbody>
+            <table className="w-full min-w-[930px] text-sm">
+              <thead className="border-b bg-muted/20 text-left text-xs text-muted-foreground"><tr><th className="px-4 py-3 font-medium">Klant</th><th className="px-4 py-3 font-medium">Offerte</th><th className="px-4 py-3 text-right font-medium">Dagen</th><th className="px-4 py-3 text-right font-medium">Totaal</th><th className="px-4 py-3 text-right font-medium">Locatie</th><th className="px-4 py-3 text-right font-medium">Reis</th><th className="px-4 py-3 text-right font-medium">Leverancier</th><th className="px-4 py-3 text-right font-medium">Niet ingedeeld</th></tr></thead>
+              <tbody>{clients.map((client, index) => <tr key={client.quote?.id || `unassigned-${index}`} className="border-b border-border/50 last:border-0"><td className="px-4 py-3"><div className="flex items-center gap-2 font-medium"><Building2 className="h-4 w-4 text-muted-foreground" />{clientName(client.quote)}</div></td><td className="px-4 py-3 text-muted-foreground">{quoteLabel(client.quote)}</td><td className="px-4 py-3 text-right tabular-nums">{client.dates.size}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{formatMinutes(client.totals.total)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(client.totals.onsite)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(client.totals.travel)}</td><td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatMinutes(client.totals.supplier)}</td><td className="px-4 py-3 text-right tabular-nums text-amber-300">{formatMinutes(client.totals.unallocated)}</td></tr>)}</tbody>
             </table>
             {clients.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground">Geen klanturen in deze periode.</div> : null}
           </div>

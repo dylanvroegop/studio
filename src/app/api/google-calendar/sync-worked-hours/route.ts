@@ -24,8 +24,10 @@ interface WorkedEntry {
   onsite_minutes: number | null;
   outbound_travel_minutes: number | null;
   return_travel_minutes: number | null;
+  client_transfer_minutes: number | null;
   supplier_travel_minutes: number | null;
   supplier_stop_minutes: number | null;
+  unallocated_minutes: number | null;
 }
 
 interface WorkedDay {
@@ -35,6 +37,7 @@ interface WorkedDay {
   onsiteMinutes: number;
   travelMinutes: number;
   supplierMinutes: number;
+  unallocatedMinutes: number;
   clientName: string;
   quoteNumber: string;
 }
@@ -93,6 +96,7 @@ function measuredMinutes(row: WorkedEntry): number {
   return Number(row.onsite_minutes || 0)
     + Number(row.outbound_travel_minutes || 0)
     + Number(row.return_travel_minutes || 0)
+    + Number(row.client_transfer_minutes || 0)
     + Number(row.supplier_travel_minutes || 0)
     + Number(row.supplier_stop_minutes || 0);
 }
@@ -169,7 +173,7 @@ export async function POST(request: Request) {
     const today = todayInAmsterdam();
     const { data, error } = await supabaseAdmin
       .from('time_entries')
-      .select('work_date,quote_id,source,exact_minutes,worked_hours,onsite_minutes,outbound_travel_minutes,return_travel_minutes,supplier_travel_minutes,supplier_stop_minutes')
+      .select('work_date,quote_id,source,exact_minutes,worked_hours,onsite_minutes,outbound_travel_minutes,return_travel_minutes,client_transfer_minutes,supplier_travel_minutes,supplier_stop_minutes,unallocated_minutes')
       .eq('user_id', decoded.uid)
       .lt('work_date', today)
       .not('quote_id', 'is', null)
@@ -207,13 +211,17 @@ export async function POST(request: Request) {
         onsiteMinutes: 0,
         travelMinutes: 0,
         supplierMinutes: 0,
+        unallocatedMinutes: 0,
         clientName,
         quoteNumber,
       };
       current.minutes += entryMinutes(row);
       current.onsiteMinutes += onsiteMinutes(row);
-      current.travelMinutes += Number(row.outbound_travel_minutes || 0) + Number(row.return_travel_minutes || 0);
+      current.travelMinutes += Number(row.outbound_travel_minutes || 0)
+        + Number(row.return_travel_minutes || 0)
+        + Number(row.client_transfer_minutes || 0);
       current.supplierMinutes += Number(row.supplier_travel_minutes || 0) + Number(row.supplier_stop_minutes || 0);
+      current.unallocatedMinutes += Number(row.unallocated_minutes || 0);
       grouped.set(key, current);
     });
 
@@ -237,6 +245,7 @@ export async function POST(request: Request) {
         `Op locatie: ${formatMinutes(item.onsiteMinutes)}`,
         `Reis: ${formatMinutes(item.travelMinutes)}`,
         `Leverancier: ${formatMinutes(item.supplierMinutes)}`,
+        item.unallocatedMinutes > 0 ? `Niet ingedeeld: ${formatMinutes(item.unallocatedMinutes)}` : '',
       ].filter(Boolean).join('\n'),
       colorId: GOOGLE_CALENDAR_BLUE_COLOR_ID,
     }));

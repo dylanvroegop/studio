@@ -50,11 +50,14 @@ function mapEntry(row: Record<string, unknown>): TimeEntry {
   const rawOnsiteMinutes = numberValue(row.onsite_minutes ?? row.onsiteMinutes);
   const outboundTravelMinutes = numberValue(row.outbound_travel_minutes ?? row.outboundTravelMinutes);
   const returnTravelMinutes = numberValue(row.return_travel_minutes ?? row.returnTravelMinutes);
+  const clientTransferMinutes = numberValue(row.client_transfer_minutes ?? row.clientTransferMinutes);
   const supplierTravelMinutes = numberValue(row.supplier_travel_minutes ?? row.supplierTravelMinutes);
   const supplierStopMinutes = numberValue(row.supplier_stop_minutes ?? row.supplierStopMinutes);
+  const unallocatedMinutes = numberValue(row.unallocated_minutes ?? row.unallocatedMinutes);
   const hasBreakdown = Number(rawOnsiteMinutes || 0)
     + Number(outboundTravelMinutes || 0)
     + Number(returnTravelMinutes || 0)
+    + Number(clientTransferMinutes || 0)
     + Number(supplierTravelMinutes || 0)
     + Number(supplierStopMinutes || 0) > 0;
   return {
@@ -67,8 +70,10 @@ function mapEntry(row: Record<string, unknown>): TimeEntry {
     onsiteMinutes: !hasBreakdown && source.startsWith('gps_tracking_') ? exactMinutes : rawOnsiteMinutes,
     outboundTravelMinutes,
     returnTravelMinutes,
+    clientTransferMinutes,
     supplierTravelMinutes,
     supplierStopMinutes,
+    unallocatedMinutes,
     createdAt: String(row.created_at ?? row.createdAt ?? ''),
   };
 }
@@ -77,6 +82,7 @@ function isGpsEntry(entry: TimeEntry): boolean {
   const measuredMinutes = Number(entry.onsiteMinutes || 0)
     + Number(entry.outboundTravelMinutes || 0)
     + Number(entry.returnTravelMinutes || 0)
+    + Number(entry.clientTransferMinutes || 0)
     + Number(entry.supplierTravelMinutes || 0)
     + Number(entry.supplierStopMinutes || 0);
   const recordedMinutes = Number(entry.exactMinutes || 0) > 0

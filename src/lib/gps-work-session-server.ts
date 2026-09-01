@@ -5,6 +5,7 @@ import {
   buildGpsSessionDrafts,
   detectStableStops,
   distanceMeters,
+  MIN_CLIENT_VISIT_MINUTES,
   type GpsQuoteCandidate,
   type GpsSite,
   type SupplierVisit,
@@ -15,17 +16,17 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 const TIMEZONE = 'Europe/Amsterdam';
 const SUPPLIER_PATTERN = /bouwmaat|pontmeyer|jongeneel|stiho|st[iĳ]ho|hornbach|gamma|praxis|hubo|toolstation|warmteservice|technische unie|raab karcher|bouwcenter|bouwmaterialen|houthandel/i;
 const KNOWN_SUPPLIER_ADDRESSES = [
-  { name: 'Bouwmaat Amsterdam Sloterdijk XL', address: 'Gyroscoopweg 142, 1042 AZ Amsterdam' },
-  { name: 'Bouwmaat Amsterdam Osdorp', address: 'Maroastraat 75, 1060 LG Amsterdam' },
-  { name: 'Bouwmaat Purmerend', address: 'Voltastraat 8, 1446 VC Purmerend' },
-  { name: 'Bouwmaat Huizen', address: 'Machineweg 4, 1271 EE Huizen' },
-  { name: 'Bouwmaat Hilversum XL', address: '1e Loswal 13, 1216 BA Hilversum' },
-  { name: 'Bouwmaat Utrecht XL', address: 'St. Laurensdreef 8, 3565 AK Utrecht' },
-  { name: 'Bouwmaat Nieuwegein XL', address: 'Laagraven 42, 3439 LK Nieuwegein' },
-  { name: 'Bouwmaat Amersfoort', address: 'Nijverheidsweg-Noord 102, 3812 PN Amersfoort' },
-  { name: 'Bouwmaat Dordrecht', address: 'Vierlinghstraat 52, 3316 EL Dordrecht' },
-  { name: 'Bouwmaat Almere', address: 'Koningsbeltweg 61, 1329 AE Almere' },
-  { name: 'Bouwmaat Diemen', address: 'Stammerdijk 7A, 1112 AA Diemen' },
+  { name: 'Bouwmaat Amsterdam Sloterdijk XL', address: 'Gyroscoopweg 142, 1042 AZ Amsterdam', latitude: 52.401122, longitude: 4.8443615 },
+  { name: 'Bouwmaat Amsterdam Osdorp', address: 'Maroastraat 75, 1060 LG Amsterdam', latitude: 52.3534725, longitude: 4.7658176 },
+  { name: 'Bouwmaat Purmerend', address: 'Voltastraat 8, 1446 VC Purmerend', latitude: 52.5142192, longitude: 4.9997319 },
+  { name: 'Bouwmaat Huizen', address: 'Machineweg 4, 1271 EE Huizen', latitude: 52.3057237, longitude: 5.2468974 },
+  { name: 'Bouwmaat Hilversum XL', address: '1e Loswal 13, 1216 BA Hilversum', latitude: 52.2223199, longitude: 5.1481581 },
+  { name: 'Bouwmaat Utrecht XL', address: 'St. Laurensdreef 8, 3565 AK Utrecht', latitude: 52.1281669, longitude: 5.0880056 },
+  { name: 'Bouwmaat Nieuwegein XL', address: 'Laagraven 42, 3439 LK Nieuwegein', latitude: 52.0539513, longitude: 5.1227672 },
+  { name: 'Bouwmaat Amersfoort', address: 'Nijverheidsweg-Noord 102, 3812 PN Amersfoort', latitude: 52.1678928, longitude: 5.3597946 },
+  { name: 'Bouwmaat Dordrecht', address: 'Vierlinghstraat 52, 3316 EL Dordrecht', latitude: 51.7765983, longitude: 4.6450712 },
+  { name: 'Bouwmaat Almere', address: 'Koningsbeltweg 61, 1329 AE Almere', latitude: 52.3715444, longitude: 5.2773679 },
+  { name: 'Bouwmaat Diemen', address: 'Stammerdijk 7A, 1112 AA Diemen', latitude: 52.3327493, longitude: 4.983367 },
 ] as const;
 let placesNearbyAvailable: boolean | null = null;
 let knownSupplierLocationsPromise: Promise<Array<{ name: string; address: string; latitude: number; longitude: number }>> | null = null;
@@ -97,23 +98,34 @@ async function geocodeAddress(address: string): Promise<{ latitude: number; long
   const key = googleKey();
   if (!key) return null;
   const params = new URLSearchParams({ address, language: 'nl', region: 'nl', key });
-  const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`, { cache: 'force-cache' }).catch(() => null);
-  if (!response?.ok) return null;
-  const payload = await response.json().catch(() => null) as {
-    results?: Array<{ geometry?: { location?: { lat?: number; lng?: number } } }>;
-  } | null;
-  const location = payload?.results?.[0]?.geometry?.location;
-  return Number.isFinite(location?.lat) && Number.isFinite(location?.lng)
-    ? { latitude: Number(location!.lat), longitude: Number(location!.lng) }
-    : null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`, {
+      cache: 'force-cache',
+      signal: AbortSignal.timeout(10_000),
+    }).catch(() => null);
+    if (response?.ok) {
+      const payload = await response.json().catch(() => null) as {
+        status?: string;
+        results?: Array<{ geometry?: { location?: { lat?: number; lng?: number } } }>;
+      } | null;
+      const location = payload?.results?.[0]?.geometry?.location;
+      if (Number.isFinite(location?.lat) && Number.isFinite(location?.lng)) {
+        return { latitude: Number(location!.lat), longitude: Number(location!.lng) };
+      }
+      // ZERO_RESULTS is a real address miss; retrying cannot improve it.
+      if (payload?.status === 'ZERO_RESULTS') return null;
+    }
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+  }
+  return null;
 }
 
 async function knownSupplierLocations(): Promise<Array<{ name: string; address: string; latitude: number; longitude: number }>> {
   if (!knownSupplierLocationsPromise) {
-    knownSupplierLocationsPromise = Promise.all(KNOWN_SUPPLIER_ADDRESSES.map(async (supplier) => {
-      const location = await geocodeAddress(supplier.address);
-      return location ? { ...supplier, ...location } : null;
-    })).then((locations) => locations.filter((location): location is NonNullable<typeof location> => location !== null));
+    // Keep the core supplier classifier deterministic. These are fixed branch
+    // coordinates; relying on a live geocoder here made historical reprocessing
+    // change whenever a provider call timed out or returned a different result.
+    knownSupplierLocationsPromise = Promise.resolve([...KNOWN_SUPPLIER_ADDRESSES]);
   }
   return knownSupplierLocationsPromise;
 }
@@ -191,8 +203,6 @@ async function quoteSites(firestore: FirebaseFirestore.Firestore, uid: string): 
   snapshot.docs.forEach((doc) => {
     const data = doc.data() as Record<string, unknown>;
     if (data.archived === true) return;
-    const status = String(data.status || '').toLowerCase();
-    if (!['geaccepteerd', 'accepted', 'verzonden', 'sent', 'in_behandeling'].includes(status)) return;
     const address = resolveQuoteProjectAddress({
       klantinformatie: data.klantinformatie as Parameters<typeof resolveQuoteProjectAddress>[0] extends { klantinformatie?: infer T } ? T : never,
     });
@@ -378,15 +388,10 @@ async function supplierVisitsForDay(points: TrackingPoint[], sites: GpsSite[]): 
   const stops = detectStableStops(points)
     .filter((stop) => stop.minutes >= 7)
     .filter((stop) => sites.every((site) => distanceMeters(stop.point, site) > 180));
-  const known = await knownSupplierVisits(stops);
-  if (known.length > 0) return known;
-  const output: SupplierVisit[] = [];
-  for (const stop of stops.slice(0, 24)) {
-    const supplier = await nearbySupplier(stop);
-    if (supplier) output.push(supplier);
-  }
-  if (output.length > 0) return output;
-  return overpassSuppliers(stops.slice(0, 24));
+  // Use the fixed Bouwmaat branch catalogue as the source of truth. Live
+  // Places/Overpass lookups are deliberately not part of bookkeeping: their
+  // responses can differ between runs and would change historical hours.
+  return knownSupplierVisits(stops);
 }
 
 async function ensureSettings(uid: string): Promise<{ enabledFrom: string; lastAnalyzedDate: string | null }> {
@@ -399,31 +404,59 @@ async function ensureSettings(uid: string): Promise<{ enabledFrom: string; lastA
   return { enabledFrom: today, lastAnalyzedDate: null };
 }
 
-async function analyzeDate(firestore: FirebaseFirestore.Firestore, uid: string, workDate: string, sites: GpsSite[]): Promise<number> {
+interface GpsSessionRow {
+  id: string;
+  user_id: string;
+  work_date: string;
+  address_key: string;
+  address_label: string;
+  candidate_quotes: GpsQuoteCandidate[];
+  status: 'pending';
+  start_at: string;
+  end_at: string;
+  onsite_minutes: number;
+  outbound_travel_minutes: number;
+  return_travel_minutes: number;
+  client_transfer_minutes: number;
+  supplier_travel_minutes: number;
+  supplier_stop_minutes: number;
+  supplier_visits: SupplierVisit[];
+  unallocated_minutes: number;
+  included_minutes: number;
+  updated_at: string;
+}
+
+async function calculateGpsSessionRows(workDate: string, uid: string, sites: GpsSite[]): Promise<GpsSessionRow[]> {
   const points = await dayPoints(workDate);
-  if (points.length < 2 || sites.length === 0) return 0;
+  if (points.length < 2 || sites.length === 0) return [];
   const suppliers = await supplierVisitsForDay(points, sites);
   const drafts = buildGpsSessionDrafts(points, sites, suppliers);
-  if (drafts.length === 0) return 0;
+  if (drafts.length === 0) return [];
   const groupedDrafts = new Map<string, typeof drafts>();
   drafts.forEach((draft) => groupedDrafts.set(draft.site.key, [...(groupedDrafts.get(draft.site.key) || []), draft]));
-  const rows = Array.from(groupedDrafts.values()).map((siteDrafts) => {
+  return Array.from(groupedDrafts.values()).map((siteDrafts): GpsSessionRow => {
     const draft = siteDrafts[0];
     const startAt = siteDrafts.reduce((value, item) => item.startAt < value ? item.startAt : value, draft.startAt);
     const endAt = siteDrafts.reduce((value, item) => item.endAt > value ? item.endAt : value, draft.endAt);
     const onsiteMinutes = siteDrafts.reduce((sum, item) => sum + item.onsiteMinutes, 0);
     const outboundTravelMinutes = siteDrafts.reduce((sum, item) => sum + item.outboundTravelMinutes, 0);
     const returnTravelMinutes = siteDrafts.reduce((sum, item) => sum + item.returnTravelMinutes, 0);
+    const clientTransferMinutes = siteDrafts.reduce((sum, item) => sum + item.clientTransferMinutes, 0);
     const supplierTravelMinutes = siteDrafts.reduce((sum, item) => sum + item.supplierTravelMinutes, 0);
     const supplierStopMinutes = siteDrafts.reduce((sum, item) => sum + item.supplierStopMinutes, 0);
+    const unallocatedMinutes = siteDrafts.reduce((sum, item) => sum + item.unallocatedMinutes, 0);
     const supplierVisits = siteDrafts.flatMap((item) => item.supplierVisits).filter((visit, index, all) => (
       all.findIndex((candidate) => candidate.name === visit.name && candidate.startAt === visit.startAt) === index
     ));
     const included = onsiteMinutes
       + outboundTravelMinutes
       + returnTravelMinutes
+      + clientTransferMinutes
       + supplierTravelMinutes
       + supplierStopMinutes;
+    if (included < 0 || included > 24 * 60 || unallocatedMinutes < 0) {
+      throw new Error(`GPS-werkdag ${workDate} bevat ongeldige tijdscomponenten.`);
+    }
     return {
       id: deterministicUuid(`gps-work-session:${uid}:${workDate}:${draft.site.key}`),
       user_id: uid,
@@ -437,13 +470,20 @@ async function analyzeDate(firestore: FirebaseFirestore.Firestore, uid: string, 
       onsite_minutes: onsiteMinutes,
       outbound_travel_minutes: outboundTravelMinutes,
       return_travel_minutes: returnTravelMinutes,
+      client_transfer_minutes: clientTransferMinutes,
       supplier_travel_minutes: supplierTravelMinutes,
       supplier_stop_minutes: supplierStopMinutes,
       supplier_visits: supplierVisits,
+      unallocated_minutes: unallocatedMinutes,
       included_minutes: included,
       updated_at: new Date().toISOString(),
     };
   });
+}
+
+async function analyzeDate(firestore: FirebaseFirestore.Firestore, uid: string, workDate: string, sites: GpsSite[]): Promise<number> {
+  const rows = await calculateGpsSessionRows(workDate, uid, sites);
+  if (rows.length === 0) return 0;
   const rowIds = rows.map((row) => row.id);
   const { data: existing, error: existingError } = await supabaseAdmin
     .from('gps_work_sessions')
@@ -455,11 +495,203 @@ async function analyzeDate(firestore: FirebaseFirestore.Firestore, uid: string, 
     .map((row) => String(row.id)));
   const writableRows = rows.filter((row) => !processedIds.has(row.id));
   if (writableRows.length === 0) return 0;
-  const { error } = await supabaseAdmin.from('gps_work_sessions').upsert(writableRows, {
+  const { error } = await supabaseAdmin.from('gps_work_sessions').upsert(writableRows as unknown as Record<string, unknown>[], {
     onConflict: 'id',
   });
   if (error) throw new Error(error.message);
   return writableRows.length;
+}
+
+export interface GpsReprocessResult {
+  dates: number;
+  analyzedDates: number;
+  generatedSessions: number;
+  updatedSessions: number;
+  confirmedSessions: number;
+  pendingSessions: number;
+  dismissedSessions: number;
+  staleSessions: number;
+  updatedTimeEntries: number;
+  clientTransferMinutes: number;
+  unallocatedMinutes: number;
+}
+
+function localTime(value: string): string {
+  return new Intl.DateTimeFormat('nl-NL', {
+    timeZone: TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(value));
+}
+
+async function updateConfirmedGpsSession(uid: string, existing: Record<string, unknown>, row: GpsSessionRow): Promise<void> {
+  const quoteId = String(existing.quote_id || '').trim();
+  if (!quoteId) return;
+  const sessionId = String(existing.id || row.id);
+  const timeEntryId = String(existing.time_entry_id || sessionTimeEntryId(uid, sessionId));
+  const supplierNames = row.supplier_visits
+    .map((visit) => String(visit.name || '').trim())
+    .filter(Boolean);
+  const note = supplierNames.length > 0
+    ? `GPS-werkdag · materiaal via ${Array.from(new Set(supplierNames)).join(', ')}`
+    : 'GPS-werkdag opnieuw berekend';
+  const candidateIds = row.candidate_quotes.map((candidate) => candidate.id).filter(Boolean);
+  if (candidateIds.length > 0) {
+    const { error: oldAutoError } = await supabaseAdmin
+      .from('time_entries')
+      .delete()
+      .eq('user_id', uid)
+      .eq('work_date', row.work_date)
+      .eq('source', 'gps_tracking_auto')
+      .in('quote_id', candidateIds);
+    if (oldAutoError) throw new Error(oldAutoError.message);
+  }
+  const timeEntry = {
+    id: timeEntryId,
+    user_id: uid,
+    quote_id: quoteId,
+    work_date: row.work_date,
+    worked_hours: Number((row.included_minutes / 60).toFixed(2)),
+    worked_days: Number((row.included_minutes / 480).toFixed(2)),
+    source: 'gps_tracking_confirm',
+    note,
+    start_time: localTime(row.start_at),
+    end_time: localTime(row.end_at),
+    exact_minutes: row.included_minutes,
+    rounding_rule: 'GPS-werkdag opnieuw berekend: locatie, tussen-klantenreis en leveranciersbezoek afzonderlijk gemeten',
+    onsite_minutes: row.onsite_minutes,
+    outbound_travel_minutes: row.outbound_travel_minutes,
+    return_travel_minutes: row.return_travel_minutes,
+    client_transfer_minutes: row.client_transfer_minutes,
+    supplier_travel_minutes: row.supplier_travel_minutes,
+    supplier_stop_minutes: row.supplier_stop_minutes,
+    unallocated_minutes: row.unallocated_minutes,
+    supplier_visits: row.supplier_visits,
+    gps_work_session_id: sessionId,
+    updated_at: new Date().toISOString(),
+  };
+  const { error: entryError } = await supabaseAdmin.from('time_entries').upsert(timeEntry, { onConflict: 'id' });
+  if (entryError) throw new Error(entryError.message);
+  const { error: sessionError } = await supabaseAdmin.from('gps_work_sessions').update({
+    quote_id: quoteId,
+    status: 'confirmed',
+    candidate_quotes: row.candidate_quotes,
+    address_label: row.address_label,
+    start_at: row.start_at,
+    end_at: row.end_at,
+    onsite_minutes: row.onsite_minutes,
+    outbound_travel_minutes: row.outbound_travel_minutes,
+    return_travel_minutes: row.return_travel_minutes,
+    client_transfer_minutes: row.client_transfer_minutes,
+    supplier_travel_minutes: row.supplier_travel_minutes,
+    supplier_stop_minutes: row.supplier_stop_minutes,
+    supplier_visits: row.supplier_visits,
+    unallocated_minutes: row.unallocated_minutes,
+    included_minutes: row.included_minutes,
+    time_entry_id: timeEntryId,
+    updated_at: new Date().toISOString(),
+  }).eq('id', sessionId).eq('user_id', uid);
+  if (sessionError) throw new Error(sessionError.message);
+}
+
+export async function reprocessGpsWorkSessions(
+  firestore: FirebaseFirestore.Firestore,
+  uid: string,
+  dates: string[],
+  options: { dryRun?: boolean } = {},
+): Promise<GpsReprocessResult> {
+  const sites = await quoteSites(firestore, uid);
+  const result: GpsReprocessResult = {
+    dates: dates.length,
+    analyzedDates: 0,
+    generatedSessions: 0,
+    updatedSessions: 0,
+    confirmedSessions: 0,
+    pendingSessions: 0,
+    dismissedSessions: 0,
+    staleSessions: 0,
+    updatedTimeEntries: 0,
+    clientTransferMinutes: 0,
+    unallocatedMinutes: 0,
+  };
+  for (const workDate of dates) {
+    const rows = await calculateGpsSessionRows(workDate, uid, sites);
+    result.analyzedDates += 1;
+    result.generatedSessions += rows.length;
+    result.clientTransferMinutes += rows.reduce((sum, row) => sum + row.client_transfer_minutes, 0);
+    result.unallocatedMinutes += rows.reduce((sum, row) => sum + row.unallocated_minutes, 0);
+    if (rows.length === 0 || options.dryRun) continue;
+
+    const { data: existingRows, error: existingError } = await supabaseAdmin
+      .from('gps_work_sessions')
+      .select('*')
+      .eq('user_id', uid)
+      .eq('work_date', workDate);
+    if (existingError) throw new Error(existingError.message);
+    const existingById = new Map((existingRows || []).map((row) => [String(row.id), row as Record<string, unknown>]));
+    const generatedIds = new Set(rows.map((row) => row.id));
+    // A previous version accepted five-minute pass-bys as client work. Once
+    // the stricter 8-minute threshold is in place, remove only those derived
+    // GPS entries; never touch a manually entered/confirmed time entry.
+    for (const existing of existingRows || []) {
+      const existingRecord = existing as Record<string, unknown>;
+      if (existingRecord.status !== 'confirmed' || generatedIds.has(String(existingRecord.id))) continue;
+      if (Number(existingRecord.onsite_minutes || 0) >= MIN_CLIENT_VISIT_MINUTES) continue;
+      const timeEntryId = String(existingRecord.time_entry_id || '').trim();
+      if (!timeEntryId) continue;
+      const { data: timeEntry, error: timeEntryError } = await supabaseAdmin
+        .from('time_entries')
+        .select('id,source,note')
+        .eq('id', timeEntryId)
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (timeEntryError) throw new Error(timeEntryError.message);
+      const note = String(timeEntry?.note || '').toLowerCase();
+      const derivedGpsEntry = timeEntry?.source === 'gps_tracking_confirm'
+        && note.includes('gps-werkdag')
+        && !note.includes('gecontroleerd');
+      if (!derivedGpsEntry) continue;
+      const { error: deleteEntryError } = await supabaseAdmin.from('time_entries')
+        .delete().eq('id', timeEntryId).eq('user_id', uid);
+      if (deleteEntryError) throw new Error(deleteEntryError.message);
+      const { error: dismissError } = await supabaseAdmin.from('gps_work_sessions')
+        .update({ status: 'dismissed', quote_id: null, time_entry_id: null, updated_at: new Date().toISOString() })
+        .eq('id', String(existingRecord.id)).eq('user_id', uid);
+      if (dismissError) throw new Error(dismissError.message);
+      result.staleSessions += 1;
+    }
+    for (const row of rows) {
+      const existing = existingById.get(row.id);
+      if (existing?.status === 'dismissed') {
+        result.dismissedSessions += 1;
+        continue;
+      }
+      if (existing?.status === 'confirmed') {
+        await updateConfirmedGpsSession(uid, existing, row);
+        result.updatedSessions += 1;
+        result.updatedTimeEntries += 1;
+        result.confirmedSessions += 1;
+        continue;
+      }
+      const { error: upsertError } = await supabaseAdmin.from('gps_work_sessions').upsert(row as unknown as Record<string, unknown>, { onConflict: 'id' });
+      if (upsertError) throw new Error(upsertError.message);
+      result.updatedSessions += 1;
+      if (row.candidate_quotes.length === 1) {
+        await updateConfirmedGpsSession(uid, {
+          ...row,
+          id: row.id,
+          quote_id: row.candidate_quotes[0].id,
+          time_entry_id: null,
+        }, row);
+        result.confirmedSessions += 1;
+        result.updatedTimeEntries += 1;
+      } else {
+        result.pendingSessions += 1;
+      }
+    }
+  }
+  return result;
 }
 
 export async function prepareGpsWorkSessions(firestore: FirebaseFirestore.Firestore, uid: string): Promise<void> {

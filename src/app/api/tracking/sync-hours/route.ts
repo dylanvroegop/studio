@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
-import { dateSequence, syncGpsHoursForDates } from '@/lib/gps-hour-sync';
+import { dateSequence } from '@/lib/gps-hour-sync';
+import { reprocessGpsWorkSessions } from '@/lib/gps-work-session-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,8 +26,11 @@ export async function POST(request: Request) {
     const to = /^\d{4}-\d{2}-\d{2}$/.test(body.to || '') ? body.to! : from;
     const dates = dateSequence(from, to);
     if (!dates.length || dates.length > 14) return NextResponse.json({ ok: false, message: 'Per synchronisatie zijn maximaal 14 dagen toegestaan.' }, { status: 400 });
-    const result = await syncGpsHoursForDates(firestore, decoded.uid, dates);
-    return NextResponse.json({ ok: true, ...result });
+    // Keep this legacy endpoint on the same bookkeeping pipeline as the
+    // work-session UI. Otherwise an old client could overwrite corrected
+    // entries with the former stop-only calculation.
+    const result = await reprocessGpsWorkSessions(firestore, decoded.uid, dates, { dryRun: false });
+    return NextResponse.json({ ok: true, synced: result.updatedTimeEntries, ...result });
   } catch (error) {
     return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : 'GPS-uren synchroniseren mislukt.' }, { status: 500 });
   }

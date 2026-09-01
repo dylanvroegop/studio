@@ -10,6 +10,7 @@ export interface QuoteWorkedHours {
   onsiteMinutes: number;
   travelMinutes: number;
   supplierMinutes: number;
+  unallocatedMinutes: number;
 }
 
 /** Stored entries are the only source of truth. GPS time becomes visible here
@@ -42,11 +43,14 @@ export function useQuoteWorkedHours(quotes: QuoteWithAddress[] = []): Record<str
           ? exactMinutes / 60
           : Number(row.worked_hours ?? row.workedHours ?? row.hours ?? 0);
         if (!quoteId || !Number.isFinite(hours) || hours <= 0) return;
-        const current = next[quoteId] || { workedHours: 0, onsiteMinutes: 0, travelMinutes: 0, supplierMinutes: 0 };
+        const current = next[quoteId] || { workedHours: 0, onsiteMinutes: 0, travelMinutes: 0, supplierMinutes: 0, unallocatedMinutes: 0 };
         current.workedHours += hours;
         current.onsiteMinutes += Number(row.onsite_minutes || 0);
-        current.travelMinutes += Number(row.outbound_travel_minutes || 0) + Number(row.return_travel_minutes || 0);
+        current.travelMinutes += Number(row.outbound_travel_minutes || 0)
+          + Number(row.return_travel_minutes || 0)
+          + Number(row.client_transfer_minutes || 0);
         current.supplierMinutes += Number(row.supplier_travel_minutes || 0) + Number(row.supplier_stop_minutes || 0);
+        current.unallocatedMinutes += Number(row.unallocated_minutes || 0);
         next[quoteId] = current;
       });
       Object.values(next).forEach((summary) => {
@@ -54,6 +58,7 @@ export function useQuoteWorkedHours(quotes: QuoteWithAddress[] = []): Record<str
         summary.onsiteMinutes = Math.round(summary.onsiteMinutes);
         summary.travelMinutes = Math.round(summary.travelMinutes);
         summary.supplierMinutes = Math.round(summary.supplierMinutes);
+        summary.unallocatedMinutes = Math.round(summary.unallocatedMinutes);
       });
       setHoursByQuoteId(next);
     } catch {

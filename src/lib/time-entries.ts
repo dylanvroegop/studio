@@ -27,8 +27,10 @@ export interface TimeEntryRecord {
   onsiteMinutes?: number | null;
   outboundTravelMinutes?: number | null;
   returnTravelMinutes?: number | null;
+  clientTransferMinutes?: number | null;
   supplierTravelMinutes?: number | null;
   supplierStopMinutes?: number | null;
+  unallocatedMinutes?: number | null;
   supplierVisits?: Array<{ name?: string; address?: string; minutes?: number }> | null;
   gpsWorkSessionId?: string | null;
   createdAt: string;

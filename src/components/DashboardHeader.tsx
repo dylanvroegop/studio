@@ -10,10 +10,11 @@ import {
   Clock3,
   ClipboardList,
   FileText,
-  LayoutDashboard,
-  Landmark,
-  LogOut,
-  Receipt,
+    LayoutDashboard,
+    Landmark,
+    LogOut,
+    MessageCircle,
+    Receipt,
   ReceiptText,
   Sparkles,
   Settings,
@@ -258,6 +259,12 @@ export function DashboardHeader({
       return {
         icon: Clock3,
         iconClassName: 'text-indigo-400',
+      };
+    }
+    if (pathname.startsWith('/auto-berichten')) {
+      return {
+        icon: MessageCircle,
+        iconClassName: 'text-emerald-400',
       };
     }
     if (pathname.startsWith('/notities')) {

@@ -2,8 +2,14 @@ import type { TrackingPoint } from '@/lib/tracking-analysis';
 
 export const CLIENT_RADIUS_M = 150;
 const MAX_POINT_GAP_MINUTES = 20;
-const GPS_BRIDGE_MINUTES = 30;
+// Do not bridge a longer silent period into worked time. Traccar normally
+// reports more frequently than this; anything longer is surfaced as a GPS gap
+// instead of being silently counted at the client.
+const GPS_BRIDGE_MINUTES = MAX_POINT_GAP_MINUTES;
 const SUPPLIER_EXCURSION_MAX_MINUTES = 240;
+const MAX_CLIENT_TRANSFER_MINUTES = 240;
+const MAX_ENDPOINT_TRAVEL_MINUTES = 180;
+export const MIN_CLIENT_VISIT_MINUTES = 8;
 
 export interface GpsQuoteCandidate {
   id: string;
@@ -47,8 +53,10 @@ export interface GpsSessionDraft {
   onsiteMinutes: number;
   outboundTravelMinutes: number;
   returnTravelMinutes: number;
+  clientTransferMinutes: number;
   supplierTravelMinutes: number;
   supplierStopMinutes: number;
+  unallocatedMinutes: number;
   supplierVisits: SupplierVisit[];
 }
 
@@ -134,7 +142,10 @@ function siteVisits(points: TrackingPoint[], sites: GpsSite[]): SiteVisit[] {
       visits.push({ site: hit.site, startAt: hit.point.recorded_at, endAt: hit.point.recorded_at, minutes: 0 });
     }
   }
-  return visits.filter((visit) => visit.minutes >= 5);
+  // A five-minute GPS stop is too easy to be a traffic/light or a brief
+  // pass-by. The day view already treats 8+ minutes as a meaningful stop;
+  // use the same threshold for billable client-location time.
+  return visits.filter((visit) => visit.minutes >= MIN_CLIENT_VISIT_MINUTES);
 }
 
 function overlapSupplierVisits(visits: SupplierVisit[], from: string, to: string): SupplierVisit[] {
@@ -179,8 +190,10 @@ export function buildGpsSessionDrafts(
       onsiteMinutes: visit.minutes,
       outboundTravelMinutes: 0,
       returnTravelMinutes: 0,
+      clientTransferMinutes: 0,
       supplierTravelMinutes: 0,
       supplierStopMinutes: 0,
+      unallocatedMinutes: 0,
       supplierVisits: [],
     });
   }
@@ -199,7 +212,9 @@ export function buildGpsSessionDrafts(
     const outboundBoundary = supplierBefore?.startAt || first.startAt;
     const previousStop = [...stableStops].reverse().find((stop) => at(stop.endAt) < at(outboundBoundary));
     if (previousStop) {
-      first.outboundTravelMinutes = Math.min(180, Math.max(0, Math.round((at(outboundBoundary) - at(previousStop.endAt)) / 60_000)));
+      const minutes = Math.max(0, Math.round((at(outboundBoundary) - at(previousStop.endAt)) / 60_000));
+      first.outboundTravelMinutes = Math.min(MAX_ENDPOINT_TRAVEL_MINUTES, minutes);
+      first.unallocatedMinutes += Math.max(0, minutes - MAX_ENDPOINT_TRAVEL_MINUTES);
     }
 
     const last = drafts[drafts.length - 1];
@@ -215,14 +230,30 @@ export function buildGpsSessionDrafts(
     const returnBoundary = supplierAfter?.endAt || last.endAt;
     const nextStop = stableStops.find((stop) => at(stop.startAt) > at(returnBoundary));
     if (nextStop) {
-      last.returnTravelMinutes = Math.min(180, Math.max(0, Math.round((at(nextStop.startAt) - at(returnBoundary)) / 60_000)));
+      const minutes = Math.max(0, Math.round((at(nextStop.startAt) - at(returnBoundary)) / 60_000));
+      last.returnTravelMinutes = Math.min(MAX_ENDPOINT_TRAVEL_MINUTES, minutes);
+      last.unallocatedMinutes += Math.max(0, minutes - MAX_ENDPOINT_TRAVEL_MINUTES);
     }
 
     for (let index = 0; index < drafts.length - 1; index += 1) {
       const current = drafts[index];
       const next = drafts[index + 1];
       const suppliers = overlapSupplierVisits(supplierVisits, current.endAt, next.startAt);
-      if (suppliers.length === 0) continue;
+      const gapMinutes = Math.max(0, Math.round((at(next.startAt) - at(current.endAt)) / 60_000));
+      if (suppliers.length === 0) {
+        if (current.site.key === next.site.key) {
+          // A long same-site gap is a break or a GPS gap. Keep it visible instead
+          // of silently adding it to the job total.
+          current.unallocatedMinutes += gapMinutes;
+        } else {
+          // Moving from one customer to another is working travel. Attribute it
+          // to the job being travelled to, while keeping it separate from
+          // van-to-client and client-to-van travel.
+          next.clientTransferMinutes += Math.min(MAX_CLIENT_TRANSFER_MINUTES, gapMinutes);
+          next.unallocatedMinutes += Math.max(0, gapMinutes - MAX_CLIENT_TRANSFER_MINUTES);
+        }
+        continue;
+      }
       const lastSupplier = suppliers[suppliers.length - 1];
       const stopMinutes = suppliers.reduce((sum, supplier) => sum + supplier.minutes, 0);
       if (current.site.key === next.site.key) {

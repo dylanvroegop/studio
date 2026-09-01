@@ -6972,11 +6972,11 @@ export default function QuotePage() {
                                     Werk &amp; Levering
                                     {showWerkbeschrijvingWarning && <AlertCircle size={12} className="text-red-500" />}
                                 </TabsTrigger>
-                                <TabsTrigger value="notities" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
-                                    <MessageSquare size={16} />
-                                    Notities
-                                </TabsTrigger>
-                                {canShowNacalculatieTab && (
+                                    <TabsTrigger value="notities" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                        <MessageSquare size={16} />
+                                        Notities
+                                    </TabsTrigger>
+                                    {canShowNacalculatieTab && (
                                     <TabsTrigger value="nacalculatie" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                         <ClipboardList size={16} />
                                         Nacalculatie
