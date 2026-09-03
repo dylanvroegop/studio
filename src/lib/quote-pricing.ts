@@ -1,5 +1,6 @@
 export type QuotePricingUnit = 'm2' | 'm1' | 'st' | 'uur' | 'vast';
 export type QuotePricingSource = 'ai' | 'regel' | 'handmatig';
+export type QuotePricingCategory = 'materiaal' | 'arbeid';
 
 export interface QuotePriceLine {
     id: string;
@@ -7,6 +8,7 @@ export interface QuotePriceLine {
     unit: QuotePricingUnit;
     quantity: number;
     unitPriceExclBtw: number;
+    category: QuotePricingCategory;
     source: QuotePricingSource;
     ruleId?: string;
     noteSectionId?: string;
@@ -100,6 +102,19 @@ export function normalizePricingTitle(value: unknown): string {
         .trim();
 }
 
+const LIKELY_LABOR_TITLE_PATTERN = /\b(arbeid|arbeidsuren|uren|uur|plaatsen|wand plaatsen|wand zetten|wand monteren|plafond plaatsen|plafond monteren|monteren|installeren|stucwerk|elektra|elektrisch|schilderen|slopen|afwerken|kozijn omzetten|deur plaatsen|stopcontact|lichtpunt)\b/i;
+
+export function normalizePricingCategory(
+    value: unknown,
+    title = '',
+    unit?: QuotePricingUnit,
+): QuotePricingCategory {
+    if (value === 'arbeid') return 'arbeid';
+    if (value === 'materiaal') return 'materiaal';
+    if (unit === 'uur' || LIKELY_LABOR_TITLE_PATTERN.test(title)) return 'arbeid';
+    return 'materiaal';
+}
+
 export function sanitizeQuotePriceRules(value: unknown): QuotePriceRule[] {
     if (!Array.isArray(value)) return [];
 
@@ -146,13 +161,15 @@ export function sanitizeQuotePriceLines(value: unknown): QuotePriceLine[] {
         const source = row.source === 'ai' || row.source === 'regel' || row.source === 'handmatig'
             ? row.source
             : 'handmatig';
+        const unit = normalizePricingUnit(row.unit);
 
         return [{
             id: String(row.id ?? '').trim() || createQuotePricingId(`regel${index + 1}`),
             title,
-            unit: normalizePricingUnit(row.unit),
+            unit,
             quantity,
             unitPriceExclBtw,
+            category: normalizePricingCategory(row.category, title, unit),
             source,
             ruleId: String(row.ruleId ?? '').trim() || undefined,
             noteSectionId: String(row.noteSectionId ?? '').trim() || undefined,

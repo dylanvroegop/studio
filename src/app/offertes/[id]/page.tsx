@@ -7652,6 +7652,8 @@ export default function QuotePage() {
                                 quoteTitle={workDescriptionStructured.title || normalizedData?.korteTitel || quote?.titel || ''}
                                 notes={quoteNotes}
                                 vatRate={quoteSettings?.btwTarief || 21}
+                                automaticFuelAmount={totals?.transportTotaal ?? null}
+                                automaticFuelLabel="Brandstof / transport"
                             />
                         </TabsContent>
 

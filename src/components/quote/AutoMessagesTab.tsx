@@ -14,6 +14,20 @@ interface AutoMessageClient {
     lastName: string;
     companyName: string;
     city: string;
+    suggestedDate: string;
+    suggestionReason: string;
+}
+
+interface PlanningEntrySummary {
+    quoteId: string;
+    startDate: Date;
+    endDate: Date;
+    city: string;
+}
+
+interface ScheduleSuggestion {
+    date: string;
+    reason: string;
 }
 
 function cleanText(value: unknown): string {
@@ -43,6 +57,14 @@ function getClientInfo(data: Record<string, unknown>): Record<string, unknown> {
     return {};
 }
 
+function getClientCity(data: Record<string, unknown>): string {
+    const info = getClientInfo(data);
+    const factuuradres = info.factuuradres && typeof info.factuuradres === 'object'
+        ? info.factuuradres as Record<string, unknown>
+        : {};
+    return cleanText(info.plaats || factuuradres.plaats);
+}
+
 function getClientName(client: AutoMessageClient): string {
     return [client.firstName, client.lastName].filter(Boolean).join(' ') || client.companyName;
 }
@@ -53,6 +75,90 @@ function getGreetingName(client: AutoMessageClient): string {
 
 function normalizeClientKeyPart(value: string): string {
     return value.toLocaleLowerCase('nl-NL').replace(/[\s-]+/g, '');
+}
+
+function normalizeCity(value: string): string {
+    return value
+        .toLocaleLowerCase('nl-NL')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getCityFromAddress(value: unknown): string {
+    const address = cleanText(value);
+    if (!address) return '';
+
+    const postcodeMatch = address.match(/\b\d{4}\s*[A-Z]{2}\s+(.+)$/i);
+    if (postcodeMatch?.[1]) return postcodeMatch[1].trim();
+
+    const parts = address.split(',').map((part) => part.trim()).filter(Boolean);
+    return parts.at(-1) || '';
+}
+
+function getLocalDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function formatDutchDate(value: string): string {
+    const date = new Date(`${value}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat('nl-NL', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+    }).format(date);
+}
+
+function getScheduleSuggestion(
+    clientCity: string,
+    entries: PlanningEntrySummary[],
+    now = new Date(),
+): ScheduleSuggestion | null {
+    const normalizedClientCity = normalizeCity(clientCity);
+    const candidates = Array.from({ length: 4 }, (_, index) => {
+        const date = new Date(now);
+        date.setHours(12, 0, 0, 0);
+        date.setDate(date.getDate() + index + 1);
+        return date;
+    });
+
+    const isSlotFree = (date: Date) => {
+        const start = new Date(date);
+        start.setHours(19, 0, 0, 0);
+        const end = new Date(start.getTime() + 60 * 60 * 1000);
+
+        return entries.every((entry) => entry.endDate <= start || entry.startDate >= end);
+    };
+
+    const hasSameCityWork = (date: Date) => {
+        const dateKey = getLocalDateKey(date);
+        return entries.some((entry) =>
+            getLocalDateKey(entry.startDate) === dateKey
+            && normalizedClientCity
+            && normalizeCity(entry.city) === normalizedClientCity,
+        );
+    };
+
+    const matchingRouteDate = candidates.find((date) => isSlotFree(date) && hasSameCityWork(date));
+    if (matchingRouteDate) {
+        return {
+            date: getLocalDateKey(matchingRouteDate),
+            reason: `Je werkt die dag al in ${clientCity}.`,
+        };
+    }
+
+    const freeDate = candidates.find(isSlotFree);
+    if (!freeDate) return null;
+
+    return {
+        date: getLocalDateKey(freeDate),
+        reason: 'Vrije plek om 19:00 binnen 1–4 dagen.',
+    };
 }
 
 export function AutoMessagesTab() {
@@ -83,21 +189,71 @@ export function AutoMessagesTab() {
             try {
                 // Query only on userId so this keeps working without a composite
                 // Firestore index. The status filter is intentionally local.
-                const snapshot = await getDocs(query(
-                    collection(firestore, 'quotes'),
-                    where('userId', '==', user.uid),
-                ));
+                const [quoteSnapshot, planningSnapshot] = await Promise.all([
+                    getDocs(query(
+                        collection(firestore, 'quotes'),
+                        where('userId', '==', user.uid),
+                    )),
+                    getDocs(query(
+                        collection(firestore, 'planning_entries'),
+                        where('userId', '==', user.uid),
+                    )),
+                ]);
+
+                const quoteCitiesById = new Map(
+                    quoteSnapshot.docs.map((quoteDoc) => [
+                        quoteDoc.id,
+                        getClientCity(quoteDoc.data() as Record<string, unknown>),
+                    ]),
+                );
+
+                const planningEntries: PlanningEntrySummary[] = planningSnapshot.docs.flatMap((planningDoc) => {
+                    const planningData = planningDoc.data() as Record<string, unknown>;
+                    if (planningData.status === 'cancelled') return [];
+
+                    const startDate = getQuoteDate(planningData.startDate);
+                    if (!startDate) return [];
+
+                    const rawEndDate = getQuoteDate(planningData.endDate);
+                    const scheduledHours = Number(planningData.scheduledHours);
+                    const endDate = rawEndDate && rawEndDate > startDate
+                        ? rawEndDate
+                        : new Date(startDate.getTime() + (Number.isFinite(scheduledHours) && scheduledHours > 0 ? scheduledHours : 1) * 60 * 60 * 1000);
+                    const quoteId = cleanText(planningData.quoteId);
+                    const cache = planningData.cache && typeof planningData.cache === 'object'
+                        ? planningData.cache as Record<string, unknown>
+                        : {};
+
+                    return [{
+                        quoteId,
+                        startDate,
+                        endDate,
+                        city: getCityFromAddress(cache.projectAddress) || quoteCitiesById.get(quoteId) || '',
+                    }];
+                });
+
+                const plannedWerkbesprekingQuoteIds = new Set(
+                    planningSnapshot.docs
+                        .filter((planningDoc) => {
+                            const planningData = planningDoc.data() as Record<string, unknown>;
+                            return planningData.planningType === 'werkbespreking'
+                                && planningData.status !== 'cancelled';
+                        })
+                        .map((planningDoc) => cleanText(planningDoc.data().quoteId))
+                        .filter(Boolean),
+                );
 
                 const clientsByKey = new Map<string, AutoMessageClient>();
                 const currentYear = new Date().getFullYear();
 
-                snapshot.docs.forEach((quoteDoc) => {
+                quoteSnapshot.docs.forEach((quoteDoc) => {
                     const data = quoteDoc.data() as Record<string, unknown>;
                     const quoteDate = getQuoteDate(data.updatedAt) || getQuoteDate(data.createdAt);
                     if (
                         data.status !== 'werkbespreking'
                         || data.archived === true
                         || data.isCalculationTest === true
+                        || plannedWerkbesprekingQuoteIds.has(quoteDoc.id)
                         || !quoteDate
                         || quoteDate.getFullYear() !== currentYear
                     ) return;
@@ -113,6 +269,8 @@ export function AutoMessagesTab() {
                     const displayName = [firstName, lastName].filter(Boolean).join(' ') || companyName;
                     if (!displayName) return;
 
+                    const suggestion = getScheduleSuggestion(city, planningEntries);
+
                     const clientKey = `${normalizeClientKeyPart(displayName)}|${normalizeClientKeyPart(city)}`;
 
                     if (!clientsByKey.has(clientKey)) {
@@ -122,6 +280,8 @@ export function AutoMessagesTab() {
                             lastName,
                             companyName,
                             city,
+                            suggestedDate: suggestion?.date || '',
+                            suggestionReason: suggestion?.reason || '',
                         });
                     }
                 });
@@ -162,6 +322,10 @@ export function AutoMessagesTab() {
         () => clients.find((client) => client.quoteId === selectedQuoteId) || null,
         [clients, selectedQuoteId],
     );
+
+    useEffect(() => {
+        setSelectedDate(selectedClient?.suggestedDate || '');
+    }, [selectedClient]);
 
     const formattedDate = useMemo(() => {
         if (!selectedDate) return '';
@@ -220,7 +384,7 @@ Vroegop timmerwerken`;
                     </div>
                     <div>
                         <h2 className="text-base font-semibold text-foreground">Werkbespreking-bericht</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">Kies een klant en datum voor het standaardbericht.</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Alleen klanten zonder geplande werkbespreking. Kies een datum voor het eerste bericht.</p>
                     </div>
                 </div>
 
@@ -249,7 +413,7 @@ Vroegop timmerwerken`;
                             </select>
                         ) : (
                             <div className="rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
-                                {loadError || 'Geen klanten met status Werkbespreking gevonden.'}
+                                {loadError || 'Geen klanten zonder geplande werkbespreking gevonden.'}
                             </div>
                         )}
                     </div>
@@ -258,6 +422,25 @@ Vroegop timmerwerken`;
                         <label htmlFor="auto-message-date" className="text-sm font-medium text-foreground">
                             Datum werkbespreking
                         </label>
+                        {selectedClient && (
+                            <div className="rounded-md border border-emerald-500/25 bg-emerald-500/5 px-3 py-2 text-sm">
+                                <div className="font-medium text-emerald-300">Agendasuggestie</div>
+                                {selectedClient.suggestedDate ? (
+                                    <>
+                                        <div className="mt-0.5 text-foreground">
+                                            {formatDutchDate(selectedClient.suggestedDate)} om 19:00
+                                        </div>
+                                        <div className="mt-0.5 text-xs text-muted-foreground">
+                                            {selectedClient.suggestionReason}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="mt-0.5 text-xs text-muted-foreground">
+                                        Geen vrije plek gevonden binnen 1–4 dagen. Kies zelf een datum.
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         <div className="relative">
                             <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <input

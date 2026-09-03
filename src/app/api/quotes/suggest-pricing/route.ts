@@ -6,6 +6,7 @@ import {
     createQuotePricingId,
     findMatchingQuotePriceRule,
     normalizePricingTitle,
+    normalizePricingCategory,
     normalizePricingUnit,
     parsePricingNumber,
     sanitizeQuotePriceRules,
@@ -35,6 +36,7 @@ type RequestBody = {
 type AiLine = {
     title?: unknown;
     unit?: unknown;
+    category?: unknown;
     quantity?: unknown;
     unitPriceExclBtw?: unknown;
     confidence?: unknown;
@@ -228,6 +230,7 @@ function normalizeAiLine(raw: AiLine, rules: QuotePriceRule[]): QuotePriceLine |
     if (!title) return null;
 
     const unit = normalizePricingUnit(raw.unit);
+    if (normalizePricingCategory(raw.category, title, unit) !== 'materiaal') return null;
     const quantity = Math.max(0, Math.min(100_000, parsePricingNumber(raw.quantity)));
     const aiPrice = Math.max(0, Math.min(100_000, parsePricingNumber(raw.unitPriceExclBtw)));
     const matchingRule = findMatchingQuotePriceRule(title, unit, rules);
@@ -240,6 +243,7 @@ function normalizeAiLine(raw: AiLine, rules: QuotePriceRule[]): QuotePriceLine |
         unit,
         quantity,
         unitPriceExclBtw: matchingRule ? matchingRule.unitPriceExclBtw : aiPrice,
+        category: 'materiaal',
         source: (matchingRule ? 'regel' : 'ai') as QuotePricingSource,
         ruleId: matchingRule?.id,
         confidence: matchingRule ? 1 : confidence,
@@ -276,6 +280,7 @@ function heuristicLines(notes: string, quoteTitle: string, rules: QuotePriceRule
         const explicitPrice = section.text.match(/€?\s*([\d.,]+)\s*(?:euro\s*)?(?:per|\/)\s*(m2|m²|m1|m¹|stuk|st|uur)/i)
             || section.text.match(/(?:=|:)\s*€?\s*([\d.,]+)\s*(?:euro\s*)?(?:per|\/)?\s*(m2|m²|m1|m¹|stuk|st|uur)/i);
         const ruleUnit: QuotePricingUnit = isAreaWork ? 'm2' : 'vast';
+        if (normalizePricingCategory(undefined, title, ruleUnit) !== 'materiaal') return [];
         const matchingRule = findMatchingQuotePriceRule(title, ruleUnit, rules);
         let quantity = dimensions.reduce((total, match) => {
             const first = parseDimension(match[1]);
@@ -297,6 +302,7 @@ function heuristicLines(notes: string, quoteTitle: string, rules: QuotePriceRule
             unit: matchingRule?.unit || (explicitPrice ? normalizePricingUnit(explicitPrice[2]) : ruleUnit),
             quantity: Number(quantity.toFixed(3)),
             unitPriceExclBtw: price,
+            category: 'materiaal' as const,
             source: (matchingRule ? 'regel' : 'ai') as QuotePricingSource,
             ruleId: matchingRule?.id,
             confidence: matchingRule ? 1 : (price > 0 && quantity > 0 ? 0.35 : 0.15),
@@ -341,13 +347,14 @@ async function callOpenAi(
                         type: 'input_text',
                         text: [
                             'Je bent een Nederlandse prijsraming-assistent voor een timmerbedrijf.',
-                            'Maak een eerste controleerbaar voorstel voor verkoopregels.',
+                            'Maak uitsluitend een eerste controleerbaar voorstel voor MATERIAALregels.',
+                            'Neem geen arbeidsuren, montage, plaatsen, stucwerk, elektra, transport, brandstof of andere werkzaamheden op.',
                             'Gebruik bestaande prijsregels exact als titel en prijs wanneer ze passen.',
-                            'Gebruik m2 voor wanden en plafonds wanneer de maten dat toelaten.',
+                            'Gebruik m2 voor materiaal in wanden en plafonds wanneer de maten dat toelaten.',
                             'Lengtes en hoogtes in millimeters: reken m2 deterministisch uit.',
                             'Een historisch offertetotaal kan meerdere werkzaamheden bevatten: gebruik dat alleen als ruwe context en doe geen stellige uitspraken.',
                             'Verzin geen materialen, maten of scope die niet in de input staan.',
-                            'Geef uitsluitend JSON terug in de vorm {"lines":[{"title":"...","unit":"m2|m1|st|uur|vast","quantity":0,"unitPriceExclBtw":0,"confidence":0.0,"explanation":"..."}]}',
+                            'Geef uitsluitend JSON terug in de vorm {"lines":[{"title":"...","category":"materiaal","unit":"m2|m1|st|vast","quantity":0,"unitPriceExclBtw":0,"confidence":0.0,"explanation":"..."}]}',
                         ].join('\n'),
                     }],
                 },
@@ -435,8 +442,8 @@ export async function POST(request: Request) {
             usedAi,
             historicalExamples: history,
             message: usedAi
-                ? 'AI-voorstel gemaakt. Controleer de regels voordat je opslaat.'
-                : 'Voorstel gemaakt met bestaande prijsregels en lokale extractie. Controleer de prijzen.',
+                ? 'AI-materiaalvoorstel gemaakt. Controleer de regels voordat je opslaat.'
+                : 'Materiaalvoorstel gemaakt met bestaande prijsregels en lokale extractie. Controleer de prijzen.',
         });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Prijsvoorstel mislukt.';
