@@ -28,9 +28,6 @@ interface PricingTabProps {
     quote: Quote | null;
     quoteTitle: string;
     notes: string;
-    vatRate?: number;
-    automaticFuelAmount?: number | null;
-    automaticFuelLabel?: string;
 }
 
 interface PricingSuggestionResponse {
@@ -81,15 +78,11 @@ export function PricingTab({
     quote,
     quoteTitle,
     notes,
-    vatRate = 21,
-    automaticFuelAmount = null,
-    automaticFuelLabel = 'Brandstof / transport',
 }: PricingTabProps) {
     const { user } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
     const [materialLines, setMaterialLines] = useState<QuotePriceLine[]>([]);
-    const [laborLines, setLaborLines] = useState<QuotePriceLine[]>([]);
     const [rules, setRules] = useState<QuotePriceRule[]>([]);
     const [suggestions, setSuggestions] = useState<QuotePriceLine[] | null>(null);
     const [suggestionMessage, setSuggestionMessage] = useState('');
@@ -106,7 +99,6 @@ export function PricingTab({
         const storedPricing = sanitizeQuotePricing(JSON.parse(storedPricingJson));
         const storedLines = sanitizeQuotePriceLines(storedPricing.lines);
         setMaterialLines(storedLines.filter((line) => normalizePricingCategory(line.category, line.title, line.unit) === 'materiaal'));
-        setLaborLines(storedLines.filter((line) => normalizePricingCategory(line.category, line.title, line.unit) === 'arbeid'));
         setIsLoaded(true);
     }, [quote?.id, storedPricingJson]);
 
@@ -135,23 +127,13 @@ export function PricingTab({
         () => materialLines.reduce((total, line) => total + calculateQuotePriceLineTotal(line), 0),
         [materialLines],
     );
-    const laborTotalExclBtw = useMemo(
-        () => laborLines.reduce((total, line) => total + calculateQuotePriceLineTotal(line), 0),
-        [laborLines],
+    const suggestionMaterialTotalExclBtw = useMemo(
+        () => (suggestions || []).reduce((total, line) => total + calculateQuotePriceLineTotal(line), 0),
+        [suggestions],
     );
-    const fuelTotalExclBtw = Math.max(0, Number(automaticFuelAmount) || 0);
-    const totalExclBtw = materialTotalExclBtw + laborTotalExclBtw + fuelTotalExclBtw;
-    const totalInclBtw = totalExclBtw * (1 + Math.max(0, Number(vatRate) || 0) / 100);
-
     const updateLine = (lineId: string, updates: Partial<QuotePriceLine>) => {
         setMaterialLines((current) => current.map((line) => (
             line.id === lineId ? { ...line, ...updates, source: 'handmatig' } : line
-        )));
-    };
-
-    const updateLaborLine = (lineId: string, updates: Partial<QuotePriceLine>) => {
-        setLaborLines((current) => current.map((line) => (
-            line.id === lineId ? { ...line, ...updates, category: 'arbeid', source: 'handmatig' } : line
         )));
     };
 
@@ -170,27 +152,8 @@ export function PricingTab({
         ]);
     };
 
-    const addLaborLine = () => {
-        setLaborLines((current) => [
-            ...current,
-            {
-                id: createQuotePricingId('arbeid'),
-                title: 'Arbeidsuren',
-                unit: 'uur',
-                quantity: 0,
-                unitPriceExclBtw: 0,
-                category: 'arbeid',
-                source: 'handmatig',
-            },
-        ]);
-    };
-
     const removeLine = (lineId: string) => {
         setMaterialLines((current) => current.filter((line) => line.id !== lineId));
-    };
-
-    const removeLaborLine = (lineId: string) => {
-        setLaborLines((current) => current.filter((line) => line.id !== lineId));
     };
 
     const handleSuggest = async () => {
@@ -248,22 +211,18 @@ export function PricingTab({
         const cleanedMaterialLines = sanitizeQuotePriceLines(materialLines)
             .filter((line) => line.title.trim())
             .map((line) => ({ ...line, category: 'materiaal' as const }));
-        const cleanedLaborLines = sanitizeQuotePriceLines(laborLines)
-            .filter((line) => line.title.trim())
-            .map((line) => ({ ...line, category: 'arbeid' as const, source: 'handmatig' as const, unit: 'uur' as const }));
         setIsSaving(true);
         try {
             await updateDoc(doc(firestore, 'quotes', quoteId), {
                 prijsraming: {
                     mode: 'unit_price',
-                    lines: [...cleanedMaterialLines, ...cleanedLaborLines],
+                    lines: cleanedMaterialLines,
                     updatedAt: new Date().toISOString(),
                 },
                 updatedAt: serverTimestamp(),
             });
             setMaterialLines(cleanedMaterialLines);
-            setLaborLines(cleanedLaborLines);
-            toast({ title: 'Prijsraming opgeslagen', description: 'Materialen en handmatige uren zijn opgeslagen bij deze offerte.' });
+            toast({ title: 'Materiaalprijzen opgeslagen', description: 'De materiaalregels zijn opgeslagen bij deze offerte.' });
         } catch (error) {
             toast({
                 variant: 'destructive',
@@ -341,7 +300,7 @@ export function PricingTab({
                         <div>
                             <h2 className="font-semibold text-foreground">Prijsraming</h2>
                             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                                Materiaalprijs op basis van m², m¹, stuks of een vast bedrag. Arbeidsuren vul je handmatig in; brandstof/transport wordt automatisch toegevoegd.
+                                Snelle materiaalprijs op basis van m², m¹, stuks of een vast bedrag. De lange materiaalcalculatie blijft apart voor exacte aantallen.
                             </p>
                         </div>
                     </div>
@@ -404,6 +363,9 @@ export function PricingTab({
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                    <div className="mt-3 text-right text-sm text-amber-100">
+                        Voorlopig totaal materialen excl. btw: <span className="font-mono font-semibold">{formatMoney(suggestionMaterialTotalExclBtw)}</span>
                     </div>
                 </div>
             )}
@@ -498,114 +460,6 @@ export function PricingTab({
                 )}
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-border bg-card">
-                <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h3 className="font-medium text-foreground">Arbeidsuren (handmatig)</h3>
-                        <p className="text-xs text-muted-foreground">De AI vult geen arbeidsuren of montage in. Bereken en controleer deze zelf.</p>
-                    </div>
-                    <Button type="button" size="sm" variant="outline" className="gap-2 self-start" onClick={addLaborLine}>
-                        <Plus className="h-4 w-4" /> Uren toevoegen
-                    </Button>
-                </div>
-
-                {laborLines.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-sm text-muted-foreground">Nog geen handmatige arbeidsuren toegevoegd.</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full min-w-[760px] text-sm">
-                            <thead className="border-b border-border bg-muted/20 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                                <tr>
-                                    <th className="px-3 py-3">Omschrijving</th>
-                                    <th className="w-28 px-3 py-3">Eenheid</th>
-                                    <th className="w-32 px-3 py-3 text-right">Uren</th>
-                                    <th className="w-36 px-3 py-3 text-right">Uurtarief</th>
-                                    <th className="w-32 px-3 py-3 text-right">Totaal</th>
-                                    <th className="w-12 px-3 py-3" />
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {laborLines.map((line) => (
-                                    <tr key={line.id} className="border-b border-border/50 last:border-0">
-                                        <td className="px-3 py-2 align-top">
-                                            <Input
-                                                value={line.title}
-                                                onChange={(event) => updateLaborLine(line.id, { title: event.target.value })}
-                                                placeholder="bijv. Montage en afwerking"
-                                                className="h-9 min-w-64"
-                                            />
-                                        </td>
-                                        <td className="px-3 py-2 align-top text-muted-foreground">uur</td>
-                                        <td className="px-3 py-2 align-top">
-                                            <Input
-                                                value={inputNumber(line.quantity)}
-                                                onChange={(event) => updateLaborLine(line.id, { quantity: parsePricingNumber(event.target.value) })}
-                                                inputMode="decimal"
-                                                className="h-9 text-right font-mono"
-                                            />
-                                        </td>
-                                        <td className="px-3 py-2 align-top">
-                                            <Input
-                                                value={inputNumber(line.unitPriceExclBtw)}
-                                                onChange={(event) => updateLaborLine(line.id, { unitPriceExclBtw: parsePricingNumber(event.target.value) })}
-                                                inputMode="decimal"
-                                                className="h-9 text-right font-mono"
-                                            />
-                                        </td>
-                                        <td className="px-3 py-2 text-right align-top font-mono font-medium text-emerald-300">
-                                            {formatMoney(calculateQuotePriceLineTotal(line))}
-                                        </td>
-                                        <td className="px-3 py-2 text-right align-top">
-                                            <Button type="button" variant="ghost" size="icon" onClick={() => removeLaborLine(line.id)} aria-label="Verwijder arbeidsuren" title="Verwijder arbeidsuren">
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                            <tfoot className="border-t border-border bg-muted/20">
-                                <tr>
-                                    <td colSpan={4} className="px-3 py-3 text-right font-medium">Totaal arbeid excl. btw</td>
-                                    <td className="px-3 py-3 text-right font-mono font-semibold text-emerald-300">{formatMoney(laborTotalExclBtw)}</td>
-                                    <td />
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                )}
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-4">
-                <div className="flex items-center justify-between gap-3">
-                    <div>
-                        <h3 className="font-medium text-foreground">{automaticFuelLabel} (automatisch)</h3>
-                        <p className="text-sm text-muted-foreground">Komt uit de bestaande automatische afstands- en transportberekening.</p>
-                    </div>
-                    <div className="text-right">
-                        <div className="font-mono text-lg font-semibold text-emerald-300">
-                            {automaticFuelAmount !== null && automaticFuelAmount !== undefined ? formatMoney(fuelTotalExclBtw) : '—'}
-                        </div>
-                        <div className="text-xs text-muted-foreground">excl. btw</div>
-                    </div>
-                </div>
-                {automaticFuelAmount === null || automaticFuelAmount === undefined ? (
-                    <p className="mt-3 text-xs text-amber-200/80">Nog geen automatische brandstof/transportprijs beschikbaar. Controleer de route en transportinstellingen.</p>
-                ) : null}
-            </div>
-
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-                <div className="flex items-center justify-between gap-3">
-                    <h3 className="font-medium text-foreground">Totaal prijsraming</h3>
-                    <div className="text-right font-mono font-semibold text-emerald-300">{formatMoney(totalExclBtw)} excl. btw</div>
-                </div>
-                <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-                    <div>Materialen <span className="float-right font-mono text-foreground">{formatMoney(materialTotalExclBtw)}</span></div>
-                    <div>Arbeid <span className="float-right font-mono text-foreground">{formatMoney(laborTotalExclBtw)}</span></div>
-                    <div>Brandstof/transport <span className="float-right font-mono text-foreground">{formatMoney(fuelTotalExclBtw)}</span></div>
-                </div>
-                <div className="mt-3 border-t border-emerald-500/20 pt-3 text-right text-sm text-muted-foreground">Totaal incl. {vatRate}% btw: <span className="font-mono text-foreground">{formatMoney(totalInclBtw)}</span></div>
-            </div>
-
             <div className="rounded-xl border border-border bg-card p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -647,7 +501,7 @@ export function PricingTab({
 
             <div className="flex items-start gap-2 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-100/75">
                 <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-blue-300" />
-                <span>De AI doet alleen een eerste materiaalvoorstel. Controleer vooral de prijs, de oppervlakteformule en wat wel of niet in het materiaal zit voordat je deze als vaste prijsregel bewaart. Arbeidsuren blijven handmatig.</span>
+                <span>De AI doet alleen een eerste materiaalvoorstel. Controleer vooral de prijs, de oppervlakteformule en wat wel of niet in het materiaal zit voordat je deze als vaste prijsregel bewaart.</span>
             </div>
         </div>
     );
