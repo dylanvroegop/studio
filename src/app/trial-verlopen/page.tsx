@@ -56,7 +56,7 @@ export default function TrialVerlopenPage() {
       });
 
       if (response.ok) {
-        router.replace('/dashboard');
+        router.replace('/offertes');
         return;
       }
 

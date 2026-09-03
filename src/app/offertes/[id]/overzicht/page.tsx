@@ -2523,7 +2523,7 @@ export default function OverzichtPage() {
           <CardContent>
             <p className="text-muted-foreground">{error}</p>
             <div className="pt-4">
-              <Button variant="outline" onClick={() => router.push('/dashboard')}>
+              <Button variant="outline" onClick={() => router.push('/offertes')}>
                 Terug
               </Button>
             </div>
@@ -3233,7 +3233,7 @@ export default function OverzichtPage() {
       {/* HEADER with PersonalNotes */}
       <WizardHeader
         title="Overzicht & extra's"
-        backLink="/dashboard"
+        backLink="/offertes"
         progress={100}
         quoteId={quoteId}
         rightContent={

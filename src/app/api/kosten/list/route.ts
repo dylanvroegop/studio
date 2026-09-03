@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
-import { buildFinanceBankLedger, isProfitAccountTransfer, loadConnectedKnabTransactions } from '@/lib/finance-bank-ledger';
+import {
+  buildFinanceBankLedger,
+  isProfitAccountTransfer,
+  loadConnectedKnabTransactions,
+  splitFinanceBankLedgerRowsByCategory,
+} from '@/lib/finance-bank-ledger';
 import { mapProjectCostRow, normalizeProjectCostCategory, roundEuro, type ProjectCostRow } from '@/lib/project-costs';
 import { deriveBankUserId } from '@/lib/bank-user-id';
 import { fetchWithSupabaseClockSkewRetry, supabaseAdmin } from '@/lib/supabase-admin';
@@ -117,15 +122,21 @@ export async function GET(request: Request) {
         normalizeProjectCostCategory(row.category),
       ])
     );
-    const ledgerRows = buildFinanceBankLedger({
+    const bankLedgerRows = buildFinanceBankLedger({
       userId: uid,
       transactions: knabTransactions,
       costs: projectCosts,
       categoryOverrides,
     });
+    const ledgerRows = splitFinanceBankLedgerRowsByCategory({
+      rows: bankLedgerRows,
+      costs: projectCosts,
+      categoryOverrides,
+    });
 
-    // Knab is the cost ledger. Each debit is returned exactly once. Imported
-    // invoices and receipts only provide VAT, category, quote and attachments.
+    // Knab is the cost ledger. The amount of each debit is counted exactly
+    // once, but a mixed invoice can produce multiple category parts. Imported
+    // invoices and receipts provide the split, VAT, quote and attachments.
     const mappedRows = ledgerRows.map((ledgerRow) => {
       const sources = ledgerRow.source_cost_ids
         .map((costId) => projectCostById.get(costId))
@@ -148,19 +159,25 @@ export async function GET(request: Request) {
         ).values()
       );
       const offerteIds = uniqueStrings(sources.map((cost) => cost.offerte_id || ''));
+      const sourceDates = uniqueStrings(sources.map((cost) => safeString(cost.date).slice(0, 10)));
+      const sourceLineItems = sources.flatMap((cost) => cost.line_items || []);
+      const sourceLineDescriptions = uniqueStrings(sourceLineItems.map((item) => safeString(item.description)));
+      const sourceSummary = sourceLineDescriptions.length > 0
+        ? `${sourceDates.length === 1 ? `Aankoop ${sourceDates[0]}` : `${sourceDates.length} aankoopdatums`} · ${sourceLineDescriptions.length} productregels: ${sourceLineDescriptions.join(' · ')}`
+        : ledgerRow.description;
       const date = safeString(ledgerRow.booking_date);
       const createdAt = date ? `${date}T00:00:00.000Z` : new Date(0).toISOString();
       const category = ledgerRow.is_private ? 'eigen_verbruik' : ledgerRow.category;
       const btwPercentage = amountExcl !== 0 ? roundEuro((btwAmount / amountExcl) * 100) : 0;
 
       return mapProjectCostRow({
-        id: `bank-knab-${ledgerRow.bank_transaction_id}`,
+        id: `bank-knab-${ledgerRow.bank_transaction_id}-${category}`,
         user_id: uid,
         offerte_id: offerteIds.length === 1 ? offerteIds[0] : null,
         category,
         supplier_name: ledgerRow.supplier_name,
-        description: ledgerRow.description,
-        line_items: sources.flatMap((cost) => cost.line_items || []),
+        description: sourceSummary,
+        line_items: sourceLineItems,
         amount_excl_btw: amountExcl,
         btw_percentage: btwPercentage,
         btw_amount: btwAmount,
@@ -223,6 +240,24 @@ export async function GET(request: Request) {
 
     mappedRows.push(...internalTransferRows);
 
+    // Knab is authoritative from the first available connected transaction.
+    // Older imported costs cannot be verified against this bank history, but
+    // they are still real documented costs and must not disappear from the
+    // category lists. Costs already matched to a later debit remain excluded
+    // here so they can never be counted twice.
+    const firstKnabDate = knabTransactions
+      .map((transaction) => safeString(transaction.booking_date).slice(0, 10))
+      .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+      .sort()[0] || null;
+    const matchedCostIds = new Set(bankLedgerRows.flatMap((row) => row.source_cost_ids));
+    const historicalSourceRows = firstKnabDate
+      ? projectCosts
+        .filter((cost) => safeString(cost.date).slice(0, 10) < firstKnabDate)
+        .filter((cost) => !matchedCostIds.has(cost.id))
+        .map((cost) => ({ ...cost, status: 'historical_source_cost' }))
+      : [];
+    mappedRows.push(...historicalSourceRows);
+
     mappedRows.sort((left, right) => {
       const leftTime = new Date(left.date || left.created_at).getTime();
       const rightTime = new Date(right.date || right.created_at).getTime();
@@ -235,6 +270,8 @@ export async function GET(request: Request) {
           uid,
           source: 'knab-ledger',
           rowCount: mappedRows.length,
+          historicalSourceCount: historicalSourceRows.length,
+          firstKnabDate,
         })
       );
     }

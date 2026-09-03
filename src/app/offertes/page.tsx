@@ -751,6 +751,7 @@ export default function OffertesPage() {
   const [updatingAcceptanceQuoteId, setUpdatingAcceptanceQuoteId] = useState<string | null>(null);
   const [updatingDashboardQuoteId, setUpdatingDashboardQuoteId] = useState<string | null>(null);
   const [profitByQuoteId, setProfitByQuoteId] = useState<Record<string, number>>({});
+  const [profitBasisByQuoteId, setProfitBasisByQuoteId] = useState<Record<string, 'actual' | 'forecast'>>({});
   const workedHoursByQuoteId = useQuoteWorkedHours(quotes as QuoteWithAddress[]);
   const isSyncingTotalsRef = useRef(false);
   const isSyncingHoofdtitelsRef = useRef(false);
@@ -1134,28 +1135,26 @@ export default function OffertesPage() {
             projectPerformances?: Array<{
               projectId: string;
               quotedRevenueIncl: number;
+              projectedProfitAfterLaborMarginVat: number;
               actualCostExcl: number;
+              netProfitQuoteBasis: number;
               hasActualData: boolean;
-              hourlyWorkMaterialPassthrough?: boolean;
-              costBreakdown?: Array<{ key: string; quotedExcl: number }>;
+              hasQuotedCalculation: boolean;
             }>;
           };
         } | null;
         if (!response.ok || !payload?.ok || !payload.data?.projectPerformances || cancelled) return;
 
         const nextProfits: Record<string, number> = {};
+        const nextProfitBasis: Record<string, 'actual' | 'forecast'> = {};
         payload.data.projectPerformances.forEach((project) => {
-          if (!project.hasActualData) return;
-          const materialPassthroughExcl = (project.costBreakdown || [])
-            .filter((row) => row.key === 'materialenGroot' || row.key === 'materialenVerbruik')
-            .reduce((sum, row) => sum + row.quotedExcl, 0);
-          const adjustedRevenue = project.hourlyWorkMaterialPassthrough
-            ? Math.max(0, project.quotedRevenueIncl - materialPassthroughExcl)
-            : project.quotedRevenueIncl;
-          const profit = adjustedRevenue - project.actualCostExcl;
+          if (!project.hasActualData && !project.hasQuotedCalculation) return;
+          const profit = project.hasActualData ? project.netProfitQuoteBasis : project.projectedProfitAfterLaborMarginVat;
           if (Number.isFinite(profit)) nextProfits[project.projectId] = profit;
+          nextProfitBasis[project.projectId] = project.hasActualData ? 'actual' : 'forecast';
         });
         setProfitByQuoteId(nextProfits);
+        setProfitBasisByQuoteId(nextProfitBasis);
       } catch (error) {
         console.warn('Kon winst per offerte niet laden:', error);
       }
@@ -2021,6 +2020,7 @@ export default function OffertesPage() {
                 const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
                 const quoteProfit = profitByQuoteId[q.id];
                 const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
+                const quoteProfitLabel = profitBasisByQuoteId[q.id] === 'forecast' ? 'Verwachte winst' : 'Winst';
                 const todaySummary = workedHoursByQuoteId[q.id];
                 const todayWorkedHours = todaySummary?.workedHours || 0;
                 const routeDestinationAddress = resolveQuoteProjectAddress(q);
@@ -2080,7 +2080,7 @@ export default function OffertesPage() {
                           </div>
                           {hasQuoteProfit ? (
                             <div className="truncate text-sm font-semibold text-emerald-400">
-                              Winst {formatCurrency(quoteProfit)}
+                              {quoteProfitLabel} {formatCurrency(quoteProfit)}
                             </div>
                           ) : null}
                         </div>
@@ -2233,6 +2233,7 @@ export default function OffertesPage() {
                 const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
                 const quoteProfit = profitByQuoteId[q.id];
                 const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
+                const quoteProfitLabel = profitBasisByQuoteId[q.id] === 'forecast' ? 'Verwachte winst' : 'Winst';
                 const todaySummary = workedHoursByQuoteId[q.id];
                 const todayWorkedHours = todaySummary?.workedHours || 0;
                 const amountClass = cn(
@@ -2317,7 +2318,7 @@ export default function OffertesPage() {
                           </div>
                           {hasQuoteProfit ? (
                             <div className="mt-0.5 text-sm font-semibold tabular-nums text-emerald-400">
-                              Winst {formatCurrency(quoteProfit)}
+                              {quoteProfitLabel} {formatCurrency(quoteProfit)}
                             </div>
                           ) : null}
                         </div>

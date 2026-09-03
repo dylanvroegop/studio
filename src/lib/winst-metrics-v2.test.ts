@@ -136,4 +136,27 @@ export function runWinstMetricsUnitTests(): void {
 
   const conceptMetrics = buildWinstMetrics(conceptInvoiceInput);
   assert.equal(conceptMetrics.totals.receivedCashIncl, 0);
+
+  const externalCostsInput = baseInput();
+  externalCostsInput.nacalculaties = [];
+  externalCostsInput.projectCosts = [{
+    quoteId: 'q-1',
+    category: 'materiaal',
+    amountExcl: 100,
+    amountIncl: 121,
+  }];
+  const externalCostsMetrics = buildWinstMetrics(externalCostsInput);
+  const externalProject = externalCostsMetrics.projectPerformances[0];
+  assert.equal(externalProject.actualCostExcl, 100);
+  assert.equal(externalProject.netProfitQuoteBasis, externalProject.quotedRevenueExcl - 100);
+
+  const timeOnlyInput = baseInput();
+  timeOnlyInput.nacalculaties = [];
+  timeOnlyInput.projectCosts = [];
+  timeOnlyInput.laborCosts = [{ quoteId: 'q-1', costExcl: 0, hours: 8, days: 1 }];
+  const timeOnlyMetrics = buildWinstMetrics(timeOnlyInput);
+  const timeOnlyProject = timeOnlyMetrics.projectPerformances[0];
+  assert.equal(timeOnlyProject.hasActualData, false);
+  assert.equal(timeOnlyProject.actualCostExcl, 0);
+  assert.equal(timeOnlyProject.actualHours, 8);
 }

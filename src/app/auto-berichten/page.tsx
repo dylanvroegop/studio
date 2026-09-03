@@ -13,7 +13,7 @@ function LoadingPage() {
     return (
         <div className="app-shell min-h-screen bg-background">
             <AppNavigation />
-            <DashboardHeader user={null} title="Auto berichten" />
+            <DashboardHeader user={null} title="Berichten" />
             <main className="flex min-h-[60vh] items-center justify-center p-6">
                 <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-5 py-4 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -37,7 +37,7 @@ export default function AutoMessagesPage() {
     return (
         <div className="app-shell min-h-screen bg-background">
             <AppNavigation />
-            <DashboardHeader user={user} title="Auto berichten" />
+            <DashboardHeader user={user} title="Berichten" />
             <main className="mx-auto w-full max-w-7xl px-4 pb-10 pt-6 sm:px-6">
                 <AutoMessagesTab />
             </main>

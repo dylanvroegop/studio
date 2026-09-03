@@ -236,19 +236,6 @@
   {
     "supplier": "Bouwmaat Alkmaar",
     "date": "2026-07-03",
-    "product": "Bouwmaat Uitvulplaat Blauw 4mm 48st",
-    "current_product_category": "gereedschap",
-    "cost_row_category": "gereedschap",
-    "raw_bank_category": "overig",
-    "proposed_category": "materiaal",
-    "confidence_current_correct_pct": 3,
-    "finding": "waarschijnlijk fout",
-    "reason": "Verbruikbaar montage-/stelmateriaal.",
-    "cost_id": "fb6c5007-298d-410d-9ce2-f75d7fcfaa5c"
-  },
-  {
-    "supplier": "Bouwmaat Alkmaar",
-    "date": "2026-07-03",
     "product": "Bouwmaat Uitvulplaat Rood 5mm 48st",
     "current_product_category": "gereedschap",
     "cost_row_category": "gereedschap",
@@ -388,32 +375,6 @@
     "finding": "waarschijnlijk fout",
     "reason": "Eten, drinken of privéartikel; geen bouwmateriaal/gereedschap.",
     "cost_id": "48935a77-e48b-4ed6-b397-a7c43294778e"
-  },
-  {
-    "supplier": "Bouwmaat Huizen B.V.",
-    "date": "2026-08-21",
-    "product": "Bostik Maatemmer 10L",
-    "current_product_category": "materiaal",
-    "cost_row_category": "materiaal",
-    "raw_bank_category": "(niet gekoppeld)",
-    "proposed_category": "gereedschap",
-    "confidence_current_correct_pct": 3,
-    "finding": "waarschijnlijk fout",
-    "reason": "Herbruikbaar handgereedschap of schildersgereedschap.",
-    "cost_id": "6902de15-8d02-4c21-95d8-97c3dbd11e0a"
-  },
-  {
-    "supplier": "Bouwmaat Huizen B.V.",
-    "date": "2026-08-21",
-    "product": "Vero Bezemsteel Hout 1500x28mm",
-    "current_product_category": "materiaal",
-    "cost_row_category": "materiaal",
-    "raw_bank_category": "(niet gekoppeld)",
-    "proposed_category": "gereedschap",
-    "confidence_current_correct_pct": 3,
-    "finding": "waarschijnlijk fout",
-    "reason": "Herbruikbaar handgereedschap of schildersgereedschap.",
-    "cost_id": "6902de15-8d02-4c21-95d8-97c3dbd11e0a"
   },
   {
     "supplier": "Bouwmaat Huizen B.V.",
@@ -677,19 +638,6 @@
   },
   {
     "supplier": "GAMMA",
-    "date": "2026-08-08",
-    "product": "Wall charger 20W USB-C",
-    "current_product_category": "materiaal",
-    "cost_row_category": "materiaal",
-    "raw_bank_category": "overig",
-    "proposed_category": "telefoon",
-    "confidence_current_correct_pct": 5,
-    "finding": "waarschijnlijk fout",
-    "reason": "Telefoonlader/-kabel.",
-    "cost_id": "c73ce8c4-41d4-4006-bb9f-f5ee4ae8ba3c"
-  },
-  {
-    "supplier": "GAMMA",
     "date": "2026-08-09",
     "product": "Fanta Orange 50cl + statiegeld",
     "current_product_category": "overig",
@@ -700,19 +648,6 @@
     "finding": "waarschijnlijk fout",
     "reason": "Eten, drinken of privéartikel; geen bouwmateriaal/gereedschap.",
     "cost_id": "aac15872-8dcb-467c-8cad-783171377439"
-  },
-  {
-    "supplier": "GAMMA",
-    "date": "2026-08-09",
-    "product": "Moersleutel Suki 250mm",
-    "current_product_category": "materiaal",
-    "cost_row_category": "materiaal",
-    "raw_bank_category": "overig",
-    "proposed_category": "gereedschap",
-    "confidence_current_correct_pct": 3,
-    "finding": "waarschijnlijk fout",
-    "reason": "Herbruikbaar handgereedschap of schildersgereedschap.",
-    "cost_id": "75fafd11-1ec0-414c-9c74-0feb94252623"
   },
   {
     "supplier": "GAMMA",
@@ -869,19 +804,6 @@
     "finding": "onvoldoende informatie",
     "reason": "Omschrijving is te algemeen of leeg voor 98% zekerheid.",
     "cost_id": "e433cfc1-bdbf-4333-8a87-9b651ea81951"
-  },
-  {
-    "supplier": "Toolstation NL B.V.",
-    "date": "2026-07-20",
-    "product": "Wago verbindingsklemmen",
-    "current_product_category": "gereedschap",
-    "cost_row_category": "gereedschap",
-    "raw_bank_category": "overig",
-    "proposed_category": "materiaal",
-    "confidence_current_correct_pct": 2,
-    "finding": "waarschijnlijk fout",
-    "reason": "Elektrisch installatiemateriaal dat in het werk achterblijft.",
-    "cost_id": "6514af44-ffd4-4150-b71a-fa2098cf40c2"
   },
   {
     "supplier": "Total (Beverwijk)",

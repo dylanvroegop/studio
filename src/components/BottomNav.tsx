@@ -2,32 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Boxes, Settings, CalendarDays, FileText } from 'lucide-react';
+import { Users, Boxes, Settings, CalendarDays, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function BottomNav() {
     const pathname = usePathname();
 
     function isActive(path: string) {
-        if (path === '/dashboard' && pathname === '/dashboard') return true;
-        if (path !== '/dashboard' && pathname?.startsWith(path)) return true;
-        return false;
+        return pathname?.startsWith(path) ?? false;
     }
 
     return (
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/90 backdrop-blur-md pb-safe pt-2">
             <div className="mx-auto flex max-w-md items-center justify-between px-6 py-2">
-                <Link
-                    href="/dashboard"
-                    className={cn(
-                        "flex flex-col items-center gap-1 p-2 transition-colors",
-                        isActive('/dashboard') ? "text-emerald-500" : "text-muted-foreground hover:text-foreground"
-                    )}
-                >
-                    <LayoutDashboard className="h-6 w-6" strokeWidth={isActive('/dashboard') ? 2.5 : 2} />
-                    <span className="text-[10px] font-medium tracking-wide">Dashboard</span>
-                </Link>
-
                 <Link
                     href="/offertes"
                     className={cn(

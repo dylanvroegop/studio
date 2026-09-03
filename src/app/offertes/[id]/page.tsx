@@ -26,7 +26,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, FileSignature, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy, MoreHorizontal } from 'lucide-react';
+import { Euro, Package, Clock, FileText, FileSignature, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy, MoreHorizontal, Calculator } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -62,6 +62,7 @@ import { SendQuoteWhatsAppModal } from '@/components/quote/SendQuoteWhatsAppModa
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialListExportDialog } from '@/components/quote/MaterialListExportDialog';
 import { MaterialPresentationTab } from '@/components/quote/MaterialPresentationTab';
+import { PricingTab } from '@/components/quote/PricingTab';
 import { WorkDescriptionWorkspace } from '@/components/quote/work-description/WorkDescriptionWorkspace';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
@@ -5544,7 +5545,7 @@ export default function QuotePage() {
     }, [calculationInProgress, calculationTimerStorageKey, quote?.calculationStartedAt, quote?.updatedAt]);
 
     const loading = firebaseLoading || isUserLoading;
-    const error = calculationError || firebaseError;
+    const error = firebaseError || (activeTab === 'prijsraming' ? null : calculationError);
     const calculationProgressPercentage = Math.min(
         100,
         (calculationElapsedSeconds / CALCULATION_ESTIMATE_SECONDS) * 100
@@ -6829,7 +6830,7 @@ export default function QuotePage() {
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
                         <div className="text-red-400 font-medium">Fout bij laden: {error}</div>
                         <Button asChild variant="secondary">
-                            <Link href="/dashboard">Terug naar Dashboard</Link>
+                            <Link href="/offertes">Terug naar Offertes</Link>
                         </Button>
                     </div>
                 ) : (
@@ -6854,6 +6855,14 @@ export default function QuotePage() {
                                         title="Materialen"
                                     >
                                         <Package size={16} />
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="prijsraming"
+                                        className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
+                                        aria-label="Prijsraming"
+                                        title="Prijsraming"
+                                    >
+                                        <Calculator size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="pdf"
@@ -6939,6 +6948,10 @@ export default function QuotePage() {
                                 <TabsTrigger value="overzicht" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <Euro size={16} />
                                     Overzicht
+                                </TabsTrigger>
+                                <TabsTrigger value="prijsraming" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <Calculator size={16} />
+                                    Prijsraming
                                 </TabsTrigger>
                                 <TabsTrigger
                                     value="tekeningen"
@@ -7630,6 +7643,16 @@ export default function QuotePage() {
                                     />
                                 </div>
                             )}
+                        </TabsContent>
+
+                        <TabsContent value="prijsraming" className="mt-6">
+                            <PricingTab
+                                quoteId={id}
+                                quote={quote}
+                                quoteTitle={workDescriptionStructured.title || normalizedData?.korteTitel || quote?.titel || ''}
+                                notes={quoteNotes}
+                                vatRate={quoteSettings?.btwTarief || 21}
+                            />
                         </TabsContent>
 
                         {canShowNacalculatieTab && (

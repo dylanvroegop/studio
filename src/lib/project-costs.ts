@@ -289,7 +289,15 @@ export function inferProjectCostCategory(params: {
     return 'leadkosten';
   }
 
-  if (containsAny(['uitvulplaat', 'reinigingsdoekjes', 'reinigings doekjes'])) {
+  if (containsAny(['uitvulplaat', 'wago verbindingsklem'])) {
+    return 'materiaal';
+  }
+
+  if (containsAny(['reinigingsdoekjes', 'reinigings doekjes'])) {
+    return 'gereedschap';
+  }
+
+  if (containsAny(['bostik maatemmer', 'vero bezemsteel', 'wall charger 20w usb-c', 'moersleutel suki'])) {
     return 'gereedschap';
   }
 

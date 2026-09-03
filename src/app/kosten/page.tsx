@@ -204,6 +204,10 @@ function isInternalProfitTransferCost(cost: ProjectCostRow): boolean {
   return cost.status === 'internal_profit_transfer' || cost.category === 'profit';
 }
 
+function isHistoricalSourceCost(cost: ProjectCostRow): boolean {
+  return cost.status === 'historical_source_cost';
+}
+
 function formatDateLabel(value: string): string {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) return 'Onbekende datum';
@@ -555,6 +559,8 @@ function KostenPageContent() {
   const [selectedBankCost, setSelectedBankCost] = useState<ProjectCostRow | null>(null);
   const [bankCategoryDraft, setBankCategoryDraft] = useState<ProjectCostCategory>('overig');
   const [savingBankCategory, setSavingBankCategory] = useState(false);
+  const [bankOfferteDraft, setBankOfferteDraft] = useState('');
+  const [savingBankOfferte, setSavingBankOfferte] = useState(false);
   const [costPendingDelete, setCostPendingDelete] = useState<ProjectCostRow | null>(null);
   const [pendingImportId, setPendingImportId] = useState<string | null>(null);
   const pendingDismissInFlightRef = useRef<string | null>(null);
@@ -918,6 +924,19 @@ function KostenPageContent() {
       overig: roundEuro(totals.overig),
     } satisfies Record<CostFilterMode, number>;
   }, [costs, quoteById, search]);
+
+  const tabLineCounts = useMemo(() => {
+    const counts = Object.fromEntries(
+      filterOptions.map((option) => [option.value, 0])
+    ) as Record<CostFilterMode, number>;
+
+    for (const cost of costs) {
+      const lineCount = Array.isArray(cost.line_items) ? cost.line_items.length : 0;
+      counts[cost.category] += lineCount;
+      if (!isPrivateBankTransactionCost(cost) && !isInternalProfitTransferCost(cost)) counts.alle += lineCount;
+    }
+    return counts;
+  }, [costs]);
 
   const filteredQuotesForPicker = useMemo(() => {
     const term = normalizeSearchText(quoteSearch);
@@ -1350,6 +1369,7 @@ function KostenPageContent() {
   const handleOpenCost = (cost: ProjectCostRow) => {
     if (isBankTransactionCost(cost)) {
       setBankCategoryDraft(cost.category);
+      setBankOfferteDraft(safeString(cost.offerte_id));
       setSelectedBankCost(cost);
       return;
     }
@@ -1442,6 +1462,50 @@ function KostenPageContent() {
       });
     } finally {
       setSavingBankCategory(false);
+    }
+  };
+
+  const handleSaveBankOfferte = async (): Promise<void> => {
+    if (!user || !selectedBankCost?.paid_bank_transaction_id || savingBankOfferte) return;
+
+    setSavingBankOfferte(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/kosten/bank-link-quote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          bank_transaction_id: selectedBankCost.paid_bank_transaction_id,
+          offerte_id: bankOfferteDraft || null,
+        }),
+      });
+      const payload = await response.json().catch(() => null) as { ok?: boolean; message?: string; data?: { created_source_cost?: boolean } } | null;
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message || `HTTP ${response.status}`);
+      }
+
+      const refreshedCosts = await loadCosts();
+      setCosts(refreshedCosts);
+      setSelectedBankCost(null);
+      toast({
+        title: bankOfferteDraft ? 'Klant gekoppeld' : 'Klantkoppeling verwijderd',
+        description: payload.data?.created_source_cost
+          ? 'De bankafschrijving is als kostregel opgeslagen en aan de offerte gekoppeld.'
+          : bankOfferteDraft
+            ? 'De bijbehorende kostenregels tellen nu mee bij deze offerte.'
+            : 'De kostenregels tellen niet meer mee bij een offerte.',
+      });
+    } catch (saveError) {
+      toast({
+        title: 'Klant niet gekoppeld',
+        description: saveError instanceof Error ? saveError.message : 'Probeer het opnieuw.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingBankOfferte(false);
     }
   };
 
@@ -2209,6 +2273,7 @@ function KostenPageContent() {
                         )}
                       >
                         {formatCurrency(tabTotals[option.value])}
+                        {tabLineCounts[option.value] > 0 ? ` · ${tabLineCounts[option.value]} regels` : ''}
                       </span>
                     </span>
                   </Button>
@@ -2274,7 +2339,11 @@ function KostenPageContent() {
                             <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{formatDateLabel(cost.date)}</td>
                             <td className="max-w-[260px] px-3 py-2.5">
                               <div className="truncate font-medium text-foreground">{cost.supplier_name || 'Onbekende leverancier'}</div>
-                              {cost.description ? <div className="mt-0.5 truncate text-xs text-muted-foreground">{cost.description}</div> : null}
+                              {cost.description ? (
+                                <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground" title={cost.description}>
+                                  {cost.description}
+                                </div>
+                              ) : null}
                             </td>
                             <td className="px-3 py-2.5">
                               <Badge variant="outline" className="rounded px-1.5 py-0 text-[11px] font-medium">
@@ -2293,7 +2362,9 @@ function KostenPageContent() {
                             <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-foreground">
                               <div className="flex items-center justify-end gap-1.5">
                                 <span>{formatCurrency(cost.amount_incl_btw || 0)}</span>
-                                {!isBankTransactionCost(cost) ? <Button
+                                {isHistoricalSourceCost(cost) ? (
+                                  <Badge variant="outline" className="text-[10px] text-muted-foreground">Bron vóór Knab</Badge>
+                                ) : !isBankTransactionCost(cost) ? <Button
                                   type="button"
                                   size="icon"
                                   variant="ghost"
@@ -2472,6 +2543,25 @@ function KostenPageContent() {
                   <div className="text-xs text-muted-foreground">Btw</div>
                   <div className="mt-1 font-medium tabular-nums">{formatCurrency(selectedBankCost.btw_amount)}</div>
                 </div>
+                <div className="rounded-md border border-border bg-muted/20 p-3 sm:col-span-2">
+                  <Label htmlFor="bank-cost-offerte" className="text-xs font-normal text-muted-foreground">Klant / offerte</Label>
+                  <Select
+                    value={bankOfferteDraft || 'none'}
+                    onValueChange={(value) => setBankOfferteDraft(value === 'none' ? '' : value)}
+                    disabled={savingBankCategory || savingBankOfferte}
+                  >
+                    <SelectTrigger id="bank-cost-offerte" className="mt-1 bg-background">
+                      <SelectValue placeholder="Niet gekoppeld" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Niet gekoppeld</SelectItem>
+                      {quotes.map((quote) => (
+                        <SelectItem key={quote.id} value={quote.id}>{quote.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs text-muted-foreground">De gekozen klant komt uit de gekoppelde offerte. De bankafschrijving blijft één keer meetellen.</p>
+                </div>
               </div>
 
               <div className="space-y-1 rounded-md border border-border p-3">
@@ -2532,6 +2622,15 @@ function KostenPageContent() {
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setSelectedBankCost(null)}>Sluiten</Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void handleSaveBankOfferte()}
+                  disabled={savingBankOfferte || bankOfferteDraft === safeString(selectedBankCost.offerte_id)}
+                >
+                  {savingBankOfferte ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Klant opslaan
+                </Button>
                 <Button
                   type="button"
                   onClick={() => void handleSaveBankCategory()}

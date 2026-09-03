@@ -11,6 +11,7 @@ const CACHE_PATH = '/tmp/calvora-unlinked-pdf-extractions.json';
 const APPLY = process.argv.includes('--apply');
 const REFRESH = process.argv.includes('--refresh');
 const RECONCILE_LINKED = process.argv.includes('--reconcile-linked');
+const LINK_QUOTE_REFERENCES = process.argv.includes('--link-quote-references');
 const APP_BASE_URL = process.env.CALVORA_APP_URL || 'https://app.calvora.nl';
 
 const requiredEnvironment = [
@@ -46,7 +47,7 @@ Before all other fields, inspect every page and all order-information rows for l
 Return ONLY valid JSON with:
 supplier_name, date (YYYY-MM-DD), receipt_description, document_type (invoice|receipt|credit_note|purchase_proof|supplier_cost_document|other), supplier_invoice_number, payment_type (bon|factuur|unknown), payment_status (paid|openstaand|unknown), due_date (YYYY-MM-DD|null), reconciliation_group_id (string|null), offerte_reference (string|null), reference_candidates (array of {label,value,context}), line_items (array of {description,quantity,unit,unit_price,total_price,total_incl_btw,btw_percentage,category}), subtotal_excl_btw, btw_percentage, btw_amount, total_incl_btw.
 
-line_items.category must be one of materiaal, autokosten, boetes, schulden, afval, gereedschap, brandstof, hotel, telefoon, leadkosten, overig. Construction materials and consumables => materiaal; reusable tools => gereedschap; fuel/charging => brandstof; vehicle costs => autokosten; fines => boetes; debt repayments => schulden; waste/container/disposal => afval. Bouwmaat temporary transport and fuel surcharges => materiaal. Preserve printed discounts, deposits, multiple VAT rates and negative credit-note signs. total_price is EXCL. VAT. Printed totals take precedence. Validate total_incl_btw = subtotal_excl_btw + btw_amount.`;
+line_items.category must be one of materiaal, autokosten, boetes, schulden, afval, gereedschap, brandstof, hotel, telefoon, leadkosten, overig. Construction materials and consumables that remain in the customer work => materiaal; reusable tools => gereedschap; fuel/charging => brandstof; vehicle costs => autokosten; fines => boetes; debt repayments => schulden; waste/container/disposal => afval. Bouwmaat temporary transport and fuel surcharges => materiaal. Uitvulplaten and Wago-verbindingsklemmen => materiaal. Bostik maatemmers, Vero bezemstelen, Wall charger 20W USB-C and Moersleutel Suki 250mm => gereedschap. Preserve printed discounts, deposits, multiple VAT rates and negative credit-note signs. total_price is EXCL. VAT. Printed totals take precedence. Validate total_incl_btw = subtotal_excl_btw + btw_amount.`;
 
 const REFERENCE_PROMPT = `Inspect every page only for the customer's project/offerte number. Return ONLY JSON: {"offerte_reference":string|null,"reference_candidates":[{"label":string,"value":string|null,"context":string}]}. Valid labels: Referentie, Uw referentie, Klantreferentie, Memo, Project, Projectnummer, Offerte, Offertenummer. For Bouwmaat, a row "Referentie 260347" means 260347 and "Memo: 260313" means 260313. Read the same row and immediately adjacent text twice before returning null. Reject invoice/factuurnummer, debtor, bon, pakbon, order, article, barcode, transaction, date and total numbers.`;
 
@@ -105,7 +106,11 @@ function parseJson(text) {
 async function uploadOpenAiFile(archive, bytes) {
   const form = new FormData();
   form.append('purpose', 'user_data');
-  form.append('file', new Blob([bytes], { type: archive.content_type || 'application/pdf' }), archive.original_filename);
+  const originalFilename = safeString(archive.original_filename) || 'document.pdf';
+  const uploadFilename = /\.pdf$/i.test(originalFilename)
+    ? originalFilename.replace(/\.pdf$/i, '.pdf')
+    : `${originalFilename}.pdf`;
+  form.append('file', new Blob([bytes], { type: 'application/pdf' }), uploadFilename);
   const response = await fetch('https://api.openai.com/v1/files', {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
@@ -432,6 +437,41 @@ async function reconcileLinkedTotals(archive, extraction) {
   }
 }
 
+async function linkQuoteReferenceToExistingCosts(archive, extraction, quote, costsById) {
+  const linkedIds = Array.isArray(archive.linked_cost_ids)
+    ? archive.linked_cost_ids.map((id) => safeString(id)).filter(Boolean)
+    : [];
+  const targetIds = linkedIds.filter((id) => {
+    const row = costsById.get(id);
+    return row && !safeString(row.offerte_id);
+  });
+  const now = new Date().toISOString();
+
+  if (quote?.id && targetIds.length) {
+    const update = await supabase.from('project_costs')
+      .update({ offerte_id: quote.id, updated_at: now })
+      .eq('user_id', USER_ID)
+      .in('id', targetIds);
+    if (update.error) throw new Error(update.error.message);
+  }
+
+  const archiveUpdate = await supabase.from('cost_document_archives').update({
+    metadata: {
+      ...(archive.metadata || {}),
+      quote_reference_linking: {
+        action: quote?.id && targetIds.length ? 'linked_existing_costs' : quote?.id ? 'already_linked' : 'skipped_no_quote_match',
+        reference: extraction.offerte_reference || null,
+        quote_id: quote?.id || null,
+        cost_ids: targetIds,
+        processed_at: now,
+      },
+    },
+  }).eq('id', archive.id).eq('user_id', USER_ID);
+  if (archiveUpdate.error) throw new Error(archiveUpdate.error.message);
+
+  return targetIds;
+}
+
 async function loadCache() {
   if (REFRESH) return {};
   try { return JSON.parse(await readFile(CACHE_PATH, 'utf8')); } catch { return {}; }
@@ -443,7 +483,7 @@ async function main() {
     .eq('user_id', USER_ID)
     .order('received_at', { ascending: true });
   if (archivesResult.error) throw new Error(archivesResult.error.message);
-  const archives = archivesResult.data.filter((archive) => {
+  const allArchives = archivesResult.data.filter((archive) => {
     if (safeString(archive.content_type).toLowerCase() !== 'application/pdf') return false;
     const linked = Array.isArray(archive.linked_cost_ids) && archive.linked_cost_ids.length > 0;
     if (RECONCILE_LINKED) return linked && Boolean(archive.metadata?.reconciliation);
@@ -453,6 +493,17 @@ async function main() {
   const costsResult = await supabase.from('project_costs').select('*').eq('user_id', USER_ID);
   if (costsResult.error) throw new Error(costsResult.error.message);
   const costs = costsResult.data;
+  const costsById = new Map(costs.map((row) => [safeString(row.id), row]));
+  const archives = LINK_QUOTE_REFERENCES
+    ? archivesResult.data.filter((archive) => {
+      if (safeString(archive.content_type).toLowerCase() !== 'application/pdf') return false;
+      const linkedIds = Array.isArray(archive.linked_cost_ids) ? archive.linked_cost_ids : [];
+      return linkedIds.some((id) => {
+        const row = costsById.get(safeString(id));
+        return row && !safeString(row.offerte_id);
+      });
+    })
+    : allArchives;
   const cache = await loadCache();
   const quoteCache = new Map();
   const report = [];
@@ -460,12 +511,55 @@ async function main() {
   for (const [index, archive] of archives.entries()) {
     process.stdout.write(`[${index + 1}/${archives.length}] ${archive.original_filename} ... `);
     let extraction = cache[archive.sha256];
-    if (!extraction) {
-      extraction = await extractArchive(archive);
-      cache[archive.sha256] = extraction;
-      await writeFile(CACHE_PATH, JSON.stringify(cache, null, 2));
+    try {
+      if (!extraction) {
+        extraction = await extractArchive(archive);
+        cache[archive.sha256] = extraction;
+        await writeFile(CACHE_PATH, JSON.stringify(cache, null, 2));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      report.push({
+        archive_id: archive.id,
+        filename: archive.original_filename,
+        action: 'extraction_error',
+        error: message,
+      });
+      console.log(`extraction_error; ${message}`);
+      continue;
     }
     extraction.offerte_reference = resolveReference(extraction);
+    if (LINK_QUOTE_REFERENCES) {
+      const quote = await resolveQuote(extraction.offerte_reference, quoteCache);
+      const linkedCostIds = Array.isArray(archive.linked_cost_ids)
+        ? archive.linked_cost_ids.map((id) => safeString(id)).filter(Boolean)
+        : [];
+      const targetCostIds = linkedCostIds.filter((id) => {
+        const row = costsById.get(id);
+        return row && !safeString(row.offerte_id);
+      });
+      const item = {
+        archive_id: archive.id,
+        filename: archive.original_filename,
+        reference: extraction.offerte_reference || null,
+        quote_id: quote?.id || null,
+        quote_client: quote?.client || null,
+        candidate_cost_ids: targetCostIds,
+        action: quote?.id ? 'link_quote_reference' : extraction.offerte_reference ? 'no_quote_match' : 'no_offerte_reference',
+      };
+      if (APPLY && quote?.id && targetCostIds.length) {
+        item.result_ids = await linkQuoteReferenceToExistingCosts(archive, extraction, quote, costsById);
+        item.result = 'linked_existing_costs';
+      } else if (APPLY && quote?.id) {
+        await linkQuoteReferenceToExistingCosts(archive, extraction, quote, costsById);
+        item.result = 'already_linked';
+      } else if (APPLY) {
+        item.result = 'skipped';
+      }
+      report.push(item);
+      console.log(`${item.action}; ref ${extraction.offerte_reference || '-'}${quote ? ` ✓ ${quote.client || quote.id}` : ''}; ${targetCostIds.length} kostenregel(s)`);
+      continue;
+    }
     if (RECONCILE_LINKED) {
       if (APPLY) await reconcileLinkedTotals(archive, extraction);
       const amounts = extractionAmounts(extraction);

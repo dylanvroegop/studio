@@ -1,4 +1,5 @@
 import { resolveQuoteProjectAddress } from '@/lib/maps';
+import { gpsClientNameFromInfo, isExcludedGpsClientName } from '@/lib/gps-excluded-clients';
 
 export interface TrackingPoint {
   id: string;
@@ -64,6 +65,7 @@ export function matchTrackingPointToQuoteId(point: TrackingPoint, quotes: QuoteW
   if (!location) return null;
 
   for (const quote of quotes) {
+    if (isExcludedGpsClientName(gpsClientNameFromInfo(quote.klantinformatie))) continue;
     const address = normalize(resolveQuoteProjectAddress(quote));
     const info = quote.klantinformatie || {};
     const candidates = [

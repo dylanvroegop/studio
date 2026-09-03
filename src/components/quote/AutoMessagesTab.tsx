@@ -16,12 +16,21 @@ interface AutoMessageClient {
     city: string;
 }
 
-interface AutoMessagesTabProps {
-    currentQuoteId?: string;
-}
-
 function cleanText(value: unknown): string {
     return String(value ?? '').trim();
+}
+
+function getQuoteDate(value: unknown): Date | null {
+    if (value instanceof Date) return value;
+    if (typeof value === 'object' && value !== null && 'seconds' in value) {
+        const seconds = (value as { seconds?: unknown }).seconds;
+        if (typeof seconds === 'number') return new Date(seconds * 1000);
+    }
+    if (typeof value === 'string' || typeof value === 'number') {
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    return null;
 }
 
 function getClientInfo(data: Record<string, unknown>): Record<string, unknown> {
@@ -46,7 +55,7 @@ function normalizeClientKeyPart(value: string): string {
     return value.toLocaleLowerCase('nl-NL').replace(/[\s-]+/g, '');
 }
 
-export function AutoMessagesTab({ currentQuoteId }: AutoMessagesTabProps) {
+export function AutoMessagesTab() {
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
@@ -80,10 +89,18 @@ export function AutoMessagesTab({ currentQuoteId }: AutoMessagesTabProps) {
                 ));
 
                 const clientsByKey = new Map<string, AutoMessageClient>();
+                const currentYear = new Date().getFullYear();
 
                 snapshot.docs.forEach((quoteDoc) => {
                     const data = quoteDoc.data() as Record<string, unknown>;
-                    if (data.status !== 'werkbespreking' || data.isCalculationTest === true) return;
+                    const quoteDate = getQuoteDate(data.updatedAt) || getQuoteDate(data.createdAt);
+                    if (
+                        data.status !== 'werkbespreking'
+                        || data.archived === true
+                        || data.isCalculationTest === true
+                        || !quoteDate
+                        || quoteDate.getFullYear() !== currentYear
+                    ) return;
 
                     const info = getClientInfo(data);
                     const factuuradres = info.factuuradres && typeof info.factuuradres === 'object'
@@ -117,7 +134,6 @@ export function AutoMessagesTab({ currentQuoteId }: AutoMessagesTabProps) {
                 setClients(nextClients);
                 setSelectedQuoteId((currentSelection) => {
                     if (nextClients.some((client) => client.quoteId === currentSelection)) return currentSelection;
-                    if (currentQuoteId && nextClients.some((client) => client.quoteId === currentQuoteId)) return currentQuoteId;
                     return nextClients[0]?.quoteId || '';
                 });
             } catch (error) {
@@ -140,7 +156,7 @@ export function AutoMessagesTab({ currentQuoteId }: AutoMessagesTabProps) {
         return () => {
             cancelled = true;
         };
-    }, [currentQuoteId, firestore, isUserLoading, toast, user]);
+    }, [firestore, isUserLoading, toast, user]);
 
     const selectedClient = useMemo(
         () => clients.find((client) => client.quoteId === selectedQuoteId) || null,
@@ -164,12 +180,12 @@ export function AutoMessagesTab({ currentQuoteId }: AutoMessagesTabProps) {
 
         return `Beste ${greetingName},
 
-Bedankt voor uw acceptatie.
+Bedankt voor uw bericht via Werkspot.
 
 Komt het gelegen dat ik ${appointment}
 langs kan komen voor een werkbespreking?
 
-Dan maak ik hierna kosteloos een offerte voor u op.
+Dan bespreek ik de werkzaamheden met u en maak ik daarna kosteloos een offerte voor u op.
 
 Mvg,
 Dylan

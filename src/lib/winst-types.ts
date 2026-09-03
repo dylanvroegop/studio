@@ -106,8 +106,10 @@ export interface WinstProjectPerformance {
   status?: string;
   hourlyWorkMaterialPassthrough?: boolean;
   hasActualData: boolean;
+  hasQuotedCalculation: boolean;
   dataQualityIssue: string | null;
   quotedRevenueIncl: number;
+  quotedRevenueExcl: number;
   projectedProfitInclBtw: number;
   projectedProfitAfterLaborMarginVat: number;
   receivedCashIncl: number;
@@ -174,6 +176,7 @@ export interface WinstMetricsResponse {
   };
   totals: {
     quotedRevenueIncl: number;
+    quotedRevenueExcl: number;
     receivedCashIncl: number;
     actualCostExcl: number;
     netProfitQuoteBasis: number;

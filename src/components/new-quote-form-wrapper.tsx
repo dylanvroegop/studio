@@ -48,6 +48,7 @@ import {
   ChevronRight,
   BookUser,
   Sparkles,
+  Copy,
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -496,6 +497,59 @@ export function NewQuoteForm({
       console.error('Auto-save error:', error);
     }
   }, [firestore, quoteId]);
+
+  const copyToClipboard = useCallback(async (value: string, label: string) => {
+    const text = value.trim();
+    if (!text) {
+      toast({ title: `${label} ontbreekt`, description: 'Vul de gegevens eerst in.' });
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.setAttribute('readonly', '');
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (!copied) throw new Error('Kopiëren mislukt');
+      }
+
+      toast({ title: `${label} gekopieerd` });
+    } catch (error) {
+      console.error('Copy to clipboard error:', error);
+      toast({ variant: 'destructive', title: 'Kopiëren mislukt' });
+    }
+  }, [toast]);
+
+  const getCurrentFormValue = useCallback((field: string) => {
+    if (!formRef.current) return '';
+    const value = new FormData(formRef.current).get(field);
+    return typeof value === 'string' ? value.trim() : '';
+  }, []);
+
+  const handleCopyPhone = useCallback(() => {
+    void copyToClipboard(getCurrentFormValue('telefoonnummer'), 'Telefoonnummer');
+  }, [copyToClipboard, getCurrentFormValue]);
+
+  const handleCopyAddress = useCallback((prefix: 'factuur' | 'project') => {
+    const fieldNames = prefix === 'factuur'
+      ? { straat: 'straat', huisnummer: 'huisnummer', postcode: 'postcode', plaats: 'plaats' }
+      : { straat: 'projectStraat', huisnummer: 'projectHuisnummer', postcode: 'projectPostcode', plaats: 'projectPlaats' };
+    const address = buildAddressLine({
+      straat: getCurrentFormValue(fieldNames.straat),
+      huisnummer: getCurrentFormValue(fieldNames.huisnummer),
+      postcode: getCurrentFormValue(fieldNames.postcode),
+      plaats: getCurrentFormValue(fieldNames.plaats),
+    });
+    void copyToClipboard(address, prefix === 'factuur' ? 'Factuuradres' : 'Projectadres');
+  }, [copyToClipboard, getCurrentFormValue]);
 
   const maybeLookupPostcode = useCallback(async (target: 'factuur' | 'project') => {
     if (!user || !formRef.current) return;
@@ -1170,7 +1224,20 @@ export function NewQuoteForm({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="telefoonnummer">Telefoonnummer</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="telefoonnummer">Telefoonnummer</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs"
+                  onClick={handleCopyPhone}
+                  title="Kopieer telefoonnummer"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Kopieer
+                </Button>
+              </div>
               <Input
                 id="telefoonnummer"
                 name="telefoonnummer"
@@ -1186,7 +1253,20 @@ export function NewQuoteForm({
 
           {/* FACTUURADRES */}
           <div className="space-y-4">
-            <h3 className="font-medium">Factuuradres</h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-medium">Factuuradres</h3>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 px-2 text-xs"
+                onClick={() => handleCopyAddress('factuur')}
+                title="Kopieer volledig factuuradres"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Kopieer adres
+              </Button>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
               <div className="sm:col-span-4 space-y-1.5">
                 <Label htmlFor="straat">Straat</Label>
@@ -1266,7 +1346,22 @@ export function NewQuoteForm({
 
           {/* PROJECTADRES */}
           {showProjectAddress && (
-            <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 p-4 border rounded-md bg-muted/20">
+            <div className="space-y-4 rounded-md border bg-muted/20 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-medium">Projectadres</h3>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1.5 px-2 text-xs"
+                  onClick={() => handleCopyAddress('project')}
+                  title="Kopieer volledig projectadres"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Kopieer adres
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
               <div className="sm:col-span-4 space-y-1.5">
                 <Label htmlFor="projectStraat">Straat</Label>
                 <Input
@@ -1326,6 +1421,7 @@ export function NewQuoteForm({
                     void maybeLookupPostcode('project');
                   }}
                 />
+              </div>
               </div>
             </div>
           )}

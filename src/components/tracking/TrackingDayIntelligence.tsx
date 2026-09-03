@@ -27,6 +27,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/firebase';
+import {
+  DEFAULT_FUEL_PRICE,
+  DEFAULT_FUEL_SETTINGS,
+  DEFAULT_KM_PER_LITRE,
+  TRACKING_FUEL_SETTINGS_STORAGE_KEY,
+  formatFuelSettingDate,
+  fuelSettingForDate,
+  migrateFuelSettings,
+  type FuelSetting,
+} from '@/lib/tracking-fuel-settings';
+import { gpsClientNameFromInfo, isExcludedGpsClientName } from '@/lib/gps-excluded-clients';
 
 const TrackingRouteMap = dynamic(
   () => import('@/components/tracking/TrackingRouteMap').then((module) => module.TrackingRouteMap),
@@ -100,9 +111,6 @@ interface TripEvent {
   from: string;
   to: string;
 }
-
-const DEFAULT_KM_PER_LITRE = 13;
-const DEFAULT_FUEL_PRICE = 2.1;
 
 function localDateInputValue(date = new Date()): string {
   const year = date.getFullYear();
@@ -191,6 +199,7 @@ function matchQuote(position: TrackingPosition, quotes: QuoteLike[]): QuoteLike 
   const location = positionText(position);
   if (!location) return undefined;
   return quotes.find((quote) => {
+    if (isExcludedGpsClientName(gpsClientNameFromInfo(quote.klantinformatie))) return false;
     const address = normalize(quoteAddress(quote));
     if (!address) return false;
     const street = normalize(quote.klantinformatie?.straat || '').split(' ').filter(Boolean);
@@ -304,26 +313,46 @@ export function TrackingDayIntelligence({ quotes, history }: TrackingDayIntellig
   const [isLoading, setIsLoading] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [kmPerLitre, setKmPerLitre] = useState(DEFAULT_KM_PER_LITRE);
-  const [fuelPrice, setFuelPrice] = useState(DEFAULT_FUEL_PRICE);
+  const [fuelSettings, setFuelSettings] = useState<FuelSetting[]>(DEFAULT_FUEL_SETTINGS);
+  const [fuelSettingsLoaded, setFuelSettingsLoaded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const stopLookupRef = useRef('');
 
   useEffect(() => {
-    const saved = localStorage.getItem('calvora_tracking_fuel_settings');
-    if (!saved) return;
-    try {
-      const parsed = JSON.parse(saved) as { kmPerLitre?: number; fuelPrice?: number };
-      if (parsed.kmPerLitre && parsed.kmPerLitre > 0) setKmPerLitre(parsed.kmPerLitre);
-      if (parsed.fuelPrice && parsed.fuelPrice > 0) setFuelPrice(parsed.fuelPrice);
-    } catch {
-      // Ongeldige lokale instellingen negeren.
+    const saved = localStorage.getItem(TRACKING_FUEL_SETTINGS_STORAGE_KEY);
+    if (saved) {
+      try {
+        setFuelSettings(migrateFuelSettings(JSON.parse(saved)));
+      } catch {
+        // Ongeldige lokale instellingen negeren.
+      }
     }
+    setFuelSettingsLoaded(true);
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('calvora_tracking_fuel_settings', JSON.stringify({ kmPerLitre, fuelPrice }));
-  }, [fuelPrice, kmPerLitre]);
+    if (fuelSettingsLoaded) {
+      localStorage.setItem(TRACKING_FUEL_SETTINGS_STORAGE_KEY, JSON.stringify(fuelSettings));
+    }
+  }, [fuelSettings, fuelSettingsLoaded]);
+
+  const activeFuelSetting = useMemo(
+    () => fuelSettingForDate(fuelSettings, selectedDate),
+    [fuelSettings, selectedDate],
+  );
+  const kmPerLitre = activeFuelSetting.kmPerLitre;
+  const fuelPrice = activeFuelSetting.fuelPrice;
+
+  const updateActiveFuelSetting = useCallback((changes: Partial<FuelSetting>) => {
+    setFuelSettings((current) => {
+      const activeIndex = current.reduce(
+        (index, setting, currentIndex) => setting.effectiveFrom <= selectedDate ? currentIndex : index,
+        -1,
+      );
+      if (activeIndex < 0) return [...current, { ...DEFAULT_FUEL_SETTINGS[0], effectiveFrom: selectedDate, ...changes }];
+      return current.map((setting, index) => index === activeIndex ? { ...setting, ...changes } : setting);
+    });
+  }, [selectedDate]);
 
   const getHeaders = useCallback(async () => {
     if (!user) throw new Error('Je bent niet ingelogd.');
@@ -440,7 +469,7 @@ export function TrackingDayIntelligence({ quotes, history }: TrackingDayIntellig
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.8fr)]">
             <Card className="overflow-hidden"><CardHeader className="gap-1"><div className="flex items-center justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><Navigation className="h-5 w-5 text-emerald-400" />Route van de dag</CardTitle><CardDescription>{enrichedPoints.length.toLocaleString('nl-NL')} GPS-punten · {enrichedPoints[0] ? formatTime(enrichedPoints[0].recorded_at) : '—'} tot {enrichedPoints.at(-1) ? formatTime(enrichedPoints.at(-1)!.recorded_at) : '—'}</CardDescription></div><Button variant="ghost" size="icon" asChild title="Open technische GPS-diagnose"><Link href={`/debug/tracking?date=${selectedDate}`}><ArrowRight className="h-4 w-4" /></Link></Button></div></CardHeader><CardContent><TrackingRouteMap positions={enrichedPoints} /></CardContent></Card>
 
-            <Card><CardHeader><CardTitle className="flex items-center gap-2"><Fuel className="h-5 w-5 text-amber-300" />Kosten van onderweg</CardTitle><CardDescription>De echte kostprijs van je bewegingen, los van je uurtarief.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="rounded-2xl bg-amber-500/10 p-4"><div className="text-xs text-muted-foreground">Brandstofindicatie</div><div className="mt-1 text-3xl font-semibold text-amber-200">{formatCurrency(fuelCost)}</div><div className="mt-1 text-xs text-muted-foreground">{distanceKm.toFixed(1)} km ÷ {kmPerLitre.toFixed(1)} km/l × {formatCurrency(fuelPrice)}</div></div><div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl border border-border/70 p-3"><div className="text-xs text-muted-foreground">Liter verbruikt</div><div className="mt-1 font-semibold">{fuelLitres.toFixed(1)} l</div></div><div className="rounded-xl border border-border/70 p-3"><div className="text-xs text-muted-foreground">Per werkuur</div><div className="mt-1 font-semibold">{dateHours > 0 ? formatCurrency(fuelCost / dateHours) : '—'}</div></div></div><Button variant="outline" size="sm" onClick={() => setShowSettings((value) => !value)}><Settings2 className="mr-2 h-4 w-4" />Voertuiginstellingen</Button>{showSettings ? <div className="grid gap-3 rounded-xl border border-border/70 bg-muted/10 p-3 sm:grid-cols-2"><div className="space-y-1"><Label className="text-xs">Kilometer per liter</Label><Input type="number" min="1" step="0.1" value={kmPerLitre} onChange={(event) => setKmPerLitre(Number(event.target.value) || DEFAULT_KM_PER_LITRE)} /></div><div className="space-y-1"><Label className="text-xs">Brandstofprijs per liter</Label><Input type="number" min="0.1" step="0.01" value={fuelPrice} onChange={(event) => setFuelPrice(Number(event.target.value) || DEFAULT_FUEL_PRICE)} /></div></div> : null}<div className="flex items-start gap-2 text-xs text-muted-foreground"><Car className="mt-0.5 h-4 w-4 shrink-0" />Op basis van je ingestelde auto: 1 op {kmPerLitre.toFixed(1)}. Dit is een kostprijsindicatie; parkeren, onderhoud en afschrijving komen hier nog bovenop.</div></CardContent></Card>
+          <Card><CardHeader><CardTitle className="flex items-center gap-2"><Fuel className="h-5 w-5 text-amber-300" />Kosten van onderweg</CardTitle><CardDescription>De echte kostprijs van je bewegingen, los van je uurtarief.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="rounded-2xl bg-amber-500/10 p-4"><div className="text-xs text-muted-foreground">Brandstofindicatie</div><div className="mt-1 text-3xl font-semibold text-amber-200">{formatCurrency(fuelCost)}</div><div className="mt-1 text-xs text-muted-foreground">{distanceKm.toFixed(1)} km ÷ {kmPerLitre.toFixed(1)} km/l × {formatCurrency(fuelPrice)}</div></div><div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl border border-border/70 p-3"><div className="text-xs text-muted-foreground">Liter verbruikt</div><div className="mt-1 font-semibold">{fuelLitres.toFixed(1)} l</div></div><div className="rounded-xl border border-border/70 p-3"><div className="text-xs text-muted-foreground">Per werkuur</div><div className="mt-1 font-semibold">{dateHours > 0 ? formatCurrency(fuelCost / dateHours) : '—'}</div></div></div><Button variant="outline" size="sm" onClick={() => setShowSettings((value) => !value)}><Settings2 className="mr-2 h-4 w-4" />Voertuiginstellingen</Button>{showSettings ? <div className="space-y-2 rounded-xl border border-border/70 bg-muted/10 p-3"><div className="text-xs text-muted-foreground">Deze voertuigwaarde geldt vanaf {formatFuelSettingDate(activeFuelSetting.effectiveFrom)}.</div><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label className="text-xs">Kilometer per liter</Label><Input type="number" min="1" step="0.1" value={kmPerLitre} onChange={(event) => updateActiveFuelSetting({ kmPerLitre: Number(event.target.value) || DEFAULT_KM_PER_LITRE })} /></div><div className="space-y-1"><Label className="text-xs">Brandstofprijs per liter</Label><Input type="number" min="0.1" step="0.01" value={fuelPrice} onChange={(event) => updateActiveFuelSetting({ fuelPrice: Number(event.target.value) || DEFAULT_FUEL_PRICE })} /></div></div></div> : null}<div className="flex items-start gap-2 text-xs text-muted-foreground"><Car className="mt-0.5 h-4 w-4 shrink-0" />Op basis van je ingestelde auto: 1 op {kmPerLitre.toFixed(1)}. Dit is een kostprijsindicatie; parkeren, onderhoud en afschrijving komen hier nog bovenop.</div></CardContent></Card>
           </div>
 
           <Card><CardHeader><CardTitle className="flex items-center gap-2"><BriefcaseBusiness className="h-5 w-5 text-emerald-400" />Uren per klant</CardTitle><CardDescription>De uren uit deze dag, rechtstreeks gekoppeld aan je offertes.</CardDescription></CardHeader><CardContent className="space-y-3">{clientHours.length === 0 ? <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Geen klanturen geregistreerd op deze datum.</div> : clientHours.map(({ quote, hours }) => { const gpsStop = stops.find((stop) => stop.matchedQuote?.id === quote.id); return <div key={quote.id} className="rounded-2xl border border-border/70 p-3"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><div className="truncate font-medium">{quoteClientName(quote)}</div><div className="truncate text-xs text-muted-foreground">{quoteLabel(quote)}</div></div><div className="text-right"><div className="font-semibold text-emerald-300">{formatHours(hours)}</div><div className="text-xs text-muted-foreground">geregistreerd</div></div></div><div className="mt-3 flex flex-wrap items-center gap-2 text-xs">{gpsStop ? <Badge variant="outline" className="border-emerald-500/30 text-emerald-300"><CheckCircle2 className="mr-1 h-3 w-3" />GPS bevestigt bezoek ({formatDuration(gpsStop.durationMinutes)})</Badge> : <Badge variant="outline" className="border-amber-500/30 text-amber-300"><XCircle className="mr-1 h-3 w-3" />Geen GPS-match</Badge>}</div></div>; })}</CardContent></Card>

@@ -125,7 +125,7 @@ function LoginPageContent() {
     if (!sessionOk) return;
 
     await claimStripeSessionIfPresent(firebaseUser);
-    router.push(nextPath || '/dashboard');
+    router.push(nextPath || '/offertes');
   };
 
   useEffect(() => {
@@ -145,7 +145,7 @@ function LoginPageContent() {
         }
 
         await claimStripeSessionIfPresent(user);
-        if (!cancelled) router.push(nextPath || '/dashboard');
+        if (!cancelled) router.push(nextPath || '/offertes');
       })();
 
       return () => {
@@ -258,7 +258,7 @@ function LoginPageContent() {
           <CardDescription>
             {isResetMode
               ? 'Vul uw e-mailadres in om een reset-link te ontvangen.'
-              : 'Log in om toegang te krijgen tot uw dashboard'}
+              : 'Log in om uw offertes en calculaties te beheren'}
           </CardDescription>
           {!isResetMode && checkoutSessionId && (
             <p className="text-xs text-emerald-500 mt-2">

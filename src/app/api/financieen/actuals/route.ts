@@ -5,6 +5,7 @@ import {
   buildFinanceBankLedger,
   isInternalOwnAccountTransfer,
   loadConnectedKnabTransactions,
+  splitFinanceBankLedgerRowsByCategory,
   type FinanceBankCostLedgerRow,
   type FinanceBankTransaction,
 } from '@/lib/finance-bank-ledger';
@@ -115,6 +116,9 @@ function calculateActuals(params: {
     .sort((left, right) => String(right.date).localeCompare(String(left.date)));
   const unmatchedBank = businessRows.filter((row) => row.match_status === 'unmatched');
   const matchedBank = businessRows.filter((row) => row.match_status === 'matched');
+  const uniqueBankCount = (ledgerRows: FinanceBankCostLedgerRow[]) => (
+    new Set(ledgerRows.map((row) => row.bank_transaction_id)).size
+  );
   const outgoingTotal = roundEuro(outgoing.reduce((sum, transaction) => sum + Math.abs(Number(transaction.amount) || 0), 0));
   const businessExpenses = roundEuro(businessRows.reduce((sum, row) => sum + row.amount, 0));
   const privateExpenses = roundEuro(privateRows.reduce((sum, row) => sum + row.amount, 0));
@@ -133,8 +137,8 @@ function calculateActuals(params: {
     transactionCount: transactions.length,
     incomingCount: incoming.length,
     outgoingCount: outgoing.length,
-    businessExpenseCount: businessRows.length,
-    privateExpenseCount: privateRows.length,
+    businessExpenseCount: uniqueBankCount(businessRows),
+    privateExpenseCount: uniqueBankCount(privateRows),
     incomingTotal,
     externalIncomingTotal,
     operatingIncomingTotal,
@@ -146,8 +150,8 @@ function calculateActuals(params: {
     categoryTotals: Array.from(categoryMap.entries())
       .map(([category, amount]) => ({ category, label: PROJECT_COST_CATEGORY_LABELS[category as keyof typeof PROJECT_COST_CATEGORY_LABELS], amount }))
       .sort((left, right) => right.amount - left.amount),
-    matchedBankCount: matchedBank.length,
-    unmatchedBankCount: unmatchedBank.length,
+    matchedBankCount: uniqueBankCount(matchedBank),
+    unmatchedBankCount: uniqueBankCount(unmatchedBank),
     unmatchedBankAmount: roundEuro(unmatchedBank.reduce((sum, row) => sum + row.amount, 0)),
     matchedSourceCount: params.matchedCostIds.length,
     unmatchedSourceCount: unmatchedSourceCosts.length,
@@ -188,10 +192,14 @@ export async function POST(request: Request) {
     // Rendering the dashboard is read-only. Rebuilding the ledger in memory is
     // cheap; persisting every row and updating every matched cost on each page
     // view caused hundreds of unnecessary writes and multi-second load times.
-    const rows = buildFinanceBankLedger({
-      userId: identity.firebaseUid,
+    const rows = splitFinanceBankLedgerRowsByCategory({
+      rows: buildFinanceBankLedger({
+        userId: identity.firebaseUid,
+        costs,
+        transactions,
+        categoryOverrides,
+      }),
       costs,
-      transactions,
       categoryOverrides,
     });
     const matchedCostIds = Array.from(new Set(rows.flatMap((row) => row.source_cost_ids)));

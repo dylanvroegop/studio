@@ -2,7 +2,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Menu, Plus, LayoutDashboard, FileText, Pencil, Boxes, Users, Settings, CheckCircle2, AlertTriangle, CalendarDays, ReceiptText, TrendingUp, Clock3, Archive, StickyNote, BookOpen } from 'lucide-react';
+import { Menu, Plus, FileText, Pencil, Boxes, Users, Settings, CheckCircle2, AlertTriangle, CalendarDays, ReceiptText, TrendingUp, Clock3, Archive, StickyNote, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -270,12 +270,6 @@ export function WizardHeader({
                                             </div>
 
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
-                                                <Link href="/dashboard">
-                                                    <LayoutDashboard className="h-4 w-4" />
-                                                    Dashboard
-                                                </Link>
-                                            </Button>
-                                            <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
                                                 <Link href="/offertes">
                                                     <FileText className="h-4 w-4" />
                                                     Offertes
@@ -314,7 +308,7 @@ export function WizardHeader({
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>
                                                 <Link href="/urenregistratie">
                                                     <Clock3 className="h-4 w-4" />
-                                                    Urenregistratie
+                                                    Arbeidsuren
                                                 </Link>
                                             </Button>
                                             <Button asChild variant="ghost" className="w-full justify-start gap-2" onClick={() => setMenuOpen(false)}>

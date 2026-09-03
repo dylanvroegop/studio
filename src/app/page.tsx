@@ -18,7 +18,7 @@ export default async function RootPage() {
   const decoded = await auth.verifySessionCookie(sessionCookie, true).catch(() => null);
 
   if (decoded?.uid) {
-    redirect('/dashboard');
+    redirect('/offertes');
   }
 
   redirect('/login');

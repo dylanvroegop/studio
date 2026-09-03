@@ -268,7 +268,7 @@ function ProjectRow(props: {
           <p className="mt-1 text-[10px] text-muted-foreground">
             {project.hourlyWorkMaterialPassthrough
               ? 'Uurwerk: omzet - materialen - kosten'
-              : 'Basis: omzet incl. btw - kosten incl. btw'}
+              : 'Basis: omzet excl. btw - kosten excl. btw'}
           </p>
         </button>
 
@@ -298,7 +298,7 @@ function ProjectRow(props: {
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Kosten incl. btw</p>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Kosten excl. btw</p>
             <p className="mt-0.5 text-sm font-semibold text-foreground">{project.hasActualData ? formatCurrency(project.actualCostExcl) : '—'}</p>
           </div>
           <div className="relative rounded-lg border border-white/10 bg-background/25 px-2.5 py-2">
@@ -703,18 +703,16 @@ export default function WinstPage() {
   const derived = useMemo(() => {
     const projects = metrics?.projectPerformances ?? [];
     const withActual = projects.filter((project) => project.hasActualData);
-    const sumQuotedRevenue = projects.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
-    const sumQuotedCost = projects.reduce(
-      (sum, project) => sum + project.costBreakdown.reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
-      0
-    );
-    const estimatedProfit = sumQuotedRevenue - sumQuotedCost;
+    const sumQuotedRevenue = projects.reduce((sum, project) => sum + project.quotedRevenueExcl, 0);
+    const estimatedProfit = projects.reduce((sum, project) => sum + project.projectedProfitAfterLaborMarginVat, 0);
     const projectedProfitInclBtw = projects.reduce((sum, project) => sum + project.projectedProfitInclBtw, 0);
     const projectedProfitAfterLaborMarginVat = projects.reduce((sum, project) => sum + project.projectedProfitAfterLaborMarginVat, 0);
 
     const sumActualCostKnown = withActual.reduce((sum, project) => sum + project.actualCostExcl, 0);
-    const sumActualRevenueScope = withActual.reduce((sum, project) => sum + project.quotedRevenueIncl, 0);
-    const actualProfitKnown = withActual.length > 0 ? sumActualRevenueScope - sumActualCostKnown : null;
+    const sumActualRevenueScope = withActual.reduce((sum, project) => sum + project.quotedRevenueExcl, 0);
+    const actualProfitKnown = withActual.length > 0
+      ? withActual.reduce((sum, project) => sum + project.netProfitQuoteBasis, 0)
+      : null;
     const actualMarginKnown =
       withActual.length > 0 && sumActualRevenueScope > 0 && actualProfitKnown !== null
         ? actualProfitKnown / sumActualRevenueScope
@@ -823,16 +821,12 @@ export default function WinstPage() {
       const materialPassthroughExcl = project.costBreakdown
         .filter((row) => row.key === 'materialenGroot' || row.key === 'materialenVerbruik')
         .reduce((sum, row) => sum + row.quotedExcl, 0);
-      const adjustedRevenue = project.hourlyWorkMaterialPassthrough
-        ? Math.max(0, project.quotedRevenueIncl - materialPassthroughExcl)
-        : project.quotedRevenueIncl;
-      const actualProjectProfit = project.hasActualData ? adjustedRevenue - project.actualCostExcl : null;
+      const actualProjectProfit = project.hasActualData ? project.netProfitQuoteBasis : null;
       const actualProjectMargin =
-        actualProjectProfit !== null && adjustedRevenue > 0
-          ? actualProjectProfit / adjustedRevenue
+        actualProjectProfit !== null && project.quotedRevenueExcl > 0
+          ? actualProjectProfit / project.quotedRevenueExcl
           : null;
-      const quotedCostExcl = project.costBreakdown.reduce((sum, row) => sum + row.quotedExcl, 0);
-      const expectedProjectProfit = project.quotedRevenueIncl - quotedCostExcl;
+      const expectedProjectProfit = project.projectedProfitAfterLaborMarginVat;
       const realizedProfitPerDay =
         actualProjectProfit !== null && project.actualDays > 0
           ? actualProjectProfit / project.actualDays
@@ -886,29 +880,19 @@ export default function WinstPage() {
   // Used by the legacy project presentation; the visible summary now lives on Financiën.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const projectTotals = useMemo(() => {
-    const totalOmzet = filteredProjects.reduce((sum, project) => (
-      sum + (project.hourlyWorkMaterialPassthrough
-        ? Math.max(0, project.quotedRevenueIncl - project.materialPassthroughExcl)
-        : project.quotedRevenueIncl)
-    ), 0);
-    const totalQuotedCosts = filteredProjects.reduce(
-      (sum, project) => sum + project.costBreakdown.reduce((rowSum, row) => rowSum + row.quotedExcl, 0),
-      0
-    );
+    const totalOmzet = filteredProjects.reduce((sum, project) => sum + project.quotedRevenueExcl, 0);
     const projectsWithActual = filteredProjects.filter((project) => project.hasActualData);
-    const actualRevenueScope = projectsWithActual.reduce((sum, project) => (
-      sum + (project.hourlyWorkMaterialPassthrough
-        ? Math.max(0, project.quotedRevenueIncl - project.materialPassthroughExcl)
-        : project.quotedRevenueIncl)
-    ), 0);
+    const actualRevenueScope = projectsWithActual.reduce((sum, project) => sum + project.quotedRevenueExcl, 0);
     const totalKosten = projectsWithActual.reduce((sum, project) => sum + project.actualCostExcl, 0);
     const marge = actualRevenueScope > 0 ? (actualRevenueScope - totalKosten) / actualRevenueScope : null;
     const totalActualDays = filteredProjects.reduce((sum, project) => sum + project.actualDays, 0);
     const totalQuotedDays = filteredProjects.reduce((sum, project) => sum + project.quotedDays, 0);
-    const euroPerDay = totalActualDays > 0 && actualRevenueScope > 0
-      ? (actualRevenueScope - totalKosten) / totalActualDays
+    const euroPerDay = totalActualDays > 0 && projectsWithActual.length > 0
+      ? projectsWithActual.reduce((sum, project) => sum + project.netProfitQuoteBasis, 0) / totalActualDays
       : null;
-    const doelPerDay = totalQuotedDays > 0 ? (totalOmzet - totalQuotedCosts) / totalQuotedDays : null;
+    const doelPerDay = totalQuotedDays > 0
+      ? filteredProjects.reduce((sum, project) => sum + project.projectedProfitAfterLaborMarginVat, 0) / totalQuotedDays
+      : null;
 
     return {
       totalOmzet,

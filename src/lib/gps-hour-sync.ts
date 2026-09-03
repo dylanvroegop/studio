@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { resolveQuoteProjectAddress } from '@/lib/maps';
+import { gpsClientNameFromInfo, isExcludedGpsClientName } from '@/lib/gps-excluded-clients';
 import { detectTrackingStops, matchTrackingPointToQuoteId, type QuoteWithAddress, type TrackingPoint } from '@/lib/tracking-analysis';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
@@ -69,6 +70,7 @@ async function quoteLocations(firestore: FirebaseFirestore.Firestore, uid: strin
   for (const doc of snapshot.docs) {
     const data = doc.data() as Record<string, unknown>;
     if (data.archived === true) continue;
+    if (isExcludedGpsClientName(gpsClientNameFromInfo(data.klantinformatie))) continue;
     const status = String(data.status || '').toLowerCase();
     const priority = status === 'geaccepteerd' || status === 'accepted' ? 3 : status === 'verzonden' || status === 'sent' ? 2 : 1;
     const quoteNumber = Number(data.offerteNummer) || 0;

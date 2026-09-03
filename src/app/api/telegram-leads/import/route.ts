@@ -29,7 +29,7 @@ const importSchema = z.object({
     ),
     address: nullableString,
     city: nullableString,
-    job_title: z.string().trim().min(1).max(500),
+    job_title: nullableString,
     appointment_date: nullableString,
     appointment_time: nullableString,
   }).superRefine((client, context) => {
@@ -228,11 +228,12 @@ export async function POST(request: Request) {
         })
         : undefined);
 
-    const clientRef = matchedClient?.ref || firestore.collection('clients').doc();
-    const projectRef = firestore.collection('quotes').doc();
-    const appointmentRef = firestore.collection('planning_entries').doc();
+    const initialClientRef = matchedClient?.ref || firestore.collection('clients').doc();
+    const newProjectRef = firestore.collection('quotes').doc();
+    const newAppointmentRef = firestore.collection('planning_entries').doc();
     const { firstName, lastName } = splitName(clientInput.client_name);
     const { street, houseNumber } = splitAddress(clientInput.address);
+    const jobTitle = clientInput.job_title || 'Werkspot-lead';
 
     let appointmentStart: Date | null = null;
     if (clientInput.appointment_date && clientInput.appointment_time) {
@@ -251,6 +252,11 @@ export async function POST(request: Request) {
     const counterRef = firestore.collection('counters').doc(`quoteNumber_${uid}`);
 
     const result = await firestore.runTransaction(async (transaction): Promise<ImportResult> => {
+      let transactionClientRef = initialClientRef;
+      let transactionProjectRef = newProjectRef;
+      let transactionAppointmentRef = newAppointmentRef;
+      let reuseProject = false;
+
       const duplicate = await transaction.get(importRef);
       if (duplicate.exists) {
         const data = duplicate.data() as ImportResult;
@@ -279,17 +285,28 @@ export async function POST(request: Request) {
           && duplicateAppointment.data()?.quoteId === data.project_id
         );
 
-        if (projectIsReusable && appointmentIsReusable) {
+        if (projectIsReusable && (!appointmentStart || appointmentIsReusable)) {
           return {
             client_id: data.client_id,
             project_id: data.project_id,
             appointment_id: data.appointment_id || null,
           };
         }
+
+        // De eerste import maakt cliënt en offerte zonder afspraak.
+        // Een latere Telegram-reply vult dezelfde offerte aan in plaats van
+        // een tweede offerte voor dezelfde lead te maken.
+        if (projectIsReusable && duplicateProjectRef) {
+          transactionProjectRef = duplicateProjectRef;
+          reuseProject = true;
+          if (typeof data.client_id === 'string' && data.client_id) {
+            transactionClientRef = firestore.collection('clients').doc(data.client_id);
+          }
+        }
       }
 
-      const counterSnapshot = await transaction.get(counterRef);
-      const quoteNumber = counterSnapshot.exists && typeof counterSnapshot.data()?.next === 'number'
+      const counterSnapshot = reuseProject ? null : await transaction.get(counterRef);
+      const quoteNumber = counterSnapshot && counterSnapshot.exists && typeof counterSnapshot.data()?.next === 'number'
         ? counterSnapshot.data()!.next
         : 260001;
 
@@ -306,9 +323,9 @@ export async function POST(request: Request) {
       if (houseNumber) clientPatch.huisnummer = houseNumber;
       if (clientInput.city) clientPatch.plaats = clientInput.city;
 
-      transaction.set(clientRef, {
+      transaction.set(transactionClientRef, {
         ...clientPatch,
-        ...(!matchedClient ? {
+        ...(!matchedClient && !reuseProject ? {
           bedrijfsnaam: null,
           postcode: null,
           klanttype: 'Particulier',
@@ -316,19 +333,19 @@ export async function POST(request: Request) {
         } : {}),
       }, { merge: true });
 
-      transaction.set(projectRef, {
+      const quotePatch = {
         userId: uid,
-        clientId: clientRef.id,
+        clientId: transactionClientRef.id,
         leadKey: input.lead_key,
         source: SOURCE,
         status: 'werkbespreking',
-        offerteNummer: quoteNumber,
-        titel: clientInput.job_title,
-        werkomschrijving: clientInput.job_title,
-        createdAt: FieldValue.serverTimestamp(),
+        ...(reuseProject ? {} : { offerteNummer: quoteNumber }),
+        titel: jobTitle,
+        werkomschrijving: jobTitle,
+        ...(reuseProject ? {} : { createdAt: FieldValue.serverTimestamp() }),
         updatedAt: FieldValue.serverTimestamp(),
         klantinformatie: {
-          clientId: clientRef.id,
+          clientId: transactionClientRef.id,
           klanttype: 'Particulier',
           bedrijfsnaam: null,
           contactpersoon: null,
@@ -357,21 +374,24 @@ export async function POST(request: Request) {
           transport: userSettings.standaardTransport ?? { mode: 'fixed', vasteTransportkosten: 45 },
           winstMarge: userSettings.standaardWinstMarge ?? { mode: 'percentage', percentage: 10 },
         },
-      });
+      };
+      transaction.set(transactionProjectRef, quotePatch, { merge: reuseProject });
 
-      transaction.set(counterRef, {
-        next: quoteNumber + 1,
-        userId: uid,
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+      if (!reuseProject) {
+        transaction.set(counterRef, {
+          next: quoteNumber + 1,
+          userId: uid,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
 
       let appointmentId: string | null = null;
       if (appointmentStart) {
-        appointmentId = appointmentRef.id;
+        appointmentId = transactionAppointmentRef.id;
         const appointmentEnd = new Date(appointmentStart.getTime() + 60 * 60 * 1000);
-        transaction.set(appointmentRef, {
+        transaction.set(transactionAppointmentRef, {
           userId: uid,
-          quoteId: projectRef.id,
+          quoteId: transactionProjectRef.id,
           leadKey: input.lead_key,
           source: SOURCE,
           startDate: Timestamp.fromDate(appointmentStart),
@@ -384,7 +404,7 @@ export async function POST(request: Request) {
           notes: '',
           cache: {
             clientName: clientInput.client_name || '',
-            projectTitle: `Werkbespreking · ${clientInput.job_title}`,
+            projectTitle: `Werkbespreking · ${jobTitle}`,
             projectAddress: [clientInput.address, clientInput.city].filter(Boolean).join(', '),
             totalQuoteHours: 1,
             totalQuoteAmount: 0,
@@ -396,8 +416,8 @@ export async function POST(request: Request) {
       }
 
       const imported: ImportResult = {
-        client_id: clientRef.id,
-        project_id: projectRef.id,
+        client_id: transactionClientRef.id,
+        project_id: transactionProjectRef.id,
         appointment_id: appointmentId,
       };
       transaction.set(importRef, {
@@ -407,7 +427,7 @@ export async function POST(request: Request) {
         source: SOURCE,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      }, { merge: reuseProject });
       return imported;
     });
 

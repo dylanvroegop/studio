@@ -10,6 +10,7 @@ import {
   type GpsSite,
   type SupplierVisit,
 } from '@/lib/gps-work-sessions';
+import { gpsClientNameFromInfo, isExcludedGpsClientName, isExcludedGpsSession } from '@/lib/gps-excluded-clients';
 import type { TrackingPoint } from '@/lib/tracking-analysis';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
@@ -152,8 +153,7 @@ async function knownSupplierVisits(stops: ReturnType<typeof detectStableStops>):
 
 function quoteCandidate(id: string, data: Record<string, unknown>): GpsQuoteCandidate {
   const info = (data.klantinformatie || {}) as Record<string, unknown>;
-  const personalName = [info.voornaam, info.achternaam].map((value) => String(value || '').trim()).filter(Boolean).join(' ');
-  const clientName = String(info.bedrijfsnaam || info.bedrijfsNaam || info.naam || info.name || personalName || 'Onbekende klant');
+  const clientName = gpsClientNameFromInfo(info) || 'Onbekende klant';
   const quoteNumber = String(data.offerteNummer || data.quoteNumber || '');
   const projectTitle = String(data.hoofdtitel || data.titel || data.title || 'Klus');
   const storedAmount = Number(data.totaalbedrag ?? data.amount ?? 0);
@@ -203,13 +203,15 @@ async function quoteSites(firestore: FirebaseFirestore.Firestore, uid: string): 
   snapshot.docs.forEach((doc) => {
     const data = doc.data() as Record<string, unknown>;
     if (data.archived === true) return;
+    const candidate = quoteCandidate(doc.id, data);
+    if (isExcludedGpsClientName(candidate.clientName)) return;
     const address = resolveQuoteProjectAddress({
       klantinformatie: data.klantinformatie as Parameters<typeof resolveQuoteProjectAddress>[0] extends { klantinformatie?: infer T } ? T : never,
     });
     const key = normalizedAddress(address);
     if (!key) return;
     const current = grouped.get(key) || { address, quotes: [] };
-    current.quotes.push(quoteCandidate(doc.id, data));
+    current.quotes.push(candidate);
     grouped.set(key, current);
   });
 
@@ -502,6 +504,60 @@ async function analyzeDate(firestore: FirebaseFirestore.Firestore, uid: string, 
   return writableRows.length;
 }
 
+async function dismissExcludedGpsSessions(uid: string, workDate?: string): Promise<number> {
+  let sessionsQuery = supabaseAdmin
+    .from('gps_work_sessions')
+    .select('id,status,candidate_quotes,quote_id,time_entry_id')
+    .eq('user_id', uid)
+    .in('status', ['pending', 'confirmed']);
+  if (workDate) sessionsQuery = sessionsQuery.eq('work_date', workDate);
+  const { data, error } = await sessionsQuery;
+  if (error) throw new Error(error.message);
+
+  let dismissed = 0;
+  for (const rawSession of data || []) {
+    const session = rawSession as Record<string, unknown>;
+    if (!isExcludedGpsSession(session)) continue;
+
+    const timeEntryId = String(session.time_entry_id || '').trim();
+    if (timeEntryId) {
+      const { data: timeEntry, error: timeEntryError } = await supabaseAdmin
+        .from('time_entries')
+        .select('id,source,note')
+        .eq('id', timeEntryId)
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (timeEntryError) throw new Error(timeEntryError.message);
+      const note = String(timeEntry?.note || '').toLowerCase();
+      const automaticallyGenerated = timeEntry?.source === 'gps_tracking_confirm'
+        && note.includes('gps-werkdag')
+        && !note.includes('gecontroleerd');
+      if (automaticallyGenerated) {
+        const { error: deleteError } = await supabaseAdmin
+          .from('time_entries')
+          .delete()
+          .eq('id', timeEntryId)
+          .eq('user_id', uid);
+        if (deleteError) throw new Error(deleteError.message);
+      }
+    }
+
+    const { error: dismissError } = await supabaseAdmin
+      .from('gps_work_sessions')
+      .update({
+        status: 'dismissed',
+        quote_id: null,
+        time_entry_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', String(session.id))
+      .eq('user_id', uid);
+    if (dismissError) throw new Error(dismissError.message);
+    dismissed += 1;
+  }
+  return dismissed;
+}
+
 export interface GpsReprocessResult {
   dates: number;
   analyzedDates: number;
@@ -615,6 +671,7 @@ export async function reprocessGpsWorkSessions(
     clientTransferMinutes: 0,
     unallocatedMinutes: 0,
   };
+  if (!options.dryRun) result.staleSessions += await dismissExcludedGpsSessions(uid);
   for (const workDate of dates) {
     const rows = await calculateGpsSessionRows(workDate, uid, sites);
     result.analyzedDates += 1;
@@ -695,6 +752,7 @@ export async function reprocessGpsWorkSessions(
 }
 
 export async function prepareGpsWorkSessions(firestore: FirebaseFirestore.Firestore, uid: string): Promise<void> {
+  await dismissExcludedGpsSessions(uid);
   const settings = await ensureSettings(uid);
   const yesterday = addDays(dateOnly(new Date()), -1);
   let cursor = settings.lastAnalyzedDate ? addDays(settings.lastAnalyzedDate, 1) : settings.enabledFrom;

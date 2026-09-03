@@ -15,7 +15,7 @@ import {
 import { nl } from 'date-fns/locale';
 import { AlertTriangle, Building2, CalendarDays, Car, Clock3, MapPin, Store } from 'lucide-react';
 
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -39,6 +39,7 @@ interface TrackingQuote {
   offerteNummer?: number | string;
   titel?: string;
   title?: string;
+  quotedHours?: number | null;
   klantinformatie?: {
     voornaam?: string;
     achternaam?: string;
@@ -93,6 +94,15 @@ function formatMinutes(value: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return hours > 0 ? `${hours}u ${rest.toString().padStart(2, '0')}m` : `${rest}m`;
+}
+
+function formatSignedMinutes(value: number): string {
+  if (Math.abs(value) < 1) return '0m';
+  return `${value > 0 ? '+' : '-'}${formatMinutes(Math.abs(value))}`;
+}
+
+function formatHours(value: number): string {
+  return `${new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2 }).format(value)} u`;
 }
 
 function clientName(quote?: TrackingQuote): string {
@@ -166,6 +176,22 @@ export function TrackingPeriodOverview({ history, quotes, mode, loading = false 
     return Array.from(grouped.values()).sort((left, right) => right.totals.total - left.totals.total);
   }, [filtered, quotes]);
 
+  const quoteComparisons = useMemo(() => {
+    const grouped = new Map<string, { quote?: TrackingQuote; actualMinutes: number }>();
+    filtered.forEach((entry) => {
+      if (!entry.quoteId) return;
+      const current = grouped.get(entry.quoteId) || {
+        quote: quotes.find((quote) => quote.id === entry.quoteId),
+        actualMinutes: 0,
+      };
+      current.actualMinutes += entryMinutes(entry).total;
+      grouped.set(entry.quoteId, current);
+    });
+    return Array.from(grouped.entries())
+      .map(([quoteId, comparison]) => ({ quoteId, ...comparison }))
+      .sort((left, right) => right.actualMinutes - left.actualMinutes);
+  }, [filtered, quotes]);
+
   const rangeLabel = range
     ? `${format(range.start, 'd MMM yyyy', { locale: nl })} – ${format(range.end, 'd MMM yyyy', { locale: nl })}`
     : 'Alle geregistreerde gegevens';
@@ -202,6 +228,44 @@ export function TrackingPeriodOverview({ history, quotes, mode, loading = false 
         <Metric label="Leverancier" value={formatMinutes(totals.supplier)} icon={<Store className="h-4 w-4" />} />
         <Metric label="Niet ingedeeld" value={formatMinutes(totals.unallocated)} icon={<AlertTriangle className="h-4 w-4" />} />
       </div>
+
+      {mode === 'period' ? (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle>Offerte tegenover werkelijk</CardTitle>
+            <CardDescription>Vergelijk de uren uit de offerte met de werkelijk geregistreerde uren in deze periode.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {quoteComparisons.length === 0 ? (
+              <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Geen geregistreerde uren aan een offerte gekoppeld.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead className="border-b bg-muted/20 text-left text-xs text-muted-foreground">
+                    <tr><th className="px-4 py-3 font-medium">Offerte</th><th className="px-4 py-3 text-right font-medium">Offerte-uren</th><th className="px-4 py-3 text-right font-medium">Werkelijk</th><th className="px-4 py-3 text-right font-medium">Verschil</th><th className="px-4 py-3 text-right font-medium">Status</th></tr>
+                  </thead>
+                  <tbody>
+                    {quoteComparisons.map((comparison) => {
+                      const quotedHours = comparison.quote?.quotedHours;
+                      const quotedMinutes = quotedHours === null || quotedHours === undefined ? null : Math.round(quotedHours * 60);
+                      const difference = quotedMinutes === null ? null : comparison.actualMinutes - quotedMinutes;
+                      return (
+                        <tr key={comparison.quoteId} className="border-b border-border/50 last:border-0">
+                          <td className="px-4 py-3 font-medium">{quoteLabel(comparison.quote)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{quotedHours === null || quotedHours === undefined ? '—' : formatHours(quotedHours)}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatMinutes(comparison.actualMinutes)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums">{difference === null ? '—' : formatSignedMinutes(difference)}</td>
+                          <td className="px-4 py-3 text-right text-muted-foreground">{difference === null ? 'Geen offerte-uren' : difference > 0 ? 'Meerwerk' : difference < 0 ? 'Minder' : 'Gelijk'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
         {loading ? <div className="p-8 text-center text-sm text-muted-foreground">Gegevens laden...</div> : null}

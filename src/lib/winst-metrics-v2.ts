@@ -115,6 +115,8 @@ export interface BuildWinstMetricsInput {
 }
 
 interface QuotedSnapshot {
+  hasCalculation: boolean;
+  revenueExclBtw: number;
   materialenGroot: number;
   materialenVerbruik: number;
   arbeid: number;
@@ -333,7 +335,10 @@ function sumSparseCosts(entries: unknown): number {
 function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<string, WinstCalculationSource>): QuotedSnapshot {
   const calculation = calculationByQuoteId.get(quote.id);
   if (!calculation) {
+    const fallbackRevenueIncl = Math.max(0, safeNumber(quote.quotedRevenueIncl));
     return {
+      hasCalculation: false,
+      revenueExclBtw: fallbackRevenueIncl / 1.21,
       materialenGroot: 0,
       materialenVerbruik: 0,
       arbeid: 0,
@@ -356,6 +361,8 @@ function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<st
 
     const quotedHours = Math.max(0, safeNumber(normalized.totaal_uren));
     return {
+      hasCalculation: true,
+      revenueExclBtw: Math.max(0, safeNumber(totals.totaalExclBtw)),
       materialenGroot: safeNumber(totals.materialenGroot),
       materialenVerbruik: safeNumber(totals.materialenVerbruik),
       arbeid: safeNumber(totals.arbeidTotaal),
@@ -369,7 +376,10 @@ function getQuotedSnapshot(quote: WinstQuoteSource, calculationByQuoteId: Map<st
       quotedTransportKm: safeNumber(transportCalc.roundTripDistanceKm) || safeNumber(transportCalc.distanceKm) || 0,
     };
   } catch {
+    const fallbackRevenueIncl = Math.max(0, safeNumber(quote.quotedRevenueIncl));
     return {
+      hasCalculation: false,
+      revenueExclBtw: fallbackRevenueIncl / 1.21,
       materialenGroot: 0,
       materialenVerbruik: 0,
       arbeid: 0,
@@ -454,7 +464,9 @@ function getActualSnapshot(
   const externalLaborHours = safeNumber(externalLabor?.hours);
   const externalLaborDays = safeNumber(externalLabor?.days);
   const manualActualDays = Math.max(0, safeNumber(normalized.labor.actualDays));
-  const hasExternalCosts = externalCostsTotal > 0 || externalLaborCost > 0 || externalLaborHours > 0 || externalLaborDays > 0;
+  // GPS/time entries are evidence of worked time, not a monetary cost. They
+  // must not switch a project to the external-cost path with €0 labour cost.
+  const hasExternalCosts = externalCostsTotal > 0 || externalLaborCost > 0;
 
   if (hasExternalCosts) {
     const mappedMaterial = safeNumber(externalProjectCosts?.materiaal);
@@ -478,10 +490,7 @@ function getActualSnapshot(
         mappedTransport > 0 ||
         mappedTools > 0 ||
         mappedOther > 0 ||
-        externalLaborCost > 0 ||
-        externalLaborHours > 0 ||
-        externalLaborDays > 0 ||
-        manualActualDays > 0,
+        externalLaborCost > 0,
       topCostItems: mappedMaterial > 0
         ? [
           {
@@ -522,13 +531,15 @@ function getActualSnapshot(
     transport: safeNumber(normalized.transport.actualCostExcl),
     materieel: safeNumber(normalized.materieel.actualCostExcl),
     overhead: safeNumber(normalized.overhead.actualCostExcl),
-    actualHours: safeNumber(normalized.labor.actualHours),
-    actualDays: Math.max(0, safeNumber(normalized.labor.actualDays)),
+    actualHours: Math.max(safeNumber(normalized.labor.actualHours), externalLaborHours),
+    actualDays: Math.max(
+      safeNumber(normalized.labor.actualDays),
+      externalLaborDays,
+      hoursToDays(externalLaborHours)
+    ),
     actualTransportKm: safeNumber(normalized.transport.actualKm),
     transportRevenueExcl: safeNumber(normalized.transport.actualRevenueExcl),
     hasAnyActualData:
-      safeNumber(normalized.labor.actualHours) > 0 ||
-      safeNumber(normalized.labor.actualDays) > 0 ||
       safeNumber(normalized.materials.groot.actualCostExcl) > 0 ||
       safeNumber(normalized.materials.verbruik.actualCostExcl) > 0 ||
       safeNumber(normalized.transport.actualCostExcl) > 0 ||
@@ -880,7 +891,9 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
       leadkosten: 0,
       overig: 0,
     };
-    const resolvedAmount = safeNumber(row.amountIncl) > 0 ? safeNumber(row.amountIncl) : safeNumber(row.amountExcl);
+    const amountExcl = safeNumber(row.amountExcl);
+    const amountIncl = safeNumber(row.amountIncl);
+    const resolvedAmount = Math.abs(amountExcl) > 0.0001 || Math.abs(amountIncl) <= 0.0001 ? amountExcl : amountIncl;
     current[row.category] = safeNumber(current[row.category]) + resolvedAmount;
     projectCostsByQuoteId.set(row.quoteId, current);
   });
@@ -1074,11 +1087,12 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     );
     const breakdown = toCategoryRows(quoted, actual);
     const quotedRevenueIncl = Math.max(0, safeNumber(quote.quotedRevenueIncl));
+    const quotedRevenueExcl = quoted.revenueExclBtw > 0 ? quoted.revenueExclBtw : quotedRevenueIncl / 1.21;
     const receivedCashIncl = Math.max(0, quotePaymentsInPeriod.get(quote.id) || 0);
     const actualCostExcl = CATEGORY_ORDER.reduce((sum, key) => sum + safeNumber(actual[key]), 0);
-    const netProfitQuoteBasis = quotedRevenueIncl - actualCostExcl;
+    const netProfitQuoteBasis = quotedRevenueExcl - actualCostExcl;
     const netProfitCashBasis = receivedCashIncl - actualCostExcl;
-    const marginPct = toPercent(netProfitQuoteBasis, quotedRevenueIncl);
+    const marginPct = toPercent(netProfitQuoteBasis, quotedRevenueExcl);
     const hoursDiff = actual.actualHours - quoted.quotedHours;
     const hoursDiffPct = toPercent(hoursDiff, quoted.quotedHours);
     const daysDiff = actual.actualDays - quoted.quotedDays;
@@ -1113,8 +1127,10 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
       status: quote.status,
       hourlyWorkMaterialPassthrough: quote.hourlyWorkMaterialPassthrough === true,
       hasActualData: actual.hasAnyActualData,
+      hasQuotedCalculation: quoted.hasCalculation,
       dataQualityIssue,
       quotedRevenueIncl,
+      quotedRevenueExcl,
       projectedProfitInclBtw: quoted.winstMetArbeidMargeInclBtw,
       projectedProfitAfterLaborMarginVat: quoted.winstNaBtwArbeidEnMarge,
       receivedCashIncl,
@@ -1144,6 +1160,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
 
   const totals = {
     quotedRevenueIncl: projects.reduce((sum, row) => sum + row.quotedRevenueIncl, 0),
+    quotedRevenueExcl: projects.reduce((sum, row) => sum + row.quotedRevenueExcl, 0),
     receivedCashIncl: projects.reduce((sum, row) => sum + row.receivedCashIncl, 0),
     actualCostExcl: projects.reduce((sum, row) => sum + row.actualCostExcl, 0),
     netProfitQuoteBasis: 0,
@@ -1154,9 +1171,9 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     overdueAmount: 0,
     overdueCount,
   };
-  totals.netProfitQuoteBasis = totals.quotedRevenueIncl - totals.actualCostExcl;
+  totals.netProfitQuoteBasis = totals.quotedRevenueExcl - totals.actualCostExcl;
   totals.netProfitCashBasis = totals.receivedCashIncl - totals.actualCostExcl;
-  totals.marginPct = toPercent(totals.netProfitQuoteBasis, totals.quotedRevenueIncl);
+  totals.marginPct = toPercent(totals.netProfitQuoteBasis, totals.quotedRevenueExcl);
   totals.cashInRatio = toPercent(totals.receivedCashIncl, totals.quotedRevenueIncl);
   totals.openAmount = projects.reduce((sum, project) => sum + (openAmountByQuote.get(project.projectId) || 0), 0);
   totals.overdueAmount = projects.reduce((sum, project) => sum + (overdueAmountByQuote.get(project.projectId) || 0), 0);

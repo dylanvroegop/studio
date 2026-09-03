@@ -327,7 +327,7 @@ function InstellingenPageContent() {
             }, { merge: true });
 
             toast({ title: 'Opgeslagen', description: 'Uw instellingen zijn bijgewerkt.' });
-            router.push('/dashboard');
+            router.push('/offertes');
         } catch (error) {
             console.error("Error saving settings:", error);
             toast({ variant: 'destructive', title: 'Fout', description: 'Kon instellingen niet opslaan.' });

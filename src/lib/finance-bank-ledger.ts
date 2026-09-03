@@ -29,6 +29,12 @@ export interface FinanceBankCostLedgerRow {
   notes: string | null;
 }
 
+interface SplitFinanceBankLedgerRowsByCategoryParams {
+  rows: FinanceBankCostLedgerRow[];
+  costs: ProjectCostRow[];
+  categoryOverrides?: ReadonlyMap<string, ProjectCostCategory>;
+}
+
 const PRIVATE_RE = /top-?up\s+via\s+bunq|paypal\s+top-?up/i;
 const SUPPLIER_STOP_WORDS = new Set(['bck', 'via', 'europ', 'europe', 'bv', 'b', 'v', 'stichting', 'derden', 'gelden', 'payment', 'payments', 'online']);
 
@@ -250,6 +256,18 @@ function matchSources(
   const target = cents(Math.abs(transaction.amount));
   if (target <= 0) return [];
 
+  // A persisted payment link is stronger evidence than any rematching
+  // heuristic. Reuse every category row belonging to that payment so mixed
+  // invoices remain complete and cannot silently lose tool/material lines.
+  const explicitlyLinkedCosts = costs.filter((cost) =>
+    !usedCosts.has(cost.id)
+    && cost.paid_bank_transaction_id === transaction.id
+  );
+  if (explicitlyLinkedCosts.length > 0) {
+    explicitlyLinkedCosts.forEach((cost) => usedCosts.add(cost.id));
+    return explicitlyLinkedCosts;
+  }
+
   // Supplier collections include their invoice/credit-note numbers in the
   // Knab description. Those identifiers are authoritative. Never replace an
   // identifier match with an unrelated combination that merely has the same
@@ -345,6 +363,67 @@ export function buildFinanceBankLedger(params: {
           : privateTransaction ? 'Privé-top-up uitgesloten van zakelijke kosten.' : 'Geen exact bronbedrag gevonden; Knab-bedrag blijft leidend.',
       } satisfies FinanceBankCostLedgerRow;
     });
+}
+
+/**
+ * A single Knab debit can pay one invoice that contains multiple cost
+ * categories. Keep Knab as the amount truth, but expose proportional category
+ * parts so material and tools do not disappear into one arbitrary category.
+ * A manual bank-category override deliberately keeps the transaction whole.
+ */
+export function splitFinanceBankLedgerRowsByCategory(
+  params: SplitFinanceBankLedgerRowsByCategoryParams,
+): FinanceBankCostLedgerRow[] {
+  const costById = new Map(params.costs.map((cost) => [cost.id, cost]));
+
+  return params.rows.flatMap((row) => {
+    if (
+      row.is_private
+      || row.match_status !== 'matched'
+      || params.categoryOverrides?.has(row.bank_transaction_id)
+    ) {
+      return [row];
+    }
+
+    const groups = new Map<ProjectCostCategory, ProjectCostRow[]>();
+    row.source_cost_ids.forEach((costId) => {
+      const cost = costById.get(costId);
+      if (!cost) return;
+      const category = normalizeProjectCostCategory(cost.category);
+      groups.set(category, [...(groups.get(category) || []), cost]);
+    });
+    if (groups.size <= 1) return [row];
+
+    const orderedGroups = Array.from(groups.entries());
+    const sourceTotalCents = orderedGroups.reduce(
+      (sum, [, groupCosts]) => sum + groupCosts.reduce((groupSum, cost) => groupSum + sourceAmount(cost), 0),
+      0,
+    );
+    const bankTotalCents = cents(row.amount);
+    if (sourceTotalCents <= 0 || bankTotalCents <= 0) return [row];
+
+    let allocatedBankCents = 0;
+    return orderedGroups.map(([category, groupCosts], index) => {
+      const groupSourceCents = groupCosts.reduce((sum, cost) => sum + sourceAmount(cost), 0);
+      const isLast = index === orderedGroups.length - 1;
+      const groupBankCents = isLast
+        ? bankTotalCents - allocatedBankCents
+        : Math.round((bankTotalCents * groupSourceCents) / sourceTotalCents);
+      allocatedBankCents += groupBankCents;
+      const amount = euroFromCents(groupBankCents);
+      const groupSourceAmount = euroFromCents(groupSourceCents);
+
+      return {
+        ...row,
+        amount,
+        category,
+        source_cost_ids: groupCosts.map((cost) => cost.id),
+        source_amount: groupSourceAmount,
+        source_delta: roundEuro(groupSourceAmount - amount),
+        notes: `Knab-afschrijving verdeeld over ${groups.size} kostenregelcategorieën; dit deel is ${category}.`,
+      } satisfies FinanceBankCostLedgerRow;
+    });
+  });
 }
 
 export async function persistFinanceBankLedger(rows: FinanceBankCostLedgerRow[]): Promise<void> {

@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { getIdTokenResult } from 'firebase/auth';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, LayoutDashboard, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Clock3, Plus, ClipboardList, MessageCircle } from 'lucide-react';
+import { Menu, X, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Clock3, Plus, ClipboardList, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -24,25 +24,11 @@ interface NavigationItem {
 
 const BASE_NAV_ITEMS: NavigationItem[] = [
     {
-        href: '/dashboard',
-        label: 'Dashboard',
-        icon: LayoutDashboard,
-        iconColorClass: 'text-sky-400',
-        iconColorClassActive: 'text-sky-300',
-    },
-    {
         href: '/offertes',
         label: 'Offertes',
         icon: FileText,
         iconColorClass: 'text-cyan-400',
         iconColorClassActive: 'text-cyan-300',
-    },
-    {
-        href: '/auto-berichten',
-        label: 'Auto berichten',
-        icon: MessageCircle,
-        iconColorClass: 'text-emerald-400',
-        iconColorClassActive: 'text-emerald-300',
     },
     {
         href: '/facturen',
@@ -95,10 +81,17 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
     },
     {
         href: '/urenregistratie',
-        label: 'Urenregistratie',
+        label: 'Arbeidsuren',
         icon: Clock3,
         iconColorClass: 'text-indigo-400',
         iconColorClassActive: 'text-indigo-300',
+    },
+    {
+        href: '/auto-berichten',
+        label: 'Berichten',
+        icon: MessageCircle,
+        iconColorClass: 'text-emerald-400',
+        iconColorClassActive: 'text-emerald-300',
     },
 ];
 
