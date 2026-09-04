@@ -27,6 +27,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import type { WinstCostCategoryKey, WinstMetricsResponse } from '@/lib/winst-types';
+import { formatOfferteNummerLabel } from '@/lib/quote-number';
 import { cn } from '@/lib/utils';
 
 type PeriodType = 'month' | 'week';
@@ -166,7 +167,7 @@ function ProjectRow(props: {
   isTogglingHourlyWork?: boolean;
 }) {
   const { project, onNavigate, onEditHours, onToggleHourlyWork, isTogglingHourlyWork = false } = props;
-  const projectLabel = project.offerteNummer ? `#${project.offerteNummer}` : project.title;
+  const projectLabel = project.offerteNummer ? `#${formatOfferteNummerLabel(project.offerteNummer, project.offerteVersie)}` : project.title;
   const encodedProjectId = encodeURIComponent(project.projectId);
   const openHoursEditor = () => onEditHours(project);
   const openCostEditor = () => {
@@ -268,7 +269,9 @@ function ProjectRow(props: {
           <p className="mt-1 text-[10px] text-muted-foreground">
             {project.hourlyWorkMaterialPassthrough
               ? 'Uurwerk: omzet - materialen - kosten'
-              : 'Basis: omzet excl. btw - kosten excl. btw'}
+              : project.receivedCashTotalIncl > 0
+                ? 'Basis: uiteindelijk ontvangen excl. btw - kosten excl. btw'
+                : 'Basis: omzet excl. btw - kosten excl. btw'}
           </p>
         </button>
 
@@ -821,10 +824,14 @@ export default function WinstPage() {
       const materialPassthroughExcl = project.costBreakdown
         .filter((row) => row.key === 'materialenGroot' || row.key === 'materialenVerbruik')
         .reduce((sum, row) => sum + row.quotedExcl, 0);
-      const actualProjectProfit = project.hasActualData ? project.netProfitQuoteBasis : null;
+      const usesPaidBasis = project.receivedCashTotalIncl > 0;
+      const actualProjectProfit = project.hasActualData
+        ? (usesPaidBasis ? project.adjustedProfitExcl : project.netProfitQuoteBasis)
+        : null;
+      const actualRevenueBasisExcl = usesPaidBasis ? project.adjustedRevenueExcl : project.quotedRevenueExcl;
       const actualProjectMargin =
-        actualProjectProfit !== null && project.quotedRevenueExcl > 0
-          ? actualProjectProfit / project.quotedRevenueExcl
+        actualProjectProfit !== null && actualRevenueBasisExcl > 0
+          ? actualProjectProfit / actualRevenueBasisExcl
           : null;
       const expectedProjectProfit = project.projectedProfitAfterLaborMarginVat;
       const realizedProfitPerDay =
@@ -1043,7 +1050,7 @@ export default function WinstPage() {
             <DialogTitle>Uren bijwerken</DialogTitle>
             <DialogDescription>
               {hoursEditorProject
-                ? `${hoursEditorProject.offerteNummer ? `#${hoursEditorProject.offerteNummer} • ` : ''}${hoursEditorProject.clientName}`
+                ? `${hoursEditorProject.offerteNummer ? `#${formatOfferteNummerLabel(hoursEditorProject.offerteNummer, hoursEditorProject.offerteVersie)} • ` : ''}${hoursEditorProject.clientName}`
                 : ''}
             </DialogDescription>
           </DialogHeader>

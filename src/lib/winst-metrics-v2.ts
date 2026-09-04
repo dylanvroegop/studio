@@ -43,6 +43,7 @@ export interface WinstMetricsFiltersInput {
 export interface WinstQuoteSource {
   id: string;
   offerteNummer: number | null;
+  offerteVersie?: number;
   title: string;
   clientId: string;
   clientName: string;
@@ -746,6 +747,44 @@ function buildInvoiceAllocation(
   }));
 }
 
+function buildTotalPaidByQuoteId(
+  quotes: WinstQuoteSource[],
+  invoices: WinstInvoiceSource[],
+): Map<string, number> {
+  const quotedRevenueByQuoteId = new Map(
+    quotes.map((quote) => [quote.id, Math.max(0, safeNumber(quote.quotedRevenueIncl))]),
+  );
+  const quoteIds = new Set(quotes.map((quote) => quote.id));
+  const totalPaidByQuoteId = new Map<string, number>();
+
+  invoices.forEach((invoice) => {
+    const status = String(invoice.status || '').trim().toLowerCase();
+    if (status === 'concept' || status === 'geannuleerd') return;
+
+    const paidFromSummary = Math.max(0, safeNumber(invoice.paidAmount));
+    const paid = paidFromSummary > 0
+      ? paidFromSummary
+      : isInvoiceSettled(invoice)
+        ? Math.max(0, safeNumber(invoice.totalIncl))
+        : 0;
+    if (paid <= 0) return;
+
+    const allocations = buildInvoiceAllocation(
+      invoice.quoteIds.filter((quoteId) => quoteIds.has(quoteId)),
+      paid,
+      quotedRevenueByQuoteId,
+    );
+    allocations.forEach((allocation) => {
+      totalPaidByQuoteId.set(
+        allocation.quoteId,
+        (totalPaidByQuoteId.get(allocation.quoteId) || 0) + allocation.amount,
+      );
+    });
+  });
+
+  return totalPaidByQuoteId;
+}
+
 function getInvoiceTimestamp(invoice: WinstInvoiceSource): number {
   return (
     invoice.createdAt?.getTime()
@@ -973,6 +1012,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
 
   const relevantQuoteIds = new Set(relevantQuotes.map((quote) => quote.id));
   const quotedRevenueByQuoteId = new Map(relevantQuotes.map((quote) => [quote.id, Math.max(0, safeNumber(quote.quotedRevenueIncl))]));
+  const totalPaidByQuoteId = buildTotalPaidByQuoteId(scopedQuotes, input.invoices);
 
   const completedFinalInvoiceQuoteIds = buildFinalInvoiceStateByQuoteId(scopedQuotes, input.invoices, vatRange);
   const vatRelevantQuotes = scopedQuotes.filter((quote) => {
@@ -1089,9 +1129,15 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     const quotedRevenueIncl = Math.max(0, safeNumber(quote.quotedRevenueIncl));
     const quotedRevenueExcl = quoted.revenueExclBtw > 0 ? quoted.revenueExclBtw : quotedRevenueIncl / 1.21;
     const receivedCashIncl = Math.max(0, quotePaymentsInPeriod.get(quote.id) || 0);
+    const receivedCashTotalIncl = Math.max(0, totalPaidByQuoteId.get(quote.id) || 0);
+    const quotedToExclRatio = quotedRevenueIncl > 0 && quotedRevenueExcl > 0
+      ? quotedRevenueExcl / quotedRevenueIncl
+      : 1 / 1.21;
+    const adjustedRevenueExcl = receivedCashTotalIncl * quotedToExclRatio;
     const actualCostExcl = CATEGORY_ORDER.reduce((sum, key) => sum + safeNumber(actual[key]), 0);
     const netProfitQuoteBasis = quotedRevenueExcl - actualCostExcl;
     const netProfitCashBasis = receivedCashIncl - actualCostExcl;
+    const adjustedProfitExcl = adjustedRevenueExcl - actualCostExcl;
     const marginPct = toPercent(netProfitQuoteBasis, quotedRevenueExcl);
     const hoursDiff = actual.actualHours - quoted.quotedHours;
     const hoursDiffPct = toPercent(hoursDiff, quoted.quotedHours);
@@ -1119,6 +1165,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     return {
       projectId: quote.id,
       offerteNummer: quote.offerteNummer,
+      offerteVersie: quote.offerteVersie,
       title: quote.title,
       clientId: quote.clientId,
       clientName: quote.clientName,
@@ -1134,9 +1181,12 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
       projectedProfitInclBtw: quoted.winstMetArbeidMargeInclBtw,
       projectedProfitAfterLaborMarginVat: quoted.winstNaBtwArbeidEnMarge,
       receivedCashIncl,
+      receivedCashTotalIncl,
+      adjustedRevenueExcl,
       actualCostExcl,
       netProfitQuoteBasis,
       netProfitCashBasis,
+      adjustedProfitExcl,
       marginPct,
       quotedHours: quoted.quotedHours,
       actualHours: actual.actualHours,
@@ -1162,9 +1212,12 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
     quotedRevenueIncl: projects.reduce((sum, row) => sum + row.quotedRevenueIncl, 0),
     quotedRevenueExcl: projects.reduce((sum, row) => sum + row.quotedRevenueExcl, 0),
     receivedCashIncl: projects.reduce((sum, row) => sum + row.receivedCashIncl, 0),
+    receivedCashTotalIncl: projects.reduce((sum, row) => sum + row.receivedCashTotalIncl, 0),
+    adjustedRevenueExcl: projects.reduce((sum, row) => sum + row.adjustedRevenueExcl, 0),
     actualCostExcl: projects.reduce((sum, row) => sum + row.actualCostExcl, 0),
     netProfitQuoteBasis: 0,
     netProfitCashBasis: 0,
+    adjustedProfitExcl: 0,
     marginPct: 0,
     cashInRatio: 0,
     openAmount: 0,
@@ -1173,6 +1226,7 @@ export function buildWinstMetrics(input: BuildWinstMetricsInput): WinstMetricsRe
   };
   totals.netProfitQuoteBasis = totals.quotedRevenueExcl - totals.actualCostExcl;
   totals.netProfitCashBasis = totals.receivedCashIncl - totals.actualCostExcl;
+  totals.adjustedProfitExcl = totals.adjustedRevenueExcl - totals.actualCostExcl;
   totals.marginPct = toPercent(totals.netProfitQuoteBasis, totals.quotedRevenueExcl);
   totals.cashInRatio = toPercent(totals.receivedCashIncl, totals.quotedRevenueIncl);
   totals.openAmount = projects.reduce((sum, project) => sum + (openAmountByQuote.get(project.projectId) || 0), 0);

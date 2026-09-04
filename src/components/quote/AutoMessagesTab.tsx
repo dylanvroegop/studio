@@ -7,6 +7,11 @@ import { CalendarDays, Check, Copy, Loader2, MessageCircle } from 'lucide-react'
 import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import {
+    getAppointmentSuggestion,
+    getCityFromAddress,
+    type AppointmentPlanningEntry,
+} from '@/lib/appointment-suggestions';
 
 interface AutoMessageClient {
     quoteId: string;
@@ -16,18 +21,6 @@ interface AutoMessageClient {
     city: string;
     suggestedDate: string;
     suggestionReason: string;
-}
-
-interface PlanningEntrySummary {
-    quoteId: string;
-    startDate: Date;
-    endDate: Date;
-    city: string;
-}
-
-interface ScheduleSuggestion {
-    date: string;
-    reason: string;
 }
 
 function cleanText(value: unknown): string {
@@ -77,33 +70,6 @@ function normalizeClientKeyPart(value: string): string {
     return value.toLocaleLowerCase('nl-NL').replace(/[\s-]+/g, '');
 }
 
-function normalizeCity(value: string): string {
-    return value
-        .toLocaleLowerCase('nl-NL')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-function getCityFromAddress(value: unknown): string {
-    const address = cleanText(value);
-    if (!address) return '';
-
-    const postcodeMatch = address.match(/\b\d{4}\s*[A-Z]{2}\s+(.+)$/i);
-    if (postcodeMatch?.[1]) return postcodeMatch[1].trim();
-
-    const parts = address.split(',').map((part) => part.trim()).filter(Boolean);
-    return parts.at(-1) || '';
-}
-
-function getLocalDateKey(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
-
 function formatDutchDate(value: string): string {
     const date = new Date(`${value}T12:00:00`);
     if (Number.isNaN(date.getTime())) return value;
@@ -112,53 +78,6 @@ function formatDutchDate(value: string): string {
         day: 'numeric',
         month: 'long',
     }).format(date);
-}
-
-function getScheduleSuggestion(
-    clientCity: string,
-    entries: PlanningEntrySummary[],
-    now = new Date(),
-): ScheduleSuggestion | null {
-    const normalizedClientCity = normalizeCity(clientCity);
-    const candidates = Array.from({ length: 4 }, (_, index) => {
-        const date = new Date(now);
-        date.setHours(12, 0, 0, 0);
-        date.setDate(date.getDate() + index + 1);
-        return date;
-    });
-
-    const isSlotFree = (date: Date) => {
-        const start = new Date(date);
-        start.setHours(19, 0, 0, 0);
-        const end = new Date(start.getTime() + 60 * 60 * 1000);
-
-        return entries.every((entry) => entry.endDate <= start || entry.startDate >= end);
-    };
-
-    const hasSameCityWork = (date: Date) => {
-        const dateKey = getLocalDateKey(date);
-        return entries.some((entry) =>
-            getLocalDateKey(entry.startDate) === dateKey
-            && normalizedClientCity
-            && normalizeCity(entry.city) === normalizedClientCity,
-        );
-    };
-
-    const matchingRouteDate = candidates.find((date) => isSlotFree(date) && hasSameCityWork(date));
-    if (matchingRouteDate) {
-        return {
-            date: getLocalDateKey(matchingRouteDate),
-            reason: `Je werkt die dag al in ${clientCity}.`,
-        };
-    }
-
-    const freeDate = candidates.find(isSlotFree);
-    if (!freeDate) return null;
-
-    return {
-        date: getLocalDateKey(freeDate),
-        reason: 'Vrije plek om 19:00 binnen 1–4 dagen.',
-    };
 }
 
 export function AutoMessagesTab() {
@@ -207,7 +126,7 @@ export function AutoMessagesTab() {
                     ]),
                 );
 
-                const planningEntries: PlanningEntrySummary[] = planningSnapshot.docs.flatMap((planningDoc) => {
+                const planningEntries: AppointmentPlanningEntry[] = planningSnapshot.docs.flatMap((planningDoc) => {
                     const planningData = planningDoc.data() as Record<string, unknown>;
                     if (planningData.status === 'cancelled') return [];
 
@@ -269,7 +188,7 @@ export function AutoMessagesTab() {
                     const displayName = [firstName, lastName].filter(Boolean).join(' ') || companyName;
                     if (!displayName) return;
 
-                    const suggestion = getScheduleSuggestion(city, planningEntries);
+                    const suggestion = getAppointmentSuggestion(city, planningEntries);
 
                     const clientKey = `${normalizeClientKeyPart(displayName)}|${normalizeClientKeyPart(city)}`;
 

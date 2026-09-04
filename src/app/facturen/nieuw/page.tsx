@@ -18,6 +18,7 @@ import { calculateQuoteTotals, normalizeDataJson, type QuoteSettings as Calculat
 import { toast } from '@/hooks/use-toast';
 import { createInvoiceFromQuote, findExistingVoorschotInvoiceId, getInvoiceSnapshotForAdjustments } from '@/lib/invoice-actions';
 import { parsePriceToNumber } from '@/lib/utils';
+import { formatOfferteNummerLabel } from '@/lib/quote-number';
 
 function formatCurrency(amount?: number) {
   const n = typeof amount === 'number' && Number.isFinite(amount) ? amount : 0;
@@ -48,6 +49,7 @@ function resolveTotalFromQuote(quote: any): number {
   if (!quote) return 0;
 
   const candidates = [
+    quote?.financieel?.afgesprokenPrijsInclBtw,
     quote?.amount,
     quote?.totaalbedrag,
     quote?.totaalInclBtw,
@@ -202,7 +204,10 @@ function NieuweFactuurPageContent() {
                 calculationSnapshot: payload.row.data_json,
               };
               const calculatedTotal = resolveTotalFromCalculation(payload.row.data_json, q, laborHoursPerDay);
-              if (calculatedTotal && calculatedTotal > 0) {
+              const agreedTotal = toNumber(q?.financieel?.afgesprokenPrijsInclBtw);
+              if (agreedTotal !== null && agreedTotal >= 0) {
+                resolvedTotal = agreedTotal;
+              } else if (calculatedTotal && calculatedTotal > 0) {
                 resolvedTotal = calculatedTotal;
               }
             }
@@ -213,6 +218,26 @@ function NieuweFactuurPageContent() {
 
         if (resolvedTotal <= 0) {
           resolvedTotal = resolveTotalFromQuote(q);
+        }
+
+        const existingOriginalPrice = toNumber(q?.financieel?.oorspronkelijkePrijsInclBtw);
+        if (q && resolvedTotal > 0 && (existingOriginalPrice === null || existingOriginalPrice < 0)) {
+          const financial = q.financieel && typeof q.financieel === 'object' ? q.financieel : {};
+          const originalPrice = roundCurrency(resolvedTotal);
+          await updateDoc(quoteRef, {
+            financieel: {
+              ...financial,
+              oorspronkelijkePrijsInclBtw: originalPrice,
+            },
+            updatedAt: serverTimestamp(),
+          });
+          q = {
+            ...q,
+            financieel: {
+              ...financial,
+              oorspronkelijkePrijsInclBtw: originalPrice,
+            },
+          };
         }
 
         if (q && resolvedTotal > 0 && Math.abs(resolveTotalFromQuote(q) - resolvedTotal) > 0.01) {
@@ -388,7 +413,7 @@ function NieuweFactuurPageContent() {
               </div>
               {quote ? (
                 <p className="text-muted-foreground text-sm">
-                  {typeof quote?.offerteNummer === 'number' ? `Offerte #${quote.offerteNummer}` : 'Offerte'}
+                  {typeof quote?.offerteNummer === 'number' ? `Offerte #${formatOfferteNummerLabel(quote.offerteNummer, quote.offerteVersie)}` : 'Offerte'}
                 </p>
               ) : null}
             </div>
@@ -423,7 +448,7 @@ function NieuweFactuurPageContent() {
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5 text-emerald-400" />
-                    Offerte {typeof quote?.offerteNummer === 'number' ? `#${quote.offerteNummer}` : ''}
+                    Offerte {typeof quote?.offerteNummer === 'number' ? `#${formatOfferteNummerLabel(quote.offerteNummer, quote.offerteVersie)}` : ''}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">

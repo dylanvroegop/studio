@@ -334,6 +334,7 @@ export async function POST(req: Request) {
         return {
           id: docSnap.id,
           offerteNummer: Number.isFinite(Number(data.offerteNummer)) ? Number(data.offerteNummer) : null,
+          offerteVersie: Number.isFinite(Number(data.offerteVersie)) ? Number(data.offerteVersie) : undefined,
           title,
           clientId: normalizeClientId(clientName),
           clientName,

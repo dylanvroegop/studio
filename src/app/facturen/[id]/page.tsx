@@ -50,6 +50,7 @@ import {
 } from '@/lib/quote-status';
 import type { DataJson } from '@/lib/quote-calculations';
 import { parsePriceToNumber } from '@/lib/utils';
+import { formatOfferteNummerLabel } from '@/lib/quote-number';
 
 function naarDate(value: any): Date | null {
   if (!value) return null;
@@ -699,7 +700,12 @@ export default function FactuurDetailPage() {
       ? snapshotBtw || getString(calculationKlantInfo.btwNummer || calculationKlantInfo.btw).toUpperCase() || quoteClientNumbers.btw
       : '';
     const snapshotOfferteNummer = Number(invoice.sourceQuote?.offerteNummer);
-    const offerteNummer = Number.isFinite(snapshotOfferteNummer) ? snapshotOfferteNummer : quoteOfferteNummer;
+    const offerteVersie = Number.isFinite(Number(invoice.sourceQuote?.offerteVersie))
+      ? Number(invoice.sourceQuote?.offerteVersie)
+      : Number(quoteDocData?.offerteVersie);
+    const offerteNummer = Number.isFinite(snapshotOfferteNummer)
+      ? formatOfferteNummerLabel(snapshotOfferteNummer, offerteVersie)
+      : formatOfferteNummerLabel(quoteOfferteNummer, offerteVersie);
 
     const originalTotalInclBtw = Number(invoice.financialAdjustments?.originalTotalInclBtw ?? invoice.totalsSnapshot?.totaalInclBtw ?? 0);
     const voorschotAftrekInclBtw = Number(invoice.financialAdjustments?.voorschotAftrekInclBtw ?? 0);

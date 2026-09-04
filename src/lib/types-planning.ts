@@ -2,7 +2,7 @@ import { Timestamp } from "firebase/firestore";
 
 export type TimelineView = 'day' | 'week' | 'month';
 
-export type PlanningStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+export type PlanningStatus = 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 export type PlanningEntryType = 'job' | 'werkbespreking';
 
 export interface PlanningEntry {

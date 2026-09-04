@@ -194,6 +194,7 @@ export async function createInvoiceFromQuote(
 
     sourceQuote: {
       offerteNummer: safeNumber(quote?.offerteNummer) ?? null,
+      offerteVersie: safeNumber(quote?.offerteVersie) ?? null,
       titel: resolveInvoiceTitle(quote, calculationSnapshot),
       klantSnapshot: buildKlantSnapshot(quote),
       projectAdresSnapshot: buildProjectAdresSnapshot(quote),

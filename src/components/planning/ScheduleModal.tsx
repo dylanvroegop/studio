@@ -647,6 +647,8 @@ export function ScheduleModal({
                     endDate: entryEnd,
                     scheduledHours: hours,
                     planningType: selectedPlanningType,
+                    // Handmatig openen en opslaan bevestigt een automatische suggestie.
+                    status: existingEntry.status === 'pending' ? 'scheduled' : existingEntry.status,
                     cache,
                 });
                 toast({ title: 'Planning bijgewerkt' });

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useFirestore, useUser } from '@/firebase';
 import { cn } from '@/lib/utils';
+import { formatOfferteNummerLabel } from '@/lib/quote-number';
 
 type QuoteRow = {
   id: string;
@@ -20,6 +21,7 @@ type QuoteRow = {
   amount?: number;
   totaalbedrag?: number;
   offerteNummer?: number;
+  offerteVersie?: number;
   archived?: boolean;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
@@ -187,7 +189,7 @@ export default function StartFactuurPage() {
                           ? q.totaalbedrag
                           : 0;
                     const disabled = total <= 0;
-                    const quoteLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
+                    const quoteLabel = typeof q.offerteNummer === 'number' ? `Offerte #${formatOfferteNummerLabel(q.offerteNummer, q.offerteVersie)}` : 'Offerte';
                     return (
                       <div
                         key={q.id}

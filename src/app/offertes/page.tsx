@@ -68,6 +68,7 @@ import { useQuoteWorkedHours } from '@/hooks/useQuoteWorkedHours';
 import { formatHoursCompact } from '@/lib/quote-time-summary';
 import type { QuoteWithAddress } from '@/lib/tracking-analysis';
 import type { InvoiceStatus, Quote } from '@/lib/types';
+import { formatOfferteNummerLabel } from '@/lib/quote-number';
 import { cn } from '@/lib/utils';
 
 type FilterMode = 'alle' | 'concept' | 'vandaag' | 'in_afwachting' | 'verzonden' | 'geaccepteerd' | 'werkbespreking' | 'archief';
@@ -110,6 +111,7 @@ type QuoteRow = Quote & {
   amount?: number;
   totaalbedrag?: number;
   offerteNummer?: number;
+  offerteVersie?: number;
   title?: string;
 };
 
@@ -161,6 +163,11 @@ type PlanningListEntry = {
     projectTitle?: string;
     projectAddress?: string;
   };
+};
+
+type QuoteAppointmentInfo = {
+  afspraakDatum?: unknown;
+  afspraakTijd?: unknown;
 };
 
 function isFilterMode(value: unknown): value is FilterMode {
@@ -593,12 +600,35 @@ function getQuoteReferenceDate(quote: QuoteRow): Date | null {
   return quote.updatedAtDate ?? quote.createdAtDate ?? null;
 }
 
-function getQuoteDisplayDate(quote: QuoteRow, planningEntries?: PlanningListEntry[]): Date | null {
-  const plannedWerkbespreking = planningEntries
+function getPlannedWerkbespreking(planningEntries?: PlanningListEntry[]): PlanningListEntry | null {
+  return planningEntries
     ?.filter((entry) => entry.status !== 'cancelled' && entry.planningType === 'werkbespreking' && entry.startDate)
-    .sort((a, b) => (a.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER))[0];
+    .sort((a, b) => (a.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER))[0] ?? null;
+}
 
-  return plannedWerkbespreking?.startDate ?? getQuoteReferenceDate(quote);
+function getWerkbesprekingDateTime(quote: QuoteRow, planningEntries?: PlanningListEntry[]): Date | null {
+  const plannedWerkbespreking = getPlannedWerkbespreking(planningEntries);
+  if (plannedWerkbespreking?.startDate) return plannedWerkbespreking.startDate;
+
+  const klantinformatie = (quote as unknown as { klantinformatie?: QuoteAppointmentInfo }).klantinformatie;
+  const appointmentDate = typeof klantinformatie?.afspraakDatum === 'string' ? klantinformatie.afspraakDatum.trim() : '';
+  const appointmentTime = typeof klantinformatie?.afspraakTijd === 'string' ? klantinformatie.afspraakTijd.trim() : '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(appointmentDate) || !/^\d{2}:\d{2}$/.test(appointmentTime)) return null;
+
+  const date = new Date(`${appointmentDate}T${appointmentTime}:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatWerkbesprekingDateTime(quote: QuoteRow, planningEntries?: PlanningListEntry[]): string | null {
+  const plannedWerkbespreking = getPlannedWerkbespreking(planningEntries);
+  if (plannedWerkbespreking) return formatPlanningDateRange(plannedWerkbespreking);
+
+  const dateTime = getWerkbesprekingDateTime(quote, planningEntries);
+  return dateTime ? format(dateTime, 'd MMM yyyy, HH:mm', { locale: nl }) : null;
+}
+
+function getQuoteDisplayDate(quote: QuoteRow, planningEntries?: PlanningListEntry[]): Date | null {
+  return getPlannedWerkbespreking(planningEntries)?.startDate ?? getQuoteReferenceDate(quote);
 }
 
 function mapSettingsForTotals(input: unknown): QuoteCalculationSettings {
@@ -948,6 +978,21 @@ export default function OffertesPage() {
 
     return () => unsub();
   }, [firestore, user]);
+
+  const planningEntriesForDisplayByQuoteId = useMemo(() => {
+    const grouped: Record<string, PlanningListEntry[]> = Object.fromEntries(
+      Object.entries(planningEntriesByQuoteId).map(([quoteId, entries]) => [quoteId, [...entries]])
+    );
+
+    unlinkedPlanningEntries.forEach((entry) => {
+      if (entry.planningType !== 'werkbespreking') return;
+      const quote = findQuoteForUnlinkedPlanning(entry, quotes);
+      if (!quote) return;
+      grouped[quote.id] = [...(grouped[quote.id] || []), entry];
+    });
+
+    return grouped;
+  }, [planningEntriesByQuoteId, quotes, unlinkedPlanningEntries]);
 
   const pendingQuoteIds = useMemo(
     () => {
@@ -1322,20 +1367,12 @@ export default function OffertesPage() {
 
     quotes.forEach((quote) => {
       if (quote.archived) return;
-      const entry = getFirstPlanningEntryInDateRange(planningEntriesByQuoteId[quote.id], dates);
+      const entry = getFirstPlanningEntryInDateRange(planningEntriesForDisplayByQuoteId[quote.id], dates);
       if (entry) entriesByQuoteId[quote.id] = entry;
     });
 
-    unlinkedPlanningEntries
-      .filter((entry) => dates.some((date) => isPlanningEntryOnDate(entry, date)))
-      .sort((a, b) => (a.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER))
-      .forEach((entry) => {
-        const quote = findQuoteForUnlinkedPlanning(entry, quotes);
-        if (quote && !entriesByQuoteId[quote.id]) entriesByQuoteId[quote.id] = entry;
-      });
-
     return entriesByQuoteId;
-  }, [planningEntriesByQuoteId, quotes, todayRangeMode, unlinkedPlanningEntries]);
+  }, [planningEntriesForDisplayByQuoteId, quotes, todayRangeMode]);
 
   const todaysQuotes = useMemo(() => {
     return quotes
@@ -1406,12 +1443,12 @@ export default function OffertesPage() {
     if (!s) return result;
     return result.filter((q) => {
       const klant = getKlantNaam(q).toLowerCase();
-      const nr = typeof q.offerteNummer === 'number' ? String(q.offerteNummer) : '';
+      const nr = formatOfferteNummerLabel(q.offerteNummer, q.offerteVersie);
       const titel = (getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || getTitel(q)).toLowerCase();
-      const detail = (getQuoteDetailSummary(q, planningEntriesByQuoteId[q.id]) || '').toLowerCase();
+      const detail = (getQuoteDetailSummary(q, planningEntriesForDisplayByQuoteId[q.id]) || '').toLowerCase();
       return klant.includes(s) || nr.includes(s) || titel.includes(s) || detail.includes(s);
     });
-  }, [filter, quotesForSelectedYear, todaysQuotes, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId, planningEntriesByQuoteId]);
+  }, [filter, quotesForSelectedYear, todaysQuotes, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId, planningEntriesForDisplayByQuoteId]);
 
   const filteredClients = useMemo(() => {
     const s = clientSearch.trim().toLowerCase();
@@ -2002,12 +2039,15 @@ export default function OffertesPage() {
                 const todayEntry = filter === 'vandaag'
                   ? todaysPlanningEntryByQuoteId[q.id]
                   : null;
-                const datum = todayEntry?.startDate ?? getQuoteDisplayDate(q, planningEntriesByQuoteId[q.id]);
-                const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
+                const datum = todayEntry?.startDate ?? getQuoteDisplayDate(q, planningEntriesForDisplayByQuoteId[q.id]);
+                const werkbesprekingDateTimeLabel = effectiveStatus === 'werkbespreking'
+                  ? formatWerkbesprekingDateTime(q, planningEntriesForDisplayByQuoteId[q.id])
+                  : null;
+                const nrLabel = q.offerteNummer ? `Offerte #${formatOfferteNummerLabel(q.offerteNummer, q.offerteVersie)}` : 'Offerte';
                 const klant = getKlantNaam(q);
                 const hoofdTitel = getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || null;
                 const fallbackTitel = getTitel(q);
-                const detailSummary = getQuoteDetailSummary(q, planningEntriesByQuoteId[q.id]);
+                const detailSummary = getQuoteDetailSummary(q, planningEntriesForDisplayByQuoteId[q.id]);
                 const rowDescription = detailSummary || hoofdTitel || (fallbackTitel !== '—' ? fallbackTitel : null);
                 const isArchived = !!q.archived;
                 const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
@@ -2051,7 +2091,7 @@ export default function OffertesPage() {
                       <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground/70">
                         <span className="truncate">{nrLabel}</span>
                         <span className="opacity-40">•</span>
-                        <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
+                        <span>{werkbesprekingDateTimeLabel || (datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—')}</span>
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0 space-y-0.5 tabular-nums">
@@ -2215,12 +2255,12 @@ export default function OffertesPage() {
                 const todayEntry = filter === 'vandaag'
                   ? todaysPlanningEntryByQuoteId[q.id]
                   : null;
-                const datum = todayEntry?.startDate ?? getQuoteDisplayDate(q, planningEntriesByQuoteId[q.id]);
-                const nrLabel = typeof q.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
+                const datum = todayEntry?.startDate ?? getQuoteDisplayDate(q, planningEntriesForDisplayByQuoteId[q.id]);
+                const nrLabel = q.offerteNummer ? `Offerte #${formatOfferteNummerLabel(q.offerteNummer, q.offerteVersie)}` : 'Offerte';
                 const klant = getKlantNaam(q);
                 const hoofdTitel = getHoofdtitel(q) || hoofdtitelsByQuoteId[q.id] || null;
                 const fallbackTitel = getTitel(q);
-                const detailSummary = getQuoteDetailSummary(q, planningEntriesByQuoteId[q.id]);
+                const detailSummary = getQuoteDetailSummary(q, planningEntriesForDisplayByQuoteId[q.id]);
                 const rowDescription = detailSummary || hoofdTitel || (fallbackTitel !== '—' ? fallbackTitel : null);
                 const isArchived = !!q.archived;
                 const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
@@ -2505,7 +2545,7 @@ export default function OffertesPage() {
                 {archiveTarget ? (
                   <div className="mt-3 text-xs text-muted-foreground">
                     <span className="font-mono text-foreground">
-                      {archiveTarget.offerteNummer ? `Offerte #${archiveTarget.offerteNummer}` : 'Offerte'}
+                      {archiveTarget.offerteNummer ? `Offerte #${formatOfferteNummerLabel(archiveTarget.offerteNummer, archiveTarget.offerteVersie)}` : 'Offerte'}
                     </span>
                     <span className="opacity-30 mx-2">•</span>
                     <span>{getKlantNaam(archiveTarget)}</span>

@@ -71,8 +71,11 @@ export function ScheduleBlock({
 
     const timeLabel = entry.isAllDay ? 'Hele dag' : `${format(startDate, 'HH:mm')} - ${format(displayEndDate, 'HH:mm')}`;
     const planningType = entry.planningType || 'job';
+    const isPending = entry.status === 'pending';
 
-    const planningTypeLabel = planningType === 'werkbespreking' ? 'Werkbespreking' : 'Klus';
+    const planningTypeLabel = isPending
+        ? 'Werkbespreking · voorgesteld'
+        : planningType === 'werkbespreking' ? 'Werkbespreking' : 'Klus';
     const planningColor = getPlanningColor(entry);
     const planningTypeColor = planningColor.background;
     const projectTitleRaw = entry.cache.projectTitle || '';
@@ -126,7 +129,8 @@ export function ScheduleBlock({
         <div
             className={cn(
                 "group relative box-border min-w-0 cursor-pointer overflow-hidden rounded-[4px] px-2 py-1 transition-[filter] hover:brightness-110",
-                view === 'day' ? 'flex items-center gap-2' : 'w-full text-xs leading-[1.2]'
+                view === 'day' ? 'flex items-center gap-2' : 'w-full text-xs leading-[1.2]',
+                isPending && 'border border-dashed border-amber-300/70'
             )}
             style={{
                 backgroundColor: view === 'day'

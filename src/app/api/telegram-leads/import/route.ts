@@ -5,6 +5,11 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
+import {
+  getAppointmentSuggestion,
+  getCityFromAddress,
+  type AppointmentPlanningEntry,
+} from '@/lib/appointment-suggestions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,6 +53,18 @@ interface ImportResult {
   client_id: string;
   project_id: string;
   appointment_id: string | null;
+  appointment_status: 'none' | 'pending' | 'scheduled';
+  appointment_date: string | null;
+  appointment_time: string | null;
+  suggested_appointment_date: string | null;
+  suggested_appointment_time: string | null;
+  telegram_message: string | null;
+}
+
+interface ExistingImportResult extends Partial<ImportResult> {
+  client_id: string;
+  project_id: string;
+  appointment_id?: string | null;
 }
 
 function safeEqual(left: string, right: string): boolean {
@@ -176,6 +193,50 @@ function response(result: ImportResult) {
   });
 }
 
+function firestoreDate(value: unknown): Date | null {
+  if (value instanceof Date) return value;
+  if (value && typeof value === 'object') {
+    const dateValue = value as { toDate?: unknown; seconds?: unknown };
+    if (typeof dateValue.toDate === 'function') {
+      const date = dateValue.toDate();
+      if (date instanceof Date && !Number.isNaN(date.getTime())) return date;
+    }
+    if (typeof dateValue.seconds === 'number') return new Date(dateValue.seconds * 1000);
+  }
+  return null;
+}
+
+function clientDisplayName(client: ImportInput['client']): string {
+  return client.client_name?.trim() || 'klant';
+}
+
+function formatDutchAppointmentDate(dateOnly: string): string {
+  const date = new Date(`${dateOnly}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return dateOnly;
+  return new Intl.DateTimeFormat('nl-NL', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: AMSTERDAM_TIME_ZONE,
+  }).format(date);
+}
+
+function buildTelegramMessage(client: ImportInput['client'], date: string, time: string): string {
+  return `Beste ${clientDisplayName(client)},
+
+Bedankt voor uw bericht via Werkspot.
+
+Komt het gelegen dat ik ${formatDutchAppointmentDate(date)} om ${time}
+langs kan komen voor een werkbespreking?
+
+Dan bespreek ik de werkzaamheden met u en maak ik daarna kosteloos een offerte voor u op.
+
+Mvg,
+Dylan
+
+Vroegop timmerwerken`;
+}
+
 export async function POST(request: Request) {
   const uid = resolveAutomationUid(request);
   if (!uid) {
@@ -236,9 +297,10 @@ export async function POST(request: Request) {
     const jobTitle = clientInput.job_title || 'Werkspot-lead';
 
     let appointmentStart: Date | null = null;
+    let appointmentDateOnly: string | null = null;
     if (clientInput.appointment_date && clientInput.appointment_time) {
-      const dateOnly = resolveDateOnly(clientInput.appointment_date);
-      appointmentStart = dateOnly ? amsterdamDateTime(dateOnly, clientInput.appointment_time) : null;
+      appointmentDateOnly = resolveDateOnly(clientInput.appointment_date);
+      appointmentStart = appointmentDateOnly ? amsterdamDateTime(appointmentDateOnly, clientInput.appointment_time) : null;
       if (!appointmentStart) {
         return NextResponse.json(
           { success: false, message: 'Invalid appointment_date or appointment_time' },
@@ -248,8 +310,41 @@ export async function POST(request: Request) {
     }
 
     const userSnapshot = await firestore.collection('users').doc(uid).get();
-    const userSettings = userSnapshot.data()?.instellingen || userSnapshot.data()?.settings || {};
+    const userData = userSnapshot.data() || {};
+    const userSettings = userData.instellingen || userData.settings || {};
+    const planningSettings = userData.settings?.planningSettings || userData.instellingen?.planningSettings || {};
     const counterRef = firestore.collection('counters').doc(`quoteNumber_${uid}`);
+
+    const planningSnapshot = appointmentStart
+      ? null
+      : await firestore.collection('planning_entries').where('userId', '==', uid).get();
+    const planningEntries: AppointmentPlanningEntry[] = (planningSnapshot?.docs || []).flatMap((planningDoc) => {
+      const planningData = planningDoc.data() as Record<string, unknown>;
+      if (planningData.status === 'cancelled') return [];
+
+      const startDate = firestoreDate(planningData.startDate);
+      if (!startDate) return [];
+
+      const rawEndDate = firestoreDate(planningData.endDate);
+      const scheduledHours = Number(planningData.scheduledHours);
+      const endDate = rawEndDate && rawEndDate > startDate
+        ? rawEndDate
+        : new Date(startDate.getTime() + (Number.isFinite(scheduledHours) && scheduledHours > 0 ? scheduledHours : 1) * 60 * 60 * 1000);
+      const cache = planningData.cache && typeof planningData.cache === 'object'
+        ? planningData.cache as Record<string, unknown>
+        : {};
+
+      return [{
+        startDate,
+        endDate,
+        city: getCityFromAddress(cache.projectAddress),
+      }];
+    });
+    const suggestion = appointmentStart
+      ? null
+      : getAppointmentSuggestion(clientInput.city || '', planningEntries, {
+        workDays: Array.isArray(planningSettings.workDays) ? planningSettings.workDays : undefined,
+      });
 
     const result = await firestore.runTransaction(async (transaction): Promise<ImportResult> => {
       let transactionClientRef = initialClientRef;
@@ -259,12 +354,11 @@ export async function POST(request: Request) {
 
       const duplicate = await transaction.get(importRef);
       if (duplicate.exists) {
-        const data = duplicate.data() as ImportResult;
+        const data = duplicate.data() as ExistingImportResult;
         const duplicateProjectRef = typeof data.project_id === 'string' && data.project_id
           ? firestore.collection('quotes').doc(data.project_id)
           : null;
-        const duplicateAppointmentRef = appointmentStart
-          && typeof data.appointment_id === 'string'
+        const duplicateAppointmentRef = typeof data.appointment_id === 'string'
           && data.appointment_id
           ? firestore.collection('planning_entries').doc(data.appointment_id)
           : null;
@@ -285,11 +379,17 @@ export async function POST(request: Request) {
           && duplicateAppointment.data()?.quoteId === data.project_id
         );
 
-        if (projectIsReusable && (!appointmentStart || appointmentIsReusable)) {
+        if (projectIsReusable && !appointmentStart) {
           return {
             client_id: data.client_id,
             project_id: data.project_id,
             appointment_id: data.appointment_id || null,
+            appointment_status: data.appointment_status || (data.appointment_id ? 'pending' : 'none'),
+            appointment_date: data.appointment_date || data.suggested_appointment_date || null,
+            appointment_time: data.appointment_time || data.suggested_appointment_time || null,
+            suggested_appointment_date: data.suggested_appointment_date || null,
+            suggested_appointment_time: data.suggested_appointment_time || null,
+            telegram_message: data.telegram_message || null,
           };
         }
 
@@ -301,6 +401,9 @@ export async function POST(request: Request) {
           reuseProject = true;
           if (typeof data.client_id === 'string' && data.client_id) {
             transactionClientRef = firestore.collection('clients').doc(data.client_id);
+          }
+          if (appointmentStart && appointmentIsReusable && duplicateAppointmentRef) {
+            transactionAppointmentRef = duplicateAppointmentRef;
           }
         }
       }
@@ -386,22 +489,43 @@ export async function POST(request: Request) {
       }
 
       let appointmentId: string | null = null;
-      if (appointmentStart) {
+      let appointmentStatus: ImportResult['appointment_status'] = 'none';
+      let appointmentDate: string | null = null;
+      let appointmentTime: string | null = null;
+      let suggestedAppointmentDate: string | null = null;
+      let suggestedAppointmentTime: string | null = null;
+      let telegramMessage: string | null = null;
+      const plannedAppointment = appointmentStart || suggestion?.startDate || null;
+
+      if (plannedAppointment) {
+        const isPendingSuggestion = !appointmentStart;
         appointmentId = transactionAppointmentRef.id;
-        const appointmentEnd = new Date(appointmentStart.getTime() + 60 * 60 * 1000);
+        appointmentStatus = isPendingSuggestion ? 'pending' : 'scheduled';
+        appointmentDate = appointmentDateOnly || suggestion?.date || null;
+        appointmentTime = clientInput.appointment_time || suggestion?.time || null;
+        suggestedAppointmentDate = isPendingSuggestion ? suggestion?.date || null : null;
+        suggestedAppointmentTime = isPendingSuggestion ? suggestion?.time || null : null;
+        telegramMessage = isPendingSuggestion && suggestion
+          ? buildTelegramMessage(clientInput, suggestion.date, suggestion.time)
+          : null;
+        const appointmentEnd = new Date(plannedAppointment.getTime() + 60 * 60 * 1000);
         transaction.set(transactionAppointmentRef, {
           userId: uid,
           quoteId: transactionProjectRef.id,
           leadKey: input.lead_key,
           source: SOURCE,
-          startDate: Timestamp.fromDate(appointmentStart),
+          startDate: Timestamp.fromDate(plannedAppointment),
           endDate: Timestamp.fromDate(appointmentEnd),
           scheduledHours: 1,
           planningType: 'werkbespreking',
           isAutoSplit: false,
           parentEntryId: null,
-          status: 'scheduled',
-          notes: '',
+          status: appointmentStatus,
+          notes: isPendingSuggestion
+            ? 'Automatisch voorgesteld via Telegram; wacht op bevestiging van de klant.'
+            : '',
+          appointmentState: appointmentStatus,
+          suggestedBy: isPendingSuggestion ? 'telegram_auto_message' : null,
           cache: {
             clientName: clientInput.client_name || '',
             projectTitle: `Werkbespreking · ${jobTitle}`,
@@ -419,6 +543,12 @@ export async function POST(request: Request) {
         client_id: transactionClientRef.id,
         project_id: transactionProjectRef.id,
         appointment_id: appointmentId,
+        appointment_status: appointmentStatus,
+        appointment_date: appointmentDate,
+        appointment_time: appointmentTime,
+        suggested_appointment_date: suggestedAppointmentDate,
+        suggested_appointment_time: suggestedAppointmentTime,
+        telegram_message: telegramMessage,
       };
       transaction.set(importRef, {
         ...imported,

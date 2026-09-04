@@ -26,7 +26,8 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Euro, Package, Clock, FileText, FileSignature, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy, MoreHorizontal, Calculator } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Euro, Package, Clock, FileText, FileSignature, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy, MoreHorizontal, BookOpen } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -47,7 +48,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useUser, useFirestore } from '@/firebase';
-import { arrayUnion, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { arrayUnion, collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { getIdTokenResult } from 'firebase/auth';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useParams, useRouter } from 'next/navigation';
@@ -62,7 +63,7 @@ import { SendQuoteWhatsAppModal } from '@/components/quote/SendQuoteWhatsAppModa
 import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialListExportDialog } from '@/components/quote/MaterialListExportDialog';
 import { MaterialPresentationTab } from '@/components/quote/MaterialPresentationTab';
-import { PricingTab } from '@/components/quote/PricingTab';
+import { PriceBookTab } from '@/components/quote/PriceBookTab';
 import { WorkDescriptionWorkspace } from '@/components/quote/work-description/WorkDescriptionWorkspace';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
@@ -87,7 +88,9 @@ import { capitalizeSentenceStarts } from '@/lib/text-formatting';
 import { formatHoursCompact, getQuoteDriveMinutes } from '@/lib/quote-time-summary';
 import type { QuoteWithAddress } from '@/lib/tracking-analysis';
 
-import { Quote, ReceiptAttachment, QuotePhotoAttachment, type MaterialPresentation } from "@/lib/types";
+import { Quote, ReceiptAttachment, QuotePhotoAttachment, type MaterialPresentation, type QuotePriceChange } from "@/lib/types";
+import { formatOfferteNummerLabel } from '@/lib/quote-number';
+import type { WinstProjectPerformance } from '@/lib/winst-types';
 import type { MaterialListExportItem, MaterialListExportMeta } from '@/lib/material-list-export';
 import type { LeverancierContact } from '@/lib/types-settings';
 import { normalizeLeverancierContactList, pickDefaultLeverancierId } from '@/lib/types-settings';
@@ -1075,6 +1078,26 @@ interface PendingPhotoUpload {
     previewUrl: string;
 }
 
+interface QuotePaymentSummaryRow {
+    id: string;
+    amount: number;
+    date: Date | null;
+    method: string;
+    reference: string;
+    note: string;
+}
+
+interface QuoteInvoiceSummaryRow {
+    id: string;
+    invoiceNumberLabel: string;
+    invoiceType: 'voorschot' | 'eind' | string;
+    status: string;
+    totalIncl: number;
+    paidAmount: number;
+    openAmount: number;
+    payments: QuotePaymentSummaryRow[];
+}
+
 export default function QuotePage() {
     const params = useParams();
     const id = params?.id as string;
@@ -1273,6 +1296,14 @@ export default function QuotePage() {
     const [voorschotPercentage, setVoorschotPercentage] = useState<number>(50);
     const [onderVoorbehoud, setOnderVoorbehoud] = useState(false);
     const [existingVoorschotInvoiceId, setExistingVoorschotInvoiceId] = useState<string | null>(null);
+    const [quoteInvoices, setQuoteInvoices] = useState<QuoteInvoiceSummaryRow[]>([]);
+    const [quoteFinancialLoading, setQuoteFinancialLoading] = useState(false);
+    const [quoteFinancialError, setQuoteFinancialError] = useState<string | null>(null);
+    const [priceChangeAmount, setPriceChangeAmount] = useState('');
+    const [priceChangeReason, setPriceChangeReason] = useState('');
+    const [priceChangeSaving, setPriceChangeSaving] = useState(false);
+    const [quoteWinstMetrics, setQuoteWinstMetrics] = useState<WinstProjectPerformance | null>(null);
+    const [quoteWinstLoading, setQuoteWinstLoading] = useState(false);
 
     useEffect(() => {
         if (!user || !firestore || !id) {
@@ -1569,6 +1600,141 @@ export default function QuotePage() {
         })();
         return () => { cancelled = true; };
     }, [user, firestore, id]);
+
+    useEffect(() => {
+        if (!user || !firestore || !id) {
+            setQuoteInvoices([]);
+            setQuoteFinancialError(null);
+            return;
+        }
+
+        let cancelled = false;
+        setQuoteFinancialLoading(true);
+        setQuoteFinancialError(null);
+
+        const invoicesQuery = query(
+            collection(firestore, 'invoices'),
+            where('userId', '==', user.uid),
+        );
+
+        const unsubscribe = onSnapshot(
+            invoicesQuery,
+            (snapshot) => {
+                const loadInvoicePayments = async () => {
+                    try {
+                        const candidates = snapshot.docs
+                            .map((docSnap) => ({ id: docSnap.id, data: docSnap.data() as Record<string, any> }))
+                            .filter(({ data }) => {
+                                if (data.archived === true || data.status === 'geannuleerd') return false;
+                                const relatedQuoteIds = [
+                                    data.quoteId,
+                                    ...(Array.isArray(data.combinedQuoteIds) ? data.combinedQuoteIds : []),
+                                    ...(Array.isArray(data.combinedContext?.quoteIds) ? data.combinedContext.quoteIds : []),
+                                ].map((value) => String(value || '').trim());
+                                return relatedQuoteIds.includes(id);
+                            });
+
+                        const rows = await Promise.all(candidates.map(async ({ id: invoiceId, data }) => {
+                            let payments: QuotePaymentSummaryRow[] = [];
+                            try {
+                                const paymentsSnapshot = await getDocs(collection(firestore, 'invoices', invoiceId, 'payments'));
+                                payments = paymentsSnapshot.docs.map((paymentDoc) => {
+                                    const payment = paymentDoc.data() as Record<string, any>;
+                                    return {
+                                        id: paymentDoc.id,
+                                        amount: Math.max(0, Number(payment.amount) || 0),
+                                        date: parseReceiptCreatedAt(payment.date) || parseReceiptCreatedAt(payment.createdAt),
+                                        method: String(payment.method || 'overig'),
+                                        reference: String(payment.reference || '').trim(),
+                                        note: String(payment.note || '').trim(),
+                                    };
+                                });
+                                payments.sort((a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0));
+                            } catch {
+                                // Older invoices may not allow reading their payment subcollection.
+                            }
+
+                            const summaryPaid = Math.max(0, Number(data.paymentSummary?.paidAmount) || 0);
+                            const paymentRowsTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
+                            return {
+                                id: invoiceId,
+                                invoiceNumberLabel: String(data.invoiceNumberLabel || invoiceId),
+                                invoiceType: String(data.invoiceType || 'eind'),
+                                status: String(data.status || 'concept'),
+                                totalIncl: Math.max(0, Number(data.totalsSnapshot?.totaalInclBtw) || 0),
+                                paidAmount: payments.length > 0 ? paymentRowsTotal : summaryPaid,
+                                openAmount: Math.max(0, Number(data.paymentSummary?.openAmount) || 0),
+                                payments,
+                            } satisfies QuoteInvoiceSummaryRow;
+                        }));
+
+                        rows.sort((a, b) => a.invoiceNumberLabel.localeCompare(b.invoiceNumberLabel, 'nl'));
+                        if (!cancelled) {
+                            setQuoteInvoices(rows);
+                            setQuoteFinancialLoading(false);
+                        }
+                    } catch (error) {
+                        if (!cancelled) {
+                            setQuoteFinancialError(error instanceof Error ? error.message : 'Kon betalingen niet laden.');
+                            setQuoteFinancialLoading(false);
+                        }
+                    }
+                };
+
+                void loadInvoicePayments();
+            },
+            (error) => {
+                if (cancelled) return;
+                setQuoteFinancialError(error.message || 'Kon facturen niet laden.');
+                setQuoteFinancialLoading(false);
+            },
+        );
+
+        return () => {
+            cancelled = true;
+            unsubscribe();
+        };
+    }, [firestore, id, user]);
+
+    useEffect(() => {
+        if (activeTab !== 'financieel' || !user || !id) return;
+
+        let cancelled = false;
+        setQuoteWinstLoading(true);
+        user.getIdToken()
+            .then((token) => fetch('/api/winst/metrics', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    periodType: 'month',
+                    periodRange: 24,
+                    projectIds: [id],
+                }),
+            }))
+            .then(async (response) => {
+                const payload = await response.json().catch(() => null);
+                if (!response.ok || !payload?.ok) throw new Error(payload?.message || 'Winstcijfers konden niet worden geladen.');
+                return payload.data?.projectPerformances?.[0] as WinstProjectPerformance | undefined;
+            })
+            .then((project) => {
+                if (cancelled) return;
+                setQuoteWinstMetrics(project || null);
+                setQuoteWinstLoading(false);
+            })
+            .catch((error) => {
+                if (cancelled) return;
+                setQuoteWinstMetrics(null);
+                setQuoteWinstLoading(false);
+                console.warn('Winstcijfers voor offerte konden niet worden geladen:', error);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [activeTab, id, user]);
 
     // Debounced save facturatie to quote doc
     useEffect(() => {
@@ -3711,7 +3877,7 @@ export default function QuotePage() {
     ].filter(Boolean).join('\n\n'), 12000), [quote, workDescriptionStructured, quoteNoteSections]);
 
     const materialExportContext = useMemo<MaterialListExportMeta>(() => ({
-        offerteNummer: (quote as any)?.offerteNummer || null,
+        offerteNummer: formatOfferteNummerLabel((quote as any)?.offerteNummer, (quote as any)?.offerteVersie),
         klusTitel: normalizedData?.korteTitel || normalizedData?.werkbeschrijving || (quote as any)?.titel || 'Offerte',
         klantNaam: klantInfo ? `${klantInfo.voornaam} ${klantInfo.achternaam}`.trim() : '',
         klantEmail: klantInfo?.emailadres || '',
@@ -3872,20 +4038,45 @@ export default function QuotePage() {
         [normalizedData, quoteSettings, materials.groot, materials.verbruik, laborHoursPerDay],
     );
     const totalInclBtw = totals?.totaalInclBtw ?? null;
+    const storedAgreedQuoteTotal = Number((quote as any)?.financieel?.afgesprokenPrijsInclBtw);
+    const hasStoredAgreedQuoteTotal = Number.isFinite(storedAgreedQuoteTotal) && storedAgreedQuoteTotal >= 0;
+    const effectiveQuoteTotalInclBtw = hasStoredAgreedQuoteTotal
+        ? storedAgreedQuoteTotal
+        : (totalInclBtw ?? (Number((quote as any)?.totaalbedrag) || 0));
+    const quoteFinancialTotals = useMemo(() => {
+        const payments = quoteInvoices.flatMap((invoice) => invoice.payments);
+        payments.sort((a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0));
+        return {
+            payments,
+            firstPayment: payments[0] || null,
+            paidIncl: quoteInvoices.reduce((sum, invoice) => sum + invoice.paidAmount, 0),
+            invoicedIncl: quoteInvoices.reduce((sum, invoice) => sum + invoice.totalIncl, 0),
+            openIncl: quoteInvoices.reduce((sum, invoice) => sum + invoice.openAmount, 0),
+        };
+    }, [quoteInvoices]);
+    const originalQuotePrice = Number((quote as any)?.financieel?.oorspronkelijkePrijsInclBtw);
+    const hasOriginalQuotePrice = Number.isFinite(originalQuotePrice) && originalQuotePrice >= 0;
+    const financialOriginalPrice = hasOriginalQuotePrice ? originalQuotePrice : effectiveQuoteTotalInclBtw;
+    const paidDifferenceFromOriginal = quoteFinancialTotals.paidIncl - financialOriginalPrice;
+    const priceChanges = Array.isArray((quote as any)?.financieel?.prijswijzigingen)
+        ? (quote as any).financieel.prijswijzigingen as QuotePriceChange[]
+        : [];
 
     // Sync calculated totals to Firebase for Dashboard visibility
     useEffect(() => {
         if (!firestore || !user || !id) return;
         if (typeof totalInclBtw !== 'number' || !Number.isFinite(totalInclBtw)) return;
-        if (lastSyncedQuoteTotalRef.current === totalInclBtw) return;
+        const totalToSync = hasStoredAgreedQuoteTotal ? storedAgreedQuoteTotal : totalInclBtw;
+        if (typeof totalToSync !== 'number' || !Number.isFinite(totalToSync)) return;
+        if (lastSyncedQuoteTotalRef.current === totalToSync) return;
 
         // Keep current detail-page UI in sync immediately, without waiting for Firestore roundtrip.
         setQuote((prev) => (
             prev
                 ? (
-                    ((prev as Quote & { totaalbedrag?: number }).totaalbedrag === totalInclBtw && prev.amount === totalInclBtw)
+                    ((prev as Quote & { totaalbedrag?: number }).totaalbedrag === totalToSync && prev.amount === totalToSync)
                         ? prev
-                        : ({ ...prev, totaalbedrag: totalInclBtw, amount: totalInclBtw } as Quote)
+                        : ({ ...prev, totaalbedrag: totalToSync, amount: totalToSync } as Quote)
                 )
                 : prev
         ));
@@ -3894,11 +4085,11 @@ export default function QuotePage() {
             try {
                 const docRef = doc(firestore, 'quotes', id);
                 await updateDoc(docRef, {
-                    totaalbedrag: totalInclBtw,
-                    amount: totalInclBtw, // Sync both for compatibility
+                    totaalbedrag: totalToSync,
+                    amount: totalToSync, // Sync both for compatibility
                     updatedAt: new Date(),
                 });
-                lastSyncedQuoteTotalRef.current = totalInclBtw;
+                lastSyncedQuoteTotalRef.current = totalToSync;
             } catch (err) {
                 console.error("Failed to sync price to Firestore:", err);
             }
@@ -3907,7 +4098,7 @@ export default function QuotePage() {
         // Debounce to avoid rapid writes during slider/input changes
         const timer = setTimeout(updateFirebasePrice, 2000);
         return () => clearTimeout(timer);
-    }, [totalInclBtw, firestore, user, id]);
+    }, [totalInclBtw, firestore, user, id, hasStoredAgreedQuoteTotal, storedAgreedQuoteTotal]);
 
     // Handle updating settings
     const handleUpdateSettings = async (newSettings: QuoteCalculationSettings) => {
@@ -4125,7 +4316,7 @@ export default function QuotePage() {
         const pdfWorkDescription = forceSummaryIntoWorkScope(workDescriptionStructured);
 
         return {
-            offerteNummer: (quote as any)?.offerteNummer || 'CONCEPT',
+            offerteNummer: formatOfferteNummerLabel((quote as any)?.offerteNummer, (quote as any)?.offerteVersie),
             datum: new Date().toLocaleDateString('nl-NL', {
                 day: 'numeric',
                 month: 'long',
@@ -5241,6 +5432,86 @@ export default function QuotePage() {
         }
     };
 
+    const handleRecordPriceChange = async (): Promise<void> => {
+        if (!firestore || !user || !id || !quote || priceChangeSaving) return;
+
+        const newAmount = parsePriceToNumber(priceChangeAmount);
+        if (newAmount === null || !Number.isFinite(newAmount) || newAmount < 0) {
+            toast({
+                title: 'Ongeldig bedrag',
+                description: 'Gebruik een bedrag zoals 1.301,90.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        setPriceChangeSaving(true);
+        try {
+            await runTransaction(firestore, async (transaction) => {
+                const quoteRef = doc(firestore, 'quotes', id);
+                const snapshot = await transaction.get(quoteRef);
+                if (!snapshot.exists()) throw new Error('Offerte niet gevonden.');
+
+                const data = snapshot.data() as Record<string, any>;
+                const existingFinancial = data.financieel && typeof data.financieel === 'object'
+                    ? data.financieel
+                    : {};
+                const existingHistory = Array.isArray(existingFinancial.prijswijzigingen)
+                    ? existingFinancial.prijswijzigingen
+                    : [];
+                const fallbackAmount = Number(data.totaalbedrag ?? data.amount ?? effectiveQuoteTotalInclBtw) || 0;
+                const originalAmount = Number(existingFinancial.oorspronkelijkePrijsInclBtw);
+                const original = Number.isFinite(originalAmount) && originalAmount >= 0 ? originalAmount : fallbackAmount;
+                const agreedAmount = Number(existingFinancial.afgesprokenPrijsInclBtw);
+                const oldAmount = Number.isFinite(agreedAmount) && agreedAmount >= 0 ? agreedAmount : original;
+                if (Math.abs(oldAmount - newAmount) < 0.005) {
+                    throw new Error('De nieuwe prijs is gelijk aan de huidige prijs.');
+                }
+
+                const highestVersion = existingHistory.reduce((highest: number, change: any) => {
+                    const version = Number(change?.version);
+                    return Number.isFinite(version) ? Math.max(highest, version) : highest;
+                }, Number(data.offerteVersie) || 0);
+                const nextVersion = Math.max(1, Math.round(highestVersion) + 1);
+                const change: QuotePriceChange = {
+                    version: nextVersion,
+                    oldAmountInclBtw: Math.round(oldAmount * 100) / 100,
+                    newAmountInclBtw: Math.round(newAmount * 100) / 100,
+                    ...(priceChangeReason.trim() ? { reason: priceChangeReason.trim() } : {}),
+                    changedAt: new Date(),
+                };
+
+                transaction.update(quoteRef, {
+                    financieel: {
+                        ...existingFinancial,
+                        oorspronkelijkPrijsInclBtw: Math.round(original * 100) / 100,
+                        afgesprokenPrijsInclBtw: Math.round(newAmount * 100) / 100,
+                        prijswijzigingen: [...existingHistory, change],
+                    },
+                    offerteVersie: nextVersion,
+                    totaalbedrag: Math.round(newAmount * 100) / 100,
+                    amount: Math.round(newAmount * 100) / 100,
+                    updatedAt: serverTimestamp(),
+                });
+            });
+
+            setPriceChangeAmount('');
+            setPriceChangeReason('');
+            toast({
+                title: 'Prijswijziging opgeslagen',
+                description: `Offerte ${formatOfferteNummerLabel(quote.offerteNummer, (quote as any).offerteVersie)} blijft gekoppeld aan hetzelfde basisnummer.`,
+            });
+        } catch (error) {
+            toast({
+                title: 'Prijswijziging niet opgeslagen',
+                description: error instanceof Error ? error.message : 'Probeer het opnieuw.',
+                variant: 'destructive',
+            });
+        } finally {
+            setPriceChangeSaving(false);
+        }
+    };
+
     const handleMarkQuoteAsSent = async (): Promise<void> => {
         if (!firestore || !user || !id) return;
 
@@ -5250,10 +5521,20 @@ export default function QuotePage() {
         }
 
         const quoteRef = doc(firestore, 'quotes', id);
-        await updateDoc(quoteRef, {
+        const currentOriginal = Number((quote as any)?.financieel?.oorspronkelijkePrijsInclBtw);
+        const fallbackOriginal = Number((quote as any)?.totaalbedrag ?? (quote as any)?.amount ?? effectiveQuoteTotalInclBtw) || 0;
+        const update: Record<string, unknown> = {
             status: 'verzonden',
             updatedAt: serverTimestamp(),
-        } as any);
+        };
+        if (!Number.isFinite(currentOriginal) || currentOriginal < 0) {
+            update.financieel = {
+                ...(((quote as any)?.financieel && typeof (quote as any).financieel === 'object') ? (quote as any).financieel : {}),
+                oorspronkelijkPrijsInclBtw: Math.round(fallbackOriginal * 100) / 100,
+            };
+        }
+
+        await updateDoc(quoteRef, update as any);
 
         setQuote((prev) => {
             if (!prev) return prev;
@@ -5545,7 +5826,7 @@ export default function QuotePage() {
     }, [calculationInProgress, calculationTimerStorageKey, quote?.calculationStartedAt, quote?.updatedAt]);
 
     const loading = firebaseLoading || isUserLoading;
-    const error = firebaseError || (activeTab === 'prijsraming' ? null : calculationError);
+    const error = firebaseError || calculationError;
     const calculationProgressPercentage = Math.min(
         100,
         (calculationElapsedSeconds / CALCULATION_ESTIMATE_SECONDS) * 100
@@ -6585,7 +6866,7 @@ export default function QuotePage() {
                             <div className="flex items-center justify-center gap-3 sm:justify-start">
                                 <FileText className="h-5 w-5 text-cyan-400" />
                                 <h1 className="text-xl font-bold text-foreground">
-                                    Offerte {(quote as any)?.offerteNummer || 'Concept'}
+                                    Offerte {formatOfferteNummerLabel((quote as any)?.offerteNummer, (quote as any)?.offerteVersie)}
                                 </h1>
                                 {quote?.titel && <span className="text-muted-foreground font-normal hidden sm:inline">• {quote.titel}</span>}
                             </div>
@@ -6849,6 +7130,14 @@ export default function QuotePage() {
                                         <LayoutDashboard size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
+                                        value="financieel"
+                                        className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
+                                        aria-label="Financieel"
+                                        title="Financieel"
+                                    >
+                                        <ReceiptText size={16} />
+                                    </TabsTrigger>
+                                    <TabsTrigger
                                         value="materialen"
                                         className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
                                         aria-label="Materialen"
@@ -6857,12 +7146,12 @@ export default function QuotePage() {
                                         <Package size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
-                                        value="prijsraming"
+                                        value="prijsboek"
                                         className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
-                                        aria-label="Prijsraming"
-                                        title="Prijsraming"
+                                        aria-label="Prijsboek"
+                                        title="Prijsboek"
                                     >
-                                        <Calculator size={16} />
+                                        <BookOpen size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="pdf"
@@ -6949,9 +7238,13 @@ export default function QuotePage() {
                                     <Euro size={16} />
                                     Overzicht
                                 </TabsTrigger>
-                                <TabsTrigger value="prijsraming" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
-                                    <Calculator size={16} />
-                                    Prijsraming
+                                <TabsTrigger value="financieel" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <ReceiptText size={16} />
+                                    Financieel
+                                </TabsTrigger>
+                                <TabsTrigger value="prijsboek" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <BookOpen size={16} />
+                                    Prijsboek
                                 </TabsTrigger>
                                 <TabsTrigger
                                     value="tekeningen"
@@ -7645,13 +7938,201 @@ export default function QuotePage() {
                             )}
                         </TabsContent>
 
-                        <TabsContent value="prijsraming" className="mt-6">
-                            <PricingTab
-                                quoteId={id}
-                                quote={quote}
-                                quoteTitle={workDescriptionStructured.title || normalizedData?.korteTitel || quote?.titel || ''}
-                                notes={quoteNotes}
-                            />
+                        <TabsContent value="prijsboek" className="mt-6">
+                            <PriceBookTab />
+                        </TabsContent>
+
+                        <TabsContent value="financieel" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            {quoteFinancialError ? (
+                                <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+                                    {quoteFinancialError}
+                                </div>
+                            ) : null}
+
+                            <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Betaling en eindprijs</CardTitle>
+                                        <p className="text-sm text-muted-foreground">
+                                            Houd de eerste afgesproken prijs, prijswijzigingen en het werkelijk ontvangen bedrag bij elkaar.
+                                        </p>
+                                    </CardHeader>
+                                    <CardContent className="space-y-5">
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+                                                <div className="text-xs text-muted-foreground">Eerste afgesproken prijs</div>
+                                                <div className="mt-1 text-lg font-semibold">{formatCurrency(financialOriginalPrice)}</div>
+                                                <div className="mt-1 text-xs text-muted-foreground">
+                                                    {hasOriginalQuotePrice ? 'Vastgelegd bij het versturen van de offerte.' : 'Nog niet historisch vastgelegd; huidige calculatie wordt getoond.'}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+                                                <div className="text-xs text-muted-foreground">Prijs na wijziging</div>
+                                                <div className="mt-1 text-lg font-semibold">
+                                                    {hasStoredAgreedQuoteTotal ? formatCurrency(storedAgreedQuoteTotal) : 'Geen wijziging'}
+                                                </div>
+                                                <div className="mt-1 text-xs text-muted-foreground">
+                                                    {hasStoredAgreedQuoteTotal ? `Offerte ${formatOfferteNummerLabel((quote as any)?.offerteNummer, (quote as any)?.offerteVersie)}` : 'Het basisnummer blijft hetzelfde.'}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+                                                <div className="text-xs text-muted-foreground">Eerste betaling</div>
+                                                <div className="mt-1 text-lg font-semibold">
+                                                    {quoteFinancialTotals.firstPayment ? formatCurrency(quoteFinancialTotals.firstPayment.amount) : 'Nog geen betaling'}
+                                                </div>
+                                                {quoteFinancialTotals.firstPayment?.date ? (
+                                                    <div className="mt-1 text-xs text-muted-foreground">{quoteFinancialTotals.firstPayment.date.toLocaleDateString('nl-NL')}</div>
+                                                ) : null}
+                                            </div>
+                                            <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3">
+                                                <div className="text-xs text-muted-foreground">Uiteindelijk betaald</div>
+                                                <div className="mt-1 text-lg font-semibold text-emerald-300">{formatCurrency(quoteFinancialTotals.paidIncl)}</div>
+                                                <div className="mt-1 text-xs text-muted-foreground">
+                                                    {quoteFinancialTotals.payments.length > 0 ? `${quoteFinancialTotals.payments.length} betaling(en) geregistreerd.` : 'Gebaseerd op de betaalstatus van de factuur.'}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className={cn(
+                                            'flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-sm',
+                                            paidDifferenceFromOriginal < -0.005
+                                                ? 'border-amber-500/30 bg-amber-500/5'
+                                                : paidDifferenceFromOriginal > 0.005
+                                                    ? 'border-emerald-500/30 bg-emerald-500/5'
+                                                    : 'border-border/70 bg-muted/20',
+                                        )}>
+                                            <span>Verschil uiteindelijk betaald t.o.v. eerste prijs</span>
+                                            <span className="font-semibold tabular-nums">{paidDifferenceFromOriginal > 0.005 ? '+' : ''}{formatCurrency(paidDifferenceFromOriginal)}</span>
+                                        </div>
+
+                                        <div className="space-y-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                                            <div>
+                                                <div className="font-medium">Prijswijziging vastleggen</div>
+                                                <p className="mt-1 text-xs text-muted-foreground">
+                                                    De basis {formatOfferteNummerLabel((quote as any)?.offerteNummer)} blijft behouden; een wijziging krijgt een versie zoals {formatOfferteNummerLabel((quote as any)?.offerteNummer, Math.max(1, Number((quote as any)?.offerteVersie || 0) + 1))}.
+                                                </p>
+                                            </div>
+                                            <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr_auto] sm:items-end">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="quote-price-change-amount">Nieuwe prijs incl. btw</Label>
+                                                    <Input
+                                                        id="quote-price-change-amount"
+                                                        value={priceChangeAmount}
+                                                        onChange={(event) => setPriceChangeAmount(event.target.value)}
+                                                        placeholder="bijv. 9.850,00"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="quote-price-change-reason">Reden / notitie</Label>
+                                                    <Input
+                                                        id="quote-price-change-reason"
+                                                        value={priceChangeReason}
+                                                        onChange={(event) => setPriceChangeReason(event.target.value)}
+                                                        placeholder="bijv. minderwerk of extra werk"
+                                                    />
+                                                </div>
+                                                <Button type="button" variant="success" onClick={() => void handleRecordPriceChange()} disabled={priceChangeSaving}>
+                                                    {priceChangeSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                                    Opslaan
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {priceChanges.length > 0 ? (
+                                            <div className="space-y-2">
+                                                <div className="text-sm font-medium">Prijswijzigingen</div>
+                                                <div className="space-y-2">
+                                                    {[...priceChanges].reverse().map((change) => {
+                                                        const changedAt = parseReceiptCreatedAt(change.changedAt);
+                                                        return (
+                                                            <div key={`${change.version}-${change.changedAt || change.newAmountInclBtw}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-sm">
+                                                                <div>
+                                                                    <span className="font-medium">{formatOfferteNummerLabel((quote as any)?.offerteNummer, change.version)}</span>
+                                                                    <span className="ml-2 text-muted-foreground">{change.reason || 'Prijs gewijzigd'}</span>
+                                                                </div>
+                                                                <div className="tabular-nums">
+                                                                    {formatCurrency(change.oldAmountInclBtw)} → <span className="font-semibold">{formatCurrency(change.newAmountInclBtw)}</span>
+                                                                    {changedAt ? <span className="ml-2 text-xs text-muted-foreground">{changedAt.toLocaleDateString('nl-NL')}</span> : null}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </CardContent>
+                                </Card>
+
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Winst op werkelijk betaald bedrag</CardTitle>
+                                        <p className="text-sm text-muted-foreground">Ontvangen bedragen worden excl. btw vergeleken met de geregistreerde projectkosten.</p>
+                                    </CardHeader>
+                                    <CardContent className="space-y-3">
+                                        {quoteWinstLoading ? (
+                                            <PageLoadingNotice label="Winstcijfers laden..." />
+                                        ) : quoteWinstMetrics ? (
+                                            <>
+                                                <div className="grid gap-3 sm:grid-cols-2">
+                                                    <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                                                        <div className="text-xs text-muted-foreground">Ontvangen excl. btw</div>
+                                                        <div className="mt-1 text-lg font-semibold text-emerald-300">{formatCurrency(quoteWinstMetrics.adjustedRevenueExcl)}</div>
+                                                    </div>
+                                                    <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+                                                        <div className="text-xs text-muted-foreground">Aangepaste winst</div>
+                                                        <div className={cn('mt-1 text-lg font-semibold', quoteWinstMetrics.adjustedProfitExcl >= 0 ? 'text-emerald-300' : 'text-red-300')}>
+                                                            {formatCurrency(quoteWinstMetrics.adjustedProfitExcl)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center justify-between border-t border-border/70 pt-3 text-sm">
+                                                    <span className="text-muted-foreground">Werkelijke kosten excl. btw</span>
+                                                    <span className="font-medium">{formatCurrency(quoteWinstMetrics.actualCostExcl)}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className="text-muted-foreground">Winst volgens eerste offerteprijs</span>
+                                                    <span className="font-medium">{formatCurrency(quoteWinstMetrics.netProfitQuoteBasis)}</span>
+                                                </div>
+                                                <p className="pt-1 text-xs text-muted-foreground">De aangepaste winst verandert zodra je een andere betaling of werkelijke kosten vastlegt.</p>
+                                            </>
+                                        ) : (
+                                            <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                                                Winstcijfers zijn nog niet beschikbaar voor deze offerte. Controleer of de offerte geaccepteerd is en of er nacalculatie, uren of kosten zijn geregistreerd.
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Facturen en betalingen</CardTitle>
+                                    <p className="text-sm text-muted-foreground">Elke voorschot- en eindfactuur telt mee in het totaal “Uiteindelijk betaald”.</p>
+                                </CardHeader>
+                                <CardContent>
+                                    {quoteFinancialLoading ? (
+                                        <PageLoadingNotice label="Facturen en betalingen laden..." />
+                                    ) : quoteInvoices.length === 0 ? (
+                                        <div className="text-sm text-muted-foreground">Nog geen facturen aan deze offerte gekoppeld.</div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {quoteInvoices.map((invoice) => (
+                                                <div key={invoice.id} className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <Link href={`/facturen/${invoice.id}`} className="font-medium text-cyan-300 hover:text-cyan-200 hover:underline">Factuur #{invoice.invoiceNumberLabel}</Link>
+                                                        <span className="text-xs text-muted-foreground">{invoice.invoiceType === 'voorschot' ? 'Voorschot' : 'Eindfactuur'} · {invoice.status}</span>
+                                                    </div>
+                                                    <div className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
+                                                        <div><span className="text-muted-foreground">Factuurbedrag:</span> {formatCurrency(invoice.totalIncl)}</div>
+                                                        <div><span className="text-muted-foreground">Betaald:</span> {formatCurrency(invoice.paidAmount)}</div>
+                                                        <div><span className="text-muted-foreground">Open:</span> {formatCurrency(invoice.openAmount)}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
                         </TabsContent>
 
                         {canShowNacalculatieTab && (
@@ -9054,11 +9535,11 @@ export default function QuotePage() {
                 isOpen={isSendModalOpen}
                 onClose={() => setIsSendModalOpen(false)}
                 klantInfo={klantInfo}
-                offerteNummer={(quote as any)?.offerteNummer || 'CONCEPT'}
+                offerteNummer={formatOfferteNummerLabel((quote as any)?.offerteNummer, (quote as any)?.offerteVersie)}
                 werkbeschrijving={normalizedData?.werkbeschrijving}
                 onDownloadPDF={handleDownloadPDF}
                 onMarkAsSent={handleMarkQuoteAsSent}
-                totaalInclBtw={totals?.totaalInclBtw || 0}
+                totaalInclBtw={effectiveQuoteTotalInclBtw}
                 geldigTot={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL', {
                     day: 'numeric',
                     month: 'long',

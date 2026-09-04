@@ -98,6 +98,7 @@ export interface WinstCategoryBreakdownRow {
 export interface WinstProjectPerformance {
   projectId: string;
   offerteNummer: number | null;
+  offerteVersie?: number;
   title: string;
   clientId: string;
   clientName: string;
@@ -113,9 +114,12 @@ export interface WinstProjectPerformance {
   projectedProfitInclBtw: number;
   projectedProfitAfterLaborMarginVat: number;
   receivedCashIncl: number;
+  receivedCashTotalIncl: number;
+  adjustedRevenueExcl: number;
   actualCostExcl: number;
   netProfitQuoteBasis: number;
   netProfitCashBasis: number;
+  adjustedProfitExcl: number;
   marginPct: number;
   quotedHours: number;
   actualHours: number;
@@ -178,9 +182,12 @@ export interface WinstMetricsResponse {
     quotedRevenueIncl: number;
     quotedRevenueExcl: number;
     receivedCashIncl: number;
+    receivedCashTotalIncl: number;
+    adjustedRevenueExcl: number;
     actualCostExcl: number;
     netProfitQuoteBasis: number;
     netProfitCashBasis: number;
+    adjustedProfitExcl: number;
     marginPct: number;
     cashInRatio: number;
     openAmount: number;

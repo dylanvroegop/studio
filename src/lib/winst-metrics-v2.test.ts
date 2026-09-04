@@ -106,6 +106,9 @@ export function runWinstMetricsUnitTests(): void {
   assert.equal(metrics.dataQuality.projectsWithActual, 1);
   assert.equal(metrics.totals.quotedRevenueIncl, 5000);
   assert.equal(metrics.totals.receivedCashIncl, 5000);
+  assert.equal(metrics.totals.receivedCashTotalIncl, 5000);
+  assert.equal(metrics.projectPerformances[0]?.adjustedProfitExcl,
+    metrics.projectPerformances[0].adjustedRevenueExcl - metrics.projectPerformances[0].actualCostExcl);
   assert.equal(metrics.timeTracking.quotedHours, 8);
   assert.equal(metrics.timeTracking.actualHours, 10);
   assert.equal(metrics.timeTracking.quotedDays, 1);
@@ -136,6 +139,25 @@ export function runWinstMetricsUnitTests(): void {
 
   const conceptMetrics = buildWinstMetrics(conceptInvoiceInput);
   assert.equal(conceptMetrics.totals.receivedCashIncl, 0);
+
+  const changedPaymentInput = baseInput();
+  changedPaymentInput.invoices = [{
+    ...changedPaymentInput.invoices[0],
+    paidAmount: 4500,
+    openAmount: 500,
+  }];
+  changedPaymentInput.payments = [{
+    invoiceId: 'inv-1',
+    amount: 4500,
+    date: new Date('2026-03-10T09:00:00.000Z'),
+  }];
+  const changedPaymentMetrics = buildWinstMetrics(changedPaymentInput);
+  const changedPaymentProject = changedPaymentMetrics.projectPerformances[0];
+  assert.equal(changedPaymentProject.receivedCashTotalIncl, 4500);
+  assert.equal(changedPaymentProject.adjustedRevenueExcl,
+    4500 * (changedPaymentProject.quotedRevenueExcl / changedPaymentProject.quotedRevenueIncl));
+  assert.equal(changedPaymentProject.adjustedProfitExcl,
+    changedPaymentProject.adjustedRevenueExcl - changedPaymentProject.actualCostExcl);
 
   const externalCostsInput = baseInput();
   externalCostsInput.nacalculaties = [];

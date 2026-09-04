@@ -42,6 +42,7 @@ import {
   type ProjectCostRow,
 } from '@/lib/project-costs';
 import type { WinstMetricsResponse } from '@/lib/winst-types';
+import { formatOfferteNummerLabel } from '@/lib/quote-number';
 
 type ApiSyncResponse = {
   ok: boolean;
@@ -1202,7 +1203,7 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
                             </div>
                             {financeMetrics.projectPerformances.slice(0, 8).map((project) => (
                               <div key={project.projectId} className="grid grid-cols-[1.2fr_1fr_130px_130px] gap-3 px-2 py-2 text-sm">
-                                <div className="truncate font-medium">{project.offerteNummer ? `#${project.offerteNummer}` : project.title}</div>
+                                <div className="truncate font-medium">{project.offerteNummer ? `#${formatOfferteNummerLabel(project.offerteNummer, project.offerteVersie)}` : project.title}</div>
                                 <div className="truncate text-muted-foreground">{project.clientName}</div>
                                 <div className="text-right">{formatCurrency(project.quotedRevenueIncl)}</div>
                                 <div className={project.receivedCashIncl > 0 ? 'text-right text-emerald-300' : 'text-right text-muted-foreground'}>{formatCurrency(project.receivedCashIncl)}</div>

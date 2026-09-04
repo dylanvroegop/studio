@@ -27,6 +27,7 @@ export type Client = {
 export type Quote = {
   id: string;
   userId: string;
+  offerteNummer?: number;
 
   status: "werkbespreking" | "concept" | "in_behandeling" | "in_afwachting" | "verzonden" | "geaccepteerd" | "afgewezen" | "verlopen";
   createdAt: Timestamp;
@@ -71,6 +72,9 @@ export type Quote = {
   // optioneel
   amount?: number;
   sentAt?: Timestamp | Date;
+  offerteVersie?: number;
+
+  financieel?: QuoteFinancialState;
 
   // ✅ Financial Armor (Settings per quote)
   instellingen: QuoteSettings;
@@ -167,6 +171,20 @@ export type InvoiceType = 'voorschot' | 'eind';
 
 export type InvoiceStatus = 'concept' | 'verzonden' | 'gedeeltelijk_betaald' | 'betaald' | 'geannuleerd';
 
+export interface QuotePriceChange {
+  version: number;
+  oldAmountInclBtw: number;
+  newAmountInclBtw: number;
+  reason?: string;
+  changedAt?: Timestamp | Date | string;
+}
+
+export interface QuoteFinancialState {
+  oorspronkelijkePrijsInclBtw?: number;
+  afgesprokenPrijsInclBtw?: number;
+  prijswijzigingen?: QuotePriceChange[];
+}
+
 export interface InvoiceCombinedContext {
   type: 'meerwerkbon_combined';
   primaryQuoteId: string;
@@ -204,6 +222,7 @@ export interface Invoice {
 
   sourceQuote: {
     offerteNummer?: number;
+    offerteVersie?: number;
     titel?: string;
     klantSnapshot: {
       clientId?: string;
