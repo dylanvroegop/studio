@@ -1365,10 +1365,6 @@ export default function MeerwerkbonDetailPage() {
         onClose={() => setIsWhatsAppModalOpen(false)}
         klantInfo={whatsappKlantInfo}
         clientName={meerwerkbon.clientSnapshot?.naam || 'klant'}
-        quotePdfUrl=""
-        requireDocumentUrl={false}
-        documentLabel="meerwerkbon"
-        documentLinkToken="{{meerwerkbon_link}}"
         storageKey="whatsapp_meerwerkbon_message_preset_v1"
         successDescription="De officiële meerwerkbon-PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur."
         onDownloadOfficialPdf={handleDownloadPdf}

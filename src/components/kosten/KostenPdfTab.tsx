@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, FileText, Link2, Loader2, Receipt, Search } from 'lucide-react';
+import { CalendarDays, FileText, Image as ImageIcon, Link2, Loader2, Receipt, Search } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -77,6 +77,19 @@ function isPdfFile(file: ProjectCostReceiptFile): boolean {
     || safeString(file.path).toLowerCase().endsWith('.pdf');
 }
 
+function isImageFile(file: ProjectCostReceiptFile): boolean {
+  const contentType = safeString(file.content_type).toLowerCase();
+  const filename = safeString(file.filename).toLowerCase();
+  const path = safeString(file.path).toLowerCase();
+  return contentType.startsWith('image/')
+    || /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(filename)
+    || /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(path);
+}
+
+function isSupportedDocumentFile(file: ProjectCostReceiptFile): boolean {
+  return isPdfFile(file) || isImageFile(file);
+}
+
 function pdfDocumentNumber(file: ProjectCostReceiptFile): string {
   const filename = safeString(file.filename).toLowerCase();
   const fullInvoice = filename.match(/\b\d{4}vf\d+\b/i)?.[0];
@@ -94,7 +107,7 @@ function collectPdfItems(costs: ProjectCostRow[]): PdfItem[] {
 
   costs.forEach((cost) => {
     const files = Array.isArray(cost.receipt_files) ? cost.receipt_files : [];
-    files.filter(isPdfFile).forEach((file, index) => {
+    files.filter(isSupportedDocumentFile).forEach((file, index) => {
       const archiveId = safeString(file.archive_id);
       const documentNumber = pdfDocumentNumber(file);
       const identity = documentNumber
@@ -146,23 +159,25 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
     archivedPdfs.forEach((archive) => {
       const archiveId = safeString(archive.id);
       if (!archiveId || knownArchiveIds.has(archiveId)) return;
+      const file = {
+        url: '',
+        path: safeString(archive.storage_path) || null,
+        archive_id: archiveId,
+        bucket: safeString(archive.bucket) || null,
+        filename: safeString(archive.original_filename) || 'Factuur.pdf',
+        content_type: safeString(archive.content_type) || 'application/pdf',
+        size_bytes: Number(archive.size_bytes) || 0,
+        sha256: safeString(archive.sha256) || null,
+        uploaded_at: safeString(archive.archived_at) || safeString(archive.received_at),
+      };
+      if (!isSupportedDocumentFile(file)) return;
       items.push({
         key: `archive:${archiveId}`,
         costs: [],
         sourceDate: safeString(archive.metadata?.source_email_ts)
           || safeString(archive.received_at)
           || safeString(archive.archived_at),
-        file: {
-          url: '',
-          path: safeString(archive.storage_path) || null,
-          archive_id: archiveId,
-          bucket: safeString(archive.bucket) || null,
-          filename: safeString(archive.original_filename) || 'Factuur.pdf',
-          content_type: safeString(archive.content_type) || 'application/pdf',
-          size_bytes: Number(archive.size_bytes) || 0,
-          sha256: safeString(archive.sha256) || null,
-          uploaded_at: safeString(archive.archived_at) || safeString(archive.received_at),
-        },
+        file,
       });
     });
 
@@ -377,7 +392,7 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
                     'mt-0.5 rounded-md border border-border bg-background/50 p-2 text-muted-foreground',
                     isSelected && 'border-emerald-500/40 text-emerald-300'
                   )}>
-                    <FileText className="h-4 w-4" />
+                    {isImageFile(item.file) ? <ImageIcon className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-foreground">
@@ -447,12 +462,21 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
 
             <div className="flex min-h-[560px] flex-1 items-center justify-center p-3 sm:p-4">
               {selectedUrl ? (
-                <iframe
-                  key={selectedUrl}
-                  src={selectedUrl}
-                  title={`PDF ${selectedItem.file.filename || selectedCost?.supplier_name || ''}`}
-                  className="h-[72vh] min-h-[540px] w-full rounded-lg border border-border bg-white"
-                />
+                isImageFile(selectedItem.file) ? (
+                  <img
+                    key={selectedUrl}
+                    src={selectedUrl}
+                    alt={selectedItem.file.filename || selectedCost?.supplier_name || 'Bonnetje'}
+                    className="max-h-[72vh] max-w-full rounded-lg border border-border object-contain"
+                  />
+                ) : (
+                  <iframe
+                    key={selectedUrl}
+                    src={selectedUrl}
+                    title={`PDF ${selectedItem.file.filename || selectedCost?.supplier_name || ''}`}
+                    className="h-[72vh] min-h-[540px] w-full rounded-lg border border-border bg-white"
+                  />
+                )
               ) : loadingArchiveId === selectedArchiveId ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -460,7 +484,7 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
                 </div>
               ) : failedArchiveId === selectedArchiveId ? (
                 <div className="space-y-3 text-center">
-                  <div className="text-sm font-medium text-foreground">PDF kon niet worden geladen</div>
+                  <div className="text-sm font-medium text-foreground">Bestand kon niet worden geladen</div>
                   <Button
                     type="button"
                     variant="outline"

@@ -3,6 +3,7 @@ export interface BankConnectionView {
   institutionName: string | null;
   status: string;
   lastSyncedAt: string | null;
+  consentValidUntil: string | null;
   accountCount: number;
 }
 
@@ -75,11 +76,24 @@ export function mapConnectionView(input: unknown): BankConnectionView | null {
   const id = safeString(row.id);
   if (!id) return null;
   const linkedAccountIds = Array.isArray(row.linked_account_ids) ? row.linked_account_ids : [];
+  const metadata = row.metadata && typeof row.metadata === 'object'
+    ? row.metadata as Record<string, unknown>
+    : {};
+  const session = metadata.session && typeof metadata.session === 'object'
+    ? metadata.session as Record<string, unknown>
+    : {};
+  const sessionAccess = session.access && typeof session.access === 'object'
+    ? session.access as Record<string, unknown>
+    : {};
+  const metadataAccess = metadata.access && typeof metadata.access === 'object'
+    ? metadata.access as Record<string, unknown>
+    : {};
   return {
     id,
     institutionName: safeString(row.institution_name) || null,
     status: safeString(row.status) || 'pending',
     lastSyncedAt: normalizeIsoDate(row.last_synced_at),
+    consentValidUntil: normalizeIsoDate(sessionAccess.valid_until || metadataAccess.valid_until),
     accountCount: linkedAccountIds.length,
   };
 }

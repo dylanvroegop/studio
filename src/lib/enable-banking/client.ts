@@ -158,7 +158,9 @@ export async function startAuthorization(params: {
   redirectUrl: string;
   psuType?: 'personal' | 'business';
 }): Promise<{ url: string; authorizationId: string | null }> {
-  const validUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+  const validUntilDate = new Date();
+  validUntilDate.setMonth(validUntilDate.getMonth() + 1);
+  const validUntil = validUntilDate.toISOString();
   const payload = asRecord(await apiRequest('/auth', {
     method: 'POST',
     body: JSON.stringify({

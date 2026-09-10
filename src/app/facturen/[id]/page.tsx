@@ -1599,14 +1599,7 @@ export default function FactuurDetailPage() {
           telefoonnummer: invoice.sourceQuote?.klantSnapshot?.telefoon || '',
         } as any}
         clientName={invoice.sourceQuote?.klantSnapshot?.naam || 'klant'}
-        quoteId=""
-        quotePdfUrl=""
-        requireDocumentUrl={false}
-        documentLabel="factuur"
-        documentLinkToken="{{factuur_link}}"
         storageKey="whatsapp_invoice_message_preset_v1"
-        missingLinkTitle="Geen factuurlink beschikbaar"
-        missingLinkDescription="De factuur-PDF wordt gedownload. Voeg deze handmatig toe in WhatsApp."
         successDescription="De factuur-PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur."
         onDownloadOfficialPdf={handleDownloadPdf}
         onMarkAsSent={handleMarkSent}

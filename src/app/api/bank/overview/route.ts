@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     let connectionResult = provider !== 'bunq'
       ? await supabaseAdmin
         .from('bank_connections')
-        .select('id,institution_name,status,last_synced_at,linked_account_ids')
+        .select('id,institution_name,status,last_synced_at,linked_account_ids,metadata')
         .eq('provider', provider)
         .eq('user_id', identity.bankUserId)
         .order('updated_at', { ascending: false })
@@ -95,7 +95,7 @@ export async function GET(request: Request) {
         .maybeSingle()
       : await supabaseAdmin
         .from('bank_connections')
-        .select('id,institution_name,status,last_synced_at,linked_account_ids')
+        .select('id,institution_name,status,last_synced_at,linked_account_ids,metadata')
         .eq('provider', 'bunq')
         .eq('link_ref', linkRef)
         .order('updated_at', { ascending: false })
@@ -133,6 +133,7 @@ export async function GET(request: Request) {
           institutionName: 'bunq',
           status: 'connected',
           lastSyncedAt: null,
+          consentValidUntil: null,
           accountCount: 0,
         }
         : null);

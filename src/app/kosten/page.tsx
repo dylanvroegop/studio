@@ -77,6 +77,7 @@ import { cn } from '@/lib/utils';
 type CostFilterMode = 'alle' | ProjectCostCategory;
 type EntryMode = 'manual' | 'upload';
 type KostenViewMode =
+  | 'quick-add'
   | 'kosten'
   | 'pdfs'
   | 'overview'
@@ -89,7 +90,10 @@ type KostenViewMode =
   | 'knab-account'
   | 'bunq-personal';
 
+const QUICK_ADD_TAB_ID: KostenViewMode = 'quick-add';
+
 const KOSTEN_PAGE_TABS: Array<{ value: KostenViewMode; label: string; financeTab?: string }> = [
+  { value: QUICK_ADD_TAB_ID, label: 'Snel toevoegen' },
   { value: 'kosten', label: 'Kosten' },
   { value: 'pdfs', label: 'PDF-bestanden' },
   { value: 'overview', label: 'Overzicht', financeTab: 'overview' },
@@ -530,6 +534,7 @@ function KostenPageContent() {
   const quickPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const pageReceiptDragDepthRef = useRef(0);
   const pendingHydratedRef = useRef<string | null>(null);
+  const costDataLoadedRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -541,7 +546,7 @@ function KostenPageContent() {
   const [filter, setFilter] = useState<CostFilterMode>('alle');
   const [viewMode, setViewMode] = useState<KostenViewMode>(() => {
     const requestedTab = searchParams?.get('tab') || null;
-    return isKostenViewMode(requestedTab) ? requestedTab : 'kosten';
+    return isKostenViewMode(requestedTab) ? requestedTab : QUICK_ADD_TAB_ID;
   });
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -696,33 +701,45 @@ function KostenPageContent() {
   }, [user]);
 
   useEffect(() => {
-    if (!user || !firestore) return;
+    if (!user) return;
     const needsCostWorkspace = viewMode === 'kosten' || shouldOpenCreateFromUrl || Boolean(initialPendingImportId);
-    if (!needsCostWorkspace) {
-      setLoading(false);
-      return;
-    }
     let cancelled = false;
 
-    const load = async () => {
-      setLoading(true);
-      setError(null);
+    const load = async (blocking: boolean) => {
+      if (blocking) {
+        setLoading(true);
+        setError(null);
+      }
       try {
         const [quotesData, costsData] = await Promise.all([loadQuotes(), loadCosts()]);
         if (cancelled) return;
         setQuotes(quotesData);
         setCosts(costsData);
+        costDataLoadedRef.current = true;
       } catch (loadError) {
-        if (cancelled) return;
+        if (cancelled || !blocking) return;
         const message = loadError instanceof Error ? loadError.message : 'Kon kosten niet laden.';
         setError(message);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && blocking) setLoading(false);
       }
     };
 
-    void load();
+    // The quick-add tab must become usable without waiting for costs or quotes.
+    // Those datasets are still warmed in the background for the other tabs.
+    if (!needsCostWorkspace) {
+      setLoading(false);
+      if (firestore && !costDataLoadedRef.current) void load(false);
+      return () => {
+        cancelled = true;
+      };
+    }
 
+    if (!firestore) return () => {
+      cancelled = true;
+    };
+
+    void load(true);
     return () => {
       cancelled = true;
     };
@@ -1565,7 +1582,7 @@ function KostenPageContent() {
     }
   };
 
-  if (isUserLoading || loading) {
+  if (isUserLoading || !user || (loading && viewMode !== QUICK_ADD_TAB_ID)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="animate-spin text-primary w-8 h-8" />
@@ -1652,6 +1669,41 @@ function KostenPageContent() {
             ))}
           </div>
 
+          <input
+            ref={quickPhotoInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*"
+            capture="environment"
+            onChange={handleQuickPhotoChange}
+          />
+
+          {viewMode === QUICK_ADD_TAB_ID ? (
+            <Card className="border-emerald-500/20 bg-card/40">
+              <CardContent className="p-4 sm:p-6">
+                <div className="mx-auto flex w-full max-w-md flex-col gap-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-40 w-full flex-col gap-3 rounded-2xl border-emerald-500/50 text-2xl text-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-100"
+                    onClick={() => quickPhotoInputRef.current?.click()}
+                  >
+                    <Camera className="h-10 w-10" />
+                    Foto maken
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-40 w-full flex-col gap-3 rounded-2xl text-2xl"
+                    onClick={openCreateDialog}
+                  >
+                    <Plus className="h-10 w-10" />
+                    Nieuwe kost
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {viewMode === 'kosten' && error ? (
             <Card className="border-red-500/30">
               <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
@@ -1660,13 +1712,21 @@ function KostenPageContent() {
                   <div className="font-semibold">Kosten konden niet worden geladen</div>
                   <p className="mt-1 text-sm text-muted-foreground">Oude of lege cijfers worden bewust niet getoond. {error}</p>
                 </div>
-                <Button type="button" variant="outline" onClick={() => setCostReloadVersion((value) => value + 1)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    costDataLoadedRef.current = false;
+                    setCostReloadVersion((value) => value + 1);
+                  }}
+                >
                   Opnieuw proberen
                 </Button>
               </CardContent>
             </Card>
           ) : null}
 
+          {viewMode === 'kosten' || createOpen ? (
           <Card className={cn((viewMode !== 'kosten' || Boolean(error)) && 'hidden')}>
             <CardContent className="space-y-4 pt-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -1679,15 +1739,6 @@ function KostenPageContent() {
                     className="pl-9"
                   />
                 </div>
-
-                <input
-                  ref={quickPhotoInputRef}
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleQuickPhotoChange}
-                />
 
                 <Button
                   type="button"
@@ -2281,12 +2332,13 @@ function KostenPageContent() {
               </div>
             </CardContent>
           </Card>
+          ) : null}
 
           {activeFinanceTab ? (
             <BankOverzichtContent embedded requestedTabId={activeFinanceTab} />
           ) : viewMode === 'pdfs' ? (
             <KostenPdfTab costs={costs} quoteById={quoteById} onOpenCost={handleOpenCost} />
-          ) : error ? null : filteredCosts.length === 0 ? (
+          ) : viewMode !== 'kosten' ? null : error ? null : filteredCosts.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center space-y-3">
                 <div className="font-semibold">Geen kosten gevonden</div>

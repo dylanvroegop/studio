@@ -21,18 +21,20 @@ interface SendQuoteWhatsAppModalProps {
   onClose: () => void;
   klantInfo: KlantInformatie | null;
   clientName: string;
-  quoteId?: string;
-  quotePdfUrl: string;
-  documentUrl?: string;
-  requireDocumentUrl?: boolean;
-  documentLabel?: string;
-  documentLinkToken?: string;
   storageKey?: string;
-  missingLinkTitle?: string;
-  missingLinkDescription?: string;
   successDescription?: string;
   onDownloadOfficialPdf?: () => Promise<void> | void;
   onMarkAsSent?: () => Promise<void> | void;
+}
+
+function stripDocumentLinksFromMessage(value: string): string {
+  return value
+    .replace(/\bblob:\S+/gi, '')
+    .replace(/\bhttps?:\/\/(?:app\.)?calvora\.nl\/\S+/gi, '')
+    .replace(/\{\{(?:offerte|factuur|meerwerkbon)_link\}\}/gi, '')
+    .replace(/^\s*(?:offerte|factuur|meerwerkbon)(?:\s+pdf)?\s+(?:link|url)\s*:?\s*$/gim, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function normalizePhoneForWhatsApp(raw: string): string {
@@ -65,7 +67,6 @@ function buildWhatsAppUrl(phone: string, message: string, useWebApp: boolean): s
 }
 
 const FIRST_NAME_TOKEN = '{{voornaam}}';
-const QUOTE_URL_TOKEN = '{{offerte_link}}';
 const WHATSAPP_PRESET_STORAGE_KEY = 'whatsapp_message_preset_v1';
 
 export function SendQuoteWhatsAppModal({
@@ -73,15 +74,7 @@ export function SendQuoteWhatsAppModal({
   onClose,
   klantInfo,
   clientName,
-  quoteId,
-  quotePdfUrl,
-  documentUrl,
-  requireDocumentUrl = true,
-  documentLabel = 'offerte',
-  documentLinkToken = QUOTE_URL_TOKEN,
   storageKey = WHATSAPP_PRESET_STORAGE_KEY,
-  missingLinkTitle = 'Geen offertelink beschikbaar',
-  missingLinkDescription = 'Er kon geen actuele link voor deze offerte worden opgebouwd.',
   successDescription = 'De officiële PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur.',
   onDownloadOfficialPdf,
   onMarkAsSent,
@@ -89,7 +82,6 @@ export function SendQuoteWhatsAppModal({
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState(''); // editable after prefill
   const [manualFirstName, setManualFirstName] = useState('');
-  const [quoteUrl, setQuoteUrl] = useState('');
   const [isOpening, setIsOpening] = useState(false);
   const messageTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasInitializedForOpenRef = useRef(false);
@@ -106,14 +98,6 @@ export function SendQuoteWhatsAppModal({
 
     hasInitializedForOpenRef.current = true;
     setPhone(klantInfo.telefoonnummer || '');
-    const trimmedProvidedUrl = (quotePdfUrl || '').trim();
-    const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
-    const origin = isLocalhost ? 'https://app.calvora.nl' : (typeof window !== 'undefined' ? window.location.origin : 'https://app.calvora.nl');
-    const fallbackUrl = quoteId ? `${origin}/view/${quoteId}` : '';
-    // A persisted PDF URL can point to an older generated document. Prefer the
-    // live quote route so WhatsApp never shares a stale PDF alongside the current one.
-    const resolvedQuoteUrl = documentUrl?.trim() || fallbackUrl || trimmedProvidedUrl;
-    setQuoteUrl(resolvedQuoteUrl);
 
     const guessedFirstName = String(
       klantInfo.voornaam || clientName.split(' ').filter(Boolean)[0] || 'klant'
@@ -122,11 +106,11 @@ export function SendQuoteWhatsAppModal({
 
     try {
       const savedPreset = localStorage.getItem(storageKey) || '';
-      setMessage(savedPreset);
+      setMessage(stripDocumentLinksFromMessage(savedPreset));
     } catch {
       setMessage('');
     }
-  }, [isOpen, klantInfo, clientName, quotePdfUrl, quoteId, documentUrl, storageKey]);
+  }, [isOpen, klantInfo, clientName, storageKey]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -143,7 +127,6 @@ export function SendQuoteWhatsAppModal({
 
     const trimmedPhone = phone.trim();
     const normalizedPhone = normalizePhoneForWhatsApp(trimmedPhone);
-    const trimmedQuoteUrl = quoteUrl.trim();
 
     if (!trimmedPhone || normalizedPhone.length < 8 || normalizedPhone.length > 15) {
       toast({
@@ -155,20 +138,10 @@ export function SendQuoteWhatsAppModal({
       return;
     }
 
-    if (requireDocumentUrl && !trimmedQuoteUrl) {
-      toast({
-        title: missingLinkTitle,
-        description: missingLinkDescription,
-        variant: 'destructive',
-      });
-      isLaunchingWhatsAppRef.current = false;
-      return;
-    }
-
     setIsOpening(true);
     const popup = window.open('about:blank', '_blank');
     try {
-      const template = message.trim();
+      const template = stripDocumentLinksFromMessage(message);
       if (!template) {
         toast({
           title: 'Geen bericht ingevuld',
@@ -179,10 +152,7 @@ export function SendQuoteWhatsAppModal({
       }
 
       const nameValue = manualFirstName.trim() || 'klant';
-      const outgoingMessage = template
-        .replaceAll(FIRST_NAME_TOKEN, nameValue)
-        .replaceAll(documentLinkToken, trimmedQuoteUrl)
-        .replaceAll(QUOTE_URL_TOKEN, trimmedQuoteUrl);
+      const outgoingMessage = template.replaceAll(FIRST_NAME_TOKEN, nameValue);
 
       if (onDownloadOfficialPdf) {
         await Promise.resolve(onDownloadOfficialPdf());
@@ -281,17 +251,6 @@ export function SendQuoteWhatsAppModal({
               >
                 Sleep token: {FIRST_NAME_TOKEN}
               </div>
-              <div
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.setData('text/plain', documentLinkToken);
-                  event.dataTransfer.effectAllowed = 'copy';
-                }}
-                className="cursor-grab rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 active:cursor-grabbing"
-                title={`Sleep ${documentLinkToken} naar het bericht`}
-              >
-                Sleep token: {documentLinkToken}
-              </div>
             </div>
             <Textarea
               ref={messageTextareaRef}
@@ -301,7 +260,7 @@ export function SendQuoteWhatsAppModal({
               onDrop={(event) => {
                 event.preventDefault();
                 const dropped = event.dataTransfer.getData('text/plain');
-                if (dropped !== FIRST_NAME_TOKEN && dropped !== documentLinkToken) return;
+                if (dropped !== FIRST_NAME_TOKEN) return;
                 const textarea = messageTextareaRef.current;
                 if (!textarea) {
                   setMessage((prev) => `${prev}${prev ? ' ' : ''}${dropped}`);
@@ -321,7 +280,7 @@ export function SendQuoteWhatsAppModal({
               className="min-h-[120px] bg-zinc-800 border-zinc-700 text-zinc-200"
             />
             <p className="text-xs text-zinc-500">
-              Dit bericht is jouw {documentLabel}-preset en wordt automatisch opgeslagen. Gebruik tokens om naam/link overal te plaatsen.
+              Dit bericht wordt automatisch opgeslagen. Gebruik {FIRST_NAME_TOKEN} voor de voornaam. De PDF voeg je handmatig toe in WhatsApp.
             </p>
           </div>
         </div>
@@ -331,7 +290,7 @@ export function SendQuoteWhatsAppModal({
             type="button"
             variant="success"
             onClick={handleSendViaWhatsApp}
-            disabled={isOpening || !normalizePhoneForWhatsApp(phone) || (requireDocumentUrl && !quoteUrl.trim())}
+            disabled={isOpening || !normalizePhoneForWhatsApp(phone)}
             className="w-full py-6 rounded-xl flex items-center justify-center gap-2"
           >
             {isOpening ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageCircle className="w-5 h-5" />}

@@ -9600,8 +9600,6 @@ export default function QuotePage() {
                 onClose={() => setIsWhatsAppModalOpen(false)}
                 klantInfo={klantInfo}
                 clientName={`${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`.trim() || (klantInfo?.bedrijfsnaam || 'klant')}
-                quoteId={String(id || '')}
-                quotePdfUrl={String((quote as any)?.pdf_url || (quote as any)?.pdfUrl || '').trim()}
                 onDownloadOfficialPdf={() =>
                     handleDownloadPDF({
                         includeOfferte: true,

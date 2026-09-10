@@ -30,7 +30,14 @@ export async function GET(request: Request) {
       .from('cost_document_archives')
       .select('id, linked_cost_ids, bucket, storage_path, original_filename, content_type, size_bytes, sha256, metadata, received_at, archived_at')
       .eq('user_id', uid)
-      .eq('content_type', 'application/pdf')
+      .in('content_type', [
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/heic',
+        'image/heif',
+      ])
       .order('archived_at', { ascending: false });
     if (result.error) throw new Error(result.error.message);
 

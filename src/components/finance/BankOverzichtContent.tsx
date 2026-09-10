@@ -21,6 +21,15 @@ import { DashboardHeader } from '@/components/DashboardHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -81,6 +90,10 @@ type SpendingAnalysisResponse = {
 type CostTimeline = 'month' | 'since-bank-start';
 
 type TransactionPageSize = 10 | 20 | 40 | 'all';
+
+function shouldPromptKnabReconnect(message: string): boolean {
+  return /Koppel eerst je Knab-rekening|geen actieve Knab-koppeling|actieve Knab-koppeling heeft nog geen rekening|Enable Banking status:\s*(CLOSED|EXPIRED|REVOKED|CANCELLED|INVALID)/i.test(message);
+}
 
 type FinanceActualsPeriod = {
   timeline: CostTimeline;
@@ -300,6 +313,7 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
   const [clarificationDraft, setClarificationDraft] = useState<Record<string, string>>({});
   const [knabInstitution, setKnabInstitution] = useState<BankInstitution | null>(null);
   const [connectingKnab, setConnectingKnab] = useState(false);
+  const [knabReconnectOpen, setKnabReconnectOpen] = useState(false);
   const [setupMessage, setSetupMessage] = useState<string | null>(null);
   const [costTimeline, setCostTimeline] = useState<CostTimeline>('month');
   const bankRefreshInFlightRef = useRef<Promise<void> | null>(null);
@@ -427,6 +441,7 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
       } catch (refreshError) {
         const message = refreshError instanceof Error ? refreshError.message : 'Knab kon niet worden bijgewerkt.';
         setBankRefreshError(message);
+        if (shouldPromptKnabReconnect(message)) setKnabReconnectOpen(true);
         setLoading(false);
         setFinanceDataLoading(false);
       } finally {
@@ -534,7 +549,7 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
   useEffect(() => {
     // Institution discovery is only needed for the connect flow. Do not let
     // it compete with the normal dashboard requests for an existing link.
-    if (!user || loading || knabConnection) return;
+    if (!user || loading || (knabConnection?.status === 'connected' && !knabReconnectOpen)) return;
     void (async () => {
       try {
         const token = await user.getIdToken();
@@ -551,7 +566,64 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
         setSetupMessage(institutionError instanceof Error ? institutionError.message : 'Enable Banking is nog niet ingesteld.');
       }
     })();
-  }, [knabConnection, loading, user]);
+  }, [knabConnection, knabReconnectOpen, loading, user]);
+
+  useEffect(() => {
+    if (bankRefreshPending || loading) return;
+    if (knabConnection?.status === 'connected' && !bankRefreshError) {
+      setKnabReconnectOpen(false);
+    }
+  }, [bankRefreshError, bankRefreshPending, knabConnection, loading]);
+
+  useEffect(() => {
+    if (bankRefreshPending || loading) return;
+    if (knabConnection && knabConnection.status !== 'connected') {
+      setKnabReconnectOpen(true);
+    }
+  }, [bankRefreshPending, knabConnection, loading]);
+
+  useEffect(() => {
+    const validUntil = knabConnection?.consentValidUntil;
+    if (knabConnection?.status !== 'connected' || !validUntil) return;
+    const expiresAt = Date.parse(validUntil);
+    if (!Number.isFinite(expiresAt)) return;
+
+    const handleExpiry = () => {
+      const message = 'Je Knab-toestemming is verlopen. Koppel Knab opnieuw.';
+      setBankRefreshError(message);
+      setKnabReconnectOpen(true);
+    };
+    const delay = expiresAt - Date.now();
+    if (delay <= 0) {
+      handleExpiry();
+      return;
+    }
+    const timeoutId = window.setTimeout(handleExpiry, delay);
+    return () => window.clearTimeout(timeoutId);
+  }, [knabConnection?.consentValidUntil, knabConnection?.status]);
+
+  const knabReconnectDialog = (
+    <Dialog open={knabReconnectOpen} onOpenChange={setKnabReconnectOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Knab opnieuw koppelen</DialogTitle>
+          <DialogDescription>
+            De Knab-toestemming is verlopen of niet actief. Koppel Knab opnieuw om actuele bankgegevens te laden.
+          </DialogDescription>
+        </DialogHeader>
+        {setupMessage ? <p className="text-sm text-amber-200">{setupMessage}</p> : null}
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">Later</Button>
+          </DialogClose>
+          <Button type="button" onClick={() => void handleConnectKnab()} disabled={connectingKnab || !knabInstitution}>
+            {connectingKnab ? <Loader2 className="h-4 w-4 animate-spin" /> : <Landmark className="h-4 w-4" />}
+            {!knabInstitution ? 'Knab laden...' : connectingKnab ? 'Knab openen...' : 'Koppel Knab opnieuw'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
   // Keep selected tab valid when account list changes.
   useEffect(() => {
@@ -788,22 +860,32 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
 
   if (bankRefreshError) {
     return (
-      <div className={embedded ? 'flex min-h-[320px] items-center justify-center' : 'min-h-screen bg-background flex items-center justify-center'}>
-        <div className="mx-4 max-w-lg rounded-2xl border border-destructive/40 bg-card p-6 text-center shadow-lg">
-          <CircleAlert className="mx-auto h-8 w-8 text-destructive" />
-          <h2 className="mt-3 text-lg font-semibold">Actuele Knab-gegevens konden niet worden geladen</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Oude cijfers worden bewust niet getoond. {bankRefreshError}</p>
-          <Button type="button" className="mt-5 gap-2" onClick={() => void refreshKnabData(true)}>
-            <RefreshCcw className="h-4 w-4" />
-            Opnieuw proberen
-          </Button>
+      <>
+        <div className={embedded ? 'flex min-h-[320px] items-center justify-center' : 'min-h-screen bg-background flex items-center justify-center'}>
+          <div className="mx-4 max-w-lg rounded-2xl border border-destructive/40 bg-card p-6 text-center shadow-lg">
+            <CircleAlert className="mx-auto h-8 w-8 text-destructive" />
+            <h2 className="mt-3 text-lg font-semibold">Actuele Knab-gegevens konden niet worden geladen</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Oude cijfers worden bewust niet getoond. {bankRefreshError}</p>
+            <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
+              <Button type="button" onClick={() => void handleConnectKnab()} disabled={connectingKnab || !knabInstitution} className="gap-2">
+                {connectingKnab ? <Loader2 className="h-4 w-4 animate-spin" /> : <Landmark className="h-4 w-4" />}
+                {!knabInstitution ? 'Knab laden...' : connectingKnab ? 'Knab openen...' : 'Koppel Knab opnieuw'}
+              </Button>
+              <Button type="button" variant="outline" className="gap-2" onClick={() => void refreshKnabData(true)}>
+                <RefreshCcw className="h-4 w-4" />
+                Opnieuw proberen
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
+        {knabReconnectDialog}
+      </>
     );
   }
 
   return (
     <div className={embedded ? 'w-full' : 'app-shell min-h-screen bg-background'}>
+      {knabReconnectDialog}
       {!embedded ? <AppNavigation /> : null}
       {!embedded ? <DashboardHeader user={user} title="Financiën" /> : null}
 
