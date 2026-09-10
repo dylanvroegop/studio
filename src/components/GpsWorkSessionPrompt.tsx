@@ -184,7 +184,7 @@ export function GpsWorkSessionPrompt() {
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) setClosedForSession(true); }}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-xl overflow-y-auto overscroll-contain">
         <DialogHeader>
           <DialogTitle>GPS-werkdag controleren</DialogTitle>
           <DialogDescription>

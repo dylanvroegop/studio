@@ -125,12 +125,15 @@ function forceSummaryIntoWorkScope(value: WorkDescriptionStructured): WorkDescri
                 ? [rootSummary || activeJobSummary]
                 : [];
     const summary = rootSummary || activeJobSummary || workScope.join('\n\n');
-    const jobs = value.jobs.map((job) => {
+    const jobs = value.jobs.length > 0
+        ? value.jobs.map((job, index) => {
         const jobWorkScope = Array.isArray(job.work_scope) && job.work_scope.length > 0
             ? job.work_scope
             : job.summary || job.context
                 ? [String(job.summary || job.context)]
-                : [];
+                : index === activeIndex
+                    ? workScope
+                    : [];
         const jobText = String(job.summary || job.context || jobWorkScope.join('\n\n')).trim();
         return {
             ...job,
@@ -138,7 +141,35 @@ function forceSummaryIntoWorkScope(value: WorkDescriptionStructured): WorkDescri
             summary: jobText || job.summary,
             work_scope: jobWorkScope,
         };
-    });
+        })
+        : workScope.length > 0
+            ? [{
+                title: value.title,
+                context: summary,
+                summary,
+                work_scope: workScope,
+                materials: [...value.materials],
+                dimensions: [...value.dimensions],
+                included: [...value.included],
+                excluded: [...value.excluded],
+                internal_notes: [...value.internal_notes],
+                afvalAfvoeren: value.afvalAfvoeren,
+                schilderwerkInbegrepen: value.schilderwerkInbegrepen,
+                stucwerkInbegrepen: value.stucwerkInbegrepen,
+                plamuurwerkInbegrepen: value.plamuurwerkInbegrepen,
+                kitwerkInbegrepen: value.kitwerkInbegrepen,
+                steigerInbegrepen: value.steigerInbegrepen,
+                sloopwerkInbegrepen: value.sloopwerkInbegrepen,
+                nadenVullenInbegrepen: value.nadenVullenInbegrepen,
+                nadenVullenAfwerkingsniveau: value.nadenVullenAfwerkingsniveau,
+                schroefgatenPlamurenInbegrepen: value.schroefgatenPlamurenInbegrepen,
+                electricalScope: value.electricalScope,
+                finishLevel: value.finishLevel,
+                customFinishDescription: value.customFinishDescription,
+                sections: value.sections,
+                legacyNotes: value.legacyNotes || [],
+            }]
+            : [];
 
     return {
         ...value,
@@ -1175,6 +1206,7 @@ export default function QuotePage() {
     const [organizingMaatwerkSectionId, setOrganizingMaatwerkSectionId] = useState<string | null>(null);
     const [isSavingWorkDescription, setIsSavingWorkDescription] = useState(false);
     const [hasUnsavedWorkDescription, setHasUnsavedWorkDescription] = useState(false);
+    const workDescriptionStructuredRef = useRef<WorkDescriptionStructured>(workDescriptionStructured);
     const autoDistanceAttemptedRef = useRef<Set<string>>(new Set());
     const lastSyncedWerkbeschrijvingRef = useRef<string>('');
     const workDescriptionDirtyRef = useRef<boolean>(false);
@@ -6094,7 +6126,11 @@ export default function QuotePage() {
         ) => {
             workDescriptionDirtyRef.current = true;
             setHasUnsavedWorkDescription(true);
-            setWorkDescriptionStructured(next);
+            setWorkDescriptionStructured((previous) => {
+                const resolved = typeof next === 'function' ? next(previous) : next;
+                workDescriptionStructuredRef.current = resolved;
+                return resolved;
+            });
         },
         [],
     );
@@ -6132,6 +6168,7 @@ export default function QuotePage() {
         }
 
         setWorkDescriptionStructured(next);
+        workDescriptionStructuredRef.current = next;
         workDescriptionDirtyRef.current = shouldAutoApplyTemplate;
         setHasUnsavedWorkDescription(shouldAutoApplyTemplate);
         lastSyncedWerkbeschrijvingRef.current = JSON.stringify({
@@ -6140,7 +6177,7 @@ export default function QuotePage() {
         });
     }, [currentWerkbeschrijvingStructured, detectedWorkDescriptionTemplate]);
 
-    const saveWorkDescriptionNow = useCallback(async (next: WorkDescriptionStructured = workDescriptionStructured) => {
+    const saveWorkDescriptionNow = useCallback(async (next: WorkDescriptionStructured = workDescriptionStructuredRef.current) => {
         if (!calculation?.data_json) {
             throw new Error('Nog geen offerte-data beschikbaar.');
         }
@@ -6167,7 +6204,8 @@ export default function QuotePage() {
         workDescriptionDirtyRef.current = false;
         setHasUnsavedWorkDescription(false);
         setWorkDescriptionStructured(parsedStructured);
-    }, [calculation?.data_json, updateDataJsonPatch, workDescriptionStructured]);
+        workDescriptionStructuredRef.current = parsedStructured;
+    }, [calculation?.data_json, updateDataJsonPatch]);
 
     const handleSaveWorkDescription = useCallback(async () => {
         setIsSavingWorkDescription(true);

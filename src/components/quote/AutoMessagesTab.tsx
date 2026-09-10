@@ -63,7 +63,7 @@ function getClientName(client: AutoMessageClient): string {
 }
 
 function getGreetingName(client: AutoMessageClient): string {
-    return client.firstName || client.companyName || client.lastName || 'klant';
+    return client.firstName || client.companyName || 'klant';
 }
 
 function normalizeClientKeyPart(value: string): string {
@@ -252,6 +252,7 @@ export function AutoMessagesTab() {
         if (Number.isNaN(date.getTime())) return '';
 
         return new Intl.DateTimeFormat('nl-NL', {
+            weekday: 'long',
             day: 'numeric',
             month: 'long',
         }).format(date);
@@ -263,7 +264,7 @@ export function AutoMessagesTab() {
 
         return `Beste ${greetingName},
 
-Bedankt voor uw bericht via Werkspot.
+Bedankt voor uw acceptatie.
 
 Komt het gelegen dat ik ${appointment}
 langs kan komen voor een werkbespreking?

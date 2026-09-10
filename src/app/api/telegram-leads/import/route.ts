@@ -207,7 +207,7 @@ function firestoreDate(value: unknown): Date | null {
 }
 
 function clientDisplayName(client: ImportInput['client']): string {
-  return client.client_name?.trim() || 'klant';
+  return splitName(client.client_name).firstName || 'klant';
 }
 
 function formatDutchAppointmentDate(dateOnly: string): string {
@@ -224,7 +224,7 @@ function formatDutchAppointmentDate(dateOnly: string): string {
 function buildTelegramMessage(client: ImportInput['client'], date: string, time: string): string {
   return `Beste ${clientDisplayName(client)},
 
-Bedankt voor uw bericht via Werkspot.
+Bedankt voor uw acceptatie.
 
 Komt het gelegen dat ik ${formatDutchAppointmentDate(date)} om ${time}
 langs kan komen voor een werkbespreking?
