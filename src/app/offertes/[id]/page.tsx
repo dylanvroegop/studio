@@ -6556,11 +6556,6 @@ export default function QuotePage() {
                 })()
                 : null;
 
-            console.log('Werk & Levering gegenereerde jobs:', JSON.stringify(generatedStructured?.jobs.map((job) => ({
-                title: job.title,
-                summary: job.summary,
-                context: job.context,
-            }))));
             if (generatedStructured && flattenStructuredWorkDescription(generatedStructured).length > 0) {
                 if (noteJobs.length > 0 && generatedStructured.jobs.some((job) => !String(job.summary || job.context).trim())) {
                     throw new Error('Geen professionele tekst ontvangen voor iedere klus. Er is niets opgeslagen.');
@@ -6629,7 +6624,6 @@ export default function QuotePage() {
                 description: 'AI-output is verwerkt en opgeslagen.',
             });
         } catch (err: any) {
-            console.error('Werk & Levering generatie mislukt:', err);
             toast({
                 variant: 'destructive',
                 title: 'Genereren mislukt',

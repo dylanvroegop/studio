@@ -97,6 +97,66 @@ const DEFAULT_TEMPLATE_EXAMPLE = [
   'BTW nr.: {{btw_nummer}}',
 ].join('\n');
 
+function buildSupplierQuestionNotes(notes: string, photoCount: number): string[] {
+  const lines = String(notes || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/^\s*[-*]\s*/, '').replace(/^Notitie:\s*/i, '').trim())
+    .filter(Boolean);
+
+  const scopeLines: string[] = [];
+  const maatwerkLines: string[] = [];
+  let inMaatwerk = false;
+
+  const formatDimensionLine = (line: string): string => {
+    const titleMatch = line.match(/^(.*?)\s*:\s*(?=(?:lengte|breedte|hoogte|dikte)\b)/i);
+    const title = titleMatch?.[1]?.trim() || '';
+    const dimensions = (['lengte', 'breedte', 'hoogte', 'dikte'] as const)
+      .map((label) => {
+        const match = line.match(new RegExp(`\\b${label}\\s*[:=]?\\s*([^,|]+?)(?=\\s*(?:,|\\||lengte|breedte|hoogte|dikte|$))`, 'i'));
+        const value = String(match?.[1] || '').replace(/\s*mm\s*$/i, '').trim();
+        return value ? `${label} ${value} mm` : '';
+      })
+      .filter(Boolean);
+
+    if (dimensions.length === 0) return `- ${line}`;
+    return `- ${title ? `${title}: ` : ''}${dimensions.join(', ')}`;
+  };
+
+  lines.forEach((line) => {
+    if (/^#{1,4}\s*maatwerk\s*:?[\s]*$/i.test(line) || /^maatwerk\s*:?[\s]*$/i.test(line)) {
+      inMaatwerk = true;
+      return;
+    }
+
+    if (inMaatwerk || /\b(?:lengte|breedte|hoogte|dikte)\b/i.test(line)) {
+      maatwerkLines.push(formatDimensionLine(line));
+      return;
+    }
+
+    scopeLines.push(line);
+  });
+
+  const scope = scopeLines.length > 1
+    ? `${scopeLines[0]} met ${scopeLines.slice(1).map((line) => `${line.charAt(0).toLowerCase()}${line.slice(1)}`).join(' en ')}`
+    : scopeLines[0] || '';
+  const scopeWithPhotos = scope && photoCount > 0 && !/\bzie foto/i.test(scope)
+    ? `${scope.replace(/[.!?]+$/, '')} (zie foto's).`
+    : scope
+      ? /[.!?]$/.test(scope) ? scope : `${scope}.`
+      : '';
+
+  const formatted: string[] = [];
+  if (scopeWithPhotos) formatted.push(scopeWithPhotos);
+  if (maatwerkLines.length > 0) {
+    formatted.push('Maatwerk:', '', ...maatwerkLines);
+  } else if (!scopeWithPhotos && photoCount > 0) {
+    formatted.push("Zie foto's bijgevoegd.");
+  }
+
+  return formatted;
+}
+
 export function MaterialListExportDialog({
   isOpen,
   onClose,
@@ -218,21 +278,23 @@ export function MaterialListExportDialog({
 
   const generatedBody = useMemo(() => {
     if (mode === 'supplier-question') {
-      const noteText = String(notes || '').trim();
+      const noteLines = buildSupplierQuestionNotes(notes, photos.length);
+      const signatureLines = [
+        String(meta?.senderContactName || '').trim(),
+        String(meta?.senderCompanyName || '').trim(),
+      ].filter(Boolean);
       return [
         `Beste ${selectedSupplierDisplayName || 'team'},`,
         '',
         'Kunnen jullie onderstaand product/materiaal voor mij vinden en een prijsopgave en verwachte levertijd doorgeven?',
         '',
-        'Product of materiaal gezocht:',
-        '',
-        noteText ? `Notities en maatvoering:\n${noteText}` : '',
-        photos.length ? `Bijgevoegd: ${photos.length} foto${photos.length === 1 ? '' : '\'s'} van de offerte.` : '',
+        ...noteLines,
         '',
         'Met vriendelijke groet,',
-        String(meta?.senderContactName || '').trim(),
-        String(meta?.senderCompanyName || '').trim(),
-      ].filter(Boolean).join('\n');
+        ...signatureLines.reduce<string[]>((lines, line, index) => (
+          index === 1 ? [...lines, '', line] : [...lines, line]
+        ), []),
+      ].join('\n');
     }
     const base = buildMaterialListEmailBody(exportItems, {
       includePrices,
