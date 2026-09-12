@@ -248,11 +248,13 @@ export function normalizeLeverancierContactList(raw: unknown): LeverancierContac
                 const contact = entry as Record<string, unknown>;
                 const contactLabel = safeString(contact.naam ?? contact.contactNaam ?? contact.contactnaam);
                 const contactEmail = safeString(contact.email);
+                const contactTelefoon = safeString(contact.telefoon ?? contact.telefoonnummer);
                 if (!contactLabel && !contactEmail) return null;
                 return {
                     id: safeString(contact.id) || createFallbackContactId(contactIndex),
                     naam: contactLabel,
                     email: contactEmail,
+                    telefoon: contactTelefoon,
                 };
             })
             .filter(Boolean) as LeverancierPersoon[];
@@ -288,6 +290,7 @@ export function normalizeLeverancierContactList(raw: unknown): LeverancierContac
             .filter(Boolean) as LeverancierTransportKostenRegel[];
 
         const rawGratisVanaf = row.gratisVerzendingVanafBedrag ?? row.gratisVerzendingVanaf;
+        const telefoon = safeString(row.telefoon ?? row.telefoonnummer);
         const gratisVerzendingVanafBedrag = typeof rawGratisVanaf === 'number' && Number.isFinite(rawGratisVanaf)
             ? rawGratisVanaf
             : typeof rawGratisVanaf === 'string' && rawGratisVanaf.trim().length > 0
@@ -307,6 +310,7 @@ export function normalizeLeverancierContactList(raw: unknown): LeverancierContac
                 id: createFallbackContactId(index),
                 naam: contactNaam,
                 email,
+                telefoon,
             });
         }
         const primaryContact = normalizedContacten[0] ?? null;
@@ -316,6 +320,7 @@ export function normalizeLeverancierContactList(raw: unknown): LeverancierContac
             naam,
             contactNaam: primaryContact?.naam || contactNaam,
             email: primaryContact?.email || email,
+            telefoon: primaryContact?.telefoon || telefoon,
             contacten: normalizedContacten,
             transportKostenRegels,
             gratisVerzendingVanafBedrag:

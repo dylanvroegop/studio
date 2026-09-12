@@ -320,9 +320,10 @@ export function MaterialListExportDialog({
     setEmail(String(selectedSupplierOption.email || '').trim());
     setContactName(String(selectedSupplierOption.contactName || '').trim());
     setSupplierName(String(selectedSupplier?.naam || '').trim());
-    setWhatsAppPhone(String(selectedSupplierOption.contactId
+    const selectedContactPhone = selectedSupplierOption.contactId
       ? selectedSupplier?.contacten?.find((contact) => contact.id === selectedSupplierOption.contactId)?.telefoon
-      : selectedSupplier?.telefoon || '').trim());
+      : selectedSupplier?.telefoon;
+    setWhatsAppPhone(String(selectedContactPhone ?? '').trim());
   }, [isOpen, selectedSupplier, selectedSupplierOption]);
 
   useEffect(() => {

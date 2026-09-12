@@ -290,6 +290,8 @@ export async function POST(request: Request) {
       const directMatch = localEntriesByGoogleId.get(eventId);
       const summary = event.summary?.trim() || 'Google Calendar';
       const description = event.description?.trim() || '';
+      const pendingFromGoogle = /^PENDING\b/i.test(summary)
+        || /(?:^|\n)\s*Status\s*:\s*pending\b/i.test(description);
       const scheduledHours = Math.max(
         0,
         (parsedRange.endDate.getTime() - parsedRange.startDate.getTime()) / 3_600_000,
@@ -323,15 +325,20 @@ export async function POST(request: Request) {
         planningType?: string;
         isAutoSplit?: boolean;
         parentEntryId?: string | null;
+        status?: string;
         cache?: { projectTitle?: string; projectAddress?: string; totalQuoteAmount?: number; totalQuoteEarnings?: number };
         notes?: string;
         createdAt?: unknown;
       } | undefined;
+      const importedStatus = pendingFromGoogle || existing?.status === 'pending'
+        ? 'pending'
+        : 'scheduled';
       const targetRef = existingDoc?.ref || firestore.collection('planning_entries').doc(googleEventDocId(eventId));
       targetDocs.add(targetRef.path);
 
       const sameDates = existingDoc && samePlanningRange(existingDoc.data(), parsedRange.startDate, parsedRange.endDate);
-      const sameTitle = existingDoc?.data().cache?.clientName === summary && existingDoc?.data().status === 'scheduled';
+      const sameTitle = existingDoc?.data().cache?.clientName === summary
+        && existingDoc?.data().status === importedStatus;
       if (!existingDoc) imported += 1;
       else if (sameDates && sameTitle) unchanged += 1;
       else updated += 1;
@@ -358,7 +365,7 @@ export async function POST(request: Request) {
             : 'job',
           isAutoSplit: existing?.isAutoSplit || false,
           parentEntryId: existing?.parentEntryId || null,
-          status: 'scheduled',
+          status: importedStatus,
           notes: description || existing?.notes || '',
           cache: {
             clientName: summary,

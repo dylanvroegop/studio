@@ -37,6 +37,7 @@ const importSchema = z.object({
     job_title: nullableString,
     appointment_date: nullableString,
     appointment_time: nullableString,
+    appointment_status: z.enum(['pending', 'confirmed', 'not_found']).optional(),
   }).superRefine((client, context) => {
     if (!client.phone && !client.email && !(client.client_name && client.city)) {
       context.addIssue({
@@ -45,6 +46,7 @@ const importSchema = z.object({
       });
     }
   }),
+  appointment_status: z.enum(['pending', 'confirmed', 'not_found']).optional(),
 });
 
 type ImportInput = z.infer<typeof importSchema>;
@@ -268,6 +270,7 @@ export async function POST(request: Request) {
     await auth.getUser(uid);
 
     const clientInput = input.client;
+    const requestedAppointmentStatus = clientInput.appointment_status || input.appointment_status || null;
     const normalizedPhone = normalizePhone(clientInput.phone);
     const normalizedEmail = normalizeText(clientInput.email);
     const normalizedName = normalizeText(clientInput.client_name);
@@ -498,7 +501,7 @@ export async function POST(request: Request) {
       const plannedAppointment = appointmentStart || suggestion?.startDate || null;
 
       if (plannedAppointment) {
-        const isPendingSuggestion = !appointmentStart;
+        const isPendingSuggestion = !appointmentStart || requestedAppointmentStatus === 'pending';
         appointmentId = transactionAppointmentRef.id;
         appointmentStatus = isPendingSuggestion ? 'pending' : 'scheduled';
         appointmentDate = appointmentDateOnly || suggestion?.date || null;

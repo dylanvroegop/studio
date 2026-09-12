@@ -110,49 +110,6 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function splitRawOutputByNoteTitles(rawOutput: string, noteJobs: WorkDescriptionNoteJobInput[]): string[] {
-  const raw = safeString(rawOutput);
-  if (!raw || noteJobs.length === 0) return [];
-
-  const matches = noteJobs
-    .map((job, index) => {
-      const title = safeString(job.title);
-      if (!title) return null;
-      const match = new RegExp(`(^|\\n|\\r|\\s)${escapeRegExp(title)}\\s*:`, 'i').exec(raw);
-      if (!match || match.index < 0) return null;
-      const prefixLength = match[1]?.length || 0;
-      return {
-        index,
-        start: match.index + prefixLength,
-      };
-    })
-    .filter((item): item is { index: number; start: number } => Boolean(item))
-    .sort((left, right) => left.start - right.start);
-
-  if (matches.length === noteJobs.length) {
-    const rows = Array(noteJobs.length).fill('');
-    matches.forEach((match, position) => {
-      const end = matches[position + 1]?.start ?? raw.length;
-      rows[match.index] = raw.slice(match.start, end).trim();
-    });
-    return rows;
-  }
-
-  const paragraphs = raw
-    .split(/\n\s*\n/g)
-    .map((row) => row.trim())
-    .filter(Boolean);
-  if (paragraphs.length >= noteJobs.length) return paragraphs.slice(0, noteJobs.length);
-
-  const lines = raw
-    .split(/\r?\n/g)
-    .map((row) => row.trim())
-    .filter(Boolean);
-  if (lines.length >= noteJobs.length) return lines.slice(0, noteJobs.length);
-
-  return [raw, ...Array(Math.max(0, noteJobs.length - 1)).fill('')];
-}
-
 function splitRawOutputByJobTitles(
   rawOutput: string,
   jobs: Array<{ title: string }>,
@@ -1756,20 +1713,25 @@ async function recoverMissingJobTexts(
   jobTexts: string[],
   mode: 'note' | 'source',
 ): Promise<string[]> {
-  return Promise.all(jobs.map(async (job, index) => {
+  const results: string[] = [];
+  for (const [index, job] of jobs.entries()) {
     const current = safeString(jobTexts[index]);
-    if (current) return current;
+    if (current) {
+      results.push(current);
+      continue;
+    }
 
     try {
       const retry = await callOpenAiWorkDescription(
         apiKey,
         buildMissingJobPrompt(body, job, mode),
       );
-      return safeString(retry.rawOutput);
+      results.push(safeString(retry.rawOutput));
     } catch {
-      return '';
+      results.push('');
     }
-  }));
+  }
+  return results;
 }
 
 export async function POST(request: Request) {
@@ -1815,30 +1777,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'OPENAI_API_KEY is niet geconfigureerd.' }, { status: 500 });
     }
 
-    let aiResult: OpenAiWorkDescriptionResult;
-    try {
-      aiResult = await callOpenAiWorkDescription(apiKey, prompt);
-    } catch (error) {
-      const isTimeout = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
-      const message = error instanceof Error ? error.message : 'Onbekende fout';
-      return NextResponse.json(
-        {
-          error: isTimeout
-            ? 'Werk & Levering generatie timeout.'
-            : `Werk & Levering generatie mislukt: ${message}`,
-        },
-        { status: isTimeout ? 504 : 502 }
-      );
-    }
-
     const noteJobs = getNoteJobs(bodyWithContext.noteJobs);
     const existingStructuredInput = sanitizeWorkDescriptionStructured(bodyWithContext.structuredInput);
     if (noteJobs.length > 0) {
+      // Generate every note job in its own request. A single request containing
+      // multiple note jobs can still return one merged paragraph, even when the
+      // prompt asks for separate paragraphs. Job boundaries are contractual data
+      // and must not depend on the model's formatting compliance.
       const jobTexts = await recoverMissingJobTexts(
         apiKey,
         bodyWithContext,
         noteJobs,
-        splitRawOutputByNoteTitles(aiResult.rawOutput, noteJobs),
+        Array(noteJobs.length).fill(''),
         'note',
       );
       const jobs = noteJobs.map((noteJob, index) => {
@@ -1853,7 +1803,7 @@ export async function POST(request: Request) {
           dimensions: noteJob.dimensions,
         };
       });
-      const firstText = jobs.find((job) => safeString(job.summary))?.summary || aiResult.rawOutput;
+      const firstText = jobs.find((job) => safeString(job.summary))?.summary || '';
       const structured = toStructuredWorkDescription({
         werkbeschrijving_structured: {
           ...existingStructuredInput,
@@ -1868,8 +1818,24 @@ export async function POST(request: Request) {
         werkbeschrijving: flattenStructuredWorkDescription(structured),
         werkbeschrijvingStructured: structured,
         noteCoverageWarnings: [],
-        rawAiOutput: aiResult.rawOutput,
+        rawAiOutput: jobTexts.filter(Boolean).join('\n\n'),
       });
+    }
+
+    let aiResult: OpenAiWorkDescriptionResult;
+    try {
+      aiResult = await callOpenAiWorkDescription(apiKey, prompt);
+    } catch (error) {
+      const isTimeout = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+      const message = error instanceof Error ? error.message : 'Onbekende fout';
+      return NextResponse.json(
+        {
+          error: isTimeout
+            ? 'Werk & Levering generatie timeout.'
+            : `Werk & Levering generatie mislukt: ${message}`,
+        },
+        { status: isTimeout ? 504 : 502 }
+      );
     }
 
     const sourceJobs = Array.isArray(bodyWithContext.sourceJobs)

@@ -1090,6 +1090,58 @@ function isAllowedPhotoMimeType(mimeType: string): boolean {
     return ['image/heic', 'image/heif'].includes(mimeType.toLowerCase());
 }
 
+function inferPhotoMimeType(file: File): string {
+    if (file.type) return file.type;
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    const mimeTypes: Record<string, string> = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        webp: 'image/webp',
+        gif: 'image/gif',
+        heic: 'image/heic',
+        heif: 'image/heif',
+    };
+    return extension ? mimeTypes[extension] || '' : '';
+}
+
+function hasPhotoDropPayload(dataTransfer: DataTransfer): boolean {
+    return Array.from(dataTransfer.types).some((type) => (
+        type === 'Files' || type === 'text/uri-list' || type === 'text/html' || type === 'text/plain'
+    ));
+}
+
+function getDroppedRemoteImageUrl(dataTransfer: DataTransfer): string | null {
+    const uriCandidates = [
+        ...dataTransfer.getData('text/uri-list').split(/\r?\n/),
+        dataTransfer.getData('text/plain'),
+    ];
+    for (const candidate of uriCandidates) {
+        const value = candidate.trim();
+        if (!value || value.startsWith('#')) continue;
+        try {
+            const url = new URL(value);
+            if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+        } catch {
+            // Ignore non-URL drag data and inspect the HTML payload below.
+        }
+    }
+
+    const html = dataTransfer.getData('text/html');
+    if (!html || typeof DOMParser === 'undefined') return null;
+    const imageSource = new DOMParser()
+        .parseFromString(html, 'text/html')
+        .querySelector('img')
+        ?.getAttribute('src');
+    if (!imageSource) return null;
+    try {
+        const url = new URL(imageSource, window.location.href);
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+    } catch {
+        return null;
+    }
+}
+
 function parseReceiptCreatedAt(value: unknown): Date | null {
     if (!value) return null;
     if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -1189,6 +1241,9 @@ export default function QuotePage() {
     const [pendingPhotoUploads, setPendingPhotoUploads] = useState<PendingPhotoUpload[]>([]);
     const pendingPhotoUploadsRef = useRef<PendingPhotoUpload[]>([]);
     const [photoActionId, setPhotoActionId] = useState<string | null>(null);
+    const [isUploadingRemotePhoto, setIsUploadingRemotePhoto] = useState(false);
+    const [isPhotoDropActive, setIsPhotoDropActive] = useState(false);
+    const photoDropDepthRef = useRef(0);
     const [selectedPhoto, setSelectedPhoto] = useState<QuotePhotoAttachment | null>(null);
     const [materialPresentationUploadKey, setMaterialPresentationUploadKey] = useState<string | null>(null);
     const [analyzingMaterialPresentationId, setAnalyzingMaterialPresentationId] = useState<string | null>(null);
@@ -4960,7 +5015,8 @@ export default function QuotePage() {
     const handleUploadPhoto = async (file: File): Promise<void> => {
         if (!user || !firestore || !id || !quote) return;
 
-        if (!isAllowedPhotoMimeType(file.type)) {
+        const mimeType = inferPhotoMimeType(file);
+        if (!isAllowedPhotoMimeType(mimeType)) {
             toast({
                 variant: 'destructive',
                 title: 'Ongeldig bestandstype',
@@ -4989,7 +5045,7 @@ export default function QuotePage() {
             id: photoId,
             quoteId: id,
             originalName: file.name,
-            mimeType: file.type || 'image/jpeg',
+            mimeType: mimeType || 'image/jpeg',
             sizeBytes: file.size,
             storagePath,
             downloadUrl: previewUrl,
@@ -5004,7 +5060,7 @@ export default function QuotePage() {
         try {
             const storage = getStorage();
             const fileRef = storageRef(storage, storagePath);
-            await uploadBytes(fileRef, file, { contentType: file.type || 'image/jpeg' });
+            await uploadBytes(fileRef, file, { contentType: mimeType || 'image/jpeg' });
             const downloadUrl = await getDownloadURL(fileRef);
 
             const nextPhoto: QuotePhotoAttachment = {
@@ -5038,6 +5094,67 @@ export default function QuotePage() {
                 description: 'Kon foto niet uploaden. Probeer het opnieuw.',
             });
         }
+    };
+
+    const handleUploadPhotoFromUrl = async (url: string): Promise<void> => {
+        if (!user || !id) return;
+        setIsUploadingRemotePhoto(true);
+        try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/offertes/photo-from-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ quoteId: id, url }),
+            });
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({})) as { error?: string };
+                throw new Error(payload.error || 'Kon de internetafbeelding niet ophalen.');
+            }
+            const blob = await response.blob();
+            const mimeType = blob.type || response.headers.get('content-type') || 'image/jpeg';
+            const encodedName = response.headers.get('x-photo-filename') || 'internet-foto.jpg';
+            const fileName = decodeURIComponent(encodedName);
+            await handleUploadPhoto(new File([blob], fileName, { type: mimeType }));
+        } catch (error) {
+            console.error('Error importing internetfoto:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Internetfoto toevoegen mislukt',
+                description: error instanceof Error ? error.message : 'Kon de afbeelding niet ophalen.',
+            });
+        } finally {
+            setIsUploadingRemotePhoto(false);
+        }
+    };
+
+    const handlePhotoDrop = (event: React.DragEvent<HTMLDivElement>): void => {
+        event.preventDefault();
+        photoDropDepthRef.current = 0;
+        setIsPhotoDropActive(false);
+
+        const imageFile = Array.from(event.dataTransfer.files).find((file) => (
+            isAllowedPhotoMimeType(inferPhotoMimeType(file))
+            || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name)
+        ));
+        if (imageFile) {
+            void handleUploadPhoto(imageFile);
+            return;
+        }
+
+        const remoteUrl = getDroppedRemoteImageUrl(event.dataTransfer);
+        if (remoteUrl) {
+            void handleUploadPhotoFromUrl(remoteUrl);
+            return;
+        }
+
+        toast({
+            variant: 'destructive',
+            title: 'Geen afbeelding gevonden',
+            description: 'Sleep een afbeelding uit je browser hierheen of kies Foto uploaden.',
+        });
     };
 
     const handleDeletePhoto = async (photo: QuotePhotoAttachment): Promise<void> => {
@@ -6409,7 +6526,41 @@ export default function QuotePage() {
             }
 
             const generatedStructured = payload?.werkbeschrijvingStructured
-                ? forceSummaryIntoWorkScope(toStructuredWorkDescription({ werkbeschrijving_structured: payload.werkbeschrijvingStructured }))
+                ? (() => {
+                    const normalizedGenerated = toStructuredWorkDescription({
+                        werkbeschrijving_structured: payload.werkbeschrijvingStructured,
+                    });
+                    if (noteJobs.length === 0) {
+                        return forceSummaryIntoWorkScope(normalizedGenerated);
+                    }
+
+                    // Keep the note sections as the authoritative job boundary.
+                    // If one model call returns no text, retain that job with a
+                    // source-grounded fallback instead of dropping or merging it.
+                    const jobs = noteJobs.map((noteJob, index) => {
+                        const generatedJob = normalizedGenerated.jobs[index]
+                            || toStructuredWorkDescription({ title: noteJob.title }).jobs[0];
+                        const fallbackText = noteJob.notes
+                            ? `${noteJob.title}: ${noteJob.notes}`
+                            : `${noteJob.title} wordt uitgevoerd.`;
+                        const text = String(generatedJob?.summary || generatedJob?.context || '').trim() || fallbackText;
+                        return {
+                            ...generatedJob,
+                            title: noteJob.title,
+                            context: text,
+                            summary: text,
+                            work_scope: [text],
+                            dimensions: noteJob.dimensions,
+                        };
+                    });
+
+                    return forceSummaryIntoWorkScope({
+                        ...normalizedGenerated,
+                        title: normalizedGenerated.title || noteJobs[0]?.title || '',
+                        jobs,
+                        activeJobIndex: 0,
+                    });
+                })()
                 : null;
 
             if (generatedStructured && flattenStructuredWorkDescription(generatedStructured).length > 0) {
@@ -6863,25 +7014,25 @@ export default function QuotePage() {
         <div
             className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30"
             onDragEnter={(event) => {
-                if (!event.dataTransfer.types.includes('Files')) return;
+                if (activeTab === 'fotos' || !event.dataTransfer.types.includes('Files')) return;
                 event.preventDefault();
                 quoteImageDragDepthRef.current += 1;
                 setIsQuoteImageDragActive(true);
             }}
             onDragOver={(event) => {
-                if (!event.dataTransfer.types.includes('Files')) return;
+                if (activeTab === 'fotos' || !event.dataTransfer.types.includes('Files')) return;
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'copy';
                 if (!isQuoteImageDragActive) setIsQuoteImageDragActive(true);
             }}
             onDragLeave={(event) => {
-                if (!event.dataTransfer.types.includes('Files')) return;
+                if (activeTab === 'fotos' || !event.dataTransfer.types.includes('Files')) return;
                 event.preventDefault();
                 quoteImageDragDepthRef.current = Math.max(0, quoteImageDragDepthRef.current - 1);
                 if (quoteImageDragDepthRef.current === 0) setIsQuoteImageDragActive(false);
             }}
             onDrop={(event) => {
-                if (!event.dataTransfer.types.includes('Files')) return;
+                if (activeTab === 'fotos' || !event.dataTransfer.types.includes('Files')) return;
                 event.preventDefault();
                 quoteImageDragDepthRef.current = 0;
                 setIsQuoteImageDragActive(false);
@@ -6902,7 +7053,7 @@ export default function QuotePage() {
                 setActiveCategory((current) => current ?? 'groot');
             }}
         >
-            {isQuoteImageDragActive && (
+            {isQuoteImageDragActive && activeTab !== 'fotos' && (
                 <div className="pointer-events-none fixed inset-0 z-[130] flex items-center justify-center bg-background/85 p-6 backdrop-blur-sm">
                     <div className="rounded-xl border-2 border-dashed border-emerald-500 bg-card px-8 py-10 text-center shadow-2xl">
                         <Upload className="mx-auto mb-3 h-8 w-8 text-emerald-500" />
@@ -8778,18 +8929,52 @@ export default function QuotePage() {
                             {loading ? (
                                 <PageLoadingNotice label="Foto's laden..." />
                             ) : (
-                                <div className="space-y-4 rounded-lg border border-border bg-card p-6">
+                                <div
+                                    className={cn(
+                                        'relative space-y-4 rounded-lg border border-border bg-card p-6 transition-colors',
+                                        isPhotoDropActive && 'border-emerald-500 bg-emerald-500/5',
+                                    )}
+                                    onDragEnter={(event) => {
+                                        if (!hasPhotoDropPayload(event.dataTransfer)) return;
+                                        event.preventDefault();
+                                        photoDropDepthRef.current += 1;
+                                        setIsPhotoDropActive(true);
+                                    }}
+                                    onDragOver={(event) => {
+                                        if (!hasPhotoDropPayload(event.dataTransfer)) return;
+                                        event.preventDefault();
+                                        event.dataTransfer.dropEffect = 'copy';
+                                        setIsPhotoDropActive(true);
+                                    }}
+                                    onDragLeave={(event) => {
+                                        if (!hasPhotoDropPayload(event.dataTransfer)) return;
+                                        event.preventDefault();
+                                        photoDropDepthRef.current = Math.max(0, photoDropDepthRef.current - 1);
+                                        if (photoDropDepthRef.current === 0) setIsPhotoDropActive(false);
+                                    }}
+                                    onDrop={handlePhotoDrop}
+                                >
+                                    {isPhotoDropActive && (
+                                        <div className="pointer-events-none absolute inset-3 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-emerald-500 bg-background/90 p-6 text-center shadow-lg">
+                                            <div>
+                                                <Upload className="mx-auto mb-2 h-7 w-7 text-emerald-500" />
+                                                <div className="text-sm font-semibold text-foreground">Laat afbeelding los om als foto op te slaan</div>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
                                             <h3 className="text-sm font-semibold text-foreground">Foto&apos;s op locatie</h3>
                                             <p className="text-xs text-muted-foreground">
-                                                Maak direct een foto op locatie en bekijk hem meteen terug in deze offerte.
+                                                Maak een foto, upload een bestand of sleep een afbeelding uit je browser hierheen.
                                             </p>
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2">
-                                            {pendingPhotoUploads.length > 0 && (
+                                            {(pendingPhotoUploads.length > 0 || isUploadingRemotePhoto) && (
                                                 <span className="text-xs text-muted-foreground">
-                                                    {pendingPhotoUploads.length} foto{pendingPhotoUploads.length === 1 ? '' : "'s"} {pendingPhotoUploads.length === 1 ? 'wordt' : 'worden'} op de achtergrond opgeslagen
+                                                    {isUploadingRemotePhoto
+                                                        ? 'Internetafbeelding ophalen en opslaan...'
+                                                        : `${pendingPhotoUploads.length} foto${pendingPhotoUploads.length === 1 ? '' : "'s"} ${pendingPhotoUploads.length === 1 ? 'wordt' : 'worden'} op de achtergrond opgeslagen`}
                                                 </span>
                                             )}
                                             <input

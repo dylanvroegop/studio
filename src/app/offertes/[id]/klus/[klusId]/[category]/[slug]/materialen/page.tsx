@@ -2035,11 +2035,13 @@ export default function GenericMaterialsPageRedesigned() {
   const handleUpdateMaterialSupplierContact = useCallback(async ({
     supplierId,
     contactId,
+    telefoon,
     contactNaam,
     email,
   }: {
     supplierId: string;
     contactId?: string;
+    telefoon: string;
     contactNaam: string;
     email: string;
   }): Promise<void> => {
@@ -2050,6 +2052,7 @@ export default function GenericMaterialsPageRedesigned() {
 
     const trimmedContactNaam = String(contactNaam || '').trim();
     const trimmedEmail = String(email || '').trim();
+    const trimmedTelefoon = String(telefoon || '').trim();
 
     if (!trimmedEmail) {
       throw new Error('E-mailadres ontbreekt.');
@@ -2066,18 +2069,19 @@ export default function GenericMaterialsPageRedesigned() {
               if (hasTarget) {
                 return existing.map((contact) => (
                   contact.id === contactId
-                    ? { ...contact, naam: trimmedContactNaam, email: trimmedEmail }
+                    ? { ...contact, naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }
                     : contact
                 ));
               }
             }
             if (existing.length === 0) {
-              return [{ id: crypto.randomUUID(), naam: trimmedContactNaam, email: trimmedEmail }];
+              return [{ id: crypto.randomUUID(), naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }];
             }
-            return [{ ...existing[0], naam: trimmedContactNaam, email: trimmedEmail }, ...existing.slice(1)];
+            return [{ ...existing[0], naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }, ...existing.slice(1)];
           })(),
           contactNaam: trimmedContactNaam,
           email: trimmedEmail,
+          telefoon: trimmedTelefoon,
         }
         : supplier
     ));

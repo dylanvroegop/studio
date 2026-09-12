@@ -560,12 +560,13 @@ export function CostSummaryCard({
         <Input
             type="text"
             inputMode="decimal"
-            value={additionValues[getAdditionKey(field, mode)] ?? '0'}
+            value={additionValues[getAdditionKey(field, mode)] ?? ''}
+            placeholder="0"
             onChange={(event) => setAdditionValue(field, mode, event.target.value)}
             onBlur={() => { void saveAmountAddition(field, mode); }}
             onFocus={selectAllOnFocus}
             onKeyDown={(event) => handleAdditionKeyDown(event, field, mode)}
-            className="h-7 w-full min-w-0 px-1.5 py-0 text-xs bg-muted/70 border-border text-right"
+            className="h-7 w-full min-w-0 px-1.5 py-0 text-xs bg-muted/70 border-2 border-muted-foreground/40 text-right placeholder:text-transparent focus:border-emerald-500/70 focus:placeholder:text-muted-foreground/70"
             aria-label={`Toevoegen ${mode === 'incl' ? 'incl. btw' : 'excl. btw'} bij deze regel`}
         />
     );
