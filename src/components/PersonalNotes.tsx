@@ -16,6 +16,7 @@ import {
   X,
   Save,
   Loader2,
+  Copy,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -57,6 +58,7 @@ type PersonalNotesProps = {
   quoteId: string;
   jobId?: string; // Optional: Link to specific job
   context?: string;
+  onApplyToCalculation?: (note: Note) => void;
 };
 
 const NOTE_TAGS = [
@@ -132,7 +134,7 @@ function getTagLabelByValue(tagValue: string): string {
   return NOTE_TAGS.find((tag) => tag.value === tagValue)?.label || tagValue;
 }
 
-export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
+export function PersonalNotes({ quoteId, jobId, context, onApplyToCalculation }: PersonalNotesProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -582,6 +584,18 @@ export function PersonalNotes({ quoteId, jobId, context }: PersonalNotesProps) {
                               )}
                             </div>
                             <div className="flex gap-1">
+                              {onApplyToCalculation && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-emerald-600 hover:text-emerald-700"
+                                  onClick={() => onApplyToCalculation(note)}
+                                  aria-label="Maten naar calculatie zetten"
+                                  title="Maten naar calculatie zetten"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              )}
                               <Button
                                 size="icon"
                                 variant="ghost"

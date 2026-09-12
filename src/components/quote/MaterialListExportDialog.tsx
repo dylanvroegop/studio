@@ -14,8 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Copy, Download, Loader2, Mail, AlertTriangle, Save } from 'lucide-react';
+import { Copy, Download, Loader2, Mail, AlertTriangle, Save, MessageCircle, Link2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -31,19 +30,27 @@ import {
   sanitizeMaterialListFilename,
 } from '@/lib/material-list-export';
 import type { LeverancierContact } from '@/lib/types-settings';
+import type { QuotePhotoAttachment } from '@/lib/types';
+import { useUser } from '@/firebase';
 
 interface MaterialListExportDialogProps {
   isOpen: boolean;
   onClose: () => void;
   items: MaterialListExportItem[];
   meta?: MaterialListExportMeta;
+  quoteId?: string;
+  notes?: string;
+  photos?: QuotePhotoAttachment[];
+  mode?: 'materials' | 'supplier-question';
   suppliers: LeverancierContact[];
   defaultSupplierId?: string;
   onUpdateSupplierContact?: (payload: {
     supplierId: string;
     contactId?: string;
+    supplierName: string;
     contactNaam: string;
     email: string;
+    telefoon: string;
   }) => Promise<void>;
   onCreateSupplier?: (payload: {
     naam: string;
@@ -95,6 +102,10 @@ export function MaterialListExportDialog({
   onClose,
   items,
   meta,
+  quoteId,
+  notes = '',
+  photos = [],
+  mode = 'materials',
   suppliers,
   defaultSupplierId,
   onUpdateSupplierContact,
@@ -103,9 +114,11 @@ export function MaterialListExportDialog({
   onSaveEmailTemplate,
 }: MaterialListExportDialogProps) {
   const { toast } = useToast();
+  const { user } = useUser();
   const [includePrices, setIncludePrices] = useState(false);
   const [selectedSupplierOptionId, setSelectedSupplierOptionId] = useState('');
   const [email, setEmail] = useState('');
+  const [supplierName, setSupplierName] = useState('');
   const [contactName, setContactName] = useState('');
   const [newSupplierName, setNewSupplierName] = useState('');
   const [newSupplierContactName, setNewSupplierContactName] = useState('');
@@ -121,6 +134,9 @@ export function MaterialListExportDialog({
   const [isSavingTemplateEditor, setIsSavingTemplateEditor] = useState(false);
   const [materialSelectionMode, setMaterialSelectionMode] = useState<'all' | 'custom'>('all');
   const [selectedMaterialKeys, setSelectedMaterialKeys] = useState<string[]>([]);
+  const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
+  const [isGmailBusy, setIsGmailBusy] = useState(false);
+  const [whatsAppPhone, setWhatsAppPhone] = useState('');
   const lastSavedTemplateRef = useRef('');
   const templateTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasInitializedForOpenRef = useRef(false);
@@ -176,14 +192,8 @@ export function MaterialListExportDialog({
 
   const defaultSubject = useMemo(() => {
     const offerteNummer = String(meta?.offerteNummer || '').trim();
-    const klusTitel = String(meta?.klusTitel || '').trim();
-    const parts = [
-      'Materiaallijst',
-      offerteNummer ? `Offerte #${offerteNummer}` : '',
-      klusTitel || '',
-    ].filter(Boolean);
-    return parts.join(' - ');
-  }, [meta?.offerteNummer, meta?.klusTitel]);
+    return offerteNummer ? `Offerte #${offerteNummer}` : 'Offerte';
+  }, [meta?.offerteNummer]);
 
   const defaultFileName = useMemo(
     () => buildDefaultMaterialListFileName(meta),
@@ -204,15 +214,43 @@ export function MaterialListExportDialog({
 
   const hasExportItems = exportItems.length > 0;
 
-  const generatedBody = useMemo(
-    () => buildMaterialListEmailBody(exportItems, {
+  const generatedBody = useMemo(() => {
+    if (mode === 'supplier-question') {
+      const noteText = String(notes || '').trim();
+      return [
+        `Beste ${selectedSupplierDisplayName || 'team'},`,
+        '',
+        'Kunnen jullie onderstaand product/materiaal voor mij vinden en een prijsopgave en verwachte levertijd doorgeven?',
+        '',
+        'Product of materiaal gezocht:',
+        '',
+        noteText ? `Notities en maatvoering:\n${noteText}` : '',
+        photos.length ? `Bijgevoegd: ${photos.length} foto${photos.length === 1 ? '' : '\'s'} van de offerte.` : '',
+        '',
+        'Met vriendelijke groet,',
+        String(meta?.senderContactName || '').trim(),
+        String(meta?.senderCompanyName || '').trim(),
+      ].filter(Boolean).join('\n');
+    }
+    const base = buildMaterialListEmailBody(exportItems, {
       includePrices,
       meta,
       greetingName: selectedSupplierDisplayName,
       emailTemplate: savedEmailTemplate,
-    }),
-    [exportItems, includePrices, meta, selectedSupplierDisplayName, savedEmailTemplate],
-  );
+    });
+    const noteText = String(notes || '').trim();
+    return noteText ? `${base}\n\nNotities en maatvoering:\n${noteText}` : base;
+  }, [exportItems, includePrices, meta, mode, notes, photos.length, selectedSupplierDisplayName, savedEmailTemplate]);
+
+  useEffect(() => {
+    if (!isOpen || !user) return;
+    let cancelled = false;
+    void user.getIdToken().then((token) => fetch('/api/google-gmail/status', { headers: { Authorization: `Bearer ${token}` } }))
+      .then((response) => response.json())
+      .then((payload: { connected?: boolean }) => { if (!cancelled) setGmailConnected(payload.connected === true); })
+      .catch(() => { if (!cancelled) setGmailConnected(false); });
+    return () => { cancelled = true; };
+  }, [isOpen, user]);
 
   const plainListText = useMemo(
     () => buildMaterialListText(exportItems, { includePrices, meta }),
@@ -240,6 +278,8 @@ export function MaterialListExportDialog({
     setIncludePrices(false);
     setSelectedSupplierOptionId(initialOption?.optionId || '');
     setEmail(String(initialOption?.email || '').trim());
+    setWhatsAppPhone(String(initialSupplier?.telefoon || '').trim());
+    setSupplierName(String(initialSupplier?.naam || '').trim());
     setContactName(String(initialOption?.contactName || initialSupplier?.contactNaam || '').trim());
     setNewSupplierName('');
     setNewSupplierContactName('');
@@ -263,7 +303,7 @@ export function MaterialListExportDialog({
         description: 'Voeg hieronder direct een leverancier toe om e-mail te gebruiken.',
       });
     }
-  }, [isOpen, defaultSupplierId, supplierOptions, suppliers, defaultSubject, items, meta, toast, savedEmailTemplate]);
+  }, [isOpen, defaultSupplierId, supplierOptions, suppliers, defaultSubject, items, meta, mode, toast, savedEmailTemplate]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -279,7 +319,11 @@ export function MaterialListExportDialog({
     if (!isOpen || !selectedSupplierOption) return;
     setEmail(String(selectedSupplierOption.email || '').trim());
     setContactName(String(selectedSupplierOption.contactName || '').trim());
-  }, [isOpen, selectedSupplierOption]);
+    setSupplierName(String(selectedSupplier?.naam || '').trim());
+    setWhatsAppPhone(String(selectedSupplierOption.contactId
+      ? selectedSupplier?.contacten?.find((contact) => contact.id === selectedSupplierOption.contactId)?.telefoon
+      : selectedSupplier?.telefoon || '').trim());
+  }, [isOpen, selectedSupplier, selectedSupplierOption]);
 
   useEffect(() => {
     if (!isOpen || selectedSupplierOptionId || !supplierOptions.length) return;
@@ -468,7 +512,7 @@ export function MaterialListExportDialog({
   }, [isOpen, bodyTouched, onSaveEmailTemplate, getBodyTemplateFromCurrentBody]);
 
   const handleCopy = async (): Promise<void> => {
-    if (!hasExportItems) {
+    if (mode === 'materials' && !hasExportItems) {
       toast({
         variant: 'destructive',
         title: 'Geen materialen geselecteerd',
@@ -496,7 +540,7 @@ export function MaterialListExportDialog({
   };
 
   const handleOpenMail = (): void => {
-    if (!hasExportItems) {
+    if (mode === 'materials' && !hasExportItems) {
       toast({
         variant: 'destructive',
         title: 'Geen materialen geselecteerd',
@@ -542,6 +586,56 @@ export function MaterialListExportDialog({
     });
   };
 
+  const handleConnectGmail = async (): Promise<void> => {
+    if (!user) return;
+    setIsGmailBusy(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/google-gmail/connect-url', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await response.json().catch(() => ({})) as { url?: string; error?: string };
+      if (!response.ok || !payload.url) throw new Error(payload.error || 'Gmail koppelen mislukt.');
+      window.location.href = payload.url;
+    } catch (error) {
+      toast({ title: 'Gmail koppelen mislukt', description: error instanceof Error ? error.message : 'Probeer het opnieuw.', variant: 'destructive' });
+      setIsGmailBusy(false);
+    }
+  };
+
+  const handleSendGmail = async (): Promise<void> => {
+    if (!quoteId || !user || !hasValidSelectedSupplier || (mode === 'materials' && !hasExportItems)) return;
+    setIsGmailBusy(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/google-gmail/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ quoteId, to: email.trim(), subject: subject || defaultSubject || 'Materiaalvraag', text: body || generatedBody, photoIds: photos.map((photo) => photo.id) }),
+      });
+      const payload = await response.json().catch(() => ({})) as { ok?: boolean; error?: string; attachmentCount?: number };
+      if (!response.ok || !payload.ok) throw new Error(payload.error || 'Gmail versturen mislukt.');
+      toast({ title: 'Vraag via Gmail verstuurd', description: `${payload.attachmentCount || 0} foto\'s meegestuurd.` });
+      onClose();
+    } catch (error) {
+      toast({ title: 'Gmail versturen mislukt', description: error instanceof Error ? error.message : 'Probeer het opnieuw.', variant: 'destructive' });
+    } finally {
+      setIsGmailBusy(false);
+    }
+  };
+
+  const handleOpenWhatsApp = (): void => {
+    const digits = whatsAppPhone.replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^0(?=\d{9}$)/, '31');
+    if (!digits || digits.length < 8) {
+      toast({ title: 'WhatsApp-nummer ontbreekt', description: 'Vul het nummer van de leverancier in.', variant: 'destructive' });
+      return;
+    }
+    const url = `https://wa.me/${digits}?text=${encodeURIComponent(body || generatedBody)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    toast({ title: 'WhatsApp geopend', description: 'Voeg de foto\'s handmatig toe in WhatsApp.' });
+  };
+
   const handleSaveSupplierContact = async (): Promise<void> => {
     if (!selectedSupplier) {
       toast({
@@ -575,8 +669,10 @@ export function MaterialListExportDialog({
       await onUpdateSupplierContact({
         supplierId: selectedSupplier.id,
         contactId: selectedSupplierOption?.contactId,
+        supplierName: String(supplierName || '').trim(),
         contactNaam: String(contactName || '').trim(),
         email: trimmedEmail,
+        telefoon: String(whatsAppPhone || '').trim(),
       });
       toast({
         title: 'Leverancier bijgewerkt',
@@ -660,7 +756,7 @@ export function MaterialListExportDialog({
   };
 
   const handleDownloadPdf = async (): Promise<void> => {
-    if (!hasExportItems) {
+    if (mode === 'materials' && !hasExportItems) {
       toast({
         variant: 'destructive',
         title: 'Geen materialen geselecteerd',
@@ -704,20 +800,18 @@ export function MaterialListExportDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl w-[95vw] max-h-[88vh] overflow-hidden flex flex-col">
+      <DialogContent className="w-[calc(100vw-32px)] max-w-[1600px] max-h-[calc(100vh-110px)] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Materiaallijst delen</DialogTitle>
-          <DialogDescription>
-            Kies materialen, toon optioneel prijzen en deel via kopieren, e-mail of PDF.
-          </DialogDescription>
+          <DialogTitle className="sr-only">{mode === 'supplier-question' ? 'Leveranciersvraag' : 'Materiaallijst delen'}</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto pr-1">
-          <div className="space-y-5 py-2 pb-6">
-            <Tabs
+          <div className="grid auto-rows-min gap-4 py-2 pb-6 lg:grid-cols-2 lg:grid-flow-row-dense lg:items-start">
+            <div className="space-y-4 lg:col-start-2 lg:row-start-1">
+            {mode === 'materials' && <Tabs
+              className="space-y-3 lg:col-start-2"
               value={materialSelectionMode}
               onValueChange={(value) => setMaterialSelectionMode(value === 'custom' ? 'custom' : 'all')}
-              className="space-y-3"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -819,10 +913,10 @@ export function MaterialListExportDialog({
                   )}
                 </div>
               </TabsContent>
-            </Tabs>
+            </Tabs>}
 
           {!hasSuppliers && (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm space-y-3">
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm space-y-3 lg:col-start-2">
               <div className="flex items-start gap-2 text-destructive">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 <div className="space-y-1">
@@ -881,7 +975,7 @@ export function MaterialListExportDialog({
           )}
 
           {hasSuppliers && (
-            <div className="space-y-2">
+            <div className="space-y-2 lg:col-start-2">
               <Label htmlFor="supplier-select">Leverancier</Label>
               <Select value={selectedSupplierOptionId} onValueChange={setSelectedSupplierOptionId}>
                 <SelectTrigger id="supplier-select">
@@ -907,14 +1001,36 @@ export function MaterialListExportDialog({
           )}
 
           {hasSuppliers && !hasValidSelectedSupplier && (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200 lg:col-start-2">
               Vul ontvanger e-mail in en sla contact op.
             </div>
           )}
 
           {hasSuppliers && selectedSupplier && (
-            <div className="rounded-lg border border-border/70 p-3 space-y-3">
-              <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-lg border border-border/70 p-3 space-y-3 lg:col-start-2">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="material-share-supplier-name">Leverancier</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="material-share-supplier-name"
+                      value={supplierName}
+                      onChange={(event) => setSupplierName(event.target.value)}
+                      placeholder="Bijv. Bouwmaat"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleSaveSupplierContact}
+                      disabled={isSavingSupplier}
+                      aria-label="Leveranciersnaam opslaan"
+                      title="Leveranciersnaam opslaan"
+                    >
+                      {isSavingSupplier ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="material-share-contact-name">Contactpersoon</Label>
                   <Input
@@ -948,32 +1064,33 @@ export function MaterialListExportDialog({
                     </Button>
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="material-share-whatsapp">WhatsApp-nummer</Label>
+                  <Input
+                    id="material-share-whatsapp"
+                    value={whatsAppPhone}
+                    onChange={(event) => setWhatsAppPhone(event.target.value)}
+                    placeholder="06-12345678"
+                  />
+                </div>
               </div>
             </div>
           )}
 
-          <div className="flex items-center gap-3 rounded-lg border border-border/70 p-3">
-            <Checkbox
-              id="include-prices"
-              checked={includePrices}
-              onCheckedChange={(checked) => setIncludePrices(checked === true)}
-            />
-            <Label htmlFor="include-prices" className="cursor-pointer">
-              Prijzen meenemen (excl. btw)
-            </Label>
-          </div>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="material-share-subject">Onderwerp</Label>
-            <Input
-              id="material-share-subject"
-              value={subject}
-              onChange={(event) => {
-                setSubjectTouched(true);
-                setSubject(event.target.value);
-              }}
-            />
-          </div>
+          <div className="space-y-4 lg:col-start-1 lg:row-start-1">
+            <div className="space-y-2">
+              <Label htmlFor="material-share-subject">Onderwerp</Label>
+              <Input
+                id="material-share-subject"
+                value={subject}
+                onChange={(event) => {
+                  setSubjectTouched(true);
+                  setSubject(event.target.value);
+                }}
+              />
+            </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
@@ -996,15 +1113,37 @@ export function MaterialListExportDialog({
                 setBodyTouched(true);
                 setBody(event.target.value);
               }}
-              className="min-h-[660px] resize-y"
+              className="min-h-[420px] resize-y lg:min-h-[500px]"
             />
+          </div>
           </div>
         </div>
         </div>
 
         <DialogFooter className="sticky bottom-0 z-10 border-t border-border/70 bg-background/95 p-2 backdrop-blur sm:p-3">
           <div className="w-full rounded-xl border border-border/70 bg-card/90 p-2 shadow-lg">
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex flex-col gap-2 lg:flex-row lg:flex-nowrap lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
+                <div className="mr-2">
+                  <p className="text-sm font-medium">Bijlagen</p>
+                  <p className="text-xs text-muted-foreground">
+                    {photos.length} foto&apos;s · maatvoering {notes.trim() ? 'aanwezig' : 'leeg'}
+                  </p>
+                </div>
+                {gmailConnected ? (
+                  <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300">Gmail gekoppeld</span>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" onClick={() => void handleConnectGmail()} disabled={isGmailBusy || !user} className="gap-2">
+                    {isGmailBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                    Gmail koppelen
+                  </Button>
+                )}
+                <Button type="button" variant="outline" size="sm" onClick={handleOpenWhatsApp} className="gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp openen
+                </Button>
+              </div>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
               <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
                 Sluiten
               </Button>
@@ -1012,7 +1151,7 @@ export function MaterialListExportDialog({
                 type="button"
                 variant="outline"
                 onClick={handleCopy}
-                disabled={!hasExportItems}
+                disabled={mode === 'materials' && !hasExportItems}
                 className="w-full gap-2 sm:w-auto"
               >
                 <Copy className="h-4 w-4" />
@@ -1021,7 +1160,7 @@ export function MaterialListExportDialog({
               <Button
                 type="button"
                 onClick={handleOpenMail}
-                disabled={!hasExportItems || !hasSuppliers || !hasValidSelectedSupplier}
+                disabled={mode === 'materials' && !hasExportItems || !hasSuppliers || !hasValidSelectedSupplier}
                 className="w-full gap-2 sm:w-auto"
               >
                 <Mail className="h-4 w-4" />
@@ -1029,13 +1168,23 @@ export function MaterialListExportDialog({
               </Button>
               <Button
                 type="button"
+                onClick={() => void handleSendGmail()}
+                disabled={!quoteId || (mode === 'materials' && !hasExportItems) || !hasValidSelectedSupplier || !gmailConnected || isGmailBusy}
+                className="w-full gap-2 sm:w-auto"
+              >
+                {isGmailBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                Verstuur via Gmail
+              </Button>
+              <Button
+                type="button"
                 onClick={handleDownloadPdf}
-                disabled={!hasExportItems || isPdfBusy}
+                disabled={mode === 'supplier-question' || !hasExportItems || isPdfBusy}
                 className="w-full gap-2 sm:w-auto"
               >
                 {isPdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 Download PDF
               </Button>
+              </div>
             </div>
           </div>
         </DialogFooter>

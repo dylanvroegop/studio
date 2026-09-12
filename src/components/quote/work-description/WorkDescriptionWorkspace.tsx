@@ -314,7 +314,7 @@ export function LegacyWorkDescriptionWorkspace({
               <Switch checked={activeJob.schilderwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('schilderwerkInbegrepen', checked)} />
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
-              <Label>Plamuurwerk</Label>
+              <Label>Hout plamuurwerk</Label>
               <Switch checked={activeJob.plamuurwerkInbegrepen === true} onCheckedChange={(checked) => setSafetyField('plamuurwerkInbegrepen', checked)} />
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
@@ -347,7 +347,7 @@ export function LegacyWorkDescriptionWorkspace({
               />
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
-              <Label>Schroefgaten plamuren</Label>
+              <Label>Gipsschroef gaten stuccen</Label>
               <Switch checked={activeJob.schroefgatenPlamurenInbegrepen === true} onCheckedChange={(checked) => setSafetyField('schroefgatenPlamurenInbegrepen', checked)} />
             </div>
           </div>
@@ -577,9 +577,9 @@ export function WorkDescriptionWorkspace({
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {([
               ['afvalAfvoeren', 'Afval afvoeren'], ['schilderwerkInbegrepen', 'Schilderwerk'],
-              ['plamuurwerkInbegrepen', 'Plamuurwerk'], ['steigerInbegrepen', 'Steiger'],
+              ['plamuurwerkInbegrepen', 'Hout plamuurwerk'], ['steigerInbegrepen', 'Steiger'],
               ['sloopwerkInbegrepen', 'Sloopwerk'],
-              ['schroefgatenPlamurenInbegrepen', 'Schroefgaten plamuren'],
+              ['schroefgatenPlamurenInbegrepen', 'Gipsschroef gaten stuccen'],
             ] as const).map(([key, label]) => (
               <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
                 <Label>{label}</Label><Switch checked={cleanedValue[key] === true} onCheckedChange={(checked) => setSafetyField(key, checked)} />

@@ -1299,6 +1299,7 @@ export default function QuotePage() {
     const [materialPackageName, setMaterialPackageName] = useState('');
     const [confirmResetToNieuwOpen, setConfirmResetToNieuwOpen] = useState(false);
     const [isMaterialExportOpen, setIsMaterialExportOpen] = useState(false);
+    const [isSupplierQuestionMode, setIsSupplierQuestionMode] = useState(false);
     const [linkedMaterialLists, setLinkedMaterialLists] = useState<MaterialList[]>([]);
     const [isCreatingLinkedMaterialList, setIsCreatingLinkedMaterialList] = useState(false);
     const [materialSuppliers, setMaterialSuppliers] = useState<LeverancierContact[]>([]);
@@ -3572,6 +3573,8 @@ export default function QuotePage() {
     const [splitQuoteDrafts, setSplitQuoteDrafts] = useState<SplitQuoteDraft[]>([]);
     const [splitMaterialAssignments, setSplitMaterialAssignments] = useState<Record<string, string>>({});
     const [splitKlusAssignments, setSplitKlusAssignments] = useState<Record<string, string>>({});
+    const [splitNoteAssignments, setSplitNoteAssignments] = useState<Record<string, string>>({});
+    const [splitMaatwerkAssignments, setSplitMaatwerkAssignments] = useState<Record<string, string>>({});
 
     const splitCalculationJobOptions = useMemo<SplitCalculationJobOption[]>(() => {
         const quoteWithJobs = quote as (Quote & { klussen?: Record<string, Record<string, unknown>> }) | null;
@@ -3650,17 +3653,33 @@ export default function QuotePage() {
             acc[job.id] = drafts[index]?.id || fallbackDraftId;
             return acc;
         }, {});
+        const initialNoteAssignments: Record<string, string> = {};
+        const initialMaatwerkAssignments: Record<string, string> = {};
+        quoteNoteSections.forEach((section, sectionIndex) => {
+            const matchingJob = splitWorkJobOptions.find((job) => (
+                job.title.trim().toLowerCase() === section.title.trim().toLowerCase()
+            )) || splitWorkJobOptions[sectionIndex];
+            const assignedDraftId = drafts.find((draft) => draft.workJobIndex === matchingJob?.index)?.id
+                || drafts[Math.min(sectionIndex, drafts.length - 1)]?.id
+                || fallbackDraftId;
+            initialNoteAssignments[section.id] = assignedDraftId;
+            section.maatwerkLines.forEach((line) => {
+                initialMaatwerkAssignments[`${section.id}:${line.id}`] = assignedDraftId;
+            });
+        });
         setSplitQuoteDrafts(drafts);
         setSplitMaterialAssignments(initialAssignments);
         setSplitKlusAssignments(initialKlusAssignments);
+        setSplitNoteAssignments(initialNoteAssignments);
+        setSplitMaatwerkAssignments(initialMaatwerkAssignments);
         setIsSplitQuoteOpen(true);
-    }, [combinedMaterialItems, createSplitDraftId, normalizedData?.totaal_uren, quoteSettings?.extras?.winstMarge?.fixedAmount, quoteSettings?.extras?.winstMarge?.mode, splitCalculationJobOptions, splitWorkJobOptions]);
+    }, [combinedMaterialItems, createSplitDraftId, normalizedData?.totaal_uren, quoteNoteSections, quoteSettings?.extras?.winstMarge?.fixedAmount, quoteSettings?.extras?.winstMarge?.mode, splitCalculationJobOptions, splitWorkJobOptions]);
 
     const updateSplitDraft = useCallback((draftId: string, patch: Partial<SplitQuoteDraft>) => {
         setSplitQuoteDrafts((prev) => prev.map((draft) => (
             draft.id === draftId ? { ...draft, ...patch } : draft
         )));
-    }, [createSplitDraftId]);
+    }, []);
 
     const addSplitDraft = useCallback(() => {
         setSplitQuoteDrafts((prev) => ([
@@ -3673,7 +3692,20 @@ export default function QuotePage() {
                 workJobIndex: null,
             },
         ]));
-    }, []);
+    }, [createSplitDraftId]);
+
+    const assignSplitNoteSection = useCallback((sectionId: string, draftId: string) => {
+        setSplitNoteAssignments((prev) => ({ ...prev, [sectionId]: draftId }));
+        const section = quoteNoteSections.find((item) => item.id === sectionId);
+        if (!section) return;
+        setSplitMaatwerkAssignments((prev) => {
+            const next = { ...prev };
+            section.maatwerkLines.forEach((line) => {
+                next[`${section.id}:${line.id}`] = draftId;
+            });
+            return next;
+        });
+    }, [quoteNoteSections]);
 
     const removeSplitDraft = useCallback((draftId: string) => {
         setSplitQuoteDrafts((prev) => {
@@ -3688,6 +3720,20 @@ export default function QuotePage() {
                 return nextAssignments;
             });
             setSplitKlusAssignments((assignments) => {
+                const nextAssignments = { ...assignments };
+                Object.entries(nextAssignments).forEach(([key, assignedDraftId]) => {
+                    if (assignedDraftId === draftId) nextAssignments[key] = fallbackId;
+                });
+                return nextAssignments;
+            });
+            setSplitNoteAssignments((assignments) => {
+                const nextAssignments = { ...assignments };
+                Object.entries(nextAssignments).forEach(([key, assignedDraftId]) => {
+                    if (assignedDraftId === draftId) nextAssignments[key] = fallbackId;
+                });
+                return nextAssignments;
+            });
+            setSplitMaatwerkAssignments((assignments) => {
                 const nextAssignments = { ...assignments };
                 Object.entries(nextAssignments).forEach(([key, assignedDraftId]) => {
                     if (assignedDraftId === draftId) nextAssignments[key] = fallbackId;
@@ -3725,6 +3771,28 @@ export default function QuotePage() {
             });
             return;
         }
+
+        const fallbackNoteDraftId = splitQuoteDrafts[0]?.id || '';
+        const noteSections = quoteNoteSections
+            .map((section) => {
+                const sectionDraftId = splitNoteAssignments[section.id] || fallbackNoteDraftId;
+                const maatwerkLines = section.maatwerkLines
+                    .filter((line) => [line.title, line.length, line.width, line.height, line.thickness].some((value) => value.trim().length > 0))
+                    .map((line) => ({
+                        ...line,
+                        draftId: splitMaatwerkAssignments[`${section.id}:${line.id}`] || sectionDraftId,
+                    }));
+                return {
+                    ...section,
+                    draftId: sectionDraftId,
+                    maatwerkLines,
+                };
+            })
+            .filter((section) => section.title.trim().length > 0
+                || section.notes.trim().length > 0
+                || section.linksTitle.trim().length > 0
+                || section.links.some((link) => link.title.trim().length > 0 || link.url.trim().length > 0)
+                || section.maatwerkLines.length > 0);
 
         const splits = splitQuoteDrafts.map((draft) => {
             const materialRows = combinedMaterialItems
@@ -3778,6 +3846,8 @@ export default function QuotePage() {
                 body: JSON.stringify({
                     quoteId: id,
                     dataJson: normalizedData || {},
+                    notes: quoteNotes,
+                    noteSections,
                     splits,
                 }),
             });
@@ -3805,7 +3875,7 @@ export default function QuotePage() {
         } finally {
             setIsSplittingQuote(false);
         }
-    }, [combinedMaterialItems, id, normalizedData, router, splitCalculationJobOptions, splitKlusAssignments, splitMaterialAssignments, splitQuoteDrafts, toast, user]);
+    }, [combinedMaterialItems, id, normalizedData, quoteNoteSections, quoteNotes, router, splitCalculationJobOptions, splitKlusAssignments, splitMaatwerkAssignments, splitMaterialAssignments, splitNoteAssignments, splitQuoteDrafts, toast, user]);
 
     const handleDuplicateQuote = useCallback(async () => {
         if (!user || !id || isDuplicatingQuote) return;
@@ -3953,25 +4023,33 @@ export default function QuotePage() {
     const handleUpdateMaterialSupplierContact = useCallback(async ({
         supplierId,
         contactId,
+        supplierName,
         contactNaam,
         email,
+        telefoon,
     }: {
         supplierId: string;
         contactId?: string;
+        supplierName: string;
         contactNaam: string;
         email: string;
+        telefoon: string;
     }): Promise<void> => {
         const resolvedSupplierId = String(supplierId || '').trim();
         if (!resolvedSupplierId) throw new Error('Geen leverancier geselecteerd.');
 
         const trimmedContactNaam = String(contactNaam || '').trim();
+        const trimmedSupplierName = String(supplierName || '').trim();
         const trimmedEmail = String(email || '').trim();
+        const trimmedTelefoon = String(telefoon || '').trim();
+        if (!trimmedSupplierName) throw new Error('Leveranciersnaam ontbreekt.');
         if (!trimmedEmail) throw new Error('E-mailadres ontbreekt.');
 
         const nextSuppliers = (materialSuppliers || []).map((supplier) => (
             supplier.id === resolvedSupplierId
                 ? {
                     ...supplier,
+                    naam: trimmedSupplierName,
                     contacten: (() => {
                         const existing = Array.isArray(supplier.contacten) ? supplier.contacten : [];
                         if (contactId) {
@@ -3979,18 +4057,19 @@ export default function QuotePage() {
                             if (hasTarget) {
                                 return existing.map((contact) => (
                                     contact.id === contactId
-                                        ? { ...contact, naam: trimmedContactNaam, email: trimmedEmail }
+                                        ? { ...contact, naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }
                                         : contact
                                 ));
                             }
                         }
                         if (existing.length === 0) {
-                            return [{ id: crypto.randomUUID(), naam: trimmedContactNaam, email: trimmedEmail }];
+                            return [{ id: crypto.randomUUID(), naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }];
                         }
-                        return [{ ...existing[0], naam: trimmedContactNaam, email: trimmedEmail }, ...existing.slice(1)];
+                        return [{ ...existing[0], naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }, ...existing.slice(1)];
                     })(),
                     contactNaam: trimmedContactNaam,
                     email: trimmedEmail,
+                    telefoon: trimmedTelefoon,
                 }
                 : supplier
         ));
@@ -6277,6 +6356,7 @@ export default function QuotePage() {
                 ]
                 : [];
             const generationControlInput = {
+                jobs: workDescriptionStructured.jobs,
                 afvalAfvoeren: workDescriptionStructured.afvalAfvoeren,
                 schilderwerkInbegrepen: workDescriptionStructured.schilderwerkInbegrepen,
                 stucwerkInbegrepen: workDescriptionStructured.stucwerkInbegrepen,
@@ -6885,6 +6965,10 @@ export default function QuotePage() {
                                         WhatsApp
                                     </DropdownMenuItem>
                                 )}
+                                <DropdownMenuItem onClick={() => { setIsSupplierQuestionMode(true); setIsMaterialExportOpen(true); }}>
+                                    <MessageSquare className="mr-2 h-4 w-4" />
+                                    Leveranciersvraag
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                     onClick={() => {
@@ -6899,14 +6983,21 @@ export default function QuotePage() {
                     </div>
                 )}
                 <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-center sm:flex-row sm:items-center sm:gap-4 sm:text-left">
-                    <div className="flex w-full items-center justify-center sm:w-auto sm:justify-start">
-                        <div>
-                            <div className="flex items-center justify-center gap-3 sm:justify-start">
+                    <div className="flex min-w-0 w-full items-center justify-center sm:flex-1 sm:justify-start">
+                        <div className="min-w-0 w-full">
+                            <div className="flex min-w-0 items-center justify-center gap-3 sm:justify-start">
                                 <FileText className="h-5 w-5 text-cyan-400" />
                                 <h1 className="text-xl font-bold text-foreground">
                                     Offerte {formatOfferteNummerLabel((quote as any)?.offerteNummer, (quote as any)?.offerteVersie)}
                                 </h1>
-                                {quote?.titel && <span className="text-muted-foreground font-normal hidden sm:inline">• {quote.titel}</span>}
+                                {quote?.titel && (
+                                    <span
+                                        className="hidden min-w-0 flex-1 truncate whitespace-nowrap text-muted-foreground font-normal sm:inline"
+                                        title={quote.titel}
+                                    >
+                                        • {quote.titel}
+                                    </span>
+                                )}
                             </div>
                             {klantInfo ? (
                                 <div className="flex items-center justify-center gap-2 sm:justify-start">
@@ -7127,6 +7218,15 @@ export default function QuotePage() {
                                         <MessageCircle size={16} />
                                     </Button>
                                 )}
+                                <Button
+                                    variant="success"
+                                    className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
+                                    onClick={() => { setIsSupplierQuestionMode(true); setIsMaterialExportOpen(true); }}
+                                    aria-label="Leveranciersvraag"
+                                    title="Leveranciersvraag"
+                                >
+                                    <MessageSquare size={16} />
+                                </Button>
                                 <Button
                                     variant="success"
                                     className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
@@ -9120,7 +9220,7 @@ export default function QuotePage() {
                                         <div className="hidden sm:flex sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                                             <Button
                                                 variant="outline"
-                                                onClick={() => setIsMaterialExportOpen(true)}
+                                                onClick={() => { setIsSupplierQuestionMode(false); setIsMaterialExportOpen(true); }}
                                                 disabled={materialExportItems.length === 0}
                                                 className="h-8 gap-2 text-xs sm:text-sm"
                                             >
@@ -9157,7 +9257,7 @@ export default function QuotePage() {
                                         <div className="flex items-center justify-between gap-2 sm:hidden">
                                             <Button
                                                 variant="outline"
-                                                onClick={() => setIsMaterialExportOpen(true)}
+                                                onClick={() => { setIsSupplierQuestionMode(false); setIsMaterialExportOpen(true); }}
                                                 disabled={materialExportItems.length === 0}
                                                 className="h-8 gap-1.5 px-2.5 text-[11px]"
                                             >
@@ -9219,7 +9319,7 @@ export default function QuotePage() {
                             <DialogHeader className="shrink-0">
                                 <DialogTitle>Offerte splitsen</DialogTitle>
                                 <DialogDescription>
-                                    Maak nieuwe offertes vanuit deze offerte. Kies per productregel bij welke deelofferte die hoort.
+                                    Maak nieuwe offertes vanuit deze offerte. Kies per productregel, notitieblok en maatwerkregel bij welke deelofferte die hoort.
                                 </DialogDescription>
                             </DialogHeader>
 
@@ -9391,6 +9491,131 @@ export default function QuotePage() {
                                                     </div>
                                                 </div>
                                             ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {quoteNoteSections.some((section) => (
+                                    section.title.trim().length > 0
+                                    || section.notes.trim().length > 0
+                                    || section.linksTitle.trim().length > 0
+                                    || section.links.some((link) => link.title.trim().length > 0 || link.url.trim().length > 0)
+                                    || section.maatwerkLines.some((line) => [line.title, line.length, line.width, line.height, line.thickness].some((value) => value.trim().length > 0))
+                                )) && (
+                                    <div className="rounded-lg border border-border/70">
+                                        <div className="flex items-center justify-between gap-3 border-b border-border/70 px-3 py-2">
+                                            <div>
+                                                <div className="text-sm font-semibold">Notities en maatwerk verdelen</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    Wijs elk notitieblok toe. Maatwerkregels kun je daarna per stuk verplaatsen.
+                                                </div>
+                                            </div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {quoteNoteSections.filter((section) => (
+                                                    section.title.trim().length > 0
+                                                    || section.notes.trim().length > 0
+                                                    || section.linksTitle.trim().length > 0
+                                                    || section.links.some((link) => link.title.trim().length > 0 || link.url.trim().length > 0)
+                                                    || section.maatwerkLines.some((line) => [line.title, line.length, line.width, line.height, line.thickness].some((value) => value.trim().length > 0))
+                                                )).length} blokken
+                                            </div>
+                                        </div>
+                                        <div className="divide-y divide-border/60">
+                                            {quoteNoteSections.map((section, sectionIndex) => {
+                                                const maatwerkLines = section.maatwerkLines.filter((line) => (
+                                                    [line.title, line.length, line.width, line.height, line.thickness]
+                                                        .some((value) => value.trim().length > 0)
+                                                ));
+                                                const hasContent = section.title.trim().length > 0
+                                                    || section.notes.trim().length > 0
+                                                    || section.linksTitle.trim().length > 0
+                                                    || section.links.some((link) => link.title.trim().length > 0 || link.url.trim().length > 0)
+                                                    || maatwerkLines.length > 0;
+                                                if (!hasContent) return null;
+
+                                                const sectionDraftId = splitNoteAssignments[section.id] || splitQuoteDrafts[0]?.id || '';
+                                                return (
+                                                    <div key={section.id}>
+                                                        <div className="grid gap-3 px-3 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                                                            <div className="min-w-0">
+                                                                <div className="truncate text-sm font-medium text-foreground">
+                                                                    {section.title.trim() || `Notitieblok ${sectionIndex + 1}`}
+                                                                </div>
+                                                                {section.notes.trim() ? (
+                                                                    <div className="mt-1 max-w-3xl truncate text-xs text-muted-foreground">
+                                                                        {section.notes.trim().replace(/\s+/g, ' ')}
+                                                                    </div>
+                                                                ) : null}
+                                                                {maatwerkLines.length > 0 ? (
+                                                                    <div className="mt-1 text-xs text-muted-foreground">
+                                                                        {maatwerkLines.length} maatwerkregel{maatwerkLines.length === 1 ? '' : 's'}
+                                                                    </div>
+                                                                ) : null}
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-2 sm:justify-end" aria-label="Notitieblok toewijzen aan deelofferte">
+                                                                {splitQuoteDrafts.map((draft, draftIndex) => (
+                                                                    <Button
+                                                                        key={draft.id}
+                                                                        type="button"
+                                                                        variant={sectionDraftId === draft.id ? 'default' : 'outline'}
+                                                                        size="sm"
+                                                                        onClick={() => assignSplitNoteSection(section.id, draft.id)}
+                                                                        disabled={isSplittingQuote}
+                                                                        className="h-8 min-w-16"
+                                                                        title={draft.title || `Deelofferte ${draftIndex + 1}`}
+                                                                    >
+                                                                        {draft.title || `Deelofferte ${draftIndex + 1}`}
+                                                                    </Button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        {maatwerkLines.length > 0 && (
+                                                            <div className="border-t border-border/50 bg-muted/10">
+                                                                {maatwerkLines.map((line) => {
+                                                                    const assignmentKey = `${section.id}:${line.id}`;
+                                                                    const lineDraftId = splitMaatwerkAssignments[assignmentKey] || sectionDraftId;
+                                                                    const dimensions = [line.length, line.width, line.height, line.thickness]
+                                                                        .map((value) => value.trim())
+                                                                        .filter(Boolean)
+                                                                        .join(' × ');
+                                                                    return (
+                                                                        <div key={line.id} className="grid gap-3 border-b border-border/40 px-3 py-2 last:border-b-0 sm:grid-cols-[1fr_auto] sm:items-center">
+                                                                            <div className="min-w-0 pl-3">
+                                                                                <div className="truncate text-xs font-medium text-foreground">
+                                                                                    {line.title.trim() || 'Maatwerk'}
+                                                                                </div>
+                                                                                {dimensions ? (
+                                                                                    <div className="text-xs text-muted-foreground">{dimensions} mm</div>
+                                                                                ) : null}
+                                                                            </div>
+                                                                            <div className="flex flex-wrap gap-2 sm:justify-end" aria-label="Maatwerkregel toewijzen aan deelofferte">
+                                                                                {splitQuoteDrafts.map((draft, draftIndex) => (
+                                                                                    <Button
+                                                                                        key={draft.id}
+                                                                                        type="button"
+                                                                                        variant={lineDraftId === draft.id ? 'default' : 'outline'}
+                                                                                        size="sm"
+                                                                                        onClick={() => setSplitMaatwerkAssignments((prev) => ({
+                                                                                            ...prev,
+                                                                                            [assignmentKey]: draft.id,
+                                                                                        }))}
+                                                                                        disabled={isSplittingQuote}
+                                                                                        className="h-7 min-w-16 text-xs"
+                                                                                        title={draft.title || `Deelofferte ${draftIndex + 1}`}
+                                                                                    >
+                                                                                        {draft.title || `Deelofferte ${draftIndex + 1}`}
+                                                                                    </Button>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
@@ -9658,6 +9883,10 @@ export default function QuotePage() {
                 onClose={() => setIsMaterialExportOpen(false)}
                 items={materialExportItems}
                 meta={materialExportContext}
+                quoteId={id}
+                notes={buildQuoteNotesContextWithoutLinks(quoteNoteSections)}
+                photos={photoAttachments}
+                mode={isSupplierQuestionMode ? 'supplier-question' : 'materials'}
                 suppliers={materialSuppliers}
                 defaultSupplierId={defaultMaterialSupplierId}
                 onUpdateSupplierContact={handleUpdateMaterialSupplierContact}

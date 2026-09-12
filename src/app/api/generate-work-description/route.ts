@@ -129,7 +129,7 @@ function splitRawOutputByNoteTitles(rawOutput: string, noteJobs: WorkDescription
     .filter((item): item is { index: number; start: number } => Boolean(item))
     .sort((left, right) => left.start - right.start);
 
-  if (matches.length > 0) {
+  if (matches.length === noteJobs.length) {
     const rows = Array(noteJobs.length).fill('');
     matches.forEach((match, position) => {
       const end = matches[position + 1]?.start ?? raw.length;
@@ -150,7 +150,60 @@ function splitRawOutputByNoteTitles(rawOutput: string, noteJobs: WorkDescription
     .filter(Boolean);
   if (lines.length >= noteJobs.length) return lines.slice(0, noteJobs.length);
 
-  return [raw];
+  return [raw, ...Array(Math.max(0, noteJobs.length - 1)).fill('')];
+}
+
+function splitRawOutputByJobTitles(
+  rawOutput: string,
+  jobs: Array<{ title: string }>,
+): string[] {
+  const raw = safeString(rawOutput);
+  if (!raw || jobs.length === 0) return [];
+
+  const matches = jobs
+    .map((job, index) => {
+      const title = safeString(job.title);
+      if (!title) return null;
+      const match = new RegExp(`(^|\\n|\\r)\\s*${escapeRegExp(title)}\\s*:`, 'i').exec(raw);
+      if (!match || match.index < 0) return null;
+      return {
+        index,
+        start: match.index + (match[1]?.length || 0),
+      };
+    })
+    .filter((item): item is { index: number; start: number } => Boolean(item))
+    .sort((left, right) => left.start - right.start);
+
+  if (matches.length === jobs.length) {
+    const rows = Array(jobs.length).fill('');
+    matches.forEach((match, position) => {
+      const end = matches[position + 1]?.start ?? raw.length;
+      rows[match.index] = raw.slice(match.start, end).trim();
+    });
+    return rows;
+  }
+
+  // The model is instructed to use blank lines between jobs. This fallback
+  // also handles output that follows that format but omits one or more titles.
+  const paragraphs = raw
+    .split(/\n\s*\n/g)
+    .map((row) => row.trim())
+    .filter(Boolean);
+  if (paragraphs.length >= jobs.length) return paragraphs.slice(0, jobs.length);
+
+  const lines = raw
+    .split(/\r?\n/g)
+    .map((row) => row.trim())
+    .filter(Boolean);
+  if (lines.length >= jobs.length) return lines.slice(0, jobs.length);
+
+  return [raw, ...Array(Math.max(0, jobs.length - 1)).fill('')];
+}
+
+function fallbackJobDescription(job: { title: string; description?: string; notes?: string }): string {
+  const title = safeString(job.title) || 'Deze werkzaamheid';
+  const detail = safeString(job.description) || safeString(job.notes);
+  return detail ? `${title}: ${detail}` : `${title} wordt uitgevoerd.`;
 }
 
 function truncateText(value: string, maxLength: number): string {
@@ -1539,8 +1592,8 @@ function buildPromptFromBody(body: RequestBody): string {
     ? 'Stucwerk inbegrepen staat expliciet AAN. Behoud alle expliciete stucwerkzaamheden, aantallen en maatvoering en verwerk het concrete stucwerk in de professionele klanttekst. Zet stucwerk niet onder included.'
     : 'Stucwerk heeft geen aparte aan/uit-schakelaar. Neem stucwerk alleen op wanneer het concreet in de notities, brongegevens of werkzaamheden staat; voeg geen automatische uitsluiting voor stucwerk toe.';
   const fillingRule = structuredControls.plamuurwerkInbegrepen
-    ? 'Plamuurwerk inbegrepen staat expliciet AAN. Verwerk het concrete overeengekomen plamuurwerk in de professionele klanttekst. Zet dit werk niet onder included of excluded.'
-    : 'Plamuurwerk inbegrepen staat UIT. Neem plamuurwerk niet op als inbegrepen werk.';
+    ? 'Hout plamuurwerk inbegrepen staat expliciet AAN. Verwerk het concrete overeengekomen hout plamuurwerk in de professionele klanttekst. Zet dit werk niet onder included of excluded.'
+    : 'Hout plamuurwerk inbegrepen staat UIT. Neem hout plamuurwerk niet op als inbegrepen werk.';
   const sealingRule = structuredControls.kitwerkInbegrepen
     ? 'Kitwerk inbegrepen staat expliciet AAN. Verwerk het concrete overeengekomen kitwerk in de professionele klanttekst. Zet dit werk niet onder included of excluded.'
     : 'Kitwerk heeft geen aparte aan/uit-schakelaar. Neem kitwerk alleen op wanneer het concreet in de notities, brongegevens of werkzaamheden staat; voeg geen automatische uitsluiting voor kitwerk toe.';
@@ -1556,8 +1609,8 @@ function buildPromptFromBody(body: RequestBody): string {
       : 'Naden vullen staat expliciet AAN op afwerkingsniveau Q2 (behangklaar). Verwerk het vullen en behangklaar afwerken van de overeengekomen naden in de professionele klanttekst.'
     : 'Naden vullen inbegrepen staat UIT. Neem het vullen of afwerken van naden niet op als inbegrepen werk.';
   const screwHoleFillingRule = structuredControls.schroefgatenPlamurenInbegrepen
-    ? 'Schroefgaten plamuren staat expliciet AAN. Verwerk het plamuren van de schroefgaten in de professionele klanttekst.'
-    : 'Schroefgaten plamuren staat UIT. Neem het plamuren of vullen van schroefgaten niet op als inbegrepen werk.';
+    ? 'Gipsschroef gaten stuccen staat expliciet AAN. Verwerk het stuccen van de gipsschroef gaten in de professionele klanttekst.'
+    : 'Gipsschroef gaten stuccen staat UIT. Neem het stuccen of vullen van gipsschroef gaten niet op als inbegrepen werk.';
   const electricalRule = structuredControls.electricalScope.enabled
     ? 'Elektrawerk inbegrepen staat expliciet AAN. Verwerk ieder concreet overeengekomen elektrisch onderdeel in de professionele klanttekst. Zet elektrawerk niet onder included.'
     : 'Elektrawerk inbegrepen staat UIT. Neem elektrawerk niet op als inbegrepen werk.';
@@ -1595,7 +1648,13 @@ function buildPromptFromBody(body: RequestBody): string {
           'Gebruik nooit labels zoals "Klus 1" of "Klus 2".',
         ].join(' ')
       : sourceJobs.length > 0
-      ? `De calculatie bevat ${sourceJobs.length} afzonderlijke klussen. Schrijf voor iedere klus één eigen alinea in dezelfde volgorde als de calculatiedata. Kopieer nooit dezelfde algemene tekst naar meerdere klussen.`
+      ? [
+          `De calculatie bevat ${sourceJobs.length} afzonderlijke klussen. Schrijf voor iedere klus één eigen alinea in dezelfde volgorde als de calculatiedata.`,
+          'Begin iedere alinea met exact de titel van de bijbehorende calculatieklus gevolgd door een dubbele punt.',
+          'Plaats exact één lege regel tussen de alinea’s van verschillende calculatieklussen.',
+          'Gebruik per alinea uitsluitend de gegevens van die specifieke calculatieklus. Kopieer nooit dezelfde algemene tekst naar meerdere klussen.',
+          'Laat geen calculatieklus leeg; gebruik bij beperkte informatie minimaal de klusnaam als concrete werkzaamheid.',
+        ].join(' ')
       : 'Maak één professionele klanttekst voor de afgesproken werkzaamheden.',
     'Combineer alle eigenschappen die bij dezelfde klus horen in dezelfde klanttekst. Een verhoogde vloer en de gekozen vloerplaat zijn bijvoorbeeld eigenschappen van dezelfde vloerklus en worden geen dubbele vloerregels.',
     'Gebruik de specifieke klussoort als onderwerp. Maak van boeiboorden, plafonds, wanden, vloeren, kozijnen en ander timmerwerk ieder een passende beschrijving; gebruik geen algemene vloertekst voor een andere klussoort.',
@@ -1654,6 +1713,63 @@ function buildPromptFromBody(body: RequestBody): string {
   ].filter(Boolean);
 
   return [...parts, scopeRules, notesRule, paintingRule, stuccoRule, fillingRule, sealingRule, seamFillingRule, screwHoleFillingRule, scaffoldRule, demolitionRule, electricalRule, wasteRemovalRule].filter(Boolean).join('\n');
+}
+
+type MissingJobTextSource = {
+  title: string;
+  description?: string;
+  notes?: string;
+  dimensions?: string[];
+};
+
+function buildMissingJobPrompt(
+  body: RequestBody,
+  job: MissingJobTextSource,
+  mode: 'note' | 'source',
+): string {
+  const jobPayload = {
+    title: safeString(job.title),
+    description: safeString(job.description),
+    notes: safeString(job.notes),
+    dimensions: Array.isArray(job.dimensions) ? job.dimensions : [],
+  };
+  const jobContext = mode === 'note'
+    ? `NOTITIEKLUS (enige bron voor deze tekst): ${JSON.stringify(jobPayload)}`
+    : `CALCULATIEKLUS (enige bron voor deze tekst): ${JSON.stringify(jobPayload)}`;
+  const jobInstruction = mode === 'note'
+    ? `Genereer uitsluitend de professionele klanttekst voor de notitieklus "${safeString(job.title)}". Schrijf geen tekst voor andere klussen.`
+    : `Genereer uitsluitend de professionele klanttekst voor de calculatieklus "${safeString(job.title)}". Schrijf geen tekst voor andere klussen.`;
+
+  return buildPromptFromBody({
+    ...body,
+    prompt: [safeString(body.prompt), jobInstruction, jobContext].filter(Boolean).join('\n'),
+    noteJobs: mode === 'note' ? [jobPayload] : [],
+    sourceJobs: mode === 'source' ? [jobPayload] : [],
+    quoteCalculationContext: mode === 'source' ? jobContext : '',
+  });
+}
+
+async function recoverMissingJobTexts(
+  apiKey: string,
+  body: RequestBody,
+  jobs: MissingJobTextSource[],
+  jobTexts: string[],
+  mode: 'note' | 'source',
+): Promise<string[]> {
+  return Promise.all(jobs.map(async (job, index) => {
+    const current = safeString(jobTexts[index]);
+    if (current) return current;
+
+    try {
+      const retry = await callOpenAiWorkDescription(
+        apiKey,
+        buildMissingJobPrompt(body, job, mode),
+      );
+      return safeString(retry.rawOutput);
+    } catch {
+      return '';
+    }
+  }));
 }
 
 export async function POST(request: Request) {
@@ -1718,9 +1834,15 @@ export async function POST(request: Request) {
     const noteJobs = getNoteJobs(bodyWithContext.noteJobs);
     const existingStructuredInput = sanitizeWorkDescriptionStructured(bodyWithContext.structuredInput);
     if (noteJobs.length > 0) {
-      const jobTexts = splitRawOutputByNoteTitles(aiResult.rawOutput, noteJobs);
+      const jobTexts = await recoverMissingJobTexts(
+        apiKey,
+        bodyWithContext,
+        noteJobs,
+        splitRawOutputByNoteTitles(aiResult.rawOutput, noteJobs),
+        'note',
+      );
       const jobs = noteJobs.map((noteJob, index) => {
-        const text = safeString(jobTexts[index]);
+        const text = safeString(jobTexts[index]) || fallbackJobDescription(noteJob);
         const existingJob = existingStructuredInput.jobs[index] || existingStructuredInput;
         return {
           ...existingJob,
@@ -1740,6 +1862,59 @@ export async function POST(request: Request) {
           work_scope: [firstText],
           jobs,
           activeJobIndex: 0,
+        },
+      });
+      return NextResponse.json({
+        werkbeschrijving: flattenStructuredWorkDescription(structured),
+        werkbeschrijvingStructured: structured,
+        noteCoverageWarnings: [],
+        rawAiOutput: aiResult.rawOutput,
+      });
+    }
+
+    const sourceJobs = Array.isArray(bodyWithContext.sourceJobs)
+      ? bodyWithContext.sourceJobs.filter((job): job is WorkDescriptionSourceJob => Boolean(job && typeof job === 'object'))
+      : [];
+    const structuredJobs = sourceJobs.length > 0
+      ? sourceJobs
+      : existingStructuredInput.jobs.map((job) => ({
+          title: job.title,
+          description: job.summary || job.context,
+          notes: job.internal_notes.join(' '),
+          dimensions: job.dimensions,
+        }));
+
+    if (structuredJobs.length > 0) {
+      const jobTexts = await recoverMissingJobTexts(
+        apiKey,
+        bodyWithContext,
+        structuredJobs,
+        splitRawOutputByJobTitles(aiResult.rawOutput, structuredJobs),
+        'source',
+      );
+      const jobs = structuredJobs.map((sourceJob, index) => {
+        const existingJob = existingStructuredInput.jobs[index] || existingStructuredInput;
+        const text = safeString(jobTexts[index]) || fallbackJobDescription(sourceJob);
+        return {
+          ...existingJob,
+          title: safeString(sourceJob.title) || existingJob.title || `Klus ${index + 1}`,
+          context: text,
+          summary: text,
+          work_scope: [text],
+          dimensions: Array.isArray(sourceJob.dimensions) && sourceJob.dimensions.length > 0
+            ? sourceJob.dimensions
+            : existingJob.dimensions,
+        };
+      });
+      const firstText = jobs[0]?.summary || aiResult.rawOutput;
+      const structured = toStructuredWorkDescription({
+        werkbeschrijving_structured: {
+          ...existingStructuredInput,
+          title: safeString(bodyWithContext.title),
+          summary: firstText,
+          work_scope: [firstText],
+          jobs,
+          activeJobIndex: existingStructuredInput.activeJobIndex || 0,
         },
       });
       return NextResponse.json({

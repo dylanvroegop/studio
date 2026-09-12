@@ -4701,6 +4701,66 @@ export default function GenericMeasurementPage() {
     }
   };
 
+  const applyNoteToCalculation = useCallback((note: { title?: string; content: string }) => {
+    const content = String(note.content || '').trim();
+    const readDimensionValues = (label: 'Lengte' | 'Hoogte'): string[] => {
+      const values: string[] = [];
+      const matcher = new RegExp(`${label}\\s*[:=]\\s*([^|;\\n]+)`, 'gi');
+      for (const match of content.matchAll(matcher)) {
+        const value = String(match[1] || '').replace(/\\s*mm\\b/gi, '').trim();
+        if (value && !values.includes(value)) values.push(value);
+      }
+      return values;
+    };
+
+    const lengths = readDimensionValues('Lengte');
+    const heights = readDimensionValues('Hoogte');
+    const pairs = Array.from({ length: Math.max(lengths.length, heights.length) }, (_, index) => ({
+      lengte: lengths[index] || lengths[0] || '',
+      hoogte: heights[index] || heights[0] || '',
+    })).filter((pair) => pair.lengte || pair.hoogte);
+    const uniquePairs = pairs.filter((pair, index, all) => (
+      all.findIndex((candidate) => candidate.lengte === pair.lengte && candidate.hoogte === pair.hoogte) === index
+    ));
+
+    if (uniquePairs.length === 0) {
+      toast({
+        title: 'Geen lengte en hoogte gevonden',
+        description: 'Deze notitie bevat geen ingevulde maatvoering.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const firstPair = uniquePairs[0];
+    setItems((previousItems) => {
+      const nextItems = previousItems.length > 0 ? [...previousItems] : [createEmptyItem()];
+      uniquePairs.forEach((pair, pairIndex) => {
+        const targetIndex = pairIndex === 0 ? 0 : nextItems.length;
+        if (targetIndex === nextItems.length) nextItems.push(createEmptyItem());
+        nextItems[targetIndex] = {
+          ...nextItems[targetIndex],
+          ...(pair.lengte ? { lengte: pair.lengte } : {}),
+          ...(pair.hoogte ? { hoogte: pair.hoogte } : {}),
+        };
+      });
+      return nextItems;
+    });
+
+    const copiedMeasurements = [
+      firstPair.lengte ? `Lengte: ${firstPair.lengte} mm` : '',
+      firstPair.hoogte ? `Hoogte: ${firstPair.hoogte} mm` : '',
+    ].filter(Boolean).join('\n');
+    void navigator.clipboard?.writeText(copiedMeasurements).catch(() => undefined);
+    toast({
+      title: 'Maten in calculatie gezet',
+      description: `${uniquePairs.length > 1 ? `${uniquePairs.length} maatregels zijn` : 'Lengte en hoogte zijn'} ingevuld en gekopieerd.`,
+    });
+    window.setTimeout(() => {
+      document.querySelector('[data-calculation-measurements]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
+  }, [toast]);
+
   if (!isMounted) return null;
 
   if (!categoryConfig || !jobConfig) {
@@ -4747,7 +4807,7 @@ export default function GenericMeasurementPage() {
         backLink={backUrl}
         progress={progressValue}
         quoteId={quoteId}
-        rightContent={<PersonalNotes quoteId={quoteId} jobId={klusId} context={`Metingen: ${jobConfig.title}`} />}
+        rightContent={<PersonalNotes quoteId={quoteId} jobId={klusId} context={`Metingen: ${jobConfig.title}`} onApplyToCalculation={applyNoteToCalculation} />}
       />
 
       <div className="px-4 py-8 max-w-[1400px] mx-auto pb-56 sm:pb-40">
@@ -4756,6 +4816,7 @@ export default function GenericMeasurementPage() {
             {items.map((item, index) => (
               <div
                 key={index}
+                data-calculation-measurements={index === 0 ? 'true' : undefined}
                 ref={(node) => {
                   itemContainerRefs.current[index] = node;
                 }}
@@ -7270,6 +7331,7 @@ export default function GenericMeasurementPage() {
               </div>
               <div className="mobile-calm-card p-5 rounded-2xl border border-white/5 bg-card/40 shadow-sm backdrop-blur-xl">
                 <Textarea
+                  id="klus-notities"
                   value={notities}
                   onChange={(e) => setNotities(e.target.value)}
                   placeholder="Bijv. Extra versteviging inbouwen op 120cm hoogte voor montage van een zware wastafel."

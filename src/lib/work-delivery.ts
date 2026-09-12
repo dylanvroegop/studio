@@ -53,8 +53,8 @@ export const PAINTING_EXCLUDED_TEXT = 'Schilderwerk en sauswerk niet inbegrepen.
 export const PAINTING_INCLUDED_TEXT = 'Schilderwerk inbegrepen zoals overeengekomen.';
 export const STUCCO_EXCLUDED_TEXT = 'Stucwerk niet inbegrepen.';
 export const STUCCO_INCLUDED_TEXT = 'Stucwerk inbegrepen zoals overeengekomen.';
-export const FILLING_EXCLUDED_TEXT = 'Plamuurwerk niet inbegrepen.';
-export const FILLING_INCLUDED_TEXT = 'Plamuurwerk inbegrepen zoals overeengekomen.';
+export const FILLING_EXCLUDED_TEXT = 'Hout plamuurwerk niet inbegrepen.';
+export const FILLING_INCLUDED_TEXT = 'Hout plamuurwerk inbegrepen zoals overeengekomen.';
 export const SEALING_EXCLUDED_TEXT = 'Kitwerk niet inbegrepen.';
 export const SEALING_INCLUDED_TEXT = 'Kitwerk inbegrepen zoals overeengekomen.';
 export const SCAFFOLD_EXCLUDED_TEXT = 'Steigerwerk en steigerhuur niet inbegrepen.';
@@ -64,8 +64,13 @@ export const DEMOLITION_INCLUDED_TEXT = 'Sloopwerk inbegrepen zoals overeengekom
 export const SEAM_FILLING_EXCLUDED_TEXT = 'Naden vullen en afwerken niet inbegrepen.';
 export const SEAM_FILLING_Q2_INCLUDED_TEXT = 'Afwerkingsniveau: Q2 (Behangklaar).';
 export const SEAM_FILLING_Q4_INCLUDED_TEXT = 'Afwerkingsniveau: Q4 (Schilderklaar).';
-export const SCREW_HOLE_FILLING_EXCLUDED_TEXT = 'Schroefgaten plamuren niet inbegrepen.';
-export const SCREW_HOLE_FILLING_INCLUDED_TEXT = 'Schroefgaten plamuren inbegrepen zoals overeengekomen.';
+export const SCREW_HOLE_FILLING_EXCLUDED_TEXT = 'Gipsschroef gaten stuccen niet inbegrepen.';
+export const SCREW_HOLE_FILLING_INCLUDED_TEXT = 'Gipsschroef gaten stuccen inbegrepen zoals overeengekomen.';
+
+const LEGACY_FILLING_EXCLUDED_TEXT = 'Plamuurwerk niet inbegrepen.';
+const LEGACY_FILLING_INCLUDED_TEXT = 'Plamuurwerk inbegrepen zoals overeengekomen.';
+const LEGACY_SCREW_HOLE_FILLING_EXCLUDED_TEXT = 'Schroefgaten plamuren niet inbegrepen.';
+const LEGACY_SCREW_HOLE_FILLING_INCLUDED_TEXT = 'Schroefgaten plamuren inbegrepen zoals overeengekomen.';
 
 export const DEFAULT_ELECTRICAL_SCOPE: ElectricalScope = {
   enabled: false,
@@ -103,7 +108,7 @@ const PAINTING_PATTERN = /schilder|sauswerk|sausen|aflak|verven/i;
 const STUCCO_PATTERN = /stuc/i;
 const FILLING_PATTERN = /plamuur/i;
 const SEAM_FILLING_PATTERN = /nad(?:en|e)\s+(?:vullen|afwerken)|voeg(?:en)?\s+(?:vullen|afwerken)/i;
-const SCREW_HOLE_FILLING_PATTERN = /schroefgat(?:en)?\s+(?:plamuren|vullen|afwerken)|(?:plamuren|vullen|afwerken)\s+van\s+(?:de\s+)?schroefgat(?:en)?/i;
+const SCREW_HOLE_FILLING_PATTERN = /(?:gipsschroef\s+gaten\s+stuccen|schroefgat(?:en)\s+(?:plamuren|vullen|afwerken)|(?:plamuren|vullen|afwerken)\s+van\s+(?:de\s+)?schroefgat(?:en)?)/i;
 const SCAFFOLD_PATTERN = /steiger|steigerwerk|steigerhuur/i;
 const DEMOLITION_PATTERN = /sloopwerk|slopen|demonteren/i;
 const FINISH_PATTERNS: Partial<Record<FinishLevel, RegExp>> = {
@@ -142,12 +147,14 @@ const MANAGED_INCLUDED_TEXTS = [
   PAINTING_INCLUDED_TEXT,
   STUCCO_INCLUDED_TEXT,
   FILLING_INCLUDED_TEXT,
+  LEGACY_FILLING_INCLUDED_TEXT,
   SEALING_INCLUDED_TEXT,
   SCAFFOLD_INCLUDED_TEXT,
   DEMOLITION_INCLUDED_TEXT,
   SEAM_FILLING_Q2_INCLUDED_TEXT,
   SEAM_FILLING_Q4_INCLUDED_TEXT,
   SCREW_HOLE_FILLING_INCLUDED_TEXT,
+  LEGACY_SCREW_HOLE_FILLING_INCLUDED_TEXT,
 ];
 
 const MANAGED_EXCLUDED_TEXTS = [
@@ -156,11 +163,13 @@ const MANAGED_EXCLUDED_TEXTS = [
   PAINTING_EXCLUDED_TEXT,
   STUCCO_EXCLUDED_TEXT,
   FILLING_EXCLUDED_TEXT,
+  LEGACY_FILLING_EXCLUDED_TEXT,
   SEALING_EXCLUDED_TEXT,
   SCAFFOLD_EXCLUDED_TEXT,
   DEMOLITION_EXCLUDED_TEXT,
   SEAM_FILLING_EXCLUDED_TEXT,
   SCREW_HOLE_FILLING_EXCLUDED_TEXT,
+  LEGACY_SCREW_HOLE_FILLING_EXCLUDED_TEXT,
 ];
 
 function isLegacyManagedFinishExclusion(value: string): boolean {
@@ -175,9 +184,11 @@ function isLegacyManagedFinishExclusion(value: string): boolean {
     'schilderwerk en sauswerk',
     'stucwerk',
     'overig plamuurwerk',
+    'hout plamuurwerk',
     'kitwerk',
     'naden vullen',
     'schroefgaten plamuren',
+    'gipsschroef gaten stuccen',
   ]);
   const parts = normalized.split(',').map((part) => part.trim()).filter(Boolean);
   return parts.length > 0 && parts.every((part) => managedParts.has(part));
@@ -513,9 +524,9 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     scope.excluded = scope.excluded.filter((line) => !finishPattern.test(line));
     const excludedFinishParts = [
       !scope.schilderwerkInbegrepen ? 'schilderwerk en sauswerk' : '',
-      !scope.plamuurwerkInbegrepen ? 'overig plamuurwerk' : '',
+      !scope.plamuurwerkInbegrepen ? 'hout plamuurwerk' : '',
       !scope.nadenVullenInbegrepen ? 'naden vullen' : '',
-      !scope.schroefgatenPlamurenInbegrepen ? 'schroefgaten plamuren' : '',
+      !scope.schroefgatenPlamurenInbegrepen ? 'gipsschroef gaten stuccen' : '',
     ].filter(Boolean);
     if (excludedFinishParts.length > 0) {
       const suffix = scope.finishLevel === 'plaatmateriaal_gemonteerd'

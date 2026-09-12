@@ -26,6 +26,24 @@ import { useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode }
 import { Input } from '@/components/ui/input';
 import { Pencil } from 'lucide-react';
 
+type EditableAmountField = 'groot' | 'verbruik' | 'extra' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount';
+type AmountEditMode = 'excl' | 'incl';
+type AdditiveAmountField =
+    | 'groot'
+    | 'verbruik'
+    | 'extra'
+    | 'subtotaal'
+    | 'arbeid'
+    | 'arbeidHoog'
+    | 'arbeidLaag'
+    | 'transport'
+    | 'totaalExcl'
+    | 'margeAmount'
+    | 'btwHoog'
+    | 'btwLaag'
+    | 'btw'
+    | 'totaalIncl';
+
 export function CostSummaryCard({
     totals,
     settings,
@@ -53,8 +71,10 @@ export function CostSummaryCard({
     const [tempLowVatHours, setTempLowVatHours] = useState<string>('');
     const [isEditingTransportRate, setIsEditingTransportRate] = useState(false);
     const [tempTransportRate, setTempTransportRate] = useState<string>('');
-    const [editingField, setEditingField] = useState<null | 'groot' | 'verbruik' | 'extra' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount'>(null);
+    const [editingField, setEditingField] = useState<EditableAmountField | null>(null);
+    const [editingAmountMode, setEditingAmountMode] = useState<AmountEditMode>('excl');
     const [tempFieldValue, setTempFieldValue] = useState<string>('');
+    const [additionValues, setAdditionValues] = useState<Record<string, string>>({});
     const skipNextBlurSaveRef = useRef(false);
 
     const startEditingRate = () => {
@@ -161,16 +181,29 @@ export function CostSummaryCard({
     };
 
     const startEditingAmount = (
-        field: 'groot' | 'verbruik' | 'extra' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount',
+        field: EditableAmountField,
         initialValue: number,
+        mode: AmountEditMode = 'excl',
     ) => {
         setTempFieldValue(initialValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
         setEditingField(field);
+        setEditingAmountMode(mode);
     };
 
     const cancelEditingAmount = () => {
         setEditingField(null);
+        setEditingAmountMode('excl');
         setTempFieldValue('');
+    };
+
+    const convertInclToExcl = (field: EditableAmountField, value: number): number => {
+        // In materiaal-only mode, transport and winstmarge are not subject to VAT.
+        const isMaterialAmount = field === 'groot' || field === 'verbruik' || field === 'extra' || field === 'subtotaal';
+        const isVatApplicable = isMaterialAmount || settings?.btwMode !== 'materiaal_only';
+        if (!isVatApplicable) return value;
+
+        const rate = Math.max(0, Number(settings?.btwTarief) || 0);
+        return value / (1 + rate / 100);
     };
 
     const saveEditingAmount = () => {
@@ -185,20 +218,24 @@ export function CostSummaryCard({
             return;
         }
 
+        const value = editingAmountMode === 'incl'
+            ? convertInclToExcl(editingField, parsed)
+            : parsed;
+
         if (editingField === 'groot' && onUpdateMaterialenGrootTotal) {
-            onUpdateMaterialenGrootTotal(parsed);
+            onUpdateMaterialenGrootTotal(value);
         } else if (editingField === 'verbruik' && onUpdateMaterialenVerbruikTotal) {
-            onUpdateMaterialenVerbruikTotal(parsed);
+            onUpdateMaterialenVerbruikTotal(value);
         } else if (editingField === 'extra' && onUpdateExtraKostenTotal) {
-            onUpdateExtraKostenTotal(parsed);
+            onUpdateExtraKostenTotal(value);
         } else if (editingField === 'subtotaal' && onUpdateMaterialenSubtotal) {
-            onUpdateMaterialenSubtotal(parsed);
+            onUpdateMaterialenSubtotal(value);
         } else if (editingField === 'transport' && onUpdateTransportTotal) {
-            onUpdateTransportTotal(parsed);
+            onUpdateTransportTotal(value);
         } else if (editingField === 'margePct' && onUpdateWinstMargePercentage) {
-            onUpdateWinstMargePercentage(parsed);
+            onUpdateWinstMargePercentage(value);
         } else if (editingField === 'margeAmount' && onUpdateWinstMargeAmountExcl) {
-            onUpdateWinstMargeAmountExcl(parsed);
+            onUpdateWinstMargeAmountExcl(value);
         }
 
         cancelEditingAmount();
@@ -225,7 +262,7 @@ export function CostSummaryCard({
     const vatRate = Math.max(0, Number(settings?.btwTarief) || 0);
     const vatMultiplier = 1 + vatRate / 100;
     const isMaterialsOnlyVatMode = settings?.btwMode === 'materiaal_only';
-    const amountGridClass = 'grid w-[190px] sm:w-[260px] grid-cols-2 gap-3 sm:gap-4 text-right';
+    const amountGridClass = 'grid w-[385px] sm:w-[570px] grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(5.25rem,6.5rem)_minmax(5.25rem,6.5rem)] gap-2 sm:gap-3 items-center text-right';
     const winstMargeBasisLabel =
         settings?.extras?.winstMarge?.basis === 'materiaal'
             ? 'over materialen'
@@ -237,12 +274,66 @@ export function CostSummaryCard({
         if (!isVatApplicable) return exclValue;
         return exclValue + ((exclValue * vatRate) / 100);
     };
-    const renderAmountColumns = (exclNode: ReactNode, inclAmount: number, inclClassName: string = 'text-foreground') => (
+    const renderAmountColumns = (
+        exclNode: ReactNode,
+        inclAmount: number,
+        inclClassName: string = 'text-foreground',
+        inclNode: ReactNode = formatCurrency(inclAmount),
+        addField?: AdditiveAmountField,
+    ) => (
         <div className={amountGridClass}>
             <div className="text-foreground">{exclNode}</div>
-            <div className={inclClassName}>{formatCurrency(inclAmount)}</div>
+            <div className={inclClassName}>{inclNode}</div>
+            {addField ? renderAdditionInput(addField, 'excl') : <div />}
+            {addField ? renderAdditionInput(addField, 'incl') : <div />}
         </div>
     );
+
+    const renderEditableAmount = (
+        field: EditableAmountField,
+        exclAmount: number,
+        inclAmount: number,
+        inclClassName: string = 'text-foreground',
+    ) => {
+        const renderInput = (mode: AmountEditMode) => (
+            <Input
+                autoFocus
+                type="text"
+                value={tempFieldValue}
+                onChange={(e) => setTempFieldValue(e.target.value)}
+                onBlur={saveEditingAmount}
+                onFocus={selectAllOnFocus}
+                className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
+                onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
+                aria-label={`Bedrag ${mode === 'incl' ? 'incl. btw' : 'excl. btw'} bewerken`}
+            />
+        );
+
+        const renderButton = (amount: number, mode: AmountEditMode) => (
+            <button
+                type="button"
+                className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
+                onClick={() => startEditingAmount(field, amount, mode)}
+                aria-label={`Bedrag ${mode === 'incl' ? 'incl. btw' : 'excl. btw'} bewerken`}
+                title={`Bedrag ${mode === 'incl' ? 'incl. btw' : 'excl. btw'} bewerken`}
+            >
+                {formatCurrency(amount)}
+                <Pencil size={12} className="text-muted-foreground" />
+            </button>
+        );
+
+        return renderAmountColumns(
+            editingField === field && editingAmountMode === 'excl'
+                ? renderInput('excl')
+                : renderButton(exclAmount, 'excl'),
+            inclAmount,
+            inclClassName,
+            editingField === field && editingAmountMode === 'incl'
+                ? renderInput('incl')
+                : renderButton(inclAmount, 'incl'),
+            field === 'margePct' ? undefined : field,
+        );
+    };
 
     if (!totals || !settings) {
         return (
@@ -280,6 +371,205 @@ export function CostSummaryCard({
         return exclValue + ((exclValue * Math.max(0, rate)) / 100);
     };
 
+    const getAdditionKey = (field: AdditiveAmountField, mode: AmountEditMode): string => `${field}-${mode}`;
+
+    const setAdditionValue = (field: AdditiveAmountField, mode: AmountEditMode, value: string) => {
+        setAdditionValues((current) => ({
+            ...current,
+            [getAdditionKey(field, mode)]: value,
+        }));
+    };
+
+    const clearAdditionValue = (field: AdditiveAmountField, mode: AmountEditMode) => {
+        setAdditionValues((current) => {
+            const next = { ...current };
+            delete next[getAdditionKey(field, mode)];
+            return next;
+        });
+    };
+
+    const convertAdditionInclToExcl = (
+        field: AdditiveAmountField,
+        value: number,
+        currentExcl: number,
+        currentIncl: number,
+    ): number => {
+        // Use the displayed ratio for mixed-rate labour, so an incl. btw
+        // addition remains exactly that amount in the overview.
+        if (currentExcl > 0 && currentIncl >= 0) {
+            return value / (currentIncl / currentExcl);
+        }
+
+        const isMaterialAmount = field === 'groot' || field === 'verbruik' || field === 'extra' || field === 'subtotaal';
+        const isVatApplicable = isMaterialAmount || settings?.btwMode !== 'materiaal_only';
+        if (!isVatApplicable) return value;
+
+        const rate = field === 'arbeidLaag'
+            ? arbeidLaagBtwTarief
+            : Math.max(0, Number(settings?.btwTarief) || 0);
+        return value / (1 + rate / 100);
+    };
+
+    const saveAmountAddition = async (
+        field: AdditiveAmountField,
+        mode: AmountEditMode,
+    ): Promise<void> => {
+        if (skipNextBlurSaveRef.current) {
+            skipNextBlurSaveRef.current = false;
+            return;
+        }
+
+        const rawValue = additionValues[getAdditionKey(field, mode)] || '';
+        clearAdditionValue(field, mode);
+        const parsed = parseLocalizedNumber(rawValue);
+        if (Number.isNaN(parsed) || parsed === 0 || !totals) return;
+
+        const amountToAdd = Math.max(0, parsed);
+        const currentAmounts: Record<AdditiveAmountField, { excl: number; incl: number }> = {
+            groot: {
+                excl: totals.materialenGroot,
+                incl: calculateInclAmount(totals.materialenGroot, true),
+            },
+            verbruik: {
+                excl: verbruiksartikelenExclExtraKosten,
+                incl: calculateInclAmount(verbruiksartikelenExclExtraKosten, true),
+            },
+            extra: {
+                excl: extraKostenExcl,
+                incl: calculateInclAmount(extraKostenExcl, true),
+            },
+            subtotaal: {
+                excl: totals.materialenTotaal,
+                incl: calculateInclAmount(totals.materialenTotaal, true),
+            },
+            arbeid: {
+                excl: totals.arbeidTotaal,
+                incl: hasLaborVatSplit
+                    ? calculateInclAmountForRate(arbeidHoogBtwTotaal, vatRate) + calculateInclAmountForRate(arbeidLaagBtwTotaal, arbeidLaagBtwTarief)
+                    : calculateInclAmount(totals.arbeidTotaal, !isMaterialsOnlyVatMode),
+            },
+            arbeidHoog: {
+                excl: arbeidHoogBtwTotaal,
+                incl: calculateInclAmountForRate(arbeidHoogBtwTotaal, vatRate),
+            },
+            arbeidLaag: {
+                excl: arbeidLaagBtwTotaal,
+                incl: calculateInclAmountForRate(arbeidLaagBtwTotaal, arbeidLaagBtwTarief),
+            },
+            transport: {
+                excl: totals.transportTotaal,
+                incl: calculateInclAmount(totals.transportTotaal, !isMaterialsOnlyVatMode),
+            },
+            totaalExcl: {
+                excl: totaalExclZonderMarge,
+                incl: isMaterialsOnlyVatMode
+                    ? totaalExclZonderMarge + ((Math.max(0, totals.materialenTotaal) * vatRate) / 100)
+                    : calculateInclAmount(totaalExclZonderMarge, true),
+            },
+            margeAmount: {
+                excl: winstMargeExclBtw,
+                incl: calculateInclAmount(winstMargeExclBtw, !isMaterialsOnlyVatMode),
+            },
+            btwHoog: {
+                excl: totals.btwHoog || 0,
+                incl: totals.btwHoog || 0,
+            },
+            btwLaag: {
+                excl: totals.btwLaag || 0,
+                incl: totals.btwLaag || 0,
+            },
+            btw: {
+                excl: btwMetMarge,
+                incl: btwMetMarge,
+            },
+            totaalIncl: {
+                excl: totals.totaalExclBtw,
+                incl: totals.totaalInclBtw,
+            },
+        };
+        const current = currentAmounts[field];
+        const amountToAddExcl = mode === 'incl'
+            ? convertAdditionInclToExcl(field, amountToAdd, current.excl, current.incl)
+            : amountToAdd;
+
+        if (!Number.isFinite(amountToAddExcl) || amountToAddExcl <= 0) return;
+
+        if (field === 'groot' && onUpdateMaterialenGrootTotal) {
+            await onUpdateMaterialenGrootTotal(current.excl + amountToAddExcl);
+        } else if (field === 'verbruik' && onUpdateMaterialenVerbruikTotal) {
+            await onUpdateMaterialenVerbruikTotal(current.excl + amountToAddExcl);
+        } else if (field === 'extra' && onUpdateExtraKostenTotal) {
+            await onUpdateExtraKostenTotal(current.excl + amountToAddExcl);
+        } else if (field === 'subtotaal' && onUpdateMaterialenSubtotal) {
+            await onUpdateMaterialenSubtotal(current.excl + amountToAddExcl);
+        } else if (field === 'transport' && onUpdateTransportTotal) {
+            await onUpdateTransportTotal(current.excl + amountToAddExcl);
+        } else if (field === 'totaalExcl' && onUpdateMaterialenSubtotal) {
+            // This line is the subtotal before margin. Keep the addition on
+            // that subtotal so the line itself and the following totals move.
+            await onUpdateMaterialenSubtotal(current.excl + amountToAddExcl);
+        } else if ((field === 'arbeid' || field === 'arbeidHoog' || field === 'arbeidLaag') && onUpdateTotalHours) {
+            const hourlyRate = Math.max(0, Number(settings.uurTariefExclBtw) || 0);
+            if (hourlyRate <= 0) return;
+
+            const hoursToAdd = amountToAddExcl / hourlyRate;
+            await onUpdateTotalHours(totalUren + hoursToAdd);
+            if (field === 'arbeidLaag' && onUpdateLowVatLaborHours) {
+                await onUpdateLowVatLaborHours(arbeidLaagBtwUren + hoursToAdd);
+            }
+        } else if ((field === 'btwHoog' || field === 'btw') && vatRate > 0) {
+            const taxableAmountToAdd = amountToAddExcl / (vatRate / 100);
+            if (isMaterialsOnlyVatMode && onUpdateMaterialenSubtotal) {
+                await onUpdateMaterialenSubtotal(totals.materialenTotaal + taxableAmountToAdd);
+            } else if (onUpdateWinstMargeAmountExcl) {
+                await onUpdateWinstMargeAmountExcl(winstMargeExclBtw + taxableAmountToAdd);
+            }
+        } else if (field === 'btwLaag' && onUpdateTotalHours && arbeidLaagBtwTarief > 0) {
+            const hourlyRate = Math.max(0, Number(settings.uurTariefExclBtw) || 0);
+            if (hourlyRate <= 0) return;
+
+            const hoursToAdd = amountToAddExcl / ((arbeidLaagBtwTarief / 100) * hourlyRate);
+            await onUpdateTotalHours(totalUren + hoursToAdd);
+            if (onUpdateLowVatLaborHours) {
+                await onUpdateLowVatLaborHours(arbeidLaagBtwUren + hoursToAdd);
+            }
+        } else if ((field === 'totaalIncl' || field === 'margeAmount') && onUpdateWinstMargeAmountExcl) {
+            // The incl. total is derived from the cost lines. Store its
+            // addition as a margin addition so the customer total moves.
+            await onUpdateWinstMargeAmountExcl(winstMargeExclBtw + amountToAddExcl);
+        }
+    };
+
+    const handleAdditionKeyDown = (
+        event: KeyboardEvent<HTMLInputElement>,
+        field: AdditiveAmountField,
+        mode: AmountEditMode,
+    ) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            event.currentTarget.blur();
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            skipNextBlurSaveRef.current = true;
+            clearAdditionValue(field, mode);
+            event.currentTarget.blur();
+        }
+    };
+
+    const renderAdditionInput = (field: AdditiveAmountField, mode: AmountEditMode) => (
+        <Input
+            type="text"
+            inputMode="decimal"
+            value={additionValues[getAdditionKey(field, mode)] ?? '0'}
+            onChange={(event) => setAdditionValue(field, mode, event.target.value)}
+            onBlur={() => { void saveAmountAddition(field, mode); }}
+            onFocus={selectAllOnFocus}
+            onKeyDown={(event) => handleAdditionKeyDown(event, field, mode)}
+            className="h-7 w-full min-w-0 px-1.5 py-0 text-xs bg-muted/70 border-border text-right"
+            aria-label={`Toevoegen ${mode === 'incl' ? 'incl. btw' : 'excl. btw'} bij deze regel`}
+        />
+    );
+
     return (
         <div className="bg-card rounded-lg border border-border p-4">
             <h3 className="font-semibold text-muted-foreground text-sm mb-3 flex items-center gap-2">
@@ -290,6 +580,8 @@ export function CostSummaryCard({
                 <div className={`${amountGridClass} text-[11px] uppercase tracking-wide text-muted-foreground`}>
                     <span>Excl. btw</span>
                     <span>Incl. btw</span>
+                    <span>Toevoegen excl.</span>
+                    <span>Toevoegen incl.</span>
                 </div>
             </div>
 
@@ -297,110 +589,34 @@ export function CostSummaryCard({
                 <div className="rounded-lg border border-border p-2.5 space-y-1.5 bg-background/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Materialen (groot)</span>
-                        {renderAmountColumns(
-                            editingField === 'groot' ? (
-                                <Input
-                                    autoFocus
-                                    type="text"
-                                    value={tempFieldValue}
-                                    onChange={(e) => setTempFieldValue(e.target.value)}
-                                    onBlur={saveEditingAmount}
-                                    onFocus={selectAllOnFocus}
-                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
-                                />
-                            ) : (
-                                <button
-                                    type="button"
-                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
-                                    onClick={() => startEditingAmount('groot', totals.materialenGroot)}
-                                >
-                                    {formatCurrency(totals.materialenGroot)}
-                                    <Pencil size={12} className="text-muted-foreground" />
-                                </button>
-                            ),
-                            calculateInclAmount(totals.materialenGroot, true)
+                        {renderEditableAmount(
+                            'groot',
+                            totals.materialenGroot,
+                            calculateInclAmount(totals.materialenGroot, true),
                         )}
                     </div>
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Verbruiksartikelen</span>
-                        {renderAmountColumns(
-                            editingField === 'verbruik' ? (
-                                <Input
-                                    autoFocus
-                                    type="text"
-                                    value={tempFieldValue}
-                                    onChange={(e) => setTempFieldValue(e.target.value)}
-                                    onBlur={saveEditingAmount}
-                                    onFocus={selectAllOnFocus}
-                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
-                                />
-                            ) : (
-                                <button
-                                    type="button"
-                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
-                                    onClick={() => startEditingAmount('verbruik', verbruiksartikelenExclExtraKosten)}
-                                >
-                                    {formatCurrency(verbruiksartikelenExclExtraKosten)}
-                                    <Pencil size={12} className="text-muted-foreground" />
-                                </button>
-                            ),
-                            calculateInclAmount(verbruiksartikelenExclExtraKosten, true)
+                        {renderEditableAmount(
+                            'verbruik',
+                            verbruiksartikelenExclExtraKosten,
+                            calculateInclAmount(verbruiksartikelenExclExtraKosten, true),
                         )}
                     </div>
                     <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Extra kosten</span>
-                        {renderAmountColumns(
-                            editingField === 'extra' ? (
-                                <Input
-                                    autoFocus
-                                    type="text"
-                                    value={tempFieldValue}
-                                    onChange={(e) => setTempFieldValue(e.target.value)}
-                                    onBlur={saveEditingAmount}
-                                    onFocus={selectAllOnFocus}
-                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
-                                />
-                            ) : (
-                                <button
-                                    type="button"
-                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
-                                    onClick={() => startEditingAmount('extra', extraKostenExcl)}
-                                >
-                                    {formatCurrency(extraKostenExcl)}
-                                    <Pencil size={12} className="text-muted-foreground" />
-                                </button>
-                            ),
-                            calculateInclAmount(extraKostenExcl, true)
+                        {renderEditableAmount(
+                            'extra',
+                            extraKostenExcl,
+                            calculateInclAmount(extraKostenExcl, true),
                         )}
                     </div>
                     <div className="border-t border-border pt-1.5 flex justify-between text-sm">
                         <span className="text-muted-foreground">Subtotaal materialen</span>
-                        {renderAmountColumns(
-                            editingField === 'subtotaal' ? (
-                                <Input
-                                    autoFocus
-                                    type="text"
-                                    value={tempFieldValue}
-                                    onChange={(e) => setTempFieldValue(e.target.value)}
-                                    onBlur={saveEditingAmount}
-                                    onFocus={selectAllOnFocus}
-                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
-                                />
-                            ) : (
-                                <button
-                                    type="button"
-                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
-                                    onClick={() => startEditingAmount('subtotaal', totals.materialenTotaal)}
-                                >
-                                    {formatCurrency(totals.materialenTotaal)}
-                                    <Pencil size={12} className="text-muted-foreground" />
-                                </button>
-                            ),
-                            calculateInclAmount(totals.materialenTotaal, true)
+                        {renderEditableAmount(
+                            'subtotaal',
+                            totals.materialenTotaal,
+                            calculateInclAmount(totals.materialenTotaal, true),
                         )}
                     </div>
                 </div>
@@ -464,11 +680,17 @@ export function CostSummaryCard({
                         {hasLaborVatSplit
                             ? renderAmountColumns(
                                 <span>{formatCurrency(totals.arbeidTotaal)}</span>,
-                                calculateInclAmountForRate(arbeidHoogBtwTotaal, vatRate) + calculateInclAmountForRate(arbeidLaagBtwTotaal, arbeidLaagBtwTarief)
+                                calculateInclAmountForRate(arbeidHoogBtwTotaal, vatRate) + calculateInclAmountForRate(arbeidLaagBtwTotaal, arbeidLaagBtwTarief),
+                                'text-foreground',
+                                undefined,
+                                'arbeid',
                             )
                             : renderAmountColumns(
                                 <span>{formatCurrency(totals.arbeidTotaal)}</span>,
-                                calculateInclAmount(totals.arbeidTotaal, !isMaterialsOnlyVatMode)
+                                calculateInclAmount(totals.arbeidTotaal, !isMaterialsOnlyVatMode),
+                                'text-foreground',
+                                undefined,
+                                'arbeid',
                             )}
                     </div>
                     <div className="border-t border-border/70 pt-2 space-y-1 text-xs">
@@ -478,7 +700,10 @@ export function CostSummaryCard({
                             </span>
                             {renderAmountColumns(
                                 <span>{formatCurrency(arbeidHoogBtwTotaal)}</span>,
-                                calculateInclAmountForRate(arbeidHoogBtwTotaal, vatRate)
+                                calculateInclAmountForRate(arbeidHoogBtwTotaal, vatRate),
+                                'text-foreground',
+                                undefined,
+                                'arbeidHoog',
                             )}
                         </div>
                         {(hasLaborVatSplit || isEditingLowVatHours || onUpdateLowVatLaborHours) && (
@@ -510,7 +735,10 @@ export function CostSummaryCard({
                                 </span>
                                 {renderAmountColumns(
                                     <span>{formatCurrency(arbeidLaagBtwTotaal)}</span>,
-                                    calculateInclAmountForRate(arbeidLaagBtwTotaal, arbeidLaagBtwTarief)
+                                    calculateInclAmountForRate(arbeidLaagBtwTotaal, arbeidLaagBtwTarief),
+                                    'text-foreground',
+                                    undefined,
+                                    'arbeidLaag',
                                 )}
                             </div>
                         )}
@@ -550,29 +778,10 @@ export function CostSummaryCard({
                                 x {totals.transportDistanceKmOneWay.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}km = {formatCurrency(totals.transportOneWayCost)} x 2 = {formatCurrency(totals.transportRoundTripCost)} x {totals.transportAantalDagen} dagen)
                             </span>
                         </span>
-                        {renderAmountColumns(
-                            editingField === 'transport' ? (
-                                <Input
-                                    autoFocus
-                                    type="text"
-                                    value={tempFieldValue}
-                                    onChange={(e) => setTempFieldValue(e.target.value)}
-                                    onBlur={saveEditingAmount}
-                                    onFocus={selectAllOnFocus}
-                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
-                                />
-                            ) : (
-                                <button
-                                    type="button"
-                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
-                                    onClick={() => startEditingAmount('transport', totals.transportTotaal)}
-                                >
-                                    {formatCurrency(totals.transportTotaal)}
-                                    <Pencil size={12} className="text-muted-foreground" />
-                                </button>
-                            ),
-                            calculateInclAmount(totals.transportTotaal, !isMaterialsOnlyVatMode)
+                        {renderEditableAmount(
+                            'transport',
+                            totals.transportTotaal,
+                            calculateInclAmount(totals.transportTotaal, !isMaterialsOnlyVatMode),
                         )}
                     </div>
                 </div>
@@ -586,7 +795,10 @@ export function CostSummaryCard({
                             <span>{formatCurrency(totaalExclZonderMarge)}</span>,
                             isMaterialsOnlyVatMode
                                 ? totaalExclZonderMarge + ((Math.max(0, totals.materialenTotaal) * vatRate) / 100)
-                                : calculateInclAmount(totaalExclZonderMarge, true)
+                                : calculateInclAmount(totaalExclZonderMarge, true),
+                            'text-foreground',
+                            undefined,
+                            'totaalExcl',
                         )}
                     </div>
                     <div className="flex justify-between text-sm">
@@ -621,29 +833,10 @@ export function CostSummaryCard({
                                 <>Winstmarge (vast)</>
                             )}
                         </span>
-                        {renderAmountColumns(
-                            editingField === 'margeAmount' ? (
-                                <Input
-                                    autoFocus
-                                    type="text"
-                                    value={tempFieldValue}
-                                    onChange={(e) => setTempFieldValue(e.target.value)}
-                                    onBlur={saveEditingAmount}
-                                    onFocus={selectAllOnFocus}
-                                    className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
-                                    onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
-                                />
-                            ) : (
-                                <button
-                                    type="button"
-                                    className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
-                                    onClick={() => startEditingAmount('margeAmount', winstMargeExclBtw)}
-                                >
-                                    {formatCurrency(winstMargeExclBtw)}
-                                    <Pencil size={12} className="text-muted-foreground" />
-                                </button>
-                            ),
-                            calculateInclAmount(winstMargeExclBtw, !isMaterialsOnlyVatMode)
+                        {renderEditableAmount(
+                            'margeAmount',
+                            winstMargeExclBtw,
+                            calculateInclAmount(winstMargeExclBtw, !isMaterialsOnlyVatMode),
                         )}
                     </div>
                     {hasLaborVatSplit ? (
@@ -652,14 +845,20 @@ export function CostSummaryCard({
                                 <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
                                 {renderAmountColumns(
                                     <span>{formatCurrency(totals.btwHoog || 0)}</span>,
-                                    totals.btwHoog || 0
+                                    totals.btwHoog || 0,
+                                    'text-foreground',
+                                    undefined,
+                                    'btwHoog',
                                 )}
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">BTW ({arbeidLaagBtwTarief}%)</span>
                                 {renderAmountColumns(
                                     <span>{formatCurrency(totals.btwLaag || 0)}</span>,
-                                    totals.btwLaag || 0
+                                    totals.btwLaag || 0,
+                                    'text-foreground',
+                                    undefined,
+                                    'btwLaag',
                                 )}
                             </div>
                         </div>
@@ -668,7 +867,10 @@ export function CostSummaryCard({
                             <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
                             {renderAmountColumns(
                                 <span>{formatCurrency(btwMetMarge)}</span>,
-                                btwMetMarge
+                                btwMetMarge,
+                                'text-foreground',
+                                undefined,
+                                'btw',
                             )}
                         </div>
                     )}
@@ -676,9 +878,13 @@ export function CostSummaryCard({
 
                 <div className="border-t-2 border-primary/50 pt-2.5 flex justify-between">
                     <span className="font-semibold text-foreground">TOTAAL INCL. BTW</span>
-                    <span className="font-bold text-lg text-primary">
-                        {formatCurrency(totals.totaalInclBtw)}
-                    </span>
+                    {renderAmountColumns(
+                        <span className="font-bold text-primary">{formatCurrency(totals.totaalExclBtw)}</span>,
+                        totals.totaalInclBtw,
+                        'font-bold text-lg text-primary',
+                        <span className="font-bold text-lg text-primary">{formatCurrency(totals.totaalInclBtw)}</span>,
+                        'totaalIncl',
+                    )}
                 </div>
                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
                     <div className="mb-2 flex items-center justify-between gap-4">

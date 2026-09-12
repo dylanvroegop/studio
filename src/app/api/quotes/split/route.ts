@@ -54,6 +54,24 @@ type ParsedQuoteNoteSection = {
   block: string;
 };
 
+type SplitNoteMaatwerkLine = {
+  draftId?: unknown;
+  title?: unknown;
+  length?: unknown;
+  width?: unknown;
+  height?: unknown;
+  thickness?: unknown;
+};
+
+type SplitNoteSection = {
+  draftId?: unknown;
+  title?: unknown;
+  notes?: unknown;
+  linksTitle?: unknown;
+  links?: unknown;
+  maatwerkLines?: unknown;
+};
+
 function toFiniteNumber(value: unknown, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -158,6 +176,104 @@ function stringArray(value: unknown): string[] {
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function normalizeSplitNoteDimension(value: unknown): string {
+  return String(value || '').replace(/\bmm\b/gi, '').trim();
+}
+
+function hasSplitMaatwerkContent(line: SplitNoteMaatwerkLine): boolean {
+  return [line.title, line.length, line.width, line.height, line.thickness]
+    .some((value) => String(value || '').trim().length > 0);
+}
+
+function formatSplitMaatwerkLine(line: SplitNoteMaatwerkLine): string {
+  const title = String(line.title || '').trim();
+  const dimensions = [
+    ['Lengte', line.length],
+    ['Breedte', line.width],
+    ['Hoogte', line.height],
+    ['Dikte', line.thickness],
+  ].map(([label, value]) => `${label}: ${normalizeSplitNoteDimension(value)} mm`);
+  const prefix = title ? `${title} = ` : '';
+  return `- ${prefix}${dimensions.join(' | ')}`;
+}
+
+function serializeAssignedSplitNotes(noteSections: SplitNoteSection[], draftId: string): string {
+  const blocks: string[] = [];
+
+  for (const section of noteSections) {
+    const sectionDraftId = String(section.draftId || '').trim();
+    const includeSectionContent = sectionDraftId === draftId;
+    const title = String(section.title || '').trim();
+    const notes = String(section.notes || '').trim();
+    const linksTitle = String(section.linksTitle || '').trim();
+    const links = Array.isArray(section.links)
+      ? section.links
+        .filter((link): link is Record<string, unknown> => Boolean(link && typeof link === 'object' && !Array.isArray(link)))
+        .map((link) => ({
+          title: String(link.title || '').trim(),
+          url: String(link.url || '').trim(),
+        }))
+        .filter((link) => link.title || link.url)
+      : [];
+    const maatwerkLines = Array.isArray(section.maatwerkLines)
+      ? section.maatwerkLines
+        .filter((line): line is SplitNoteMaatwerkLine => Boolean(line && typeof line === 'object' && !Array.isArray(line)))
+        .filter(hasSplitMaatwerkContent)
+        .filter((line) => String(line.draftId || sectionDraftId).trim() === draftId)
+      : [];
+
+    if (!includeSectionContent && maatwerkLines.length === 0) continue;
+
+    const blockLines: string[] = [];
+    if (title && (includeSectionContent || maatwerkLines.length > 0)) blockLines.push(`### ${title}`);
+    if (includeSectionContent && notes) blockLines.push(notes);
+    if (maatwerkLines.length > 0) {
+      blockLines.push('#### Maatwerk');
+      maatwerkLines.forEach((line) => blockLines.push(formatSplitMaatwerkLine(line)));
+    }
+    if (includeSectionContent && (linksTitle || links.length > 0)) {
+      blockLines.push('#### Links');
+      if (linksTitle) blockLines.push(`Titel: ${linksTitle}`);
+      links.forEach((link) => {
+        if (link.title && link.url) blockLines.push(`- ${link.title} | ${link.url}`);
+        else if (link.url) blockLines.push(`- ${link.url}`);
+        else if (link.title) blockLines.push(`- ${link.title}`);
+      });
+    }
+
+    if (blockLines.length > 0) blocks.push(blockLines.join('\n'));
+  }
+
+  return blocks.join('\n\n');
+}
+
+function getAssignedMaatwerkDimensions(noteSections: SplitNoteSection[], draftId?: string): string[] {
+  const dimensions: string[] = [];
+
+  for (const section of noteSections) {
+    const sectionDraftId = String(section.draftId || '').trim();
+    const lines = Array.isArray(section.maatwerkLines) ? section.maatwerkLines : [];
+    lines.forEach((rawLine) => {
+      if (!rawLine || typeof rawLine !== 'object' || Array.isArray(rawLine)) return;
+      const line = rawLine as SplitNoteMaatwerkLine;
+      if (!hasSplitMaatwerkContent(line)) return;
+      if (draftId && String(line.draftId || sectionDraftId).trim() !== draftId) return;
+
+      const values = [
+        line.length ? `Lengte = ${normalizeSplitNoteDimension(line.length)} mm` : '',
+        line.width ? `Breedte = ${normalizeSplitNoteDimension(line.width)} mm` : '',
+        line.height ? `Hoogte = ${normalizeSplitNoteDimension(line.height)} mm` : '',
+        line.thickness ? `Dikte = ${normalizeSplitNoteDimension(line.thickness)} mm` : '',
+      ].filter(Boolean);
+      if (values.length > 0) {
+        dimensions.push(`${String(line.title || '').trim() || 'Maatwerk'}: | ${values.join(' | ')} |`);
+      }
+    });
+  }
+
+  return uniqueStrings(dimensions);
 }
 
 function parseSerializedQuoteNotes(value: unknown): ParsedQuoteNoteSection[] {
@@ -302,15 +418,22 @@ function buildSplitWorkDescription(
   sourceDataJson: SourceDataJson,
   materials: Record<string, unknown>[],
   splitNotes: string,
+  assignedMaatwerkDimensions: string[],
+  allMaatwerkDimensions: string[],
 ) {
   const selectedJob = getSelectedWorkJob(split, sourceDataJson);
   const baseJob: WorkJobRecord = selectedJob && typeof selectedJob === 'object'
     ? { ...selectedJob }
     : buildFallbackWorkJob(split, materials);
+  const maatwerkDimensionIdentities = new Set(allMaatwerkDimensions.map((line) => line.toLowerCase().replace(/\s+/g, ' ').trim()));
+  const retainedDimensions = stringArray(baseJob.dimensions)
+    .filter((line) => !maatwerkDimensionIdentities.has(line.toLowerCase().replace(/\s+/g, ' ').trim()));
+  const dimensions = uniqueStrings([...retainedDimensions, ...assignedMaatwerkDimensions]);
   const jobInternalNotes = uniqueStrings([...stringArray(baseJob.internal_notes), splitNotes]);
   const job: WorkJobRecord = {
     ...baseJob,
     title: split.title || String(baseJob.title || '') || 'Deelofferte',
+    dimensions,
     internal_notes: jobInternalNotes,
   };
 
@@ -320,7 +443,7 @@ function buildSplitWorkDescription(
     summary: String(job.summary || ''),
     work_scope: stringArray(job.work_scope),
     materials: stringArray(job.materials).length > 0 ? stringArray(job.materials) : materials.map((item) => String(item.product || '')).filter(Boolean),
-    dimensions: stringArray(job.dimensions),
+    dimensions,
     included: stringArray(job.included),
     excluded: stringArray(job.excluded),
     internal_notes: jobInternalNotes,
@@ -365,6 +488,8 @@ export async function POST(req: Request) {
     const quoteId = typeof body?.quoteId === 'string' ? body.quoteId.trim() : '';
     const splitDrafts = Array.isArray(body?.splits) ? body.splits as SplitDraft[] : [];
     const sourceDataJson: SourceDataJson = body?.dataJson && typeof body.dataJson === 'object' ? body.dataJson : {};
+    const hasExplicitNoteAssignments = Array.isArray(body?.noteSections);
+    const splitNoteSections = hasExplicitNoteAssignments ? body.noteSections as SplitNoteSection[] : [];
 
     if (!quoteId) {
       return NextResponse.json({ ok: false, message: 'Missing required field: quoteId' }, { status: 400 });
@@ -388,7 +513,10 @@ export async function POST(req: Request) {
     const sourceKlussen = sourceQuote.klussen && typeof sourceQuote.klussen === 'object'
       ? sourceQuote.klussen as Record<string, unknown>
       : {};
-    const sourceNotes = typeof sourceQuote.notities === 'string' ? sourceQuote.notities : '';
+    const sourceNotes = typeof body?.notes === 'string'
+      ? body.notes
+      : typeof sourceQuote.notities === 'string' ? sourceQuote.notities : '';
+    const allMaatwerkDimensions = getAssignedMaatwerkDimensions(splitNoteSections);
     const sourceQuoteNotesSnapshot = await sourceRef.collection('quote_notes').get();
 
     await Promise.all([
@@ -436,11 +564,21 @@ export async function POST(req: Request) {
         .filter((item) => String(item.product || '').trim());
       const allMaterials = [...grootmaterialen, ...verbruiksartikelen];
       const selectedWorkJob = getSelectedWorkJob(split, sourceDataJson);
-      const splitNotes = pickSplitNotes(sourceQuote.notities, { ...split, title }, selectedWorkJob, index, splitDrafts.length);
-      // The retained source quote is the safety copy and must always keep every note.
-      // New quotes use their matching section when possible and fall back to all notes.
-      const notesForQuote = isPrimarySplit ? sourceNotes : (splitNotes || sourceNotes);
-      const workDescription = buildSplitWorkDescription({ ...split, title }, sourceDataJson, allMaterials, splitNotes);
+      const splitNotes = hasExplicitNoteAssignments
+        ? serializeAssignedSplitNotes(splitNoteSections, split.id)
+        : pickSplitNotes(sourceNotes, { ...split, title }, selectedWorkJob, index, splitDrafts.length);
+      const notesForQuote = hasExplicitNoteAssignments
+        ? splitNotes
+        : splitNotes || (isPrimarySplit ? sourceNotes : '');
+      const assignedMaatwerkDimensions = getAssignedMaatwerkDimensions(splitNoteSections, split.id);
+      const workDescription = buildSplitWorkDescription(
+        { ...split, title },
+        sourceDataJson,
+        allMaterials,
+        splitNotes,
+        assignedMaatwerkDimensions,
+        allMaatwerkDimensions,
+      );
       const marginAmount = Math.max(0, toFiniteNumber(split?.marginAmount, 0));
       const sourceExtras = sourceDataJson.extras && typeof sourceDataJson.extras === 'object'
         ? sourceDataJson.extras as Record<string, unknown>
@@ -482,14 +620,15 @@ export async function POST(req: Request) {
       const selectedKlusIds = Array.isArray(split.selectedKlusIds)
         ? split.selectedKlusIds.map((klusId) => String(klusId || '').trim()).filter(Boolean)
         : [];
+      const hasExplicitKlusAssignments = Array.isArray(split.selectedKlusIds);
       const selectedKlusEntries = selectedKlusIds
         .map((klusId) => [klusId, sourceKlussen[klusId]] as const)
         .filter((entry): entry is readonly [string, unknown] => entry[1] !== undefined);
       const selectedKlusEntry = typeof split.workJobIndex === 'number'
         ? Object.entries(sourceKlussen)[split.workJobIndex]
         : null;
-      const selectedKlussenMap = selectedKlusEntries.length > 0
-        ? Object.fromEntries(selectedKlusEntries)
+      const selectedKlussenMap = hasExplicitKlusAssignments
+        ? (selectedKlusEntries.length > 0 ? Object.fromEntries(selectedKlusEntries) : null)
         : selectedKlusEntry
           ? { [selectedKlusEntry[0]]: selectedKlusEntry[1] }
           : null;
@@ -553,8 +692,8 @@ export async function POST(req: Request) {
       delete mutableQuotePayload.pdf_url;
       delete mutableQuotePayload.pdfUrl;
       delete mutableQuotePayload.calculationStartedAt;
-      if (Object.prototype.hasOwnProperty.call(sourceQuote, 'notities')) {
-        mutableQuotePayload.notities = notesForQuote || sourceQuote.notities;
+      if (hasExplicitNoteAssignments || Object.prototype.hasOwnProperty.call(sourceQuote, 'notities')) {
+        mutableQuotePayload.notities = hasExplicitNoteAssignments ? notesForQuote : (notesForQuote || sourceQuote.notities);
       } else if (notesForQuote) {
         mutableQuotePayload.notities = notesForQuote;
       }

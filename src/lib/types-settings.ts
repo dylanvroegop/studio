@@ -38,6 +38,7 @@ export interface LeverancierContact {
     naam: string;
     contactNaam: string;
     email: string;
+    telefoon?: string;
     contacten?: LeverancierPersoon[];
     transportKostenRegels?: LeverancierTransportKostenRegel[];
     gratisVerzendingVanafBedrag?: number | null;
@@ -47,6 +48,7 @@ export interface LeverancierPersoon {
     id: string;
     naam: string;
     email: string;
+    telefoon?: string;
 }
 
 export interface LeverancierTransportKostenRegel {
