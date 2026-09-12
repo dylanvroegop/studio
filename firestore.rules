@@ -52,6 +52,13 @@ service cloud.firestore {
       }
     }
 
+    // Collection-group reads for the general Offertes filter. The query is
+    // restricted to the authenticated creator, so request history cannot leak.
+    match /{path=**}/communication_logs/{logId} {
+      allow read: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      allow write: if false;
+    }
+
     // Rules for the 'invoices' collection (Facturen)
     match /invoices/{invoiceId} {
       allow read, get: if isSignedIn() && resource.data.userId == request.auth.uid;

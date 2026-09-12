@@ -1181,18 +1181,6 @@ interface QuoteInvoiceSummaryRow {
     payments: QuotePaymentSummaryRow[];
 }
 
-interface SupplierMaterialRequest {
-    id: string;
-    channel?: string;
-    type?: string;
-    supplierName?: string;
-    to?: string;
-    subject?: string;
-    messagePreview?: string;
-    attachmentCount?: number;
-    createdAt?: unknown;
-}
-
 export default function QuotePage() {
     const params = useParams();
     const id = params?.id as string;
@@ -1368,7 +1356,6 @@ export default function QuotePage() {
     const [isMaterialExportOpen, setIsMaterialExportOpen] = useState(false);
     const [isSupplierQuestionMode, setIsSupplierQuestionMode] = useState(false);
     const [linkedMaterialLists, setLinkedMaterialLists] = useState<MaterialList[]>([]);
-    const [supplierMaterialRequests, setSupplierMaterialRequests] = useState<SupplierMaterialRequest[]>([]);
     const [isCreatingLinkedMaterialList, setIsCreatingLinkedMaterialList] = useState(false);
     const [materialSuppliers, setMaterialSuppliers] = useState<LeverancierContact[]>([]);
     const [defaultMaterialSupplierId, setDefaultMaterialSupplierId] = useState('');
@@ -1433,33 +1420,6 @@ export default function QuotePage() {
         );
 
         return () => unsub();
-    }, [firestore, id, user]);
-
-    useEffect(() => {
-        if (!user || !firestore || !id) {
-            setSupplierMaterialRequests([]);
-            return;
-        }
-
-        const ref = collection(firestore, 'quotes', id, 'communication_logs');
-        const unsubscribe = onSnapshot(
-            ref,
-            (snapshot) => {
-                const rows = snapshot.docs
-                    .map((docSnap) => ({ ...(docSnap.data() as SupplierMaterialRequest), id: docSnap.id }))
-                    .filter((request) => request.channel === 'gmail' && request.type === 'supplier_material_question');
-                rows.sort((a, b) => (
-                    (parseReceiptCreatedAt(b.createdAt)?.getTime() ?? 0)
-                    - (parseReceiptCreatedAt(a.createdAt)?.getTime() ?? 0)
-                ));
-                setSupplierMaterialRequests(rows);
-            },
-            () => {
-                setSupplierMaterialRequests([]);
-            },
-        );
-
-        return () => unsubscribe();
     }, [firestore, id, user]);
 
     // PDF Generation State
@@ -7467,28 +7427,12 @@ export default function QuotePage() {
                                         <LayoutDashboard size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
-                                        value="financieel"
-                                        className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
-                                        aria-label="Financieel"
-                                        title="Financieel"
-                                    >
-                                        <ReceiptText size={16} />
-                                    </TabsTrigger>
-                                    <TabsTrigger
                                         value="materialen"
                                         className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
                                         aria-label="Materialen"
                                         title="Materialen"
                                     >
                                         <Package size={16} />
-                                    </TabsTrigger>
-                                    <TabsTrigger
-                                        value="aangevraagd"
-                                        className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
-                                        aria-label="Aangevraagd"
-                                        title="Aangevraagd"
-                                    >
-                                        <Mail size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="prijsboek"
@@ -7579,22 +7523,9 @@ export default function QuotePage() {
                                         </div>
                                     )}
                                 </TabsTrigger>
-                                <TabsTrigger value="aangevraagd" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
-                                    <Mail size={16} />
-                                    Aangevraagd
-                                    {supplierMaterialRequests.length > 0 && (
-                                        <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500/15 px-1.5 text-[10px] font-semibold text-emerald-300">
-                                            {supplierMaterialRequests.length}
-                                        </span>
-                                    )}
-                                </TabsTrigger>
                                 <TabsTrigger value="overzicht" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <Euro size={16} />
                                     Overzicht
-                                </TabsTrigger>
-                                <TabsTrigger value="financieel" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
-                                    <ReceiptText size={16} />
-                                    Financieel
                                 </TabsTrigger>
                                 <TabsTrigger value="prijsboek" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <BookOpen size={16} />
@@ -8290,64 +8221,6 @@ export default function QuotePage() {
                                     />
                                 </div>
                             )}
-                        </TabsContent>
-
-                        <TabsContent value="aangevraagd" className="mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Mail className="h-5 w-5 text-emerald-400" />
-                                        Aangevraagd
-                                    </CardTitle>
-                                    <p className="text-sm text-muted-foreground">
-                                        Materiaalvragen die vanuit deze offerte via Gmail naar leveranciers zijn verstuurd.
-                                    </p>
-                                </CardHeader>
-                                <CardContent>
-                                    {supplierMaterialRequests.length === 0 ? (
-                                        <div className="rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">
-                                            Nog geen materiaal aangevraagd via Gmail.
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {supplierMaterialRequests.map((request) => {
-                                                const createdAt = parseReceiptCreatedAt(request.createdAt);
-                                                const supplierLabel = String(request.supplierName || request.to || 'Leverancier').trim();
-                                                const attachmentCount = Number(request.attachmentCount || 0);
-                                                return (
-                                                    <div key={request.id} className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
-                                                        <div className="flex flex-wrap items-start justify-between gap-3">
-                                                            <div className="min-w-0">
-                                                                <div className="flex flex-wrap items-center gap-2">
-                                                                    <span className="font-semibold text-foreground">{supplierLabel}</span>
-                                                                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-300">
-                                                                        Aangevraagd
-                                                                    </span>
-                                                                </div>
-                                                                <p className="mt-1 text-sm text-muted-foreground">
-                                                                    {request.to ? `Naar ${request.to}` : 'Leverancier'}
-                                                                    {createdAt ? ` · ${createdAt.toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
-                                                                </p>
-                                                            </div>
-                                                            {attachmentCount > 0 ? (
-                                                                <span className="shrink-0 text-xs text-muted-foreground">
-                                                                    {attachmentCount} foto&apos;s meegestuurd
-                                                                </span>
-                                                            ) : null}
-                                                        </div>
-                                                        {request.subject ? (
-                                                            <p className="mt-3 text-sm font-medium text-foreground">{request.subject}</p>
-                                                        ) : null}
-                                                        {request.messagePreview ? (
-                                                            <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{request.messagePreview}</p>
-                                                        ) : null}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
                         </TabsContent>
 
                         <TabsContent value="prijsboek" className="mt-6">

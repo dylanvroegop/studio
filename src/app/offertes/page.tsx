@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   collection,
+  collectionGroup,
   deleteField,
   doc,
   getDocs,
@@ -24,6 +25,7 @@ import {
   FileText,
   List,
   Loader2,
+  Mail,
   MoreHorizontal,
   Navigation,
   Plus,
@@ -71,7 +73,7 @@ import type { InvoiceStatus, Quote } from '@/lib/types';
 import { formatOfferteNummerLabel } from '@/lib/quote-number';
 import { cn } from '@/lib/utils';
 
-type FilterMode = 'alle' | 'concept' | 'vandaag' | 'in_afwachting' | 'verzonden' | 'geaccepteerd' | 'werkbespreking' | 'archief';
+type FilterMode = 'alle' | 'concept' | 'vandaag' | 'in_afwachting' | 'verzonden' | 'geaccepteerd' | 'werkbespreking' | 'aangevraagd' | 'archief';
 const OFFERTES_FILTER_STORAGE_KEY = 'offertes:last-filter';
 type DefaultFilterMode = 'concept' | 'geaccepteerd' | 'vandaag';
 const OFFERTES_DEFAULT_FILTER_STORAGE_KEY = 'offertes:default-filter';
@@ -86,6 +88,7 @@ const MOBILE_FILTER_ICONS: Record<FilterMode, LucideIcon> = {
   verzonden: Send,
   geaccepteerd: CheckCircle2,
   werkbespreking: CalendarDays,
+  aangevraagd: Mail,
   archief: Archive,
 };
 
@@ -97,6 +100,7 @@ const MOBILE_FILTER_COLORS: Record<FilterMode, string> = {
   verzonden: 'text-violet-400 border-violet-400/40 bg-violet-400/10 hover:bg-violet-400/20',
   geaccepteerd: 'text-emerald-400 border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20',
   werkbespreking: 'text-red-400 border-red-400/40 bg-red-400/10 hover:bg-red-400/20',
+  aangevraagd: 'text-emerald-400 border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20',
   archief: 'text-zinc-300 border-zinc-400/35 bg-zinc-400/10 hover:bg-zinc-400/20',
 };
 
@@ -129,6 +133,12 @@ type InvoiceSyncRow = {
   quoteId?: string;
   status?: InvoiceStatus;
   archived?: boolean;
+};
+
+type SupplierMaterialRequestLog = {
+  quoteId?: unknown;
+  channel?: unknown;
+  type?: unknown;
 };
 
 type Client = {
@@ -179,6 +189,7 @@ function isFilterMode(value: unknown): value is FilterMode {
     value === 'verzonden' ||
     value === 'geaccepteerd' ||
     value === 'werkbespreking' ||
+    value === 'aangevraagd' ||
     value === 'archief'
   );
 }
@@ -767,6 +778,7 @@ export default function OffertesPage() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [todayRangeMode, setTodayRangeMode] = useState<TodayRangeMode>('vandaag');
   const [unlinkedPlanningEntries, setUnlinkedPlanningEntries] = useState<PlanningListEntry[]>([]);
+  const [supplierMaterialRequestQuoteIds, setSupplierMaterialRequestQuoteIds] = useState<Set<string>>(new Set());
 
   const [createOpen, setCreateOpen] = useState(false);
   const [creatingQuote, setCreatingQuote] = useState(false);
@@ -875,6 +887,35 @@ export default function OffertesPage() {
     );
 
     return () => unsub();
+  }, [firestore, user]);
+
+  useEffect(() => {
+    if (!user || !firestore) {
+      setSupplierMaterialRequestQuoteIds(new Set());
+      return;
+    }
+
+    const ref = collectionGroup(firestore, 'communication_logs');
+    const logsQuery = query(ref, where('createdBy', '==', user.uid));
+    const unsubscribe = onSnapshot(
+      logsQuery,
+      (snapshot) => {
+        const quoteIds = new Set<string>();
+        snapshot.docs.forEach((docSnap) => {
+          const request = docSnap.data() as SupplierMaterialRequestLog;
+          if (request.channel !== 'gmail' || request.type !== 'supplier_material_question') return;
+          const quoteId = typeof request.quoteId === 'string' ? request.quoteId.trim() : '';
+          if (quoteId) quoteIds.add(quoteId);
+        });
+        setSupplierMaterialRequestQuoteIds(quoteIds);
+      },
+      (err: unknown) => {
+        console.warn('Fout bij ophalen aangevraagde materialen voor offertes:', err);
+        setSupplierMaterialRequestQuoteIds(new Set());
+      },
+    );
+
+    return () => unsubscribe();
   }, [firestore, user]);
 
   useEffect(() => {
@@ -1408,6 +1449,9 @@ export default function OffertesPage() {
       if (mode === 'werkbespreking') {
         return nonArchived.filter((q) => q.status === 'werkbespreking').length;
       }
+      if (mode === 'aangevraagd') {
+        return nonArchived.filter((q) => supplierMaterialRequestQuoteIds.has(q.id)).length;
+      }
       return 0;
     };
 
@@ -1419,9 +1463,10 @@ export default function OffertesPage() {
       verzonden: countFor('verzonden'),
       geaccepteerd: countFor('geaccepteerd'),
       werkbespreking: countFor('werkbespreking'),
+      aangevraagd: countFor('aangevraagd'),
       archief: countFor('archief'),
     } as Record<FilterMode, number>;
-  }, [quotesForSelectedYear, acceptedQuoteIdsFromInvoices, todaysQuotes]);
+  }, [quotesForSelectedYear, acceptedQuoteIdsFromInvoices, todaysQuotes, supplierMaterialRequestQuoteIds]);
 
   const filteredQuotes = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -1438,6 +1483,7 @@ export default function OffertesPage() {
       if (filter === 'verzonden') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden');
       if (filter === 'geaccepteerd') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'geaccepteerd');
       if (filter === 'werkbespreking') result = result.filter((q) => q.status === 'werkbespreking');
+      if (filter === 'aangevraagd') result = result.filter((q) => supplierMaterialRequestQuoteIds.has(q.id));
     }
 
     if (!s) return result;
@@ -1448,7 +1494,7 @@ export default function OffertesPage() {
       const detail = (getQuoteDetailSummary(q, planningEntriesForDisplayByQuoteId[q.id]) || '').toLowerCase();
       return klant.includes(s) || nr.includes(s) || titel.includes(s) || detail.includes(s);
     });
-  }, [filter, quotesForSelectedYear, todaysQuotes, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId, planningEntriesForDisplayByQuoteId]);
+  }, [filter, quotesForSelectedYear, todaysQuotes, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId, planningEntriesForDisplayByQuoteId, supplierMaterialRequestQuoteIds]);
 
   const filteredClients = useMemo(() => {
     const s = clientSearch.trim().toLowerCase();
@@ -1676,6 +1722,7 @@ export default function OffertesPage() {
     { value: 'in_afwachting', label: 'Afwachten', count: filterCountsByMode.in_afwachting },
     { value: 'verzonden', label: 'Verzonden', count: filterCountsByMode.verzonden },
     { value: 'werkbespreking', label: 'Werkbespreking', count: filterCountsByMode.werkbespreking },
+    { value: 'aangevraagd', label: 'Aangevraagd', count: filterCountsByMode.aangevraagd },
   ];
 
   const mobileFilterOptions: Array<{ value: FilterMode; label: string; count: number }> = [
@@ -1686,6 +1733,7 @@ export default function OffertesPage() {
     { value: 'alle', label: 'Alle', count: filterCountsByMode.alle },
     { value: 'in_afwachting', label: 'Afwachten', count: filterCountsByMode.in_afwachting },
     { value: 'verzonden', label: 'Verzonden', count: filterCountsByMode.verzonden },
+    { value: 'aangevraagd', label: 'Aangevraagd', count: filterCountsByMode.aangevraagd },
   ];
 
   const defaultFilterLabel = defaultFilter === 'geaccepteerd'
