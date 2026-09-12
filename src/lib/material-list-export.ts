@@ -13,6 +13,11 @@ export interface MaterialListExportMeta {
   offerteNummer?: string | number | null;
   klusTitel?: string;
   klantNaam?: string;
+  klantAdres?: string;
+  klantStraat?: string;
+  klantHuisnummer?: string;
+  klantPostcode?: string;
+  klantPlaats?: string;
   klantEmail?: string;
   senderCompanyName?: string;
   senderContactName?: string;
@@ -126,6 +131,22 @@ function buildSenderSignatureData(meta?: MaterialListExportMeta): SenderSignatur
   };
 }
 
+function buildClientAddress(meta?: MaterialListExportMeta): string {
+  const explicitAddress = safeString(meta?.klantAdres);
+  if (explicitAddress) return explicitAddress;
+
+  const streetLine = [safeString(meta?.klantStraat), safeString(meta?.klantHuisnummer)]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  const postalCityLine = [safeString(meta?.klantPostcode), safeString(meta?.klantPlaats)]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  return [streetLine, postalCityLine].filter(Boolean).join('\n');
+}
+
 interface BuildMaterialListRowsOptions {
   includePrices: boolean;
   includeSource?: boolean;
@@ -226,6 +247,7 @@ export function buildMaterialListEmailBody(
   const offerteNummer = safeString(options.meta?.offerteNummer);
   const klusTitel = safeString(options.meta?.klusTitel);
   const projectKlant = safeString(options.meta?.klantNaam);
+  const clientAddress = buildClientAddress(options.meta);
   const datum = toDutchDate(options.meta?.createdAt);
   const emailTemplate = safeString(options.emailTemplate);
 
@@ -235,8 +257,11 @@ export function buildMaterialListEmailBody(
     rendered = replaceTemplateToken(rendered, ['aanhef', 'greeting_name'], introName);
     rendered = replaceTemplateToken(rendered, ['materiaallijst', 'material_list'], listRowsText);
     rendered = replaceTemplateToken(rendered, ['offerte_nummer', 'quote_number'], offerteNummer);
+    rendered = replaceTemplateToken(rendered, ['referentienummer', 'reference_number'], offerteNummer);
     rendered = replaceTemplateToken(rendered, ['klus_titel', 'job_title'], klusTitel);
     rendered = replaceTemplateToken(rendered, ['project_klant', 'client_name'], projectKlant);
+    rendered = replaceTemplateToken(rendered, ['klantnaam'], projectKlant);
+    rendered = replaceTemplateToken(rendered, ['klantadres', 'client_address'], clientAddress);
     rendered = replaceTemplateToken(rendered, ['datum', 'date'], datum);
     rendered = replaceTemplateToken(rendered, ['bedrijfsnaam', 'sender_company'], senderSignature.companyName);
     rendered = replaceTemplateToken(rendered, ['contactnaam', 'sender_contact'], senderSignature.contactName);

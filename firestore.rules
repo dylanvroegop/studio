@@ -29,6 +29,13 @@ service cloud.firestore {
          allow read, write: if isSignedIn() && get(/databases/$(database)/documents/quotes/$(quoteId)).data.userId == request.auth.uid;
       }
 
+      // Server-created communication history, such as supplier material requests.
+      // The client can read its own quote history; writes stay server-side via Admin SDK.
+      match /communication_logs/{logId} {
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/quotes/$(quoteId)).data.userId == request.auth.uid;
+        allow write: if false;
+      }
+
       // Subcollection: Nacalculatie (actual cost tracking)
       match /nacalculatie/{docId} {
         allow read, write: if isSignedIn() && get(/databases/$(database)/documents/quotes/$(quoteId)).data.userId == request.auth.uid;

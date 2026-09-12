@@ -135,18 +135,28 @@ function forceSummaryIntoPdfWorkScope(
         || fallbackSummary
         || '',
     ).replace(/\s+/g, ' ').trim();
-    const workScope = summary ? [summary] : [];
+    const rootWorkScope = input.work_scope.length > 0
+        ? input.work_scope
+        : summary
+            ? [summary]
+            : [];
 
     return {
         ...input,
         summary,
         context: summary,
-        work_scope: workScope.length > 0 ? workScope : input.work_scope,
+        work_scope: rootWorkScope,
         jobs: input.jobs.map((job) => ({
             ...job,
-            summary,
-            context: summary,
-            work_scope: workScope.length > 0 ? workScope : job.work_scope,
+            summary: job.summary || job.context || '',
+            context: job.summary || job.context || '',
+            work_scope: job.work_scope.length > 0
+                ? job.work_scope
+                : input.jobs.length === 1 && summary
+                    ? [summary]
+                    : job.summary || job.context
+                        ? [job.summary || job.context]
+                        : [],
         })),
     };
 }

@@ -64,6 +64,9 @@ interface MaterialListExportDialogProps {
 const TEMPLATE_PLACEHOLDERS: Array<{ label: string; token: string }> = [
   { label: 'Aanhef', token: '{{AANHEF}}' },
   { label: 'Materiaallijst', token: '{{MATERIAALLIJST}}' },
+  { label: 'Klantnaam', token: '{{klantnaam}}' },
+  { label: 'Referentienummer', token: '{{referentienummer}}' },
+  { label: 'Klantadres', token: '{{klantadres}}' },
   { label: 'Offerte nummer', token: '{{offerte_nummer}}' },
   { label: 'Klus titel', token: '{{klus_titel}}' },
   { label: 'Project klant', token: '{{project_klant}}' },
@@ -82,6 +85,12 @@ const DEFAULT_TEMPLATE_EXAMPLE = [
   '',
   'Hierbij sturen we onze materiaallijst.',
   'Zou u voor onderstaande materialen uw actuele prijzen (excl. btw) en verwachte levertijd met ons kunnen delen?',
+  '',
+  'Klantgegevens:',
+  'Naam: {{klantnaam}}',
+  'Referentienummer: {{referentienummer}}',
+  'Adres:',
+  '{{klantadres}}',
   '',
   '{{MATERIAALLIJST}}',
   '',
@@ -155,6 +164,25 @@ function buildSupplierQuestionNotes(notes: string, photoCount: number): string[]
   }
 
   return formatted;
+}
+
+function buildClientInformation(meta?: MaterialListExportMeta): string[] {
+  const clientName = String(meta?.klantNaam || '').trim();
+  const referenceNumber = String(meta?.offerteNummer || '').trim();
+  const clientAddress = String(meta?.klantAdres || '').trim()
+    || [
+      [meta?.klantStraat, meta?.klantHuisnummer].filter(Boolean).join(' '),
+      [meta?.klantPostcode, meta?.klantPlaats].filter(Boolean).join(' '),
+    ].filter(Boolean).join('\n');
+
+  const lines: string[] = [];
+  if (clientName || referenceNumber || clientAddress) {
+    lines.push('Klantgegevens:');
+    if (clientName) lines.push(`Naam: ${clientName}`);
+    if (referenceNumber) lines.push(`Referentienummer: ${referenceNumber}`);
+    if (clientAddress) lines.push('Adres:', clientAddress);
+  }
+  return lines;
 }
 
 export function MaterialListExportDialog({
@@ -279,6 +307,7 @@ export function MaterialListExportDialog({
   const generatedBody = useMemo(() => {
     if (mode === 'supplier-question') {
       const noteLines = buildSupplierQuestionNotes(notes, photos.length);
+      const clientInformationLines = buildClientInformation(meta);
       const signatureLines = [
         String(meta?.senderContactName || '').trim(),
         String(meta?.senderCompanyName || '').trim(),
@@ -288,6 +317,8 @@ export function MaterialListExportDialog({
         '',
         'Kunnen jullie onderstaand product/materiaal voor mij vinden en een prijsopgave en verwachte levertijd doorgeven?',
         '',
+        ...clientInformationLines,
+        ...(clientInformationLines.length > 0 ? [''] : []),
         ...noteLines,
         '',
         'Met vriendelijke groet,',
@@ -452,6 +483,11 @@ export function MaterialListExportDialog({
     const offerteNummer = String(meta?.offerteNummer || '').trim();
     const klusTitel = String(meta?.klusTitel || '').trim();
     const projectKlant = String(meta?.klantNaam || '').trim();
+    const clientAddress = String(meta?.klantAdres || '').trim()
+      || [
+        [meta?.klantStraat, meta?.klantHuisnummer].filter(Boolean).join(' '),
+        [meta?.klantPostcode, meta?.klantPlaats].filter(Boolean).join(' '),
+      ].filter(Boolean).join('\n');
     const datum = (meta?.createdAt instanceof Date ? meta.createdAt : new Date()).toLocaleDateString('nl-NL', {
       day: '2-digit',
       month: '2-digit',
@@ -496,6 +532,13 @@ export function MaterialListExportDialog({
     }
     if (projectKlant) {
       template = template.replaceAll(`Project klant: ${projectKlant}`, '{{project_klant}}');
+      template = template.replaceAll(`Naam: ${projectKlant}`, 'Naam: {{klantnaam}}');
+    }
+    if (offerteNummer) {
+      template = template.replaceAll(`Referentienummer: ${offerteNummer}`, 'Referentienummer: {{referentienummer}}');
+    }
+    if (clientAddress) {
+      template = template.replaceAll(`Adres:\n${clientAddress}`, 'Adres:\n{{klantadres}}');
     }
     template = template.replaceAll(`Datum: ${datum}`, '{{datum}}');
 
@@ -702,7 +745,14 @@ export function MaterialListExportDialog({
       const response = await fetch('/api/google-gmail/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ quoteId, to: email.trim(), subject: subject || defaultSubject || 'Materiaalvraag', text: body || generatedBody, photoIds: photos.map((photo) => photo.id) }),
+        body: JSON.stringify({
+          quoteId,
+          to: email.trim(),
+          supplierName: String(selectedSupplier?.naam || supplierName || '').trim(),
+          subject: subject || defaultSubject || 'Materiaalvraag',
+          text: body || generatedBody,
+          photoIds: photos.map((photo) => photo.id),
+        }),
       });
       const payload = await response.json().catch(() => ({})) as { ok?: boolean; error?: string; attachmentCount?: number };
       if (!response.ok || !payload.ok) throw new Error(payload.error || 'Gmail versturen mislukt.');

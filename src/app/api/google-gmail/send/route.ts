@@ -17,9 +17,10 @@ export async function POST(request: Request) {
     const decoded = await auth.verifyIdToken(authToken).catch(() => null);
     if (!decoded?.uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const body = await request.json().catch(() => null) as { quoteId?: unknown; to?: unknown; subject?: unknown; text?: unknown; photoIds?: unknown } | null;
+    const body = await request.json().catch(() => null) as { quoteId?: unknown; to?: unknown; supplierName?: unknown; subject?: unknown; text?: unknown; photoIds?: unknown } | null;
     const quoteId = safe(body?.quoteId);
     const to = safe(body?.to);
+    const supplierName = safe(body?.supplierName);
     const subject = safe(body?.subject) || 'Materiaalvraag';
     const text = safe(body?.text);
     const photoIds = Array.isArray(body?.photoIds) ? body.photoIds.map(safe).filter(Boolean) : [];
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
       expiryDate: integration.expiryDate,
     });
     const result = await gmail.users.messages.send({ userId: 'me', requestBody: { raw: encodeBase64Url(parts.join('\r\n')) } });
-    await quoteRef.collection('communication_logs').add({ channel: 'gmail', type: 'supplier_material_question', quoteId, createdBy: decoded.uid, to, attachmentCount: attachments.length, subject, messagePreview: text.slice(0, 500), messageId: result.data.id || null, createdAt: new Date().toISOString() });
+    await quoteRef.collection('communication_logs').add({ channel: 'gmail', type: 'supplier_material_question', quoteId, createdBy: decoded.uid, supplierName, to, attachmentCount: attachments.length, subject, messagePreview: text.slice(0, 500), messageId: result.data.id || null, createdAt: new Date().toISOString() });
     if (credentials.access_token || credentials.expiry_date) {
       await firestore.collection('users').doc(decoded.uid).set({ integrations: { googleGmail: { ...integration, accessToken: credentials.access_token || integration.accessToken || null, expiryDate: credentials.expiry_date || integration.expiryDate || null, updatedAt: new Date() } } }, { merge: true });
     }

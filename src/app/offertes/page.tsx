@@ -2056,8 +2056,7 @@ export default function OffertesPage() {
                 const isDashboardEligible = !isArchived && effectiveStatus === 'geaccepteerd';
                 const isUpdatingDashboard = updatingDashboardQuoteId === q.id;
                 const statusStyles = getOfferteStatusStyles(effectiveStatus, hasCalculated, isArchived);
-                const showUncalculatedPlaceholder = !hasCalculated && (effectiveStatus === 'in_behandeling' || effectiveStatus === 'concept');
-                const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
+                const amountLabel = formatCurrency(totaal);
                 const quoteProfit = profitByQuoteId[q.id];
                 const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
                 const quoteProfitLabel = profitBasisByQuoteId[q.id] === 'forecast' ? 'Verwachte winst' : 'Winst';
@@ -2108,15 +2107,8 @@ export default function OffertesPage() {
                               ) : null}
                             </>
                           ) : null}
-                          <div className={cn('truncate text-lg font-bold', showUncalculatedPlaceholder ? 'text-blue-300' : 'text-blue-400')}>
-                          {showUncalculatedPlaceholder ? (
-                            <span className="inline-flex items-center gap-2">
-                              <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
-                              {amountLabel}
-                            </span>
-                          ) : (
-                            amountLabel
-                          )}
+                          <div className="truncate text-lg font-bold text-blue-400">
+                            {amountLabel}
                           </div>
                           {hasQuoteProfit ? (
                             <div className="truncate text-sm font-semibold text-emerald-400">
@@ -2269,8 +2261,7 @@ export default function OffertesPage() {
                 const isDashboardEligible = !isArchived && effectiveStatus === 'geaccepteerd';
                 const isUpdatingDashboard = updatingDashboardQuoteId === q.id;
                 const statusStyles = getOfferteStatusStyles(effectiveStatus, hasCalculated, isArchived);
-                const showUncalculatedPlaceholder = !hasCalculated && (effectiveStatus === 'in_behandeling' || effectiveStatus === 'concept');
-                const amountLabel = showUncalculatedPlaceholder ? 'Nog niet berekend' : formatCurrency(totaal);
+                const amountLabel = formatCurrency(totaal);
                 const quoteProfit = profitByQuoteId[q.id];
                 const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
                 const quoteProfitLabel = profitBasisByQuoteId[q.id] === 'forecast' ? 'Verwachte winst' : 'Winst';
@@ -2278,11 +2269,11 @@ export default function OffertesPage() {
                 const todayWorkedHours = todaySummary?.workedHours || 0;
                 const amountClass = cn(
                   'text-2xl font-bold tabular-nums',
-                  showUncalculatedPlaceholder ? 'text-blue-300' : 'text-blue-400'
+                  'text-blue-400'
                 );
                 const amountMobileClass = cn(
                   'mt-2 text-xl font-bold tabular-nums',
-                  showUncalculatedPlaceholder ? 'text-blue-300' : 'text-blue-400'
+                  'text-blue-400'
                 );
 
                 return (
@@ -2320,14 +2311,7 @@ export default function OffertesPage() {
                           <div className="mt-1 truncate text-xs text-muted-foreground/90">{rowDescription}</div>
                         ) : null}
                         <div className={cn('sm:hidden', amountMobileClass)}>
-                          {showUncalculatedPlaceholder ? (
-                            <span className="inline-flex items-center gap-2">
-                              <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
-                              {amountLabel}
-                            </span>
-                          ) : (
-                            amountLabel
-                          )}
+                          {amountLabel}
                         </div>
                       </div>
 
@@ -2347,14 +2331,7 @@ export default function OffertesPage() {
                             </>
                           ) : null}
                           <div className={amountClass}>
-                            {showUncalculatedPlaceholder ? (
-                              <span className="inline-flex items-center gap-2">
-                                <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
-                                {amountLabel}
-                              </span>
-                            ) : (
-                              amountLabel
-                            )}
+                            {amountLabel}
                           </div>
                           {hasQuoteProfit ? (
                             <div className="mt-0.5 text-sm font-semibold tabular-nums text-emerald-400">

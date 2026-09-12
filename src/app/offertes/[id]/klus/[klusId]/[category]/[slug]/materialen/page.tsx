@@ -3379,6 +3379,14 @@ export default function GenericMaterialsPageRedesigned() {
           String(klantInfo?.achternaam || '').trim(),
         ].filter(Boolean).join(' ').trim()
           || String(klantInfo?.bedrijfsnaam || '').trim();
+        const klantStraat = String(klantInfo?.straat || klantInfo?.factuuradres?.straat || '').trim();
+        const klantHuisnummer = String(klantInfo?.huisnummer || klantInfo?.factuuradres?.huisnummer || '').trim();
+        const klantPostcode = String(klantInfo?.postcode || klantInfo?.factuuradres?.postcode || '').trim();
+        const klantPlaats = String(klantInfo?.plaats || klantInfo?.factuuradres?.plaats || '').trim();
+        const klantAdres = [
+          [klantStraat, klantHuisnummer].filter(Boolean).join(' '),
+          [klantPostcode, klantPlaats].filter(Boolean).join(' '),
+        ].filter(Boolean).join('\n');
         const offerteNummer = String(data?.offerteNummer || '').trim();
         let senderCompanyName = '';
         let senderContactName = '';
@@ -3473,6 +3481,11 @@ export default function GenericMaterialsPageRedesigned() {
         setMaterialExportMeta({
           offerteNummer,
           klantNaam,
+          klantAdres,
+          klantStraat,
+          klantHuisnummer,
+          klantPostcode,
+          klantPlaats,
           senderCompanyName,
           senderContactName,
           senderAddress,
