@@ -4102,30 +4102,26 @@ export default function QuotePage() {
 
         const nextSuppliers = (materialSuppliers || []).map((supplier) => (
             supplier.id === resolvedSupplierId
-                ? {
-                    ...supplier,
-                    naam: trimmedSupplierName,
-                    contacten: (() => {
-                        const existing = Array.isArray(supplier.contacten) ? supplier.contacten : [];
-                        if (contactId) {
-                            const hasTarget = existing.some((contact) => contact.id === contactId);
-                            if (hasTarget) {
-                                return existing.map((contact) => (
-                                    contact.id === contactId
-                                        ? { ...contact, naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }
-                                        : contact
-                                ));
-                            }
-                        }
-                        if (existing.length === 0) {
-                            return [{ id: crypto.randomUUID(), naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }];
-                        }
-                        return [{ ...existing[0], naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }, ...existing.slice(1)];
-                    })(),
-                    contactNaam: trimmedContactNaam,
-                    email: trimmedEmail,
-                    telefoon: trimmedTelefoon,
-                }
+                ? (() => {
+                    const existing = Array.isArray(supplier.contacten) ? supplier.contacten : [];
+                    const hasTarget = !!contactId && existing.some((contact) => contact.id === contactId);
+                    const contacten = hasTarget
+                        ? existing.map((contact) => (
+                            contact.id === contactId
+                                ? { ...contact, naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }
+                                : contact
+                        ))
+                        : [...existing, { id: crypto.randomUUID(), naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }];
+                    const primaryContact = contacten[0];
+                    return {
+                        ...supplier,
+                        naam: trimmedSupplierName,
+                        contacten,
+                        contactNaam: primaryContact?.naam || trimmedContactNaam,
+                        email: primaryContact?.email || trimmedEmail,
+                        telefoon: primaryContact?.telefoon || trimmedTelefoon,
+                    };
+                })()
                 : supplier
         ));
 
@@ -6535,15 +6531,12 @@ export default function QuotePage() {
                     }
 
                     // Keep the note sections as the authoritative job boundary.
-                    // If one model call returns no text, retain that job with a
-                    // source-grounded fallback instead of dropping or merging it.
+                    // A missing model result is an error; raw notes must never be
+                    // shown as the customer-facing description.
                     const jobs = noteJobs.map((noteJob, index) => {
                         const generatedJob = normalizedGenerated.jobs[index]
                             || toStructuredWorkDescription({ title: noteJob.title }).jobs[0];
-                        const fallbackText = noteJob.notes
-                            ? `${noteJob.title}: ${noteJob.notes}`
-                            : `${noteJob.title} wordt uitgevoerd.`;
-                        const text = String(generatedJob?.summary || generatedJob?.context || '').trim() || fallbackText;
+                        const text = String(generatedJob?.summary || generatedJob?.context || '').trim();
                         return {
                             ...generatedJob,
                             title: noteJob.title,
@@ -6563,7 +6556,15 @@ export default function QuotePage() {
                 })()
                 : null;
 
+            console.log('Werk & Levering gegenereerde jobs:', JSON.stringify(generatedStructured?.jobs.map((job) => ({
+                title: job.title,
+                summary: job.summary,
+                context: job.context,
+            }))));
             if (generatedStructured && flattenStructuredWorkDescription(generatedStructured).length > 0) {
+                if (noteJobs.length > 0 && generatedStructured.jobs.some((job) => !String(job.summary || job.context).trim())) {
+                    throw new Error('Geen professionele tekst ontvangen voor iedere klus. Er is niets opgeslagen.');
+                }
                 await saveWorkDescriptionNow(generatedStructured);
                 toast({
                     title: 'Werk & Levering bijgewerkt',
@@ -6628,6 +6629,7 @@ export default function QuotePage() {
                 description: 'AI-output is verwerkt en opgeslagen.',
             });
         } catch (err: any) {
+            console.error('Werk & Levering generatie mislukt:', err);
             toast({
                 variant: 'destructive',
                 title: 'Genereren mislukt',

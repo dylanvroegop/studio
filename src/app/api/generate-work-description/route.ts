@@ -1727,8 +1727,9 @@ async function recoverMissingJobTexts(
         buildMissingJobPrompt(body, job, mode),
       );
       results.push(safeString(retry.rawOutput));
-    } catch {
-      results.push('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'onbekende fout';
+      throw new Error(`AI-generatie voor "${safeString(job.title) || 'deze klus'}" mislukt: ${message}`);
     }
   }
   return results;
@@ -1792,10 +1793,27 @@ export async function POST(request: Request) {
         'note',
       );
       const jobs = noteJobs.map((noteJob, index) => {
-        const text = safeString(jobTexts[index]) || fallbackJobDescription(noteJob);
-        const existingJob = existingStructuredInput.jobs[index] || existingStructuredInput;
+        const text = safeString(jobTexts[index]);
+        const existingJob = existingStructuredInput.jobs[index]
+          || toStructuredWorkDescription({ title: noteJob.title }).jobs[0];
         return {
           ...existingJob,
+          // The switches are edited at the Werk & Levering root, but the
+          // customer text is stored per job. Apply the root choices to every
+          // note job before safety filtering the generated text.
+          afvalAfvoeren: existingStructuredInput.afvalAfvoeren,
+          schilderwerkInbegrepen: existingStructuredInput.schilderwerkInbegrepen,
+          stucwerkInbegrepen: existingStructuredInput.stucwerkInbegrepen,
+          plamuurwerkInbegrepen: existingStructuredInput.plamuurwerkInbegrepen,
+          kitwerkInbegrepen: existingStructuredInput.kitwerkInbegrepen,
+          steigerInbegrepen: existingStructuredInput.steigerInbegrepen,
+          sloopwerkInbegrepen: existingStructuredInput.sloopwerkInbegrepen,
+          nadenVullenInbegrepen: existingStructuredInput.nadenVullenInbegrepen,
+          nadenVullenAfwerkingsniveau: existingStructuredInput.nadenVullenAfwerkingsniveau,
+          schroefgatenPlamurenInbegrepen: existingStructuredInput.schroefgatenPlamurenInbegrepen,
+          electricalScope: existingStructuredInput.electricalScope,
+          finishLevel: existingStructuredInput.finishLevel,
+          customFinishDescription: existingStructuredInput.customFinishDescription,
           title: noteJob.title,
           context: text,
           summary: text,

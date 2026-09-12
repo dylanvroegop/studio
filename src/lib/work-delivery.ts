@@ -104,7 +104,9 @@ export const DEFAULT_WORK_DELIVERY_SCOPE: WorkDeliveryScope = {
 
 const WASTE_PATTERN = /afval|puin|sloopafval|restmateriaal\s+afvoeren|container|bouwafvalzakken|afvoeren/i;
 const ELECTRICAL_PATTERN = /elektra|elektrisch|kabel|stopcontact|schakelaar|meterkast|wandcontactdoos|groepenkast/i;
-const PAINTING_PATTERN = /schilder|sauswerk|sausen|aflak|verven/i;
+// "Schilderklaar" describes the finish level of filled seams; it is not
+// painting work. Keep it out of the painting exclusion pattern.
+const PAINTING_PATTERN = /schilderwerk|schilderen|schildert|schilderde|sauswerk|sausen|aflak(?:ken)?|verven|verf/i;
 const STUCCO_PATTERN = /stuc/i;
 const FILLING_PATTERN = /plamuur/i;
 const SEAM_FILLING_PATTERN = /nad(?:en|e)\s+(?:vullen|afwerken)|voeg(?:en)?\s+(?:vullen|afwerken)/i;
@@ -112,8 +114,8 @@ const SCREW_HOLE_FILLING_PATTERN = /(?:gipsschroef\s+gaten\s+stuccen|schroefgat(
 const SCAFFOLD_PATTERN = /steiger|steigerwerk|steigerhuur/i;
 const DEMOLITION_PATTERN = /sloopwerk|slopen|demonteren/i;
 const FINISH_PATTERNS: Partial<Record<FinishLevel, RegExp>> = {
-  constructief_gereed: /schilder|plamuur|sauswerk|sausen|aflak|verven/i,
-  plaatmateriaal_gemonteerd: /schilder|plamuur|sauswerk|sausen|aflak|verven/i,
+  constructief_gereed: new RegExp(`${PAINTING_PATTERN.source}|plamuur`, 'i'),
+  plaatmateriaal_gemonteerd: new RegExp(`${PAINTING_PATTERN.source}|plamuur`, 'i'),
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

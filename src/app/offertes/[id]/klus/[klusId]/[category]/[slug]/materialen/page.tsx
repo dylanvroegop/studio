@@ -2060,29 +2060,25 @@ export default function GenericMaterialsPageRedesigned() {
 
     const nextSuppliers = (materialSuppliers || []).map((supplier) => (
       supplier.id === resolvedSupplierId
-        ? {
-          ...supplier,
-          contacten: (() => {
-            const existing = Array.isArray(supplier.contacten) ? supplier.contacten : [];
-            if (contactId) {
-              const hasTarget = existing.some((contact) => contact.id === contactId);
-              if (hasTarget) {
-                return existing.map((contact) => (
-                  contact.id === contactId
-                    ? { ...contact, naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }
-                    : contact
-                ));
-              }
-            }
-            if (existing.length === 0) {
-              return [{ id: crypto.randomUUID(), naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }];
-            }
-            return [{ ...existing[0], naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }, ...existing.slice(1)];
-          })(),
-          contactNaam: trimmedContactNaam,
-          email: trimmedEmail,
-          telefoon: trimmedTelefoon,
-        }
+        ? (() => {
+          const existing = Array.isArray(supplier.contacten) ? supplier.contacten : [];
+          const hasTarget = !!contactId && existing.some((contact) => contact.id === contactId);
+          const contacten = hasTarget
+            ? existing.map((contact) => (
+              contact.id === contactId
+                ? { ...contact, naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }
+                : contact
+            ))
+            : [...existing, { id: crypto.randomUUID(), naam: trimmedContactNaam, email: trimmedEmail, telefoon: trimmedTelefoon }];
+          const primaryContact = contacten[0];
+          return {
+            ...supplier,
+            contacten,
+            contactNaam: primaryContact?.naam || trimmedContactNaam,
+            email: primaryContact?.email || trimmedEmail,
+            telefoon: primaryContact?.telefoon || trimmedTelefoon,
+          };
+        })()
         : supplier
     ));
 

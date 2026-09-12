@@ -137,6 +137,7 @@ export function MaterialListExportDialog({
   const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
   const [isGmailBusy, setIsGmailBusy] = useState(false);
   const [whatsAppPhone, setWhatsAppPhone] = useState('');
+  const [isAddingContact, setIsAddingContact] = useState(false);
   const lastSavedTemplateRef = useRef('');
   const templateTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasInitializedForOpenRef = useRef(false);
@@ -178,11 +179,12 @@ export function MaterialListExportDialog({
   const selectedSupplierDisplayName = useMemo(() => {
     if (!selectedSupplier) return '';
     const inlineContactName = String(contactName || '').trim();
+    if (isAddingContact) return inlineContactName || String(supplierName || selectedSupplier.naam || '').trim();
     if (inlineContactName) return inlineContactName;
     const defaultContactName = String(selectedSupplier.contactNaam || '').trim();
-    const supplierName = String(selectedSupplier.naam || '').trim();
-    return defaultContactName || supplierName;
-  }, [selectedSupplier, contactName]);
+    const selectedSupplierName = String(selectedSupplier.naam || '').trim();
+    return defaultContactName || selectedSupplierName;
+  }, [selectedSupplier, contactName, isAddingContact, supplierName]);
 
   const hasValidSelectedSupplier = !!(
     selectedSupplier
@@ -277,6 +279,7 @@ export function MaterialListExportDialog({
 
     setIncludePrices(false);
     setSelectedSupplierOptionId(initialOption?.optionId || '');
+    setIsAddingContact(false);
     setEmail(String(initialOption?.email || '').trim());
     setWhatsAppPhone(String(initialSupplier?.telefoon || '').trim());
     setSupplierName(String(initialSupplier?.naam || '').trim());
@@ -316,7 +319,7 @@ export function MaterialListExportDialog({
   }, [isOpen, subjectTouched, bodyTouched, defaultSubject, generatedBody]);
 
   useEffect(() => {
-    if (!isOpen || !selectedSupplierOption) return;
+    if (!isOpen || !selectedSupplierOption || isAddingContact) return;
     setEmail(String(selectedSupplierOption.email || '').trim());
     setContactName(String(selectedSupplierOption.contactName || '').trim());
     setSupplierName(String(selectedSupplier?.naam || '').trim());
@@ -324,7 +327,7 @@ export function MaterialListExportDialog({
       ? selectedSupplier?.contacten?.find((contact) => contact.id === selectedSupplierOption.contactId)?.telefoon
       : selectedSupplier?.telefoon;
     setWhatsAppPhone(String(selectedContactPhone ?? '').trim());
-  }, [isOpen, selectedSupplier, selectedSupplierOption]);
+  }, [isOpen, isAddingContact, selectedSupplier, selectedSupplierOption]);
 
   useEffect(() => {
     if (!isOpen || selectedSupplierOptionId || !supplierOptions.length) return;
@@ -347,6 +350,30 @@ export function MaterialListExportDialog({
 
   const handleSelectAllMaterials = (): void => {
     setSelectedMaterialKeys(items.map((item) => item.key));
+  };
+
+  const handleSelectSupplier = (optionId: string): void => {
+    setIsAddingContact(false);
+    setSelectedSupplierOptionId(optionId);
+  };
+
+  const handleStartAddingContact = (): void => {
+    if (!selectedSupplier) return;
+    setIsAddingContact(true);
+    setContactName('');
+    setEmail('');
+    setWhatsAppPhone('');
+  };
+
+  const handleCancelAddingContact = (): void => {
+    setIsAddingContact(false);
+    if (!selectedSupplierOption) return;
+    setEmail(String(selectedSupplierOption.email || '').trim());
+    setContactName(String(selectedSupplierOption.contactName || '').trim());
+    const selectedContactPhone = selectedSupplierOption.contactId
+      ? selectedSupplier?.contacten?.find((contact) => contact.id === selectedSupplierOption.contactId)?.telefoon
+      : selectedSupplier?.telefoon;
+    setWhatsAppPhone(String(selectedContactPhone ?? '').trim());
   };
 
   const handleClearMaterialSelection = (): void => {
@@ -669,15 +696,19 @@ export function MaterialListExportDialog({
     try {
       await onUpdateSupplierContact({
         supplierId: selectedSupplier.id,
-        contactId: selectedSupplierOption?.contactId,
+        contactId: isAddingContact ? undefined : selectedSupplierOption?.contactId,
         supplierName: String(supplierName || '').trim(),
         contactNaam: String(contactName || '').trim(),
         email: trimmedEmail,
         telefoon: String(whatsAppPhone || '').trim(),
       });
+      const addedContact = isAddingContact;
+      setIsAddingContact(false);
       toast({
-        title: 'Leverancier bijgewerkt',
-        description: 'Contactpersoon en e-mailadres zijn opgeslagen.',
+        title: addedContact ? 'Contactpersoon toegevoegd' : 'Leverancier bijgewerkt',
+        description: addedContact
+          ? 'De bestaande contactpersonen zijn behouden.'
+          : 'Contactpersoon en e-mailadres zijn opgeslagen.',
       });
     } catch (error) {
       console.error('Leverancier opslaan mislukt:', error);
@@ -978,7 +1009,7 @@ export function MaterialListExportDialog({
           {hasSuppliers && (
             <div className="space-y-2 lg:col-start-2">
               <Label htmlFor="supplier-select">Leverancier</Label>
-              <Select value={selectedSupplierOptionId} onValueChange={setSelectedSupplierOptionId}>
+              <Select value={selectedSupplierOptionId} onValueChange={handleSelectSupplier}>
                 <SelectTrigger id="supplier-select">
                   <SelectValue placeholder="Kies leverancier" />
                 </SelectTrigger>
@@ -998,6 +1029,33 @@ export function MaterialListExportDialog({
                   })}
                 </SelectContent>
               </Select>
+              {selectedSupplier && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleStartAddingContact}
+                    disabled={isSavingSupplier || isAddingContact}
+                  >
+                    Nieuwe contactpersoon
+                  </Button>
+                  {isAddingContact && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelAddingContact}
+                      disabled={isSavingSupplier}
+                    >
+                      Annuleren
+                    </Button>
+                  )}
+                  {isAddingContact && (
+                    <span className="text-xs text-muted-foreground">Bestaande contacten blijven behouden.</span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
