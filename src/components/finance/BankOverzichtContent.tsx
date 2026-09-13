@@ -194,23 +194,36 @@ function requestKnabSync(userId: string, token: string, force = false): Promise<
     return knabSyncRequestCache.promise;
   }
 
-  const promise = fetch('/api/bank/sync-enablebanking', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    cache: 'no-store',
-  }).then(async (response) => {
-    const payload = await response.json().catch(() => null) as ApiSyncResponse | null;
-    if (response.status === 400 && payload?.error === 'Koppel eerst je Knab-rekening.') {
-      return { ...payload, ok: false, hasConnection: false };
+  const promise = (async () => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetch('/api/bank/sync-enablebanking', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => null) as ApiSyncResponse | null;
+        if (response.status === 400 && payload?.error === 'Koppel eerst je Knab-rekening.') {
+          return { ...payload, ok: false, hasConnection: false };
+        }
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error || 'Synchroniseren met Knab is mislukt.');
+        }
+        return { ...payload, hasConnection: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (attempt === 0 && shouldPromptKnabReconnect(message)) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1500));
+          continue;
+        }
+        throw error;
+      }
     }
-    if (!response.ok || !payload?.ok) {
-      throw new Error(payload?.error || 'Synchroniseren met Knab is mislukt.');
-    }
-    return { ...payload, hasConnection: true };
-  });
+    throw new Error('Synchroniseren met Knab is mislukt.');
+  })();
 
   knabSyncRequestCache = { userId, startedAt: now, promise };
   return promise;

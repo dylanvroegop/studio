@@ -90,6 +90,7 @@ export async function GET(request: Request) {
         .select('id,institution_name,status,last_synced_at,linked_account_ids,metadata')
         .eq('provider', provider)
         .eq('user_id', identity.bankUserId)
+        .eq('status', 'connected')
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -101,6 +102,17 @@ export async function GET(request: Request) {
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+    if (provider !== 'bunq' && !connectionResult.error && !connectionResult.data) {
+      connectionResult = await supabaseAdmin
+        .from('bank_connections')
+        .select('id,institution_name,status,last_synced_at,linked_account_ids,metadata')
+        .eq('provider', provider)
+        .eq('user_id', identity.bankUserId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    }
 
     if (provider === 'bunq' && !connectionResult.error && !connectionResult.data && profile === 'personal') {
       // Backward compatibility for pre-profile bunq links.
