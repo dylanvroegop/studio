@@ -38,6 +38,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Koppel eerst je Knab-rekening.' }, { status: 400, headers: noStoreHeaders() });
     }
     const result = await syncEnableBankingConnection({ bankUserId: identity.bankUserId, sessionId });
+    if (result.status !== 'connected') {
+      return NextResponse.json(
+        { ok: false, ...result, error: `Enable Banking status: ${result.status}` },
+        { status: 409, headers: noStoreHeaders() },
+      );
+    }
     return NextResponse.json({ ok: true, ...result }, { headers: noStoreHeaders() });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Synchroniseren met Knab is mislukt.';

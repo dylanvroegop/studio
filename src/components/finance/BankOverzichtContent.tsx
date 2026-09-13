@@ -57,6 +57,7 @@ type ApiSyncResponse = {
   ok: boolean;
   newCount?: number;
   accountsSynced?: number;
+  status?: string;
   error?: string;
 };
 
@@ -209,8 +210,11 @@ function requestKnabSync(userId: string, token: string, force = false): Promise<
         if (response.status === 400 && payload?.error === 'Koppel eerst je Knab-rekening.') {
           return { ...payload, ok: false, hasConnection: false };
         }
-        if (!response.ok || !payload?.ok) {
-          throw new Error(payload?.error || 'Synchroniseren met Knab is mislukt.');
+        if (!response.ok || !payload?.ok || (payload.status && payload.status !== 'connected')) {
+          const statusError = payload?.status && payload.status !== 'connected'
+            ? `Enable Banking status: ${payload.status}`
+            : null;
+          throw new Error(payload?.error || statusError || 'Synchroniseren met Knab is mislukt.');
         }
         return { ...payload, hasConnection: true };
       } catch (error) {
