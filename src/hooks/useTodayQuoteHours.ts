@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useUser } from '@/firebase';
 import { getLocalDateKey } from '@/lib/quote-time-summary';
 
@@ -19,15 +19,23 @@ export function useTodayQuoteHours(
 ): Record<string, TodayQuoteHours> {
   const { user } = useUser();
   const [hoursByQuoteId, setHoursByQuoteId] = useState<Record<string, TodayQuoteHours>>({});
+  const userRef = useRef(user);
+  userRef.current = user;
+  // Keep the polling callback independent from object identity changes.
+  // Callers may construct the quote array inline. Depend on its stable IDs,
+  // not on the array identity, so updating the fetched hours cannot restart
+  // this effect indefinitely.
+  const quoteIdsKey = quotes.map((quote) => quote.id).join('|');
 
   const loadHours = useCallback(async () => {
-    if (!user) {
+    const currentUser = userRef.current;
+    if (!currentUser) {
       setHoursByQuoteId({});
       return;
     }
 
     try {
-      const token = await user.getIdToken();
+      const token = await currentUser.getIdToken();
       const response = await fetch('/api/uren/entries?limit=1000', {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
@@ -35,7 +43,7 @@ export function useTodayQuoteHours(
       const payload = await response.json().catch(() => null) as { ok?: boolean; data?: unknown[] } | null;
       if (!response.ok || !payload?.ok || !Array.isArray(payload.data)) return;
 
-      const quoteIds = new Set(quotes.map((quote) => quote.id));
+      const quoteIds = new Set(quoteIdsKey ? quoteIdsKey.split('|') : []);
       const today = getLocalDateKey();
       const next: Record<string, TodayQuoteHours> = {};
 
@@ -58,7 +66,7 @@ export function useTodayQuoteHours(
     } catch {
       // Uren mogen de offertepagina nooit blokkeren.
     }
-  }, [quotes, user]);
+  }, [quoteIdsKey]);
 
   useEffect(() => {
     void loadHours();
