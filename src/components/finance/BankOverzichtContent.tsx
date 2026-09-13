@@ -599,26 +599,6 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
     }
   }, [bankRefreshPending, knabConnection, loading]);
 
-  useEffect(() => {
-    const validUntil = knabConnection?.consentValidUntil;
-    if (knabConnection?.status !== 'connected' || !validUntil) return;
-    const expiresAt = Date.parse(validUntil);
-    if (!Number.isFinite(expiresAt)) return;
-
-    const handleExpiry = () => {
-      const message = 'Je Knab-toestemming is verlopen. Koppel Knab opnieuw.';
-      setBankRefreshError(message);
-      setKnabReconnectOpen(true);
-    };
-    const delay = expiresAt - Date.now();
-    if (delay <= 0) {
-      handleExpiry();
-      return;
-    }
-    const timeoutId = window.setTimeout(handleExpiry, delay);
-    return () => window.clearTimeout(timeoutId);
-  }, [knabConnection?.consentValidUntil, knabConnection?.status]);
-
   const knabReconnectDialog = (
     <Dialog open={knabReconnectOpen} onOpenChange={setKnabReconnectOpen}>
       <DialogContent>
