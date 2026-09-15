@@ -18,14 +18,12 @@ import {
 } from 'firebase/firestore';
 import {
   Archive,
-  BarChart3,
   CalendarDays,
   CheckCircle2,
   Clock3,
   FileText,
   List,
   Loader2,
-  Mail,
   MoreHorizontal,
   Navigation,
   Plus,
@@ -73,7 +71,7 @@ import type { InvoiceStatus, Quote } from '@/lib/types';
 import { formatOfferteNummerLabel } from '@/lib/quote-number';
 import { cn } from '@/lib/utils';
 
-type FilterMode = 'alle' | 'concept' | 'vandaag' | 'in_afwachting' | 'verzonden' | 'geaccepteerd' | 'werkbespreking' | 'aangevraagd' | 'archief';
+type FilterMode = 'alle' | 'concept' | 'vandaag' | 'in_afwachting' | 'verzonden' | 'geaccepteerd' | 'werkbespreking' | 'archief';
 const OFFERTES_FILTER_STORAGE_KEY = 'offertes:last-filter';
 type DefaultFilterMode = 'concept' | 'geaccepteerd' | 'vandaag';
 const OFFERTES_DEFAULT_FILTER_STORAGE_KEY = 'offertes:default-filter';
@@ -88,7 +86,6 @@ const MOBILE_FILTER_ICONS: Record<FilterMode, LucideIcon> = {
   verzonden: Send,
   geaccepteerd: CheckCircle2,
   werkbespreking: CalendarDays,
-  aangevraagd: Mail,
   archief: Archive,
 };
 
@@ -100,7 +97,6 @@ const MOBILE_FILTER_COLORS: Record<FilterMode, string> = {
   verzonden: 'text-violet-400 border-violet-400/40 bg-violet-400/10 hover:bg-violet-400/20',
   geaccepteerd: 'text-emerald-400 border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20',
   werkbespreking: 'text-red-400 border-red-400/40 bg-red-400/10 hover:bg-red-400/20',
-  aangevraagd: 'text-emerald-400 border-emerald-400/40 bg-emerald-400/10 hover:bg-emerald-400/20',
   archief: 'text-zinc-300 border-zinc-400/35 bg-zinc-400/10 hover:bg-zinc-400/20',
 };
 
@@ -111,7 +107,6 @@ type QuoteRow = Quote & {
   archived?: boolean;
   archivedAt?: Timestamp;
   archivedBy?: string;
-  includeInDashboard?: boolean;
   amount?: number;
   totaalbedrag?: number;
   offerteNummer?: number;
@@ -189,7 +184,6 @@ function isFilterMode(value: unknown): value is FilterMode {
     value === 'verzonden' ||
     value === 'geaccepteerd' ||
     value === 'werkbespreking' ||
-    value === 'aangevraagd' ||
     value === 'archief'
   );
 }
@@ -516,7 +510,8 @@ type OfferteStatusStyles = {
 function getOfferteStatusStyles(
   status: Quote['status'] | undefined,
   isCalculated: boolean,
-  isArchived: boolean
+  isArchived: boolean,
+  isSupplierMaterialRequested: boolean,
 ): OfferteStatusStyles {
   if (isArchived) {
     return {
@@ -589,8 +584,10 @@ function getOfferteStatusStyles(
   }
 
   return {
-    label: 'Concept',
-    badgeClass: 'bg-zinc-500/8 text-zinc-300/90 border-zinc-500/25',
+    label: isSupplierMaterialRequested ? 'Aangevraagd' : 'Concept',
+    badgeClass: isSupplierMaterialRequested
+      ? 'bg-blue-500/10 text-blue-300/90 border-blue-500/25'
+      : 'bg-zinc-500/8 text-zinc-300/90 border-zinc-500/25',
     sideBorderClass: 'border-l-zinc-500/55',
     rowTintClass: 'bg-zinc-500/[0.05]',
   };
@@ -791,7 +788,6 @@ export default function OffertesPage() {
   const [archiveTarget, setArchiveTarget] = useState<QuoteRow | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [updatingAcceptanceQuoteId, setUpdatingAcceptanceQuoteId] = useState<string | null>(null);
-  const [updatingDashboardQuoteId, setUpdatingDashboardQuoteId] = useState<string | null>(null);
   const [profitByQuoteId, setProfitByQuoteId] = useState<Record<string, number>>({});
   const [profitBasisByQuoteId, setProfitBasisByQuoteId] = useState<Record<string, 'actual' | 'forecast'>>({});
   const workedHoursByQuoteId = useQuoteWorkedHours(quotes as QuoteWithAddress[]);
@@ -819,7 +815,9 @@ export default function OffertesPage() {
     }
 
     const storedFilter = window.localStorage.getItem(OFFERTES_FILTER_STORAGE_KEY);
-    if (isFilterMode(storedFilter)) {
+    if (storedFilter === 'aangevraagd') {
+      setFilter('concept');
+    } else if (isFilterMode(storedFilter)) {
       setFilter(storedFilter);
     }
 
@@ -1449,9 +1447,6 @@ export default function OffertesPage() {
       if (mode === 'werkbespreking') {
         return nonArchived.filter((q) => q.status === 'werkbespreking').length;
       }
-      if (mode === 'aangevraagd') {
-        return nonArchived.filter((q) => supplierMaterialRequestQuoteIds.has(q.id)).length;
-      }
       return 0;
     };
 
@@ -1463,10 +1458,9 @@ export default function OffertesPage() {
       verzonden: countFor('verzonden'),
       geaccepteerd: countFor('geaccepteerd'),
       werkbespreking: countFor('werkbespreking'),
-      aangevraagd: countFor('aangevraagd'),
       archief: countFor('archief'),
     } as Record<FilterMode, number>;
-  }, [quotesForSelectedYear, acceptedQuoteIdsFromInvoices, todaysQuotes, supplierMaterialRequestQuoteIds]);
+  }, [quotesForSelectedYear, acceptedQuoteIdsFromInvoices, todaysQuotes]);
 
   const filteredQuotes = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -1483,7 +1477,6 @@ export default function OffertesPage() {
       if (filter === 'verzonden') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'verzonden');
       if (filter === 'geaccepteerd') result = result.filter((q) => getEffectiveQuoteStatus(q.status, acceptedQuoteIdsFromInvoices.has(q.id)) === 'geaccepteerd');
       if (filter === 'werkbespreking') result = result.filter((q) => q.status === 'werkbespreking');
-      if (filter === 'aangevraagd') result = result.filter((q) => supplierMaterialRequestQuoteIds.has(q.id));
     }
 
     if (!s) return result;
@@ -1494,7 +1487,7 @@ export default function OffertesPage() {
       const detail = (getQuoteDetailSummary(q, planningEntriesForDisplayByQuoteId[q.id]) || '').toLowerCase();
       return klant.includes(s) || nr.includes(s) || titel.includes(s) || detail.includes(s);
     });
-  }, [filter, quotesForSelectedYear, todaysQuotes, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId, planningEntriesForDisplayByQuoteId, supplierMaterialRequestQuoteIds]);
+  }, [filter, quotesForSelectedYear, todaysQuotes, search, acceptedQuoteIdsFromInvoices, hoofdtitelsByQuoteId, planningEntriesForDisplayByQuoteId]);
 
   const filteredClients = useMemo(() => {
     const s = clientSearch.trim().toLowerCase();
@@ -1608,23 +1601,6 @@ export default function OffertesPage() {
     }
   }
 
-  async function toggleQuoteDashboardSelection(quote: QuoteRow): Promise<void> {
-    if (!firestore || updatingDashboardQuoteId) return;
-    setUpdatingDashboardQuoteId(quote.id);
-    setError(null);
-    try {
-      await updateDoc(doc(firestore, 'quotes', quote.id), {
-        includeInDashboard: quote.includeInDashboard !== true,
-        dashboardSelectionUpdatedAt: serverTimestamp(),
-      } as any);
-    } catch (e: any) {
-      console.error('Kon dashboard selectie niet wijzigen:', e);
-      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon dashboard selectie niet wijzigen.'}`);
-    } finally {
-      setUpdatingDashboardQuoteId(null);
-    }
-  }
-
   const handleSelectExistingClient = (clientId: string): void => {
     if (creatingQuoteRef.current) return;
     setSelectedClientId(clientId);
@@ -1722,7 +1698,6 @@ export default function OffertesPage() {
     { value: 'in_afwachting', label: 'Afwachten', count: filterCountsByMode.in_afwachting },
     { value: 'verzonden', label: 'Verzonden', count: filterCountsByMode.verzonden },
     { value: 'werkbespreking', label: 'Werkbespreking', count: filterCountsByMode.werkbespreking },
-    { value: 'aangevraagd', label: 'Aangevraagd', count: filterCountsByMode.aangevraagd },
   ];
 
   const mobileFilterOptions: Array<{ value: FilterMode; label: string; count: number }> = [
@@ -1733,7 +1708,6 @@ export default function OffertesPage() {
     { value: 'alle', label: 'Alle', count: filterCountsByMode.alle },
     { value: 'in_afwachting', label: 'Afwachten', count: filterCountsByMode.in_afwachting },
     { value: 'verzonden', label: 'Verzonden', count: filterCountsByMode.verzonden },
-    { value: 'aangevraagd', label: 'Aangevraagd', count: filterCountsByMode.aangevraagd },
   ];
 
   const defaultFilterLabel = defaultFilter === 'geaccepteerd'
@@ -2100,10 +2074,12 @@ export default function OffertesPage() {
                 const isArchived = !!q.archived;
                 const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
                 const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
-                const isIncludedInDashboard = q.includeInDashboard === true;
-                const isDashboardEligible = !isArchived && effectiveStatus === 'geaccepteerd';
-                const isUpdatingDashboard = updatingDashboardQuoteId === q.id;
-                const statusStyles = getOfferteStatusStyles(effectiveStatus, hasCalculated, isArchived);
+                const statusStyles = getOfferteStatusStyles(
+                  effectiveStatus,
+                  hasCalculated,
+                  isArchived,
+                  supplierMaterialRequestQuoteIds.has(q.id),
+                );
                 const amountLabel = formatCurrency(totaal);
                 const quoteProfit = profitByQuoteId[q.id];
                 const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
@@ -2247,17 +2223,6 @@ export default function OffertesPage() {
                                 Status: Concept
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                disabled={!isDashboardEligible || isUpdatingDashboard}
-                                onSelect={() => {
-                                  if (!isDashboardEligible || isUpdatingDashboard) return;
-                                  void toggleQuoteDashboardSelection(q);
-                                }}
-                              >
-                                <BarChart3 className="mr-2 h-4 w-4" />
-                                {isIncludedInDashboard ? 'Niet in dashboard' : 'Gebruik voor dashboard'}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
                               {isArchived ? (
                                 <DropdownMenuItem
                                   onSelect={() => {
@@ -2305,10 +2270,12 @@ export default function OffertesPage() {
                 const isArchived = !!q.archived;
                 const acceptedByInvoice = acceptedQuoteIdsFromInvoices.has(q.id);
                 const isUpdatingAcceptance = updatingAcceptanceQuoteId === q.id;
-                const isIncludedInDashboard = q.includeInDashboard === true;
-                const isDashboardEligible = !isArchived && effectiveStatus === 'geaccepteerd';
-                const isUpdatingDashboard = updatingDashboardQuoteId === q.id;
-                const statusStyles = getOfferteStatusStyles(effectiveStatus, hasCalculated, isArchived);
+                const statusStyles = getOfferteStatusStyles(
+                  effectiveStatus,
+                  hasCalculated,
+                  isArchived,
+                  supplierMaterialRequestQuoteIds.has(q.id),
+                );
                 const amountLabel = formatCurrency(totaal);
                 const quoteProfit = profitByQuoteId[q.id];
                 const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
@@ -2403,33 +2370,6 @@ export default function OffertesPage() {
                           Bekijk offerte
                         </Button>
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!isDashboardEligible || isUpdatingDashboard}
-                          className={cn(
-                            'h-9 w-9 shrink-0 p-0 transition-all duration-150 active:scale-[0.98]',
-                            isIncludedInDashboard
-                              ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 hover:text-emerald-100'
-                              : 'border-red-400/50 bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:text-red-100',
-                          )}
-                          aria-pressed={isIncludedInDashboard}
-                          aria-label={isIncludedInDashboard ? 'Niet gebruiken voor dashboard' : 'Gebruik voor dashboard'}
-                          title={isDashboardEligible ? undefined : 'Alleen geaccepteerde offertes tellen mee in dashboard'}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            if (!isDashboardEligible || isUpdatingDashboard) return;
-                            void toggleQuoteDashboardSelection(q);
-                          }}
-                        >
-                          {isUpdatingDashboard ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <BarChart3 className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -2491,17 +2431,6 @@ export default function OffertesPage() {
                               }}
                             >
                               Status: Concept
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              disabled={!isDashboardEligible || isUpdatingDashboard}
-                              onSelect={() => {
-                                if (!isDashboardEligible || isUpdatingDashboard) return;
-                                void toggleQuoteDashboardSelection(q);
-                              }}
-                            >
-                              <BarChart3 className="mr-2 h-4 w-4" />
-                              {isIncludedInDashboard ? 'Niet in dashboard' : 'Gebruik voor dashboard'}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             {isArchived ? (

@@ -27,7 +27,7 @@ import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuote
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Euro, Package, Clock, FileText, FileSignature, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy, MoreHorizontal, BookOpen } from 'lucide-react';
+import { Euro, Package, Clock, FileText, FileSignature, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy, MoreHorizontal, BookOpen, Calculator } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -64,6 +64,7 @@ import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialListExportDialog } from '@/components/quote/MaterialListExportDialog';
 import { MaterialPresentationTab } from '@/components/quote/MaterialPresentationTab';
 import { PriceBookTab } from '@/components/quote/PriceBookTab';
+import QuoteCalculationTab from '@/components/quote/QuoteCalculationTab';
 import { WorkDescriptionWorkspace } from '@/components/quote/work-description/WorkDescriptionWorkspace';
 import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
@@ -7251,7 +7252,7 @@ export default function QuotePage() {
                             <Button
                                 variant="outline"
                                 className="h-11 px-0"
-                                onClick={() => router.push(`/offertes/${id}/overzicht`)}
+                                onClick={() => setActiveTab('calculatie')}
                                 aria-label="Naar calculatie"
                                 title="Naar calculatie"
                             >
@@ -7323,7 +7324,7 @@ export default function QuotePage() {
                                     variant="outline"
                                     size="icon"
                                     className="h-9 w-9 shrink-0"
-                                    onClick={() => router.push(`/offertes/${id}/overzicht`)}
+                                    onClick={() => setActiveTab('calculatie')}
                                     aria-label="Calculatie"
                                     title="Calculatie"
                                 >
@@ -7419,6 +7420,14 @@ export default function QuotePage() {
                             <div className="overflow-x-auto">
                                 <TabsList className="h-auto min-w-max justify-start gap-1 bg-transparent p-0">
                                     <TabsTrigger
+                                        value="calculatie"
+                                        className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
+                                        aria-label="Calculatie"
+                                        title="Calculatie"
+                                    >
+                                        <Calculator size={16} />
+                                    </TabsTrigger>
+                                    <TabsTrigger
                                         value="overzicht"
                                         className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
                                         aria-label="Overzicht"
@@ -7429,16 +7438,16 @@ export default function QuotePage() {
                                     <TabsTrigger
                                         value="materialen"
                                         className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
-                                        aria-label="Materialen"
-                                        title="Materialen"
+                                        aria-label="Materiaal"
+                                        title="Materiaal"
                                     >
                                         <Package size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="prijsboek"
                                         className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
-                                        aria-label="Prijsboek"
-                                        title="Prijsboek"
+                                        aria-label="Boek"
+                                        title="Boek"
                                     >
                                         <BookOpen size={16} />
                                     </TabsTrigger>
@@ -7456,8 +7465,8 @@ export default function QuotePage() {
                                             "relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground",
                                             showWerkbeschrijvingWarning && "text-red-400 data-[state=active]:text-red-400"
                                         )}
-                                        aria-label="Werk & Levering"
-                                        title="Werk & Levering"
+                                        aria-label="Beschrijving"
+                                        title="Beschrijving"
                                     >
                                         <ClipboardList size={16} />
                                     </TabsTrigger>
@@ -7468,24 +7477,24 @@ export default function QuotePage() {
                                             drawingStatus.processing && "text-amber-400 data-[state=active]:text-amber-400",
                                             drawingStatus.error && "text-red-400 data-[state=active]:text-red-400",
                                         )}
-                                        aria-label="Tekeningen"
-                                        title="Tekeningen"
+                                        aria-label="Tekening"
+                                        title="Tekening"
                                     >
                                         <PenTool size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="fotos"
                                         className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
-                                        aria-label="Foto's"
-                                        title="Foto's"
+                                        aria-label="Foto"
+                                        title="Foto"
                                     >
                                         <Camera size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="notities"
                                         className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
-                                        aria-label="Notities"
-                                        title="Notities"
+                                        aria-label="Notes"
+                                        title="Notes"
                                     >
                                         <MessageSquare size={16} />
                                     </TabsTrigger>
@@ -7511,11 +7520,15 @@ export default function QuotePage() {
                             </div>
                         </div>
 
-                        <div className="relative z-30 pointer-events-auto hidden w-full items-center gap-2 rounded-lg border border-border bg-card p-1 sm:flex">
+                        <div className="relative z-30 pointer-events-auto hidden w-full items-center gap-2 rounded-lg border border-border bg-card p-2 sm:!mt-0 sm:flex">
                             <TabsList className="h-auto w-full justify-start gap-1 bg-transparent p-0">
-                                <TabsTrigger value="materialen" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="calculatie" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <Calculator size={16} />
+                                    Calculatie
+                                </TabsTrigger>
+                                <TabsTrigger value="materialen" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <Package size={16} />
-                                    Materialen
+                                    Materiaal
                                     {materialsWithoutPrice > 0 && (
                                         <div className="ml-1 flex items-center gap-0.5 text-[10px] font-semibold text-red-500">
                                             <AlertCircle size={10} />
@@ -7523,49 +7536,49 @@ export default function QuotePage() {
                                         </div>
                                     )}
                                 </TabsTrigger>
-                                <TabsTrigger value="overzicht" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="overzicht" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <Euro size={16} />
                                     Overzicht
                                 </TabsTrigger>
-                                <TabsTrigger value="prijsboek" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="prijsboek" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <BookOpen size={16} />
-                                    Prijsboek
+                                    Boek
                                 </TabsTrigger>
                                 <TabsTrigger
                                     value="tekeningen"
                                     className={cn(
-                                        "relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground",
+                                        "relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground",
                                         drawingStatus.processing && "text-amber-400 data-[state=active]:text-amber-400",
                                         drawingStatus.error && "text-red-400 data-[state=active]:text-red-400",
                                     )}
                                 >
                                     <PenTool size={16} />
-                                    Tekeningen
+                                    Tekening
                                     {drawingStatus.processing && <Loader2 size={12} className="animate-spin text-amber-500" />}
                                     {drawingStatus.error && <AlertCircle size={12} className="text-red-500" />}
                                 </TabsTrigger>
-                                <TabsTrigger value="pdf" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="pdf" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <FileText size={16} />
                                     PDF
                                 </TabsTrigger>
-                                <TabsTrigger value="fotos" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="fotos" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <ImageIcon size={16} />
-                                    Foto&apos;s
+                                    Foto
                                 </TabsTrigger>
                                 <TabsTrigger
                                     value="werkbeschrijving"
                                     className={cn(
-                                        "relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground",
+                                        "relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground",
                                         showWerkbeschrijvingWarning && "text-red-400 data-[state=active]:text-red-400"
                                     )}
                                 >
                                     <ClipboardList size={16} />
-                                    Werk &amp; Levering
+                                    Beschrijving
                                     {showWerkbeschrijvingWarning && <AlertCircle size={12} className="text-red-500" />}
                                 </TabsTrigger>
-                                    <TabsTrigger value="notities" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                    <TabsTrigger value="notities" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                         <MessageSquare size={16} />
-                                        Notities
+                                        Notes
                                     </TabsTrigger>
                                     {canShowNacalculatieTab && (
                                     <TabsTrigger value="nacalculatie" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
@@ -8167,6 +8180,16 @@ export default function QuotePage() {
                                         </div>
                                 </DialogContent>
                             </Dialog>
+
+                        <TabsContent value="calculatie" className="mt-6 space-y-6">
+                            <QuoteCalculationTab
+                                embedded
+                                onCalculated={() => {
+                                    setActiveTab('materialen');
+                                    void refetchQuoteData();
+                                }}
+                            />
+                        </TabsContent>
 
                         {/* Overzicht Tab */}
                         <TabsContent value="overzicht" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">

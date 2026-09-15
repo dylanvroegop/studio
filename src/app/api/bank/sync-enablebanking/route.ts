@@ -16,18 +16,34 @@ export async function POST(request: Request) {
       trialBlockedResponse.headers.set('Cache-Control', 'no-store');
       return trialBlockedResponse;
     }
-    const connection = await supabaseAdmin.from('bank_connections')
+    let connection = await supabaseAdmin.from('bank_connections')
       .select('requisition_id')
       .eq('provider', 'enablebanking')
       .eq('user_id', identity.bankUserId)
+      .eq('status', 'connected')
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (!connection.error && !connection.data) {
+      connection = await supabaseAdmin.from('bank_connections')
+        .select('requisition_id')
+        .eq('provider', 'enablebanking')
+        .eq('user_id', identity.bankUserId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    }
     const sessionId = typeof connection.data?.requisition_id === 'string' ? connection.data.requisition_id : '';
     if (connection.error || !sessionId || sessionId.startsWith('pending:')) {
       return NextResponse.json({ ok: false, error: 'Koppel eerst je Knab-rekening.' }, { status: 400, headers: noStoreHeaders() });
     }
     const result = await syncEnableBankingConnection({ bankUserId: identity.bankUserId, sessionId });
+    if (result.status !== 'connected') {
+      return NextResponse.json(
+        { ok: false, ...result, error: `Enable Banking status: ${result.status}` },
+        { status: 409, headers: noStoreHeaders() },
+      );
+    }
     return NextResponse.json({ ok: true, ...result }, { headers: noStoreHeaders() });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Synchroniseren met Knab is mislukt.';

@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getIdTokenResult } from 'firebase/auth';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Clock3, Plus, ClipboardList } from 'lucide-react';
+import { Menu, X, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Clock3, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -20,6 +20,15 @@ interface NavigationItem {
     icon: LucideIcon;
     iconColorClass?: string;
     iconColorClassActive?: string;
+}
+
+const APP_NAV_WIDTH_STORAGE_KEY = 'app_navigation_width';
+const APP_NAV_DEFAULT_WIDTH = 15.84 * 16;
+const APP_NAV_MIN_WIDTH = 220;
+const APP_NAV_MAX_WIDTH = 440;
+
+function clampNavigationWidth(width: number): number {
+    return Math.min(APP_NAV_MAX_WIDTH, Math.max(APP_NAV_MIN_WIDTH, width));
 }
 
 const BASE_NAV_ITEMS: NavigationItem[] = [
@@ -149,15 +158,6 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                         priority
                     />
                 </div>
-                <Button
-                    asChild
-                    className="mt-3 h-10 w-full justify-start rounded-lg bg-emerald-500 text-white hover:bg-emerald-400"
-                >
-                    <Link href="/offertes/nieuw" onClick={onNavigate}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Nieuwe calculatie
-                    </Link>
-                </Button>
             </div>
 
             <nav className="flex-1 overflow-y-auto px-3 pb-6">
@@ -209,13 +209,35 @@ export function AppNavigation() {
     const [menuOpen, setMenuOpen] = useState(false);
     const [isHoveringDesktopNav, setIsHoveringDesktopNav] = useState(false);
     const [isReady, setIsReady] = useState(false);
+    const [desktopNavWidth, setDesktopNavWidth] = useState(APP_NAV_DEFAULT_WIDTH);
+    const [isResizingNav, setIsResizingNav] = useState(false);
+    const resizeStartRef = useRef({ startX: 0, startWidth: APP_NAV_DEFAULT_WIDTH });
 
     useEffect(() => {
         if (hideNavigation) return;
         const savedState = window.localStorage.getItem('app_navigation_open');
+        const savedWidth = Number(window.localStorage.getItem(APP_NAV_WIDTH_STORAGE_KEY));
         setMenuOpen(savedState === 'true');
+        if (Number.isFinite(savedWidth) && savedWidth > 0) {
+            setDesktopNavWidth(clampNavigationWidth(savedWidth));
+        }
         setIsReady(true);
     }, [hideNavigation]);
+
+    useEffect(() => {
+        const rootElement = document.documentElement;
+        if (hideNavigation) {
+            rootElement.style.removeProperty('--app-nav-width');
+            return;
+        }
+        rootElement.style.setProperty('--app-nav-width', `${desktopNavWidth}px`);
+    }, [desktopNavWidth, hideNavigation]);
+
+    useEffect(() => {
+        if (!hideNavigation && isReady) {
+            window.localStorage.setItem(APP_NAV_WIDTH_STORAGE_KEY, String(Math.round(desktopNavWidth)));
+        }
+    }, [desktopNavWidth, hideNavigation, isReady]);
 
     useEffect(() => {
         if (hideNavigation) return;
@@ -223,6 +245,37 @@ export function AppNavigation() {
         rootElement.classList.toggle('app-nav-open', menuOpen);
         return () => rootElement.classList.remove('app-nav-open');
     }, [menuOpen, hideNavigation]);
+
+    useEffect(() => {
+        if (hideNavigation) return;
+        const rootElement = document.documentElement;
+        rootElement.classList.toggle('app-nav-resizing', isResizingNav);
+        return () => rootElement.classList.remove('app-nav-resizing');
+    }, [isResizingNav, hideNavigation]);
+
+    useEffect(() => {
+        if (!isResizingNav) return;
+
+        const handlePointerMove = (event: PointerEvent) => {
+            const nextWidth = resizeStartRef.current.startWidth + event.clientX - resizeStartRef.current.startX;
+            setDesktopNavWidth(clampNavigationWidth(nextWidth));
+        };
+        const stopResizing = () => setIsResizingNav(false);
+
+        document.addEventListener('pointermove', handlePointerMove);
+        document.addEventListener('pointerup', stopResizing);
+        document.addEventListener('pointercancel', stopResizing);
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        return () => {
+            document.removeEventListener('pointermove', handlePointerMove);
+            document.removeEventListener('pointerup', stopResizing);
+            document.removeEventListener('pointercancel', stopResizing);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+    }, [isResizingNav]);
 
     useEffect(() => {
         if (hideNavigation || !isMobile) return;
@@ -236,6 +289,31 @@ export function AppNavigation() {
             setIsHoveringDesktopNav(false);
         }
         window.localStorage.setItem('app_navigation_open', String(open));
+    };
+
+    const handleResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (!menuOpen) return;
+        event.preventDefault();
+        resizeStartRef.current = {
+            startX: event.clientX,
+            startWidth: desktopNavWidth,
+        };
+        setIsResizingNav(true);
+    };
+
+    const handleResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (!menuOpen) return;
+
+        let nextWidth: number | null = null;
+        if (event.key === 'ArrowRight') nextWidth = desktopNavWidth + 16;
+        if (event.key === 'ArrowLeft') nextWidth = desktopNavWidth - 16;
+        if (event.key === 'Home') nextWidth = APP_NAV_MIN_WIDTH;
+        if (event.key === 'End') nextWidth = APP_NAV_MAX_WIDTH;
+
+        if (nextWidth !== null) {
+            event.preventDefault();
+            setDesktopNavWidth(clampNavigationWidth(nextWidth));
+        }
     };
 
     if (hideNavigation) {
@@ -301,10 +379,11 @@ export function AppNavigation() {
 
                     <aside
                         className={cn(
-                            'fixed inset-y-0 left-0 z-[70] w-[15.84rem] transform transition-transform duration-200 ease-out pointer-events-auto',
+                            'fixed inset-y-0 left-0 z-[70] transform transition-transform duration-200 ease-out pointer-events-auto',
                             desktopNavVisible ? 'translate-x-0' : '-translate-x-full',
                             !menuOpen && 'shadow-2xl'
                         )}
+                        style={{ width: 'var(--app-nav-width, 15.84rem)' }}
                         onMouseEnter={() => !menuOpen && setIsHoveringDesktopNav(true)}
                         onMouseLeave={() => !menuOpen && setIsHoveringDesktopNav(false)}
                     >
@@ -317,6 +396,23 @@ export function AppNavigation() {
                                 }}
                             />
                         )}
+                        <div
+                            className={cn(
+                                'group/resize absolute inset-y-0 -right-1.5 z-[75] hidden w-3 cursor-col-resize touch-none items-center justify-center md:flex',
+                                !menuOpen && 'pointer-events-none'
+                            )}
+                            role="separator"
+                            aria-label="Zijbalkbreedte aanpassen"
+                            aria-orientation="vertical"
+                            aria-valuemin={APP_NAV_MIN_WIDTH}
+                            aria-valuemax={APP_NAV_MAX_WIDTH}
+                            aria-valuenow={Math.round(desktopNavWidth)}
+                            tabIndex={menuOpen ? 0 : -1}
+                            onPointerDown={handleResizePointerDown}
+                            onKeyDown={handleResizeKeyDown}
+                        >
+                            <span className="h-full w-px bg-transparent transition-colors group-hover/resize:bg-emerald-500/60 group-focus/resize:bg-emerald-500/60" />
+                        </div>
                     </aside>
                 </>
             )}

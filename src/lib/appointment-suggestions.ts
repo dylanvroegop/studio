@@ -96,11 +96,11 @@ function getDateAtAmsterdamTime(dateKey: string, time: string): Date {
     return new Date(utc);
 }
 
-export function getAppointmentSuggestion(
+export function getAppointmentSuggestions(
     clientCity: string,
     entries: AppointmentPlanningEntry[],
     options?: { workDays?: number[]; now?: Date },
-): AppointmentSuggestion | null {
+): AppointmentSuggestion[] {
     const normalizedClientCity = normalizeCity(clientCity);
     const configuredWorkDays = (options?.workDays || DEFAULT_WORK_DAYS)
         .map(Number)
@@ -128,20 +128,32 @@ export function getAppointmentSuggestion(
         );
     };
 
-    const matchingRouteDate = candidates.find(({ dateKey }) => isSlotFree(dateKey) && hasSameCityWork(dateKey));
-    const selectedDate = matchingRouteDate || candidates.find(({ dateKey }) => isSlotFree(dateKey));
-    if (!selectedDate) return null;
+    const freeCandidates = candidates.filter(({ dateKey }) => isSlotFree(dateKey));
+    const selectedDates = [
+        ...freeCandidates.filter(({ dateKey }) => hasSameCityWork(dateKey)),
+        ...freeCandidates.filter(({ dateKey }) => !hasSameCityWork(dateKey)),
+    ].slice(0, 2);
 
-    const startDate = getDateAtAmsterdamTime(selectedDate.dateKey, DEFAULT_APPOINTMENT_TIME);
-    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+    return selectedDates.map((selectedDate) => {
+        const startDate = getDateAtAmsterdamTime(selectedDate.dateKey, DEFAULT_APPOINTMENT_TIME);
+        const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
 
-    return {
-        date: selectedDate.dateKey,
-        time: DEFAULT_APPOINTMENT_TIME,
-        startDate,
-        endDate,
-        reason: matchingRouteDate
-            ? `Je werkt die dag al in ${clientCity}.`
-            : 'Vrije plek om 19:00 binnen 1–4 dagen.',
-    };
+        return {
+            date: selectedDate.dateKey,
+            time: DEFAULT_APPOINTMENT_TIME,
+            startDate,
+            endDate,
+            reason: hasSameCityWork(selectedDate.dateKey)
+                ? `Je werkt die dag al in ${clientCity}.`
+                : 'Vrije plek om 19:00 binnen 1–4 dagen.',
+        };
+    });
+}
+
+export function getAppointmentSuggestion(
+    clientCity: string,
+    entries: AppointmentPlanningEntry[],
+    options?: { workDays?: number[]; now?: Date },
+): AppointmentSuggestion | null {
+    return getAppointmentSuggestions(clientCity, entries, options)[0] || null;
 }

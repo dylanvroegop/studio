@@ -57,6 +57,7 @@ type ApiSyncResponse = {
   ok: boolean;
   newCount?: number;
   accountsSynced?: number;
+  status?: string;
   error?: string;
 };
 
@@ -194,23 +195,39 @@ function requestKnabSync(userId: string, token: string, force = false): Promise<
     return knabSyncRequestCache.promise;
   }
 
-  const promise = fetch('/api/bank/sync-enablebanking', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    cache: 'no-store',
-  }).then(async (response) => {
-    const payload = await response.json().catch(() => null) as ApiSyncResponse | null;
-    if (response.status === 400 && payload?.error === 'Koppel eerst je Knab-rekening.') {
-      return { ...payload, ok: false, hasConnection: false };
+  const promise = (async () => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetch('/api/bank/sync-enablebanking', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => null) as ApiSyncResponse | null;
+        if (response.status === 400 && payload?.error === 'Koppel eerst je Knab-rekening.') {
+          return { ...payload, ok: false, hasConnection: false };
+        }
+        if (!response.ok || !payload?.ok || (payload.status && payload.status !== 'connected')) {
+          const statusError = payload?.status && payload.status !== 'connected'
+            ? `Enable Banking status: ${payload.status}`
+            : null;
+          throw new Error(payload?.error || statusError || 'Synchroniseren met Knab is mislukt.');
+        }
+        return { ...payload, hasConnection: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (attempt === 0 && shouldPromptKnabReconnect(message)) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1500));
+          continue;
+        }
+        throw error;
+      }
     }
-    if (!response.ok || !payload?.ok) {
-      throw new Error(payload?.error || 'Synchroniseren met Knab is mislukt.');
-    }
-    return { ...payload, hasConnection: true };
-  });
+    throw new Error('Synchroniseren met Knab is mislukt.');
+  })();
 
   knabSyncRequestCache = { userId, startedAt: now, promise };
   return promise;
@@ -581,26 +598,6 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
       setKnabReconnectOpen(true);
     }
   }, [bankRefreshPending, knabConnection, loading]);
-
-  useEffect(() => {
-    const validUntil = knabConnection?.consentValidUntil;
-    if (knabConnection?.status !== 'connected' || !validUntil) return;
-    const expiresAt = Date.parse(validUntil);
-    if (!Number.isFinite(expiresAt)) return;
-
-    const handleExpiry = () => {
-      const message = 'Je Knab-toestemming is verlopen. Koppel Knab opnieuw.';
-      setBankRefreshError(message);
-      setKnabReconnectOpen(true);
-    };
-    const delay = expiresAt - Date.now();
-    if (delay <= 0) {
-      handleExpiry();
-      return;
-    }
-    const timeoutId = window.setTimeout(handleExpiry, delay);
-    return () => window.clearTimeout(timeoutId);
-  }, [knabConnection?.consentValidUntil, knabConnection?.status]);
 
   const knabReconnectDialog = (
     <Dialog open={knabReconnectOpen} onOpenChange={setKnabReconnectOpen}>

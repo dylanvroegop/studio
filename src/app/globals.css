@@ -224,11 +224,11 @@
   }
 
   .app-nav-open .finance-tabs-footer {
-    left: 15.84rem;
+    left: var(--app-nav-width, 15.84rem);
   }
 
   .app-nav-open .app-shell {
-    padding-left: 15.84rem;
+    padding-left: var(--app-nav-width, 15.84rem);
   }
 
   .quote-materials-sticky-footer {
@@ -250,15 +250,23 @@
   }
 
   .app-nav-open .quote-materials-sticky-footer {
-    left: 15.84rem;
+    left: var(--app-nav-width, 15.84rem);
   }
 
   .app-nav-open .settings-sticky-footer {
-    left: 15.84rem;
+    left: var(--app-nav-width, 15.84rem);
   }
 
   .app-nav-open .overview-sticky-footer {
-    left: 15.84rem;
+    left: var(--app-nav-width, 15.84rem);
+  }
+
+  .app-nav-resizing .app-shell,
+  .app-nav-resizing .finance-tabs-footer,
+  .app-nav-resizing .quote-materials-sticky-footer,
+  .app-nav-resizing .settings-sticky-footer,
+  .app-nav-resizing .overview-sticky-footer {
+    transition: none;
   }
 }
 

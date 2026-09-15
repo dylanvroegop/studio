@@ -6,9 +6,10 @@ import { z } from 'zod';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
 import {
-  getAppointmentSuggestion,
+  getAppointmentSuggestions,
   getCityFromAddress,
   type AppointmentPlanningEntry,
+  type AppointmentSuggestion,
 } from '@/lib/appointment-suggestions';
 
 export const runtime = 'nodejs';
@@ -60,6 +61,7 @@ interface ImportResult {
   appointment_time: string | null;
   suggested_appointment_date: string | null;
   suggested_appointment_time: string | null;
+  suggested_appointment_options: Array<Pick<AppointmentSuggestion, 'date' | 'time'>>;
   telegram_message: string | null;
 }
 
@@ -223,13 +225,19 @@ function formatDutchAppointmentDate(dateOnly: string): string {
   }).format(date);
 }
 
-function buildTelegramMessage(client: ImportInput['client'], date: string, time: string): string {
+function buildTelegramMessage(client: ImportInput['client'], suggestions: AppointmentSuggestion[]): string {
+  const options = suggestions
+    .map((suggestion, index) => `${index + 1}. ${formatDutchAppointmentDate(suggestion.date)} om ${suggestion.time}`)
+    .join('\n');
+
   return `Beste ${clientDisplayName(client)},
 
-Bedankt voor uw acceptatie.
+Bedankt voor uw bericht.
 
-Komt het gelegen dat ik ${formatDutchAppointmentDate(date)} om ${time}
-langs kan komen voor een werkbespreking?
+Ik kan op één van deze twee momenten langskomen voor een werkbespreking:
+${options}
+
+Komt één van deze momenten gelegen? Laat gerust weten welke datum het beste uitkomt.
 
 Dan bespreek ik de werkzaamheden met u en maak ik daarna kosteloos een offerte voor u op.
 
@@ -343,11 +351,12 @@ export async function POST(request: Request) {
         city: getCityFromAddress(cache.projectAddress),
       }];
     });
-    const suggestion = appointmentStart
-      ? null
-      : getAppointmentSuggestion(clientInput.city || '', planningEntries, {
+    const suggestions = appointmentStart
+      ? []
+      : getAppointmentSuggestions(clientInput.city || '', planningEntries, {
         workDays: Array.isArray(planningSettings.workDays) ? planningSettings.workDays : undefined,
       });
+    const suggestion = suggestions[0] || null;
 
     const result = await firestore.runTransaction(async (transaction): Promise<ImportResult> => {
       let transactionClientRef = initialClientRef;
@@ -392,6 +401,7 @@ export async function POST(request: Request) {
             appointment_time: data.appointment_time || data.suggested_appointment_time || null,
             suggested_appointment_date: data.suggested_appointment_date || null,
             suggested_appointment_time: data.suggested_appointment_time || null,
+            suggested_appointment_options: data.suggested_appointment_options || [],
             telegram_message: data.telegram_message || null,
           };
         }
@@ -497,6 +507,7 @@ export async function POST(request: Request) {
       let appointmentTime: string | null = null;
       let suggestedAppointmentDate: string | null = null;
       let suggestedAppointmentTime: string | null = null;
+      let suggestedAppointmentOptions: ImportResult['suggested_appointment_options'] = [];
       let telegramMessage: string | null = null;
       const plannedAppointment = appointmentStart || suggestion?.startDate || null;
 
@@ -508,8 +519,11 @@ export async function POST(request: Request) {
         appointmentTime = clientInput.appointment_time || suggestion?.time || null;
         suggestedAppointmentDate = isPendingSuggestion ? suggestion?.date || null : null;
         suggestedAppointmentTime = isPendingSuggestion ? suggestion?.time || null : null;
-        telegramMessage = isPendingSuggestion && suggestion
-          ? buildTelegramMessage(clientInput, suggestion.date, suggestion.time)
+        suggestedAppointmentOptions = isPendingSuggestion
+          ? suggestions.map(({ date, time }) => ({ date, time }))
+          : [];
+        telegramMessage = isPendingSuggestion && suggestions.length > 0
+          ? buildTelegramMessage(clientInput, suggestions)
           : null;
         const appointmentEnd = new Date(plannedAppointment.getTime() + 60 * 60 * 1000);
         transaction.set(transactionAppointmentRef, {
@@ -536,6 +550,7 @@ export async function POST(request: Request) {
             totalQuoteHours: 1,
             totalQuoteAmount: 0,
             totalQuoteEarnings: 0,
+            suggestedAppointmentOptions,
           },
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
@@ -551,6 +566,7 @@ export async function POST(request: Request) {
         appointment_time: appointmentTime,
         suggested_appointment_date: suggestedAppointmentDate,
         suggested_appointment_time: suggestedAppointmentTime,
+        suggested_appointment_options: suggestedAppointmentOptions,
         telegram_message: telegramMessage,
       };
       transaction.set(importRef, {
