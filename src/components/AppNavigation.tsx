@@ -82,6 +82,13 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
         iconColorClassActive: 'text-emerald-300',
     },
     {
+        href: '/boodschappenlijst',
+        label: 'Boodschappenlijst (privé)',
+        icon: ClipboardList,
+        iconColorClass: 'text-emerald-400',
+        iconColorClassActive: 'text-emerald-300',
+    },
+    {
         href: '/klanten',
         label: 'Klanten',
         icon: Users,

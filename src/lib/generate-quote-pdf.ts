@@ -1,10 +1,11 @@
 import { jsPDF } from 'jspdf';
+import { createQuotePdfTranslator, type QuotePdfTranslation } from './quote-pdf-translation';
 import {
     formatCurrency,
     sanitizeWorkDescriptionStructured,
     type WorkDescriptionStructured,
 } from './quote-calculations';
-import { QuotePDFSettings } from '@/components/quote/QuoteSettings';
+import type { QuotePDFSettings } from '@/components/quote/QuoteSettings';
 import {
     defaultQuotePdfTextSettings,
     sanitizeQuotePdfTextSettings,
@@ -14,6 +15,8 @@ import type { MaterialPresentation } from './types';
 import { sanitizeMaterialPresentations } from './material-presentations';
 
 export interface PDFQuoteData {
+    language?: 'nl' | 'en';
+    englishTranslation?: QuotePdfTranslation;
     offerteNummer: string;
     datum: string;
     geldigTot: string;
@@ -331,7 +334,21 @@ function resolveSummaryHourlyRate(
     return Math.abs(derivedRate - safeBaseRate) < 0.005 ? safeBaseRate : roundMoney(derivedRate);
 }
 
+/** Collect through the same renderer, after Dutch scope filtering and before line wrapping. */
+export async function collectQuotePdfTexts(data: PDFQuoteData): Promise<string[]> {
+    const texts = new Set<string>();
+    await renderQuotePDF(data, (source) => { texts.add(source); });
+    return [...texts];
+}
+
 export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
+    return renderQuotePDF(data);
+}
+
+async function renderQuotePDF(data: PDFQuoteData, collectText?: (source: string) => void): Promise<Blob> {
+    const t = collectText
+        ? (source: string): string => { if (source.trim()) collectText(source); return source; }
+        : createQuotePdfTranslator(data.language, data.englishTranslation);
     const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -384,7 +401,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(30, 30, 30);
-        doc.text(title, margin, y);
+        doc.text(t(title), margin, y);
         y += 8;
         drawLine(y);
         y += 10;
@@ -397,7 +414,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         height: number;
     } | null = null;
 
-    if (data.signatureUrl) {
+    if (data.signatureUrl && !collectText) {
         try {
             const signatureBase64 = await urlToBase64(data.signatureUrl);
             const signatureFormat = getImageFormatFromDataUrl(signatureBase64);
@@ -419,7 +436,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     // ═══════════════════════════════════════════════════════════════
 
     // Logo (if available)
-    if (data.logoUrl) {
+    if (data.logoUrl && !collectText) {
         try {
             const logoBase64 = await urlToBase64(data.logoUrl);
             const logoFormat = getImageFormatFromDataUrl(logoBase64);
@@ -474,12 +491,12 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFontSize(28);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text('OFFERTE', pageWidth - margin, y + 6, { align: 'right' });
+    doc.text(t('OFFERTE'), pageWidth - margin, y + 6, { align: 'right' });
 
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
-    doc.text(offerNumberLabel, pageWidth - margin, y + 14, { align: 'right' });
+    doc.text(t(offerNumberLabel), pageWidth - margin, y + 14, { align: 'right' });
 
     if (isOnderVoorbehoud) {
         const badgeWidth = 62;
@@ -492,7 +509,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.setFontSize(7.5);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(180, 83, 9);
-        doc.text('ONDER VOORBEHOUD', badgeX + (badgeWidth / 2), badgeY + 4.2, { align: 'center' });
+        doc.text(t('ONDER VOORBEHOUD'), badgeX + (badgeWidth / 2), badgeY + 4.2, { align: 'center' });
         doc.setFont('helvetica', 'normal');
         headerBlockHeight = Math.max(headerBlockHeight, 34);
     }
@@ -508,8 +525,8 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(100, 100, 100);
-    doc.text('BEDRIJFSGEGEVENS', colLeft, y);
-    doc.text('KLANTGEGEVENS', colRight, y);
+    doc.text(t('BEDRIJFSGEGEVENS'), colLeft, y);
+    doc.text(t('KLANTGEGEVENS'), colRight, y);
 
     y += 6;
     doc.setFont('helvetica', 'normal');
@@ -544,14 +561,14 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const klantKvk = isZakelijkeKlant ? String(data.klant.kvk || '').trim() : '';
     const klantBtw = isZakelijkeKlant ? String(data.klant.btw || '').trim() : '';
 
-    doc.text(`KVK: ${displayBedrijf.kvk}`, colLeft, y);
+    doc.text(t('KVK:') + ' ' + displayBedrijf.kvk, colLeft, y);
     if (klantKvk) {
-        doc.text(`KVK: ${klantKvk}`, colRight, y);
+        doc.text(t('KVK:') + ' ' + klantKvk, colRight, y);
     }
     y += 5;
-    doc.text(`BTW: ${displayBedrijf.btw}`, colLeft, y);
+    doc.text(t('BTW:') + ' ' + displayBedrijf.btw, colLeft, y);
     if (klantBtw) {
-        doc.text(`BTW: ${klantBtw}`, colRight, y);
+        doc.text(t('BTW:') + ' ' + klantBtw, colRight, y);
     }
     y += 5;
     if (displayBedrijf.iban) {
@@ -569,19 +586,19 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     const metaCol1 = margin;
     const metaCol2 = margin + 35;
 
-    doc.text('Offertedatum:', metaCol1, y);
+    doc.text(t('Offertedatum:'), metaCol1, y);
     doc.setTextColor(30, 30, 30);
-    doc.text(data.datum, metaCol2, y);
+    doc.text(t(data.datum), metaCol2, y);
     y += 5;
 
     doc.setTextColor(80, 80, 80);
-    doc.text('Geldig tot:', metaCol1, y);
+    doc.text(t('Geldig tot:'), metaCol1, y);
     doc.setTextColor(30, 30, 30);
-    doc.text(data.geldigTot, metaCol2, y);
+    doc.text(t(data.geldigTot), metaCol2, y);
     y += 5;
 
     doc.setTextColor(80, 80, 80);
-    doc.text('Projectlocatie:', metaCol1, y);
+    doc.text(t('Projectlocatie:'), metaCol1, y);
     doc.setTextColor(30, 30, 30);
     const projectLocatie = String(data.projectLocatie || '').trim();
     const projectLocatieLines = doc.splitTextToSize(projectLocatie || '-', pageWidth - metaCol2 - margin);
@@ -589,14 +606,14 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     y += Math.max(projectLocatieLines.length * 4.2, 5);
 
     doc.setTextColor(80, 80, 80);
-    doc.text('Prijsafspraak:', metaCol1, y);
+    doc.text(t('Prijsafspraak:'), metaCol1, y);
     doc.setFont('helvetica', 'bold');
     if (isOnderVoorbehoud) {
         doc.setTextColor(180, 83, 9);
     } else {
         doc.setTextColor(30, 30, 30);
     }
-    doc.text(prijsAfspraakLabel, metaCol2, y);
+    doc.text(t(prijsAfspraakLabel), metaCol2, y);
     doc.setFont('helvetica', 'normal');
 
     y += 12;
@@ -607,7 +624,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
-    doc.text('PROJECTOMSCHRIJVING', margin, y);
+    doc.text(t('PROJECTOMSCHRIJVING'), margin, y);
     y += 6;
 
     const structuredProjectTitles = (data.werkbeschrijvingStructured?.jobs || [])
@@ -624,7 +641,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.setFontSize(8);
         doc.setTextColor(110, 110, 110);
         const subtitleLines = projectTitleLines.flatMap((title) =>
-            doc.splitTextToSize(title, pageWidth - (margin * 2))
+            doc.splitTextToSize(t(title), pageWidth - (margin * 2))
         );
         doc.text(subtitleLines, margin, y);
         y += subtitleLines.length * 3.8 + 2;
@@ -641,7 +658,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     if (shouldShowDescriptionOnSummaryPage) {
         const descriptionContent = data.korteBeschrijving || data.werkbeschrijving;
         if (descriptionContent && descriptionContent.trim().length > 0) {
-            const descriptionLines = doc.splitTextToSize(descriptionContent, pageWidth - (margin * 2));
+            const descriptionLines = doc.splitTextToSize(t(descriptionContent), pageWidth - (margin * 2));
             doc.text(descriptionLines, margin, y);
             y += descriptionLines.length * 4.5 + 8;
         } else {
@@ -658,7 +675,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
-    doc.text('SAMENVATTING', margin, y);
+    doc.text(t('SAMENVATTING'), margin, y);
     y += 10;
 
     doc.setFont('helvetica', 'normal');
@@ -714,7 +731,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
 
     doc.setTextColor(80, 80, 80);
     summaryItems.forEach(([label, value]) => {
-        doc.text(label, margin, y);
+        doc.text(t(label), margin, y);
         doc.setTextColor(30, 30, 30);
         doc.text(value, pageWidth - margin, y, { align: 'right' });
         doc.setTextColor(80, 80, 80);
@@ -732,7 +749,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
 
     if (data.settings.showSummaryExclBtw) {
         doc.setTextColor(80, 80, 80);
-        doc.text('Totaal excl. BTW', margin, y);
+        doc.text(t('Totaal excl. BTW'), margin, y);
         doc.setTextColor(30, 30, 30);
         doc.text(formatCurrency(data.totals.totaalExclBtw), pageWidth - margin, y, { align: 'right' });
         y += 6;
@@ -747,7 +764,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         ] as Array<[string, number]>).filter(([, value]) => value > 0);
         doc.setTextColor(80, 80, 80);
         vatRows.forEach(([label, value]) => {
-            doc.text(label, margin, y);
+            doc.text(t(label), margin, y);
             doc.setTextColor(30, 30, 30);
             doc.text(formatCurrency(value), pageWidth - margin, y, { align: 'right' });
             doc.setTextColor(80, 80, 80);
@@ -755,7 +772,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         });
     } else if (data.settings.showSummaryBtw) {
         doc.setTextColor(80, 80, 80);
-        doc.text(`BTW (${data.totals.btwPercentage}%)`, margin, y);
+        doc.text(t(`BTW (${data.totals.btwPercentage}%)`), margin, y);
         doc.setTextColor(30, 30, 30);
         doc.text(formatCurrency(data.totals.btw), pageWidth - margin, y, { align: 'right' });
         y += 4;
@@ -772,7 +789,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
         doc.setTextColor(30, 30, 30);
-        doc.text(isOnderVoorbehoud ? 'RICHTPRIJS INCL. BTW' : 'TOTAAL INCL. BTW', margin, y);
+        doc.text(t(isOnderVoorbehoud ? 'RICHTPRIJS INCL. BTW' : 'TOTAAL INCL. BTW'), margin, y);
         doc.setTextColor(16, 185, 129);
         doc.text(formatCurrency(data.totals.totaalInclBtw), pageWidth - margin, y, { align: 'right' });
     }
@@ -782,7 +799,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.setFontSize(8);
         doc.setTextColor(180, 83, 9);
         const reserveNote = doc.splitTextToSize(
-            'Onder voorbehoud van prijs- en typewijzigingen. Definitieve factuur volgt op basis van werkelijk uitgevoerde werkzaamheden.',
+            t('Onder voorbehoud van prijs- en typewijzigingen. Definitieve factuur volgt op basis van werkelijk uitgevoerde werkzaamheden.'),
             pageWidth - (margin * 2),
         );
         doc.text(reserveNote, margin, y);
@@ -830,7 +847,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         const drawStepList = (rows: string[], x: number, width: number) => {
             rows.forEach((stap, index) => {
                 const stepNumber = `${index + 1}.`;
-                const stepText = doc.splitTextToSize(stap, width - 12);
+                const stepText = doc.splitTextToSize(t(stap), width - 12);
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(80, 80, 80);
                 doc.text(stepNumber, x, y);
@@ -847,7 +864,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
             doc.setTextColor(45, 45, 45);
-            doc.text(label, x, y);
+            doc.text(t(label), x, y);
             y += 6;
             doc.setFontSize(9);
             drawStepList(cleanRows, x, width);
@@ -857,7 +874,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         const measureRows = (rows: string[], width: number): number => rows
             .map((line) => String(line || '').trim())
             .filter(Boolean)
-            .reduce((height, line) => height + Math.max(doc.splitTextToSize(line, width - 12).length * 4.5, 6) + 2, 0);
+            .reduce((height, line) => height + Math.max(doc.splitTextToSize(t(line), width - 12).length * 4.5, 6) + 2, 0);
 
         const measureScopeSection = (rows: string[], width: number): number => {
             const cleanRows = rows.map((line) => String(line || '').trim()).filter(Boolean);
@@ -874,7 +891,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         const measureJobCard = (job: typeof structuredJobs[number], includeGlobalScope: boolean): number => {
             doc.setFontSize(13);
             doc.setFont('helvetica', 'bold');
-            const titleLines = doc.splitTextToSize(String(job.title || 'Werkzaamheden'), cardContentWidth);
+            const titleLines = doc.splitTextToSize(t(String(job.title || 'Werkzaamheden')), cardContentWidth);
             return 15
                 + titleLines.length * 5.2
                 + measureScopeSection(job.work_scope, cardContentWidth)
@@ -909,7 +926,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                 doc.setFontSize(13);
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(35, 35, 35);
-                const titleLines = doc.splitTextToSize(jobTitle, cardContentWidth);
+                const titleLines = doc.splitTextToSize(t(jobTitle), cardContentWidth);
                 doc.text(titleLines, cardContentX, y);
                 y += titleLines.length * 5.2 + 3;
 
@@ -934,11 +951,11 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             });
         }
 
+        const footerNote = t('Werkzaamheden en leveringen zijn uitsluitend inbegrepen voor zover hierboven expliciet omschreven.');
         if (y + 10 < pageHeight - bottomMargin) {
             doc.setFontSize(8);
             doc.setTextColor(100, 100, 100);
             doc.setFont('helvetica', 'italic');
-            const footerNote = 'Werkzaamheden en leveringen zijn uitsluitend inbegrepen voor zover hierboven expliciet omschreven.';
             doc.text(footerNote, margin, y);
         }
     }
@@ -965,7 +982,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         doc.setFontSize(9);
         doc.setTextColor(70, 70, 70);
         const introLines = doc.splitTextToSize(
-            'In deze offerte zijn de belangrijkste zichtbare en kwaliteitsbepalende materialen opgenomen. Dit geeft inzicht in de gekozen materiaalrichting, afwerking en kwaliteit, zonder onnodige technische of leveranciersspecifieke details.',
+            t('In deze offerte zijn de belangrijkste zichtbare en kwaliteitsbepalende materialen opgenomen. Dit geeft inzicht in de gekozen materiaalrichting, afwerking en kwaliteit, zonder onnodige technische of leveranciersspecifieke details.'),
             pageWidth - (margin * 2),
         );
         doc.text(introLines, margin, y);
@@ -973,7 +990,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
 
         const imageCache = new Map<string, string | null>();
         const getPresentationImage = async (url: string): Promise<string | null> => {
-            if (!url) return null;
+            if (!url || collectText) return null;
             if (imageCache.has(url)) return imageCache.get(url) || null;
             try {
                 const base64 = await urlToBase64(url);
@@ -997,10 +1014,10 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             const imageWidth = imageData ? 42 : 0;
             const textWidth = cardWidth - 10 - (imageData ? imageWidth + 8 : 0);
 
-            const titleLines = doc.splitTextToSize(item.title || 'Toegepast materiaal', textWidth);
-            const applicationLines = item.application ? doc.splitTextToSize(item.application, textWidth) : [];
-            const descriptionLines = item.clientDescription ? doc.splitTextToSize(item.clientDescription, textWidth) : [];
-            const whyLines = item.whyChosen ? doc.splitTextToSize(item.whyChosen, textWidth) : [];
+            const titleLines = doc.splitTextToSize(t(item.title || 'Toegepast materiaal'), textWidth);
+            const applicationLines = item.application ? doc.splitTextToSize(t(item.application), textWidth) : [];
+            const descriptionLines = item.clientDescription ? doc.splitTextToSize(t(item.clientDescription), textWidth) : [];
+            const whyLines = item.whyChosen ? doc.splitTextToSize(t(item.whyChosen), textWidth) : [];
             const specHeight = hasSpecs ? 7 + (item.visibleSpecifications.length * 6) : 0;
             const propertiesHeight = hasProperties ? 6 + (item.keyProperties.length * 4.6) : 0;
             const alternativeHeight = item.allowEquivalentAlternative ? 10 : 0;
@@ -1066,7 +1083,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(8.8);
                 doc.setTextColor(45, 45, 45);
-                doc.text('Waarom gekozen?', textX, textY);
+                doc.text(t('Waarom gekozen?'), textX, textY);
                 textY += 4.7;
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(55, 55, 55);
@@ -1078,13 +1095,13 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(8.8);
                 doc.setTextColor(45, 45, 45);
-                doc.text('Belangrijke eigenschappen', textX, textY);
+                doc.text(t('Belangrijke eigenschappen'), textX, textY);
                 textY += 5;
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(60, 60, 60);
                 item.keyProperties.forEach((property) => {
                     doc.text('•', textX, textY);
-                    doc.text(doc.splitTextToSize(property, textWidth - 5), textX + 4, textY);
+                    doc.text(doc.splitTextToSize(t(property), textWidth - 5), textX + 4, textY);
                     textY += 4.6;
                 });
                 textY += 2;
@@ -1094,7 +1111,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(8.8);
                 doc.setTextColor(45, 45, 45);
-                doc.text('Zichtbare specificaties', textX, textY);
+                doc.text(t('Zichtbare specificaties'), textX, textY);
                 textY += 5;
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(8);
@@ -1103,9 +1120,9 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                     doc.setFillColor(specIndex % 2 === 0 ? 244 : 250, specIndex % 2 === 0 ? 246 : 250, specIndex % 2 === 0 ? 248 : 250);
                     doc.rect(textX, rowY, textWidth, 5.4, 'F');
                     doc.setTextColor(85, 85, 85);
-                    doc.text(spec.label, textX + 2, textY + 0.8);
+                    doc.text(t(spec.label), textX + 2, textY + 0.8);
                     doc.setTextColor(45, 45, 45);
-                    doc.text(doc.splitTextToSize(spec.value, textWidth * 0.48), textX + (textWidth * 0.45), textY + 0.8);
+                    doc.text(doc.splitTextToSize(t(spec.value), textWidth * 0.48), textX + (textWidth * 0.45), textY + 0.8);
                     textY += 6;
                 });
                 textY += 2;
@@ -1116,7 +1133,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                 doc.setFontSize(7.8);
                 doc.setTextColor(100, 100, 100);
                 const noteLines = doc.splitTextToSize(
-                    'Indien een materiaal tijdelijk niet leverbaar is, wordt uitsluitend een gelijkwaardig of beter alternatief toegepast na overleg met opdrachtgever.',
+                    t('Indien een materiaal tijdelijk niet leverbaar is, wordt uitsluitend een gelijkwaardig of beter alternatief toegepast na overleg met opdrachtgever.'),
                     textWidth,
                 );
                 doc.text(noteLines, textX, textY);
@@ -1144,17 +1161,17 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
             doc.setTextColor(80, 80, 80);
-            doc.text('GROOTMATERIALEN', margin, y);
+            doc.text(t('GROOTMATERIALEN'), margin, y);
             y += 8;
 
             // Table header
             doc.setFontSize(8);
             doc.setTextColor(100, 100, 100);
-            doc.text('Aantal', margin, y);
-            doc.text('Omschrijving', margin + 18, y);
+            doc.text(t('Aantal'), margin, y);
+            doc.text(t('Omschrijving'), margin + 18, y);
             if (data.settings.showPricesPerItem) {
-                doc.text('Per stuk', pageWidth - 50, y, { align: 'right' });
-                doc.text('Totaal', pageWidth - margin, y, { align: 'right' });
+                doc.text(t('Per stuk'), pageWidth - 50, y, { align: 'right' });
+                doc.text(t('Totaal'), pageWidth - margin, y, { align: 'right' });
             }
             y += 3;
             drawLine(y);
@@ -1167,7 +1184,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             data.grootmaterialen.forEach((item) => {
                 checkPageBreak(12);
 
-                const productLines = doc.splitTextToSize(item.product, data.settings.showPricesPerItem ? 75 : 120);
+                const productLines = doc.splitTextToSize(t(item.product), data.settings.showPricesPerItem ? 75 : 120);
                 doc.text(String(item.aantal), margin, y);
                 doc.text(productLines, margin + 18, y);
 
@@ -1182,7 +1199,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             y += 3;
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(80, 80, 80);
-            doc.text(`Subtotaal grootmaterialen:`, pageWidth - 70, y, { align: 'right' });
+            doc.text(t(`Subtotaal grootmaterialen:`), pageWidth - 70, y, { align: 'right' });
             doc.setTextColor(30, 30, 30);
             doc.text(formatCurrency(data.totals.materialenGroot), pageWidth - margin, y, { align: 'right' });
 
@@ -1196,16 +1213,16 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
             doc.setTextColor(80, 80, 80);
-            doc.text('VERBRUIKSARTIKELEN', margin, y);
+            doc.text(t('VERBRUIKSARTIKELEN'), margin, y);
             y += 8;
 
             doc.setFontSize(8);
             doc.setTextColor(100, 100, 100);
-            doc.text('Aantal', margin, y);
-            doc.text('Omschrijving', margin + 18, y);
+            doc.text(t('Aantal'), margin, y);
+            doc.text(t('Omschrijving'), margin + 18, y);
             if (data.settings.showPricesPerItem) {
-                doc.text('Per stuk', pageWidth - 50, y, { align: 'right' });
-                doc.text('Totaal', pageWidth - margin, y, { align: 'right' });
+                doc.text(t('Per stuk'), pageWidth - 50, y, { align: 'right' });
+                doc.text(t('Totaal'), pageWidth - margin, y, { align: 'right' });
             }
             y += 3;
             drawLine(y);
@@ -1217,7 +1234,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             data.verbruiksartikelen.forEach((item) => {
                 checkPageBreak(12);
 
-                const productLines = doc.splitTextToSize(item.product, data.settings.showPricesPerItem ? 75 : 120);
+                const productLines = doc.splitTextToSize(t(item.product), data.settings.showPricesPerItem ? 75 : 120);
                 doc.text(String(item.aantal), margin, y);
                 doc.text(productLines, margin + 18, y);
 
@@ -1232,7 +1249,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             y += 3;
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(80, 80, 80);
-            doc.text(`Subtotaal verbruiksartikelen:`, pageWidth - 70, y, { align: 'right' });
+            doc.text(t(`Subtotaal verbruiksartikelen:`), pageWidth - 70, y, { align: 'right' });
             doc.setTextColor(30, 30, 30);
             doc.text(formatCurrency(data.totals.materialenVerbruik), pageWidth - margin, y, { align: 'right' });
         }
@@ -1245,7 +1262,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         y += 6;
 
         doc.setFontSize(10);
-        doc.text('TOTAAL MATERIALEN:', pageWidth - 80, y, { align: 'right' });
+        doc.text(t('TOTAAL MATERIALEN:'), pageWidth - 80, y, { align: 'right' });
         doc.setTextColor(16, 185, 129);
         doc.text(formatCurrency(data.totals.materialenTotaal), pageWidth - margin, y, { align: 'right' });
     }
@@ -1263,9 +1280,9 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         // Table header
         doc.setFontSize(8);
         doc.setTextColor(100, 100, 100);
-        doc.text('Uren', margin, y);
-        doc.text('Werkzaamheden', margin + 15, y);
-        doc.text('Bedrag', pageWidth - margin, y, { align: 'right' });
+        doc.text(t('Uren'), margin, y);
+        doc.text(t('Werkzaamheden'), margin + 15, y);
+        doc.text(t('Bedrag'), pageWidth - margin, y, { align: 'right' });
         y += 3;
         drawLine(y);
         y += 5;
@@ -1276,7 +1293,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         data.urenSpecificatie.forEach((item) => {
             checkPageBreak(12);
 
-            const taakLines = doc.splitTextToSize(item.taak, pageWidth - margin - 55);
+            const taakLines = doc.splitTextToSize(t(item.taak), pageWidth - margin - 55);
             doc.text(item.uren.toFixed(1), margin, y);
             doc.text(taakLines, margin + 15, y);
             doc.text(formatCurrency(item.uren * data.totals.uurTarief), pageWidth - margin, y, { align: 'right' });
@@ -1291,20 +1308,20 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         // Labor totals
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(80, 80, 80);
-        doc.text(`Totaal uren:`, pageWidth - 80, y, { align: 'right' });
+        doc.text(t(`Totaal uren:`), pageWidth - 80, y, { align: 'right' });
         doc.setTextColor(30, 30, 30);
-        doc.text(`${data.totals.totaalUren} uur`, pageWidth - margin, y, { align: 'right' });
+        doc.text(t(`${data.totals.totaalUren} uur`), pageWidth - margin, y, { align: 'right' });
         y += 5;
 
         doc.setTextColor(80, 80, 80);
-        doc.text(`Uurtarief:`, pageWidth - 80, y, { align: 'right' });
+        doc.text(t(`Uurtarief:`), pageWidth - 80, y, { align: 'right' });
         doc.setTextColor(30, 30, 30);
         doc.text(formatCurrency(data.totals.uurTarief), pageWidth - margin, y, { align: 'right' });
         y += 6;
 
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(80, 80, 80);
-        doc.text('TOTAAL ARBEID:', pageWidth - 80, y, { align: 'right' });
+        doc.text(t('TOTAAL ARBEID:'), pageWidth - 80, y, { align: 'right' });
         doc.setTextColor(16, 185, 129);
         doc.text(formatCurrency(data.totals.arbeidTotaal), pageWidth - margin, y, { align: 'right' });
     }
@@ -1336,7 +1353,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         const termText = normalizeCommonWording(clean.replace(/^[•\-]\s*/, ''));
         if (!termText) return;
 
-        const wrapped = doc.splitTextToSize(termText, pageWidth - (margin * 2) - bulletIndent);
+        const wrapped = doc.splitTextToSize(t(termText), pageWidth - (margin * 2) - bulletIndent);
         doc.text('•', margin, y);
         doc.text(wrapped, margin + bulletIndent, y);
         y += wrapped.length * 4.4;
@@ -1350,7 +1367,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 30, 30);
-    doc.text(algemeenHeader, margin, y);
+    doc.text(t(algemeenHeader), margin, y);
     y += 8;
     drawLine(y);
     y += 10;
@@ -1377,7 +1394,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
 
         const shouldBeRed = redTerms.has(index);
         doc.setTextColor(shouldBeRed ? 185 : 60, shouldBeRed ? 28 : 60, shouldBeRed ? 28 : 60);
-        const wrapped = doc.splitTextToSize(termText, pageWidth - (margin * 2) - bulletIndent);
+        const wrapped = doc.splitTextToSize(t(termText), pageWidth - (margin * 2) - bulletIndent);
         if (y + (wrapped.length * 4.4) > pageHeight - 55) {
             doc.addPage();
             y = margin;
@@ -1395,7 +1412,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFontSize(8.5);
     doc.setTextColor(75, 75, 75);
     const akkoordUitleg = doc.splitTextToSize(
-        'Door ondertekening gaat opdrachtgever akkoord met deze offerte en bijbehorende voorwaarden.',
+        t('Door ondertekening gaat opdrachtgever akkoord met deze offerte en bijbehorende voorwaarden.'),
         pageWidth - (margin * 2),
     );
     if (y + (akkoordUitleg.length * 4.1) + 36 > pageHeight - margin) {
@@ -1422,15 +1439,15 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(80, 80, 80);
-    doc.text('Voor akkoord', margin + 4, y + 6);
+    doc.text(t('Voor akkoord'), margin + 4, y + 6);
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(40, 40, 40);
-    doc.text('Datum:', margin + 4, y + 15);
+    doc.text(t('Datum:'), margin + 4, y + 15);
     doc.line(margin + 20, y + 15, margin + 78, y + 15);
 
     const handtekeningX = pageWidth / 2 + 2;
-    doc.text('Handtekening:', handtekeningX, y + 15);
+    doc.text(t('Handtekening:'), handtekeningX, y + 15);
     doc.line(handtekeningX + 24, y + 15, pageWidth - margin - 4, y + 15);
     y += 31;
 
@@ -1441,12 +1458,12 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
     doc.setFontSize(9);
     doc.setTextColor(60, 60, 60);
     const closingText = (tekstInstellingen.afsluitingTekst || '').trim() || defaultQuotePdfTextSettings.afsluitingTekst;
-    const closingLines = doc.splitTextToSize(closingText, pageWidth - (margin * 2));
+    const closingLines = doc.splitTextToSize(t(closingText), pageWidth - (margin * 2));
     doc.text(closingLines, margin, y);
     y += (closingLines.length * 4.2) + 4;
 
     const groetTekst = (tekstInstellingen.groetTekst || '').trim() || defaultQuotePdfTextSettings.groetTekst;
-    doc.text(groetTekst, margin, y);
+    doc.text(t(groetTekst), margin, y);
     y += 6;
 
     if (y + 30 > pageHeight - margin) {
@@ -1496,7 +1513,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
         };
 
         if (blocks.length === 0) {
-            const fallback = doc.splitTextToSize(algemeneVoorwaardenTekst, pageWidth - (margin * 2));
+            const fallback = doc.splitTextToSize(t(algemeneVoorwaardenTekst), pageWidth - (margin * 2));
             fallback.forEach((line: string) => {
                 ensureSpace(5);
                 doc.text(line, margin, y);
@@ -1504,7 +1521,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             });
         } else {
             blocks.forEach((block) => {
-                const lines = doc.splitTextToSize(block, pageWidth - (margin * 2));
+                const lines = doc.splitTextToSize(t(block), pageWidth - (margin * 2));
                 ensureSpace((lines.length * 4.5) + 4);
                 doc.text(lines, margin, y);
                 y += (lines.length * 4.5) + 4;
@@ -1526,7 +1543,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             doc.setFontSize(14);
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(30, 30, 30);
-            doc.text(`TEKENINGEN (${index + 1}/${drawingImages.length})`, margin, y);
+            doc.text(t(`TEKENINGEN (${index + 1}/${drawingImages.length})`), margin, y);
 
             y += 8;
             drawLine(y);
@@ -1534,6 +1551,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
 
             try {
                 // Calculate aspect ratio to fit page
+                if (collectText) return;
                 const imgProps = doc.getImageProperties(imgData);
                 const availableWidth = pageWidth - (margin * 2);
                 const availableHeight = pageHeight - y - margin;
@@ -1554,7 +1572,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
                 console.error("Error adding image to PDF:", err);
                 doc.setFontSize(10);
                 doc.setTextColor(255, 0, 0);
-                doc.text("Fout bij laden van tekening.", margin, y + 10);
+                doc.text(data.language === 'en' ? 'Unable to load drawing.' : 'Fout bij laden van tekening.', margin, y + 10);
             }
         });
     }
@@ -1568,7 +1586,7 @@ export async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8.5);
             doc.setTextColor(120, 120, 120);
-            doc.text(`Offerte #${data.offerteNummer}`, pageWidth - margin, 8, { align: 'right' });
+            doc.text(t(`Offerte #${data.offerteNummer}`), pageWidth - margin, 8, { align: 'right' });
         }
 
         doc.setFont('helvetica', 'normal');

@@ -25,6 +25,8 @@ export type Client = {
 };
 
 export type Quote = {
+  pdfLanguage?: 'nl' | 'en';
+  pdfEnglishTranslation?: import('./quote-pdf-translation').QuotePdfTranslation;
   id: string;
   userId: string;
   offerteNummer?: number;

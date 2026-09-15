@@ -1,3 +1,4 @@
+import { CHECKLIST_CONFIG, type ChecklistKind } from '@/lib/checklist-config';
 import type { Firestore, Timestamp } from 'firebase/firestore';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
@@ -210,9 +211,10 @@ export async function createMaterialList(
     quote?: QuoteLinkSnapshot | null;
     status?: MaterialListStatus;
     isGeneral?: boolean;
+    kind?: ChecklistKind;
   }
 ): Promise<string> {
-  const docRef = await addDoc(collection(firestore, 'material_lists'), {
+  const docRef = await addDoc(collection(firestore, CHECKLIST_CONFIG[params.kind ?? 'materials'].lists), {
     company_id: params.userId,
     userId: params.userId,
     is_general: params.isGeneral === true,

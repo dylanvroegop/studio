@@ -23,8 +23,11 @@ import { MaterialEditor } from '@/components/quote/MaterialEditor';
 import { LaborBreakdown } from '@/components/quote/LaborBreakdown';
 import { NacalculatieTab } from '@/components/quote/NacalculatieTab';
 import { PDFPreview } from '@/components/quote/PDFPreview';
+import { createOrderedSaveQueue } from '@/lib/ordered-save-queue';
+import { QuotePdfLanguageControl } from '@/components/quote/QuotePdfLanguageControl';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
+import { validateQuotePdfTranslations } from '@/lib/quote-pdf-translation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Euro, Package, Clock, FileText, FileSignature, MessageSquare, MessageCircle, Download, Mail, Settings, PenTool, Pencil, CalendarDays, ReceiptText, Loader2, AlertCircle, Save, Box, ChevronDown, ChevronRight, Sparkles, Search, ClipboardList, Plus, Trash2, ArrowUp, ArrowDown, Share2, Upload, Maximize2, X, Navigation, Camera, ImageIcon, LayoutDashboard, Scissors, Copy, MoreHorizontal, BookOpen, Calculator } from 'lucide-react';
@@ -48,7 +51,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useUser, useFirestore } from '@/firebase';
-import { arrayUnion, collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { arrayUnion, collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { getIdTokenResult } from 'firebase/auth';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useParams, useRouter } from 'next/navigation';
@@ -1250,7 +1253,11 @@ export default function QuotePage() {
     const [analyzingMaterialPresentationId, setAnalyzingMaterialPresentationId] = useState<string | null>(null);
     const hasEditedPdfTextSettingsRef = useRef(false);
     const facturatieSyncInitializedRef = useRef(false);
-    const facturatieHydratingRef = useRef(false);
+    const pdfSettingsWriteQueueRef = useRef(createOrderedSaveQueue());
+    const pdfSettingsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pdfSettingsSaveRevisionRef = useRef(0);
+    const latestQueuedPdfSettingsRef = useRef<{ signature: string; result: Promise<void> } | null>(null);
+    const [pdfSettingsSaveError, setPdfSettingsSaveError] = useState<string | null>(null);
     const lastSavedFacturatiePayloadRef = useRef('');
     const lastHydratedFacturatieSourceRef = useRef('');
     const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('vastePrijs');
@@ -1556,7 +1563,12 @@ export default function QuotePage() {
         setSelectedMaterialPackageId('NIEUW');
         templateAutoAppliedRef.current = false;
         facturatieSyncInitializedRef.current = false;
-        facturatieHydratingRef.current = false;
+        hasEditedPdfTextSettingsRef.current = false;
+        latestQueuedPdfSettingsRef.current = null;
+        pdfSettingsSaveRevisionRef.current += 1;
+        setIsSavingPdfSettings(false);
+        setPdfSettingsSaveError(null);
+        setPdfSettingsSavedAt(null);
         lastSavedFacturatiePayloadRef.current = '';
         lastHydratedFacturatieSourceRef.current = '';
     }, [id]);
@@ -1584,7 +1596,10 @@ export default function QuotePage() {
 
     // Init & sync facturatie instellingen (voorschot) vanuit quote
     useEffect(() => {
-        if (!quote) return;
+        if (!quote || quote.id !== id) return;
+        // Na een lokale wijziging blijft de lokale versie leidend tot de offerte opnieuw wordt geopend.
+        // Een vertraagde snapshot mag verwijderde regels niet terugzetten.
+        if (hasEditedPdfTextSettingsRef.current) return;
         const sourceSignature = JSON.stringify({
             quoteFacturatie: (quote as any)?.facturatie ?? null,
             quotePdfTeksten: (quote as any)?.pdfTeksten ?? null,
@@ -1595,7 +1610,6 @@ export default function QuotePage() {
         if (sourceSignature === lastHydratedFacturatieSourceRef.current) return;
         lastHydratedFacturatieSourceRef.current = sourceSignature;
 
-        facturatieHydratingRef.current = true;
 
         const f = (quote as any)?.facturatie;
         const nextVoorschotIngeschakeld =
@@ -1619,21 +1633,7 @@ export default function QuotePage() {
         const quotePdfTeksten = (quote as any)?.pdfTeksten;
         const userDefaultPdfTeksten = (userProfile as any)?.defaultPdfTeksten;
         const nextPdfTextSettings = sanitizeQuotePdfTextSettings(quotePdfTeksten ?? userDefaultPdfTeksten);
-        setPdfTextSettings((prev) => {
-            if (hasEditedPdfTextSettingsRef.current) {
-                const nextSig = JSON.stringify(nextPdfTextSettings);
-                const prevSig = JSON.stringify(prev);
-                if (prevSig === nextSig) {
-                    // Firestore now matches local state — edits are persisted
-                    hasEditedPdfTextSettingsRef.current = false;
-                }
-                // Keep local edits until Firestore catches up
-                return prev;
-            }
-            const prevSig = JSON.stringify(prev);
-            const nextSig = JSON.stringify(nextPdfTextSettings);
-            return prevSig === nextSig ? prev : nextPdfTextSettings;
-        });
+        setPdfTextSettings((prev) => JSON.stringify(prev) === JSON.stringify(nextPdfTextSettings) ? prev : nextPdfTextSettings);
 
         const quoteAlgemeneVoorwaarden = (quote as any)?.algemeneVoorwaarden;
         const userDefaultAlgemeneVoorwaarden = (userProfile as any)?.defaultAlgemeneVoorwaarden;
@@ -1669,11 +1669,7 @@ export default function QuotePage() {
             },
         });
         facturatieSyncInitializedRef.current = true;
-        const hydrationTimer = window.setTimeout(() => {
-            facturatieHydratingRef.current = false;
-        }, 0);
-        return () => window.clearTimeout(hydrationTimer);
-    }, [quote, userProfile]);
+    }, [quote, userProfile, id]);
 
     // Zoek bestaande voorschotfactuur id (voor link in UI)
     useEffect(() => {
@@ -1825,84 +1821,62 @@ export default function QuotePage() {
         };
     }, [activeTab, id, user]);
 
-    // Debounced save facturatie to quote doc
-    useEffect(() => {
-        if (!user || !firestore || !id) return;
-        if (!facturatieSyncInitializedRef.current) return;
-        if (facturatieHydratingRef.current) return;
-        const payloadSignature = JSON.stringify({
-            facturatie: {
-                voorschotIngeschakeld,
-                voorschotPercentage,
-                onderVoorbehoud,
-            },
-            pdfTeksten: pdfTextSettings,
-            algemeneVoorwaarden: {
-                titel: algemeneVoorwaardenTitel,
-                tekst: algemeneVoorwaardenTekst,
-                pdfUrl: algemeneVoorwaardenPdfUrl,
-                pdfBestandsnaam: algemeneVoorwaardenPdfBestandsnaam,
-            },
-        });
-        if (payloadSignature === lastSavedFacturatiePayloadRef.current) return;
-        const timer = setTimeout(async () => {
-            try {
-                const quoteRef = doc(firestore, 'quotes', id);
-                await updateDoc(quoteRef, {
-                    facturatie: {
-                        voorschotIngeschakeld,
-                        voorschotPercentage,
-                        onderVoorbehoud,
-                    },
-                    pdfTeksten: pdfTextSettings,
-                    algemeneVoorwaarden: {
-                        titel: algemeneVoorwaardenTitel,
-                        tekst: algemeneVoorwaardenTekst,
-                        pdfUrl: algemeneVoorwaardenPdfUrl,
-                        pdfBestandsnaam: algemeneVoorwaardenPdfBestandsnaam,
-                    },
-                    updatedAt: new Date(),
-                });
-                lastSavedFacturatiePayloadRef.current = payloadSignature;
+    const buildPdfSettingsPayload = useCallback((texts = pdfTextSettings) => ({
+        facturatie: { voorschotIngeschakeld, voorschotPercentage, onderVoorbehoud },
+        pdfTeksten: texts,
+        algemeneVoorwaarden: {
+            titel: algemeneVoorwaardenTitel,
+            tekst: algemeneVoorwaardenTekst,
+            pdfUrl: algemeneVoorwaardenPdfUrl,
+            pdfBestandsnaam: algemeneVoorwaardenPdfBestandsnaam,
+        },
+    }), [pdfTextSettings, voorschotIngeschakeld, voorschotPercentage, onderVoorbehoud,
+        algemeneVoorwaardenTitel, algemeneVoorwaardenTekst, algemeneVoorwaardenPdfUrl, algemeneVoorwaardenPdfBestandsnaam]);
 
-                if (hasEditedPdfTextSettingsRef.current) {
-                    const userRef = doc(firestore, 'users', user.uid);
-                    await setDoc(
-                        userRef,
-                        {
-                            defaultPdfTeksten: pdfTextSettings,
-                            defaultAlgemeneVoorwaarden: {
-                                titel: algemeneVoorwaardenTitel,
-                                tekst: algemeneVoorwaardenTekst,
-                                pdfUrl: algemeneVoorwaardenPdfUrl,
-                                pdfBestandsnaam: algemeneVoorwaardenPdfBestandsnaam,
-                            },
-                        },
-                        { merge: true }
-                    );
-                    // Don't reset hasEditedPdfTextSettingsRef here — the hydration
-                    // effect will reset it once Firestore data matches local state.
-                    // Resetting here caused a race: userProfile snapshot arrived before
-                    // quote snapshot, triggering hydration with stale quote data.
-                }
-            } catch (e) {
-                console.error('Fout bij opslaan facturatie:', e);
+    const persistPdfSettings = useCallback((payload: ReturnType<typeof buildPdfSettingsPayload>): Promise<void> => {
+        if (!user || !firestore || !id) return Promise.reject(new Error('Niet ingelogd.'));
+        if (pdfSettingsSaveTimerRef.current) clearTimeout(pdfSettingsSaveTimerRef.current);
+        const signature = JSON.stringify(payload);
+        const existing = latestQueuedPdfSettingsRef.current;
+        if (existing?.signature === signature) return existing.result;
+        const revision = ++pdfSettingsSaveRevisionRef.current;
+        setIsSavingPdfSettings(true);
+        setPdfSettingsSaveError(null);
+        const result = pdfSettingsWriteQueueRef.current.enqueue(async () => {
+            // Offerte en voorkeuren worden samen opgeslagen; lege lijsten blijven lege lijsten.
+            const batch = writeBatch(firestore);
+            batch.update(doc(firestore, 'quotes', id), { ...payload, updatedAt: serverTimestamp() });
+            batch.set(doc(firestore, 'users', user.uid), {
+                defaultPdfTeksten: payload.pdfTeksten,
+                defaultAlgemeneVoorwaarden: payload.algemeneVoorwaarden,
+            }, { merge: true });
+            await batch.commit();
+            if (revision === pdfSettingsSaveRevisionRef.current) {
+                lastSavedFacturatiePayloadRef.current = signature;
+                setPdfSettingsSavedAt(Date.now());
+                setIsSavingPdfSettings(false);
             }
-        }, 800);
+        }).catch((error) => {
+            if (revision === pdfSettingsSaveRevisionRef.current) {
+                latestQueuedPdfSettingsRef.current = null;
+                setIsSavingPdfSettings(false);
+                setPdfSettingsSaveError('Opslaan mislukt. Je wijzigingen staan nog in de editor. Klik op Opslaan om opnieuw te proberen.');
+            }
+            throw error;
+        });
+        latestQueuedPdfSettingsRef.current = { signature, result };
+        return result;
+    }, [user, firestore, id]);
+
+    // Alleen gebruikerswijzigingen opslaan: laden mag nooit een oude versie terugschrijven.
+    useEffect(() => {
+        if (!facturatieSyncInitializedRef.current || !hasEditedPdfTextSettingsRef.current) return;
+        const payload = buildPdfSettingsPayload();
+        if (JSON.stringify(payload) === lastSavedFacturatiePayloadRef.current) return;
+        const timer = setTimeout(() => { void persistPdfSettings(payload).catch(() => undefined); }, 800);
+        pdfSettingsSaveTimerRef.current = timer;
         return () => clearTimeout(timer);
-    }, [
-        voorschotIngeschakeld,
-        voorschotPercentage,
-        onderVoorbehoud,
-        pdfTextSettings,
-        algemeneVoorwaardenTitel,
-        algemeneVoorwaardenTekst,
-        algemeneVoorwaardenPdfUrl,
-        algemeneVoorwaardenPdfBestandsnaam,
-        user,
-        firestore,
-        id,
-    ]);
+    }, [buildPdfSettingsPayload, persistPdfSettings]);
 
     // Fetch Materials for Modal
     const [materialRefreshTrigger, setMaterialRefreshTrigger] = useState(0);
@@ -4381,11 +4355,10 @@ export default function QuotePage() {
 
     const removeBetalingsvoorwaarde = (index: number) => {
         hasEditedPdfTextSettingsRef.current = true;
-        setPdfTextSettings((prev) => {
-            const current = getBetalingsvoorwaardenByMode(prev, voorwaardenEditorMode);
-            const next = current.filter((_, i) => i !== index);
-            return withBetalingsvoorwaardenByMode(prev, voorwaardenEditorMode, next.length > 0 ? next : ['']);
-        });
+        const current = getBetalingsvoorwaardenByMode(pdfTextSettings, voorwaardenEditorMode);
+        const next = withBetalingsvoorwaardenByMode(pdfTextSettings, voorwaardenEditorMode, current.filter((_, i) => i !== index));
+        setPdfTextSettings(next);
+        void persistPdfSettings(buildPdfSettingsPayload(next)).catch(() => undefined);
     };
 
     const moveBetalingsvoorwaarde = (index: number, direction: -1 | 1) => {
@@ -4425,17 +4398,15 @@ export default function QuotePage() {
 
     const removeVoorwaarde = (index: number) => {
         hasEditedPdfTextSettingsRef.current = true;
-        setPdfTextSettings((prev) => {
-            const current = getVoorwaardenByMode(prev, voorwaardenEditorMode);
-            const next = current.filter((_, i) => i !== index);
-            const normalizedNext = next.length > 0 ? next : [''];
-            const withRegels = withVoorwaardenByMode(prev, voorwaardenEditorMode, normalizedNext);
-            const rodeIndexes = getRodeVoorwaardenByMode(prev, voorwaardenEditorMode)
-                .filter((idx) => idx !== index)
-                .map((idx) => (idx > index ? idx - 1 : idx))
-                .filter((idx) => idx >= 0 && idx < normalizedNext.length);
-            return withRodeVoorwaardenByMode(withRegels, voorwaardenEditorMode, rodeIndexes);
-        });
+        const current = getVoorwaardenByMode(pdfTextSettings, voorwaardenEditorMode);
+        const rows = current.filter((_, i) => i !== index);
+        const redIndexes = getRodeVoorwaardenByMode(pdfTextSettings, voorwaardenEditorMode)
+            .filter((idx) => idx !== index).map((idx) => idx > index ? idx - 1 : idx);
+        const next = withRodeVoorwaardenByMode(
+            withVoorwaardenByMode(pdfTextSettings, voorwaardenEditorMode, rows), voorwaardenEditorMode, redIndexes,
+        );
+        setPdfTextSettings(next);
+        void persistPdfSettings(buildPdfSettingsPayload(next)).catch(() => undefined);
     };
 
     const moveVoorwaarde = (index: number, direction: -1 | 1) => {
@@ -4491,6 +4462,8 @@ export default function QuotePage() {
         const pdfWorkDescription = forceSummaryIntoWorkScope(workDescriptionStructured);
 
         return {
+            language: quote?.pdfLanguage || 'nl',
+            englishTranslation: quote?.pdfEnglishTranslation,
             offerteNummer: formatOfferteNummerLabel((quote as any)?.offerteNummer, (quote as any)?.offerteVersie),
             datum: new Date().toLocaleDateString('nl-NL', {
                 day: 'numeric',
@@ -4598,6 +4571,21 @@ export default function QuotePage() {
     };
 
     const officialPdfCacheRef = useRef<{ signature: string; blob: Blob } | null>(null);
+    const translateWhatsAppMessage = useCallback(async (source: string): Promise<string> => {
+        if (!user) throw new Error('Log opnieuw in om het bericht te vertalen.');
+        const token = await user.getIdToken();
+        const response = await fetch('/api/translate-quote-pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ quoteId: id, texts: [source] }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Bericht vertalen mislukt.');
+        const entry = payload.translation?.entries?.[0];
+        if (entry?.source !== source) throw new Error('Geen volledige berichtvertaling ontvangen.');
+        return validateQuotePdfTranslations([source], [entry.english]).entries[0].english;
+    }, [user, id]);
+    const [isPreparingPdfLanguage, setIsPreparingPdfLanguage] = useState(false);
 
     const handleOfficialPdfGenerated = useCallback((blob: Blob, signature: string): void => {
         officialPdfCacheRef.current = { signature, blob };
@@ -4606,6 +4594,7 @@ export default function QuotePage() {
     const getOfficialQuotePdf = async (
         data: PDFQuoteData = buildPDFData(),
     ): Promise<Blob> => {
+        if (isPreparingPdfLanguage) throw new Error('Wacht tot de PDF-taal is voorbereid.');
         const signature = JSON.stringify(data);
         const cached = officialPdfCacheRef.current;
         if (cached?.signature === signature) return cached.blob;
@@ -5542,6 +5531,7 @@ export default function QuotePage() {
             await uploadBytes(fileRef, file, { contentType: 'application/pdf' });
             const url = await getDownloadURL(fileRef);
 
+            hasEditedPdfTextSettingsRef.current = true;
             setAlgemeneVoorwaardenPdfUrl(url);
             setAlgemeneVoorwaardenPdfBestandsnaam(file.name);
             setQuote((prev) => (
@@ -5812,76 +5802,18 @@ export default function QuotePage() {
         }
     };
 
-    const savePdfSettingsNow = useCallback(async () => {
+    const savePdfSettingsNow = async () => {
         if (!user || !firestore || !id || !quote) return;
-        setIsSavingPdfSettings(true);
+        hasEditedPdfTextSettingsRef.current = true;
         try {
+            await persistPdfSettings(buildPdfSettingsPayload());
             await handlePdfSettingsChange(pdfSettings);
-
-            const quoteRef = doc(firestore, 'quotes', id);
-            await updateDoc(quoteRef, {
-                facturatie: {
-                    voorschotIngeschakeld,
-                    voorschotPercentage,
-                    onderVoorbehoud,
-                },
-                pdfTeksten: pdfTextSettings,
-                algemeneVoorwaarden: {
-                    titel: algemeneVoorwaardenTitel,
-                    tekst: algemeneVoorwaardenTekst,
-                    pdfUrl: algemeneVoorwaardenPdfUrl,
-                    pdfBestandsnaam: algemeneVoorwaardenPdfBestandsnaam,
-                },
-                updatedAt: new Date(),
-            });
-
-            const userRef = doc(firestore, 'users', user.uid);
-            await setDoc(
-                userRef,
-                {
-                    defaultPdfTeksten: pdfTextSettings,
-                    defaultAlgemeneVoorwaarden: {
-                        titel: algemeneVoorwaardenTitel,
-                        tekst: algemeneVoorwaardenTekst,
-                        pdfUrl: algemeneVoorwaardenPdfUrl,
-                        pdfBestandsnaam: algemeneVoorwaardenPdfBestandsnaam,
-                    },
-                },
-                { merge: true }
-            );
-
-            setPdfSettingsSavedAt(Date.now());
-            toast({
-                title: 'Opgeslagen',
-                description: 'PDF instellingen zijn opgeslagen.',
-            });
+            toast({ title: 'Opgeslagen', description: 'PDF instellingen zijn opgeslagen.' });
             setIsPdfSettingsOpen(false);
-        } catch (e) {
-            console.error('Fout bij handmatig opslaan PDF instellingen:', e);
-            toast({
-                variant: 'destructive',
-                title: 'Opslaan mislukt',
-                description: 'Probeer het opnieuw.',
-            });
-        } finally {
-            setIsSavingPdfSettings(false);
+        } catch {
+            // De fout blijft zichtbaar in het instellingenvenster; de lokale invoer blijft behouden.
         }
-    }, [
-        user,
-        firestore,
-        id,
-        quote,
-        pdfSettings,
-        voorschotIngeschakeld,
-        voorschotPercentage,
-        onderVoorbehoud,
-        pdfTextSettings,
-        algemeneVoorwaardenTitel,
-        algemeneVoorwaardenTekst,
-        algemeneVoorwaardenPdfUrl,
-        algemeneVoorwaardenPdfBestandsnaam,
-        toast,
-    ]);
+    };
 
     const handlePdfLogoChange = async (url: string | null) => {
         if (!user || !firestore) return;
@@ -7594,6 +7526,9 @@ export default function QuotePage() {
                                 if (open) {
                                     setVoorwaardenEditorMode('vastePrijs');
                                 }
+                                if (!open && hasEditedPdfTextSettingsRef.current) {
+                                    void persistPdfSettings(buildPdfSettingsPayload()).catch(() => undefined);
+                                }
                                 if (!open && !hasSavedPdfSettings) {
                                     // User closed dialog without saving - mark as saved with defaults
                                     setHasSavedPdfSettings(true);
@@ -7618,7 +7553,7 @@ export default function QuotePage() {
                                         <div className="max-h-[78vh] overflow-y-auto">
                                             <div className="sticky top-0 z-10 border-b border-border/70 bg-background/90 px-6 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                                 <p className="text-xs text-muted-foreground">
-                                                    {isSavingPdfSettings
+                                                    {pdfSettingsSaveError ? pdfSettingsSaveError : isSavingPdfSettings
                                                         ? 'Opslaan...'
                                                         : pdfSettingsSavedAt
                                                             ? `Opgeslagen ${formatDistanceToNow(new Date(pdfSettingsSavedAt), { addSuffix: true, locale: nl })}`
@@ -7645,7 +7580,7 @@ export default function QuotePage() {
                                                                 </div>
                                                                 <Switch
                                                                     checked={onderVoorbehoud}
-                                                                    onCheckedChange={setOnderVoorbehoud}
+                                                                    onCheckedChange={(checked) => { hasEditedPdfTextSettingsRef.current = true; setOnderVoorbehoud(checked); }}
                                                                     aria-label="Onder voorbehoud inschakelen"
                                                                 />
                                                             </div>
@@ -7723,6 +7658,7 @@ export default function QuotePage() {
                                                                             <Switch
                                                                                 checked={voorschotIngeschakeld}
                                                                                 onCheckedChange={(checked) => {
+                                                                                    hasEditedPdfTextSettingsRef.current = true;
                                                                                     const wasOn = voorschotIngeschakeld;
                                                                                     setVoorschotIngeschakeld(checked);
                                                                                     if (checked && !wasOn) {
@@ -7744,7 +7680,7 @@ export default function QuotePage() {
                                                                                         min={0}
                                                                                         max={100}
                                                                                         value={voorschotPercentage}
-                                                                                        onChange={(e) => setVoorschotPercentage(Number(e.target.value))}
+                                                                                        onChange={(e) => { hasEditedPdfTextSettingsRef.current = true; setVoorschotPercentage(Number(e.target.value)); }}
                                                                                         onKeyDown={(e) => {
                                                                                             if (['e', 'E', '+', '-'].includes(e.key)) {
                                                                                                 e.preventDefault();
@@ -7862,6 +7798,7 @@ export default function QuotePage() {
                                                                             variant="outline"
                                                                             size="icon"
                                                                             className="h-9 w-9 text-red-500 hover:text-red-400"
+                                                                            aria-label={`Betalingsvoorwaarde ${index + 1} verwijderen`}
                                                                             onClick={() => removeBetalingsvoorwaarde(index)}
                                                                         >
                                                                             <Trash2 size={14} />
@@ -7933,6 +7870,7 @@ export default function QuotePage() {
                                                                             variant="outline"
                                                                             size="icon"
                                                                             className="h-9 w-9 text-red-500 hover:text-red-400"
+                                                                            aria-label={`Voorwaarde ${index + 1} verwijderen`}
                                                                             onClick={() => removeVoorwaarde(index)}
                                                                         >
                                                                             <Trash2 size={14} />
@@ -8160,7 +8098,7 @@ export default function QuotePage() {
                                         <div className="sticky bottom-0 z-20 border-t border-border bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                             <div className="flex items-center justify-between gap-3">
                                                 <p className="text-xs text-muted-foreground">
-                                                    {isSavingPdfSettings
+                                                    {pdfSettingsSaveError ? pdfSettingsSaveError : isSavingPdfSettings
                                                         ? 'Opslaan...'
                                                         : pdfSettingsSavedAt
                                                             ? `Opgeslagen ${formatDistanceToNow(new Date(pdfSettingsSavedAt), { addSuffix: true, locale: nl })}`
@@ -8770,7 +8708,21 @@ export default function QuotePage() {
 
                         {/* PDF Tab */}
                         <TabsContent value="pdf" className="mt-6 space-y-4">
-                            <div className="flex items-center justify-end">
+                            <div className="flex items-start justify-between gap-3">
+                                <QuotePdfLanguageControl
+                                    key={id}
+                                    quoteId={id}
+                                    pdfData={buildPDFData()}
+                                    disabled={loading || !areDrawingsReady}
+                                    onBusyChange={setIsPreparingPdfLanguage}
+                                    onSaved={(language, translation) => {
+                                        officialPdfCacheRef.current = null;
+                                        setQuote((prev) => prev ? {
+                                            ...prev, pdfLanguage: language,
+                                            ...(translation ? { pdfEnglishTranslation: translation } : {}),
+                                        } : prev);
+                                    }}
+                                />
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -10026,6 +9978,8 @@ export default function QuotePage() {
 
             <SendQuoteWhatsAppModal
                 isOpen={isWhatsAppModalOpen}
+                language={quote?.pdfLanguage || 'nl'}
+                onTranslateMessage={translateWhatsAppMessage}
                 onClose={() => setIsWhatsAppModalOpen(false)}
                 klantInfo={klantInfo}
                 clientName={`${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`.trim() || (klantInfo?.bedrijfsnaam || 'klant')}

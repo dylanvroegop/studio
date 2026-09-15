@@ -58,12 +58,14 @@ export function PDFPreview({
             lastCompletedSignatureRef.current = signature;
             onPdfGenerated?.(blob, signature);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Fout bij genereren PDF');
+            if (generationId === generationIdRef.current) {
+                setError(err instanceof Error ? err.message : 'Fout bij genereren PDF');
+            }
         } finally {
             if (inFlightSignatureRef.current === signature) {
                 inFlightSignatureRef.current = null;
             }
-            setLoading(false);
+            if (generationId === generationIdRef.current) setLoading(false);
         }
     }, [onPdfGenerated]);
 
@@ -71,7 +73,14 @@ export function PDFPreview({
     useEffect(() => {
         if (pdfData && dataSignature) {
             if (inFlightSignatureRef.current === dataSignature) return;
-            if (lastCompletedSignatureRef.current === dataSignature) return;
+            if (lastCompletedSignatureRef.current === dataSignature) {
+                // A failed translation may be followed by switching back to the cached Dutch PDF.
+                generationIdRef.current += 1;
+                inFlightSignatureRef.current = null;
+                setError(null);
+                setLoading(false);
+                return;
+            }
             void generatePreview(dataSignature, pdfData);
         }
     }, [dataSignature, generatePreview, pdfData]);
@@ -79,6 +88,9 @@ export function PDFPreview({
     // Cleanup object URL only on unmount.
     useEffect(() => {
         return () => {
+            generationIdRef.current += 1;
+            inFlightSignatureRef.current = null;
+            lastCompletedSignatureRef.current = null;
             if (latestObjectUrlRef.current) {
                 URL.revokeObjectURL(latestObjectUrlRef.current);
                 latestObjectUrlRef.current = null;

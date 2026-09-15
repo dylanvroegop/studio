@@ -106,6 +106,32 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/material_lists/$(resource.data.material_list_id)).data.userId == request.auth.uid;
     }
     
+    // Privéboodschappen met dezelfde toegangsregels als materiaallijsten
+    match /grocery_lists/{materialListId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.company_id == request.auth.uid
+                    && request.resource.data.created_by == request.auth.uid;
+      allow update: if isSignedIn()
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.company_id == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /grocery_list_items/{itemId} {
+      allow read: if isSignedIn()
+        && get(/databases/$(database)/documents/grocery_lists/$(resource.data.material_list_id)).data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && get(/databases/$(database)/documents/grocery_lists/$(request.resource.data.material_list_id)).data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+        && get(/databases/$(database)/documents/grocery_lists/$(resource.data.material_list_id)).data.userId == request.auth.uid
+        && request.resource.data.material_list_id == resource.data.material_list_id;
+      allow delete: if isSignedIn()
+        && get(/databases/$(database)/documents/grocery_lists/$(resource.data.material_list_id)).data.userId == request.auth.uid;
+    }
+
     // Rules for the 'notes' (Personal Notes) collection
     match /notes/{noteId} {
       allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;

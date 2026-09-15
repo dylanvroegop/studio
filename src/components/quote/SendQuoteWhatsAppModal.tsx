@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, MessageCircle } from 'lucide-react';
 import { type KlantInformatie } from '@/lib/quote-calculations';
 import { toast } from '@/hooks/use-toast';
+import { loadWhatsAppPreset, stripDocumentLinksFromMessage, whatsappPresetKey } from '@/lib/whatsapp-message-preset';
 
 interface SendQuoteWhatsAppModalProps {
   isOpen: boolean;
@@ -22,19 +23,11 @@ interface SendQuoteWhatsAppModalProps {
   klantInfo: KlantInformatie | null;
   clientName: string;
   storageKey?: string;
+  language?: 'nl' | 'en';
+  onTranslateMessage?: (source: string) => Promise<string>;
   successDescription?: string;
   onDownloadOfficialPdf?: () => Promise<void> | void;
   onMarkAsSent?: () => Promise<void> | void;
-}
-
-function stripDocumentLinksFromMessage(value: string): string {
-  return value
-    .replace(/\bblob:\S+/gi, '')
-    .replace(/\bhttps?:\/\/(?:app\.)?calvora\.nl\/\S+/gi, '')
-    .replace(/\{\{(?:offerte|factuur|meerwerkbon)_link\}\}/gi, '')
-    .replace(/^\s*(?:offerte|factuur|meerwerkbon)(?:\s+pdf)?\s+(?:link|url)\s*:?\s*$/gim, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
 }
 
 function normalizePhoneForWhatsApp(raw: string): string {
@@ -75,6 +68,8 @@ export function SendQuoteWhatsAppModal({
   klantInfo,
   clientName,
   storageKey = WHATSAPP_PRESET_STORAGE_KEY,
+  language = 'nl',
+  onTranslateMessage,
   successDescription = 'De officiële PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur.',
   onDownloadOfficialPdf,
   onMarkAsSent,
@@ -83,6 +78,10 @@ export function SendQuoteWhatsAppModal({
   const [message, setMessage] = useState(''); // editable after prefill
   const [manualFirstName, setManualFirstName] = useState('');
   const [isOpening, setIsOpening] = useState(false);
+  const [isPreparingMessage, setIsPreparingMessage] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
+  const [retryTranslation, setRetryTranslation] = useState(0);
+  const messageStorageKey = whatsappPresetKey(storageKey, language);
   const messageTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasInitializedForOpenRef = useRef(false);
   const isLaunchingWhatsAppRef = useRef(false);
@@ -104,25 +103,35 @@ export function SendQuoteWhatsAppModal({
     ).trim();
     setManualFirstName(guessedFirstName);
 
-    try {
-      const savedPreset = localStorage.getItem(storageKey) || '';
-      setMessage(stripDocumentLinksFromMessage(savedPreset));
-    } catch {
-      setMessage('');
-    }
-  }, [isOpen, klantInfo, clientName, storageKey]);
+  }, [isOpen, klantInfo, clientName]);
 
   useEffect(() => {
     if (!isOpen) return;
-    try {
-      localStorage.setItem(storageKey, message);
-    } catch {
-      // Ignore storage failures and keep editing behavior intact.
-    }
-  }, [isOpen, message, storageKey]);
+    let cancelled = false;
+    setIsPreparingMessage(true);
+    setMessageError(null);
+    setMessage('');
+    void loadWhatsAppPreset(localStorage, storageKey, language, onTranslateMessage)
+      .then((preset) => {
+        if (cancelled) return;
+        setMessage(preset);
+        try { localStorage.setItem(messageStorageKey, preset); } catch { /* De editor blijft bruikbaar zonder opslag. */ }
+      })
+      .catch((error) => {
+        if (!cancelled) setMessageError(error instanceof Error ? error.message : 'Bericht vertalen mislukt.');
+      })
+      .finally(() => { if (!cancelled) setIsPreparingMessage(false); });
+    return () => { cancelled = true; };
+  }, [isOpen, storageKey, language, messageStorageKey, onTranslateMessage, retryTranslation]);
+
+  // Alleen de gekozen taal opslaan, nadat deze geladen is; nooit een oude taal of initiële lege state.
+  const updateMessage = (value: string): void => {
+    setMessage(value);
+    try { localStorage.setItem(messageStorageKey, value); } catch { /* Houd lokale invoer beschikbaar. */ }
+  };
 
   const handleSendViaWhatsApp = async () => {
-    if (isOpening || isLaunchingWhatsAppRef.current) return;
+    if (isOpening || isLaunchingWhatsAppRef.current || isPreparingMessage || messageError) return;
     isLaunchingWhatsAppRef.current = true;
 
     const trimmedPhone = phone.trim();
@@ -151,7 +160,7 @@ export function SendQuoteWhatsAppModal({
         return;
       }
 
-      const nameValue = manualFirstName.trim() || 'klant';
+      const nameValue = manualFirstName.trim() || (language === 'en' ? 'customer' : 'klant');
       const outgoingMessage = template.replaceAll(FIRST_NAME_TOKEN, nameValue);
 
       if (onDownloadOfficialPdf) {
@@ -239,7 +248,7 @@ export function SendQuoteWhatsAppModal({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-zinc-400">WhatsApp bericht</Label>
+              <Label htmlFor="whatsapp-message" className="text-zinc-400">WhatsApp bericht{language === 'en' ? ' (English)' : ''}</Label>
               <div
                 draggable
                 onDragStart={(event) => {
@@ -253,9 +262,11 @@ export function SendQuoteWhatsAppModal({
               </div>
             </div>
             <Textarea
+              id="whatsapp-message"
+              disabled={isPreparingMessage || Boolean(messageError)}
               ref={messageTextareaRef}
               value={message}
-              onChange={(event) => setMessage(event.target.value)}
+              onChange={(event) => updateMessage(event.target.value)}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault();
@@ -263,13 +274,13 @@ export function SendQuoteWhatsAppModal({
                 if (dropped !== FIRST_NAME_TOKEN) return;
                 const textarea = messageTextareaRef.current;
                 if (!textarea) {
-                  setMessage((prev) => `${prev}${prev ? ' ' : ''}${dropped}`);
+                  updateMessage(`${message}${message ? ' ' : ''}${dropped}`);
                   return;
                 }
                 const start = textarea.selectionStart ?? message.length;
                 const end = textarea.selectionEnd ?? message.length;
                 const next = `${message.slice(0, start)}${dropped}${message.slice(end)}`;
-                setMessage(next);
+                updateMessage(next);
                 requestAnimationFrame(() => {
                   textarea.focus();
                   const caret = start + dropped.length;
@@ -279,6 +290,11 @@ export function SendQuoteWhatsAppModal({
               placeholder="Typ je eigen berichtpreset. Dit wordt automatisch bewaard."
               className="min-h-[120px] bg-zinc-800 border-zinc-700 text-zinc-200"
             />
+            {isPreparingMessage && <p role="status" className="text-xs text-zinc-400">{language === 'en' ? 'Bericht naar Engels vertalen...' : 'Bericht laden...'}</p>}
+            {messageError && <div role="alert" className="space-y-2 text-sm text-red-400">
+              <p>{messageError}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => setRetryTranslation((value) => value + 1)}>Opnieuw proberen</Button>
+            </div>}
             <p className="text-xs text-zinc-500">
               Dit bericht wordt automatisch opgeslagen. Gebruik {FIRST_NAME_TOKEN} voor de voornaam. De PDF voeg je handmatig toe in WhatsApp.
             </p>
@@ -290,7 +306,7 @@ export function SendQuoteWhatsAppModal({
             type="button"
             variant="success"
             onClick={handleSendViaWhatsApp}
-            disabled={isOpening || !normalizePhoneForWhatsApp(phone)}
+            disabled={isOpening || isPreparingMessage || Boolean(messageError) || !message.trim() || !normalizePhoneForWhatsApp(phone)}
             className="w-full py-6 rounded-xl flex items-center justify-center gap-2"
           >
             {isOpening ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageCircle className="w-5 h-5" />}

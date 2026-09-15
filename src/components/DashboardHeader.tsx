@@ -243,7 +243,7 @@ export function DashboardHeader({
         iconClassName: 'text-orange-400',
       };
     }
-    if (pathname.startsWith('/materiaallijsten')) {
+    if (pathname.startsWith('/materiaallijsten') || pathname.startsWith('/boodschappenlijst')) {
       return {
         icon: ClipboardList,
         iconClassName: 'text-emerald-400',
