@@ -1,0 +1,104 @@
+.card {
+    container-type: inline-size;
+    container-name: cost-summary;
+    min-width: 0;
+}
+
+.costRow {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.costRow + .costRow {
+    margin-top: 0.75rem;
+}
+
+.amountGrid {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+    text-align: right;
+}
+
+.amountCell,
+.additionCell {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.125rem;
+}
+
+.amountCell {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.mobileLabel {
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    font-weight: 400;
+}
+
+.card .additionInput,
+.card .amountEditor {
+    height: 2.25rem;
+    font-size: 1rem;
+}
+
+.amountButton {
+    min-height: 2rem;
+}
+
+.columnHeader {
+    display: none;
+}
+
+/* Gebruik de beschikbare kaartbreedte, ook in een smal desktop-paneel. */
+@container cost-summary (min-width: 52rem) {
+    .costRow {
+        flex-direction: row;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .costRow > :first-child {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .costRow + .costRow {
+        margin-top: 0.375rem;
+    }
+
+    .amountGrid {
+        width: 570px;
+        flex-shrink: 0;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) repeat(2, 6.5rem);
+    }
+
+    .mobileLabel {
+        display: none;
+    }
+
+    .columnHeader {
+        display: flex;
+    }
+
+    .card .additionInput {
+        height: 1.75rem;
+        font-size: 0.75rem;
+    }
+
+    .card .amountEditor {
+        height: 1.5rem;
+        font-size: 0.875rem;
+    }
+
+    .amountButton {
+        min-height: 0;
+    }
+}

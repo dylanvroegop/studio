@@ -2,6 +2,7 @@
 
 import { CalculationResult, QuoteSettings, formatCurrency } from '@/lib/quote-calculations';
 import { Euro } from 'lucide-react';
+import styles from './CostSummaryCard.module.css';
 
 interface CostSummaryCardProps {
     totals: CalculationResult | null;
@@ -18,6 +19,9 @@ interface CostSummaryCardProps {
     onUpdateExtraKostenTotal?: (value: number) => void;
     onUpdateTransportTotal?: (value: number) => void;
     onUpdateTransportRatePerKm?: (value: number) => void;
+    isCalculatingDistance?: boolean;
+    distanceError?: string | null;
+    onRetryDistance?: () => void;
     onUpdateWinstMargePercentage?: (value: number) => void;
     onUpdateWinstMargeAmountExcl?: (value: number) => void;
 }
@@ -59,6 +63,9 @@ export function CostSummaryCard({
     onUpdateExtraKostenTotal,
     onUpdateTransportTotal,
     onUpdateTransportRatePerKm,
+    isCalculatingDistance = false,
+    distanceError,
+    onRetryDistance,
     onUpdateWinstMargePercentage,
     onUpdateWinstMargeAmountExcl,
 }: CostSummaryCardProps) {
@@ -262,7 +269,7 @@ export function CostSummaryCard({
     const vatRate = Math.max(0, Number(settings?.btwTarief) || 0);
     const vatMultiplier = 1 + vatRate / 100;
     const isMaterialsOnlyVatMode = settings?.btwMode === 'materiaal_only';
-    const amountGridClass = 'grid w-[385px] sm:w-[570px] grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(5.25rem,6.5rem)_minmax(5.25rem,6.5rem)] gap-2 sm:gap-3 items-center text-right';
+    const amountGridClass = styles.amountGrid;
     const winstMargeBasisLabel =
         settings?.extras?.winstMarge?.basis === 'materiaal'
             ? 'over materialen'
@@ -282,8 +289,14 @@ export function CostSummaryCard({
         addField?: AdditiveAmountField,
     ) => (
         <div className={amountGridClass}>
-            <div className="text-foreground">{exclNode}</div>
-            <div className={inclClassName}>{inclNode}</div>
+            <div className={`${styles.amountCell} text-foreground`}>
+                <span className={`${styles.mobileLabel} text-muted-foreground`}>Excl. btw</span>
+                {exclNode}
+            </div>
+            <div className={`${styles.amountCell} ${inclClassName}`}>
+                <span className={`${styles.mobileLabel} text-muted-foreground`}>Incl. btw</span>
+                {inclNode}
+            </div>
             {addField ? renderAdditionInput(addField, 'excl') : <div />}
             {addField ? renderAdditionInput(addField, 'incl') : <div />}
         </div>
@@ -303,7 +316,7 @@ export function CostSummaryCard({
                 onChange={(e) => setTempFieldValue(e.target.value)}
                 onBlur={saveEditingAmount}
                 onFocus={selectAllOnFocus}
-                className="h-6 w-28 px-1 py-0 text-sm bg-muted border-border text-right"
+                className={`${styles.amountEditor} h-6 w-28 max-w-full px-1 py-0 text-sm bg-muted border-border text-right`}
                 onKeyDown={(e) => handleEditorKeyDown(e, cancelEditingAmount)}
                 aria-label={`Bedrag ${mode === 'incl' ? 'incl. btw' : 'excl. btw'} bewerken`}
             />
@@ -312,7 +325,7 @@ export function CostSummaryCard({
         const renderButton = (amount: number, mode: AmountEditMode) => (
             <button
                 type="button"
-                className="text-foreground flex items-center gap-1 hover:text-primary transition-colors justify-self-end"
+                className={`${styles.amountButton} text-foreground flex items-center gap-1 whitespace-nowrap hover:text-primary transition-colors justify-self-end`}
                 onClick={() => startEditingAmount(field, amount, mode)}
                 aria-label={`Bedrag ${mode === 'incl' ? 'incl. btw' : 'excl. btw'} bewerken`}
                 title={`Bedrag ${mode === 'incl' ? 'incl. btw' : 'excl. btw'} bewerken`}
@@ -557,27 +570,32 @@ export function CostSummaryCard({
     };
 
     const renderAdditionInput = (field: AdditiveAmountField, mode: AmountEditMode) => (
-        <Input
-            type="text"
-            inputMode="decimal"
-            value={additionValues[getAdditionKey(field, mode)] ?? ''}
-            placeholder="0"
-            onChange={(event) => setAdditionValue(field, mode, event.target.value)}
-            onBlur={() => { void saveAmountAddition(field, mode); }}
-            onFocus={selectAllOnFocus}
-            onKeyDown={(event) => handleAdditionKeyDown(event, field, mode)}
-            className="h-7 w-full min-w-0 px-1.5 py-0 text-xs bg-muted/70 border-2 border-muted-foreground/40 text-right placeholder:text-transparent focus:border-emerald-500/70 focus:placeholder:text-muted-foreground/70"
-            aria-label={`Toevoegen ${mode === 'incl' ? 'incl. btw' : 'excl. btw'} bij deze regel`}
-        />
+        <label className={styles.additionCell}>
+            <span className={`${styles.mobileLabel} text-muted-foreground`}>
+                Toevoegen {mode === 'incl' ? 'incl.' : 'excl.'}
+            </span>
+            <Input
+                type="text"
+                inputMode="decimal"
+                value={additionValues[getAdditionKey(field, mode)] ?? ''}
+                placeholder="0"
+                onChange={(event) => setAdditionValue(field, mode, event.target.value)}
+                onBlur={() => { void saveAmountAddition(field, mode); }}
+                onFocus={selectAllOnFocus}
+                onKeyDown={(event) => handleAdditionKeyDown(event, field, mode)}
+                className={`${styles.additionInput} h-7 w-full min-w-0 px-1.5 py-0 text-xs bg-muted/70 border-2 border-muted-foreground/40 text-right placeholder:text-transparent focus:border-emerald-500/70 focus:placeholder:text-muted-foreground/70`}
+                aria-label={`Toevoegen ${mode === 'incl' ? 'incl. btw' : 'excl. btw'} bij deze regel`}
+            />
+        </label>
     );
 
     return (
-        <div className="bg-card rounded-lg border border-border p-4">
+        <div className={`${styles.card} bg-card rounded-lg border border-border p-4`}>
             <h3 className="font-semibold text-muted-foreground text-sm mb-3 flex items-center gap-2">
                 <Euro size={14} />
                 KOSTENOVERZICHT
             </h3>
-            <div className="mb-2 flex justify-end">
+            <div className={`${styles.columnHeader} mb-2 justify-end px-2.5`}>
                 <div className={`${amountGridClass} text-[11px] uppercase tracking-wide text-muted-foreground`}>
                     <span>Excl. btw</span>
                     <span>Incl. btw</span>
@@ -588,7 +606,7 @@ export function CostSummaryCard({
 
             <div className="space-y-3">
                 <div className="rounded-lg border border-border p-2.5 space-y-1.5 bg-background/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <div className="flex justify-between text-sm">
+                    <div className={`${styles.costRow} text-sm`}>
                         <span className="text-muted-foreground">Materialen (groot)</span>
                         {renderEditableAmount(
                             'groot',
@@ -596,7 +614,7 @@ export function CostSummaryCard({
                             calculateInclAmount(totals.materialenGroot, true),
                         )}
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className={`${styles.costRow} text-sm`}>
                         <span className="text-muted-foreground">Verbruiksartikelen</span>
                         {renderEditableAmount(
                             'verbruik',
@@ -604,7 +622,7 @@ export function CostSummaryCard({
                             calculateInclAmount(verbruiksartikelenExclExtraKosten, true),
                         )}
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className={`${styles.costRow} text-sm`}>
                         <span className="text-muted-foreground">Extra kosten</span>
                         {renderEditableAmount(
                             'extra',
@@ -612,7 +630,7 @@ export function CostSummaryCard({
                             calculateInclAmount(extraKostenExcl, true),
                         )}
                     </div>
-                    <div className="border-t border-border pt-1.5 flex justify-between text-sm">
+                    <div className={`${styles.costRow} border-t border-border pt-1.5 text-sm`}>
                         <span className="text-muted-foreground">Subtotaal materialen</span>
                         {renderEditableAmount(
                             'subtotaal',
@@ -625,7 +643,7 @@ export function CostSummaryCard({
                 <div className="h-px bg-border/60" />
 
                 <div className="rounded-lg border border-border p-2.5 space-y-2 bg-background/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <div className="flex justify-between text-sm">
+                    <div className={`${styles.costRow} text-sm`}>
                         <span className="text-muted-foreground flex flex-wrap items-center gap-1">
                             Arbeid (
                             {isEditingHours ? (
@@ -695,7 +713,7 @@ export function CostSummaryCard({
                             )}
                     </div>
                     <div className="border-t border-border/70 pt-2 space-y-1 text-xs">
-                        <div className="flex justify-between gap-4">
+                        <div className={styles.costRow}>
                             <span className="text-muted-foreground">
                                 Arbeid {vatRate}% ({arbeidHoogBtwUren.toLocaleString('nl-NL', { maximumFractionDigits: 2 })} uur)
                             </span>
@@ -708,7 +726,7 @@ export function CostSummaryCard({
                             )}
                         </div>
                         {(hasLaborVatSplit || isEditingLowVatHours || onUpdateLowVatLaborHours) && (
-                            <div className="flex justify-between gap-4">
+                            <div className={styles.costRow}>
                                 <span className="text-muted-foreground flex flex-wrap items-center gap-1">
                                     Arbeid {arbeidLaagBtwTarief}% (
                                     {isEditingLowVatHours ? (
@@ -749,7 +767,7 @@ export function CostSummaryCard({
                 <div className="h-px bg-border/60" />
 
                 <div className="rounded-lg border border-border p-2.5 bg-background/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <div className="flex justify-between text-sm">
+                    <div className={`${styles.costRow} text-sm`}>
                         <span className="text-muted-foreground">
                             <span className="block">
                                 Transport (
@@ -778,6 +796,18 @@ export function CostSummaryCard({
                                 )}
                                 x {totals.transportDistanceKmOneWay.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}km = {formatCurrency(totals.transportOneWayCost)} x 2 = {formatCurrency(totals.transportRoundTripCost)} x {totals.transportAantalDagen} dagen)
                             </span>
+                            {isCalculatingDistance ? (
+                                <span className="mt-1 block text-xs" role="status">Afstand berekenen...</span>
+                            ) : distanceError ? (
+                                <span className="mt-1 block text-xs text-destructive" role="alert">
+                                    Afstand berekenen mislukt. {distanceError}
+                                    {onRetryDistance ? (
+                                        <button type="button" onClick={onRetryDistance} className="ml-2 underline">
+                                            Opnieuw proberen
+                                        </button>
+                                    ) : null}
+                                </span>
+                            ) : null}
                         </span>
                         {renderEditableAmount(
                             'transport',
@@ -790,7 +820,7 @@ export function CostSummaryCard({
                 <div className="h-px bg-border/60" />
 
                 <div className="rounded-lg border border-border p-2.5 space-y-1.5 bg-background/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <div className="flex justify-between text-sm">
+                    <div className={`${styles.costRow} text-sm`}>
                         <span className="text-muted-foreground">Totaal excl. BTW</span>
                         {renderAmountColumns(
                             <span>{formatCurrency(totaalExclZonderMarge)}</span>,
@@ -802,7 +832,7 @@ export function CostSummaryCard({
                             'totaalExcl',
                         )}
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className={`${styles.costRow} text-sm`}>
                         <span className="text-muted-foreground">
                             {settings.extras.winstMarge.mode === 'percentage' ? (
                                 <>
@@ -842,7 +872,7 @@ export function CostSummaryCard({
                     </div>
                     {hasLaborVatSplit ? (
                         <div className="border-t border-border pt-1.5 space-y-1 text-sm">
-                            <div className="flex justify-between">
+                            <div className={styles.costRow}>
                                 <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
                                 {renderAmountColumns(
                                     <span>{formatCurrency(totals.btwHoog || 0)}</span>,
@@ -852,7 +882,7 @@ export function CostSummaryCard({
                                     'btwHoog',
                                 )}
                             </div>
-                            <div className="flex justify-between">
+                            <div className={styles.costRow}>
                                 <span className="text-muted-foreground">BTW ({arbeidLaagBtwTarief}%)</span>
                                 {renderAmountColumns(
                                     <span>{formatCurrency(totals.btwLaag || 0)}</span>,
@@ -864,7 +894,7 @@ export function CostSummaryCard({
                             </div>
                         </div>
                     ) : (
-                        <div className="border-t border-border pt-1.5 flex justify-between text-sm">
+                        <div className={`${styles.costRow} border-t border-border pt-1.5 text-sm`}>
                             <span className="text-muted-foreground">BTW ({settings.btwTarief}%)</span>
                             {renderAmountColumns(
                                 <span>{formatCurrency(btwMetMarge)}</span>,
@@ -877,7 +907,7 @@ export function CostSummaryCard({
                     )}
                 </div>
 
-                <div className="border-t-2 border-primary/50 pt-2.5 flex justify-between">
+                <div className={`${styles.costRow} border-t-2 border-primary/50 pt-2.5`}>
                     <span className="font-semibold text-foreground">TOTAAL INCL. BTW</span>
                     {renderAmountColumns(
                         <span className="font-bold text-primary">{formatCurrency(totals.totaalExclBtw)}</span>,

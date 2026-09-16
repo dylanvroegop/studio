@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const DEFAULT_N8N_DISTANCE_WEBHOOK_URL =
-  'https://n8n.srv1553475.hstgr.cloud/webhook-test/93f03b58-6688-4f2b-8275-49799202b792';
+  'https://n8n.srv1553475.hstgr.cloud/webhook/93f03b58-6688-4f2b-8275-49799202b792';
 const DISTANCE_WEBHOOK_TIMEOUT_MS = 25_000;
 const GOOGLE_DISTANCE_TIMEOUT_MS = 15_000;
 
@@ -204,7 +204,9 @@ export async function POST(request: Request) {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Google Distance Matrix mislukt';
-        return NextResponse.json({ error: message }, { status: 502 });
+        // Een ingestelde sleutel kan geen toegang hebben tot Distance Matrix.
+        // Probeer dan de bestaande n8n-route voordat de berekening faalt.
+        console.warn('Google Distance Matrix mislukt; probeer n8n:', message);
       }
     }
 
@@ -264,13 +266,13 @@ export async function POST(request: Request) {
     }
 
     const result = extractResult(parsedPayload);
-    const distanceKmOneWay = toNumber(
+    let distanceKmOneWay = toNumber(
       result.distanceKmOneWay
       ?? result.distanceKm
       ?? result.distance_km_one_way
       ?? result.distance_km
     );
-    const distanceKmRoundTrip = toNumber(
+    let distanceKmRoundTrip = toNumber(
       result.distanceKmRoundTrip
       ?? result.roundTripDistanceKm
       ?? result.distance_km_round_trip
@@ -292,6 +294,9 @@ export async function POST(request: Request) {
         raw: result,
       }, { status: 502 });
     }
+
+    if (distanceKmOneWay <= 0) distanceKmOneWay = distanceKmRoundTrip / 2;
+    if (distanceKmRoundTrip <= 0) distanceKmRoundTrip = distanceKmOneWay * 2;
 
     return NextResponse.json({
       ok: true,

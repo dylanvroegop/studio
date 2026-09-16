@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useQuoteSendSelection } from '@/hooks/useQuoteSendSelection';
+import { prepareQuotePdfDownload } from '@/lib/quote-pdf-download';
+import { loadQuotePdfData } from '@/lib/load-quote-pdf-data';
+import { markQuoteSelectionAsSent } from '@/lib/quote-send-status';
 import { useQuoteData } from '@/hooks/useQuoteData';
 import { useTodayQuoteHours } from '@/hooks/useTodayQuoteHours';
 import {
@@ -9,12 +13,10 @@ import {
     KlantInformatie,
     formatCurrency,
     MaterialItem,
-    generateWorkSummary,
     normalizeWerkbeschrijving,
     normalizeDataJson,
     unwrapRoot,
     toStructuredWorkDescription,
-    completeStructuredWorkDescription,
     flattenStructuredWorkDescription,
     type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
@@ -26,6 +28,7 @@ import { PDFPreview } from '@/components/quote/PDFPreview';
 import { createOrderedSaveQueue } from '@/lib/ordered-save-queue';
 import { QuotePdfLanguageControl } from '@/components/quote/QuotePdfLanguageControl';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
+import { buildOfficialQuotePdfData, forceSummaryIntoWorkScope, resolveQuoteCalculationSettings, resolveQuotePdfWorkDescription } from '@/lib/quote-pdf-data';
 import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { validateQuotePdfTranslations } from '@/lib/quote-pdf-translation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -80,7 +83,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn, parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
 import { buildAddressString, buildGoogleMapsDirectionsUrl, hasMinimalAddress } from '@/lib/maps';
 import { reportOperationalError } from '@/lib/report-operational-error';
-import { deduplicateMeasurementRows, repairCopiedNoteBlobs } from '@/lib/work-description-note-coverage';
+import { deduplicateMeasurementRows } from '@/lib/work-description-note-coverage';
 import {
     defaultQuotePdfTextSettings,
     sanitizeQuotePdfTextSettings,
@@ -108,81 +111,6 @@ import { createMaterialList, MATERIAL_LIST_STATUS_LABELS, type MaterialList } fr
 import { saveQuoteBackup } from '@/lib/quote-backup';
 import type { MeldcodeResolution } from '@/lib/meldcode-context';
 
-function forceSummaryIntoWorkScope(value: WorkDescriptionStructured): WorkDescriptionStructured {
-    const activeIndex = Math.max(
-        0,
-        Math.min(value.activeJobIndex || 0, Math.max(0, value.jobs.length - 1)),
-    );
-    const rootWorkScope = Array.isArray(value.work_scope) ? value.work_scope : [];
-    const activeJobWorkScope = Array.isArray(value.jobs[activeIndex]?.work_scope)
-        ? value.jobs[activeIndex].work_scope
-        : [];
-    const rootSummary = String(value.summary || value.context || '').trim();
-    const activeJobSummary = String(
-        value.jobs[activeIndex]?.summary || value.jobs[activeIndex]?.context || '',
-    ).trim();
-    const workScope = rootWorkScope.length > 0
-        ? rootWorkScope
-        : activeJobWorkScope.length > 0
-            ? activeJobWorkScope
-            : rootSummary || activeJobSummary
-                ? [rootSummary || activeJobSummary]
-                : [];
-    const summary = rootSummary || activeJobSummary || workScope.join('\n\n');
-    const jobs = value.jobs.length > 0
-        ? value.jobs.map((job, index) => {
-        const jobWorkScope = Array.isArray(job.work_scope) && job.work_scope.length > 0
-            ? job.work_scope
-            : job.summary || job.context
-                ? [String(job.summary || job.context)]
-                : index === activeIndex
-                    ? workScope
-                    : [];
-        const jobText = String(job.summary || job.context || jobWorkScope.join('\n\n')).trim();
-        return {
-            ...job,
-            context: jobText || job.context,
-            summary: jobText || job.summary,
-            work_scope: jobWorkScope,
-        };
-        })
-        : workScope.length > 0
-            ? [{
-                title: value.title,
-                context: summary,
-                summary,
-                work_scope: workScope,
-                materials: [...value.materials],
-                dimensions: [...value.dimensions],
-                included: [...value.included],
-                excluded: [...value.excluded],
-                internal_notes: [...value.internal_notes],
-                afvalAfvoeren: value.afvalAfvoeren,
-                schilderwerkInbegrepen: value.schilderwerkInbegrepen,
-                stucwerkInbegrepen: value.stucwerkInbegrepen,
-                plamuurwerkInbegrepen: value.plamuurwerkInbegrepen,
-                kitwerkInbegrepen: value.kitwerkInbegrepen,
-                steigerInbegrepen: value.steigerInbegrepen,
-                sloopwerkInbegrepen: value.sloopwerkInbegrepen,
-                nadenVullenInbegrepen: value.nadenVullenInbegrepen,
-                nadenVullenAfwerkingsniveau: value.nadenVullenAfwerkingsniveau,
-                schroefgatenPlamurenInbegrepen: value.schroefgatenPlamurenInbegrepen,
-                electricalScope: value.electricalScope,
-                finishLevel: value.finishLevel,
-                customFinishDescription: value.customFinishDescription,
-                sections: value.sections,
-                legacyNotes: value.legacyNotes || [],
-            }]
-            : [];
-
-    return {
-        ...value,
-        context: summary,
-        summary,
-        work_scope: workScope,
-        jobs,
-    };
-}
 
 interface GrootCompareQuoteColumn {
     quoteId: string;
@@ -1266,6 +1194,7 @@ export default function QuotePage() {
     const [workDescriptionStructured, setWorkDescriptionStructured] = useState<WorkDescriptionStructured>(() => toStructuredWorkDescription(null));
     const [isGeneratingWorkDescription, setIsGeneratingWorkDescription] = useState(false);
     const [isGeneratingDistanceDev, setIsGeneratingDistanceDev] = useState(false);
+    const [distanceGenerationError, setDistanceGenerationError] = useState<string | null>(null);
     const [organizingMaatwerkSectionId, setOrganizingMaatwerkSectionId] = useState<string | null>(null);
     const [isSavingWorkDescription, setIsSavingWorkDescription] = useState(false);
     const [hasUnsavedWorkDescription, setHasUnsavedWorkDescription] = useState(false);
@@ -1990,75 +1919,7 @@ export default function QuotePage() {
 
             // 3. Settings
             if (normalized.instellingen || normalized.extras || quote?.instellingen || quote?.extras) {
-                const rawInst = normalized.instellingen as any;
-                const rawExtras = normalized.extras as any;
-                const quoteInst = (quote?.instellingen ?? {}) as any;
-                const quoteExtras = (quote?.extras ?? {}) as any;
-
-                const mappedSettings: QuoteCalculationSettings = {
-                    btwTarief: quoteInst?.btwTarief ?? rawInst?.btwTarief ?? 21,
-                    btwMode: quoteInst?.btwMode ?? rawInst?.btwMode ?? 'normaal',
-                    arbeidBtwLaagUren: quoteInst?.arbeidBtwLaagUren ?? rawInst?.arbeidBtwLaagUren ?? 0,
-                    arbeidBtwLaagTarief: quoteInst?.arbeidBtwLaagTarief ?? rawInst?.arbeidBtwLaagTarief ?? 9,
-                    uurTariefExclBtw: quoteInst?.uurTariefExclBtw ?? quoteInst?.uurTarief ?? rawInst?.uurTariefExclBtw ?? rawInst?.uurTarief ?? 50,
-                    schattingUren: quoteInst?.schattingUren ?? rawInst?.schattingUren ?? false,
-                    extras: {
-                        transport: {
-                            prijsPerKm:
-                                quoteExtras?.transport?.prijsPerKm
-                                ?? quoteInst?.extras?.transport?.prijsPerKm
-                                ?? quoteInst?.reiskosten_prijs_per_km
-                                ?? rawExtras?.transport?.prijsPerKm
-                                ?? rawInst?.extras?.transport?.prijsPerKm
-                                ?? rawInst?.transportPrijsPerKm,
-                            vasteTransportkosten:
-                                quoteExtras?.transport?.vasteTransportkosten
-                                ?? quoteInst?.extras?.transport?.vasteTransportkosten
-                                ?? rawExtras?.transport?.vasteTransportkosten
-                                ?? rawInst?.extras?.transport?.vasteTransportkosten,
-                            tunnelkosten:
-                                quoteExtras?.transport?.tunnelkosten
-                                ?? quoteInst?.extras?.transport?.tunnelkosten
-                                ?? rawExtras?.transport?.tunnelkosten
-                                ?? rawInst?.extras?.transport?.tunnelkosten,
-                            mode:
-                                quoteExtras?.transport?.mode
-                                ?? (quoteInst?.reiskosten_type === 'vast'
-                                    ? 'vast'
-                                    : quoteInst?.reiskosten_type === 'perKm'
-                                        ? 'perKm'
-                                        : quoteInst?.extras?.transport?.mode)
-                                ?? rawExtras?.transport?.mode
-                                ?? rawInst?.extras?.transport?.mode,
-                        },
-                        winstMarge: {
-                            percentage:
-                                quoteExtras?.winstMarge?.percentage
-                                ?? quoteInst?.extras?.winstMarge?.percentage
-                                ?? rawExtras?.winstMarge?.percentage
-                                ?? rawInst?.extras?.winstMarge?.percentage
-                                ?? 10,
-                            fixedAmount:
-                                quoteExtras?.winstMarge?.fixedAmount
-                                ?? quoteInst?.extras?.winstMarge?.fixedAmount
-                                ?? rawExtras?.winstMarge?.fixedAmount
-                                ?? rawInst?.extras?.winstMarge?.fixedAmount
-                                ?? 0,
-                            mode:
-                                quoteExtras?.winstMarge?.mode
-                                ?? quoteInst?.extras?.winstMarge?.mode
-                                ?? rawExtras?.winstMarge?.mode
-                                ?? rawInst?.extras?.winstMarge?.mode
-                                ?? 'percentage',
-                            basis:
-                                quoteExtras?.winstMarge?.basis
-                                ?? quoteInst?.extras?.winstMarge?.basis
-                                ?? rawExtras?.winstMarge?.basis
-                                ?? rawInst?.extras?.winstMarge?.basis
-                                ?? 'totaal',
-                        }
-                    }
-                };
+                const mappedSettings = resolveQuoteCalculationSettings(normalized, quote);
                 setQuoteSettings(mappedSettings);
             }
         }
@@ -4192,6 +4053,7 @@ export default function QuotePage() {
     const effectiveQuoteTotalInclBtw = hasStoredAgreedQuoteTotal
         ? storedAgreedQuoteTotal
         : (totalInclBtw ?? (Number((quote as any)?.totaalbedrag) || 0));
+    const whatsAppQuoteSelection = useQuoteSendSelection(isWhatsAppModalOpen, quote, effectiveQuoteTotalInclBtw);
     const quoteFinancialTotals = useMemo(() => {
         const payments = quoteInvoices.flatMap((invoice) => invoice.payments);
         payments.sort((a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0));
@@ -4455,119 +4317,12 @@ export default function QuotePage() {
 
     // Helper to build PDF data object
     const buildPDFData = (): PDFQuoteData => {
-        const pdfBtwPercentage = quoteSettings?.btwTarief ?? 21;
-        const pdfHourlyRate = quoteSettings?.uurTariefExclBtw ?? 0;
-        const pdfMarginPercentage = quoteSettings?.extras?.winstMarge?.percentage ?? 0;
-        const pdfMarginBasis = quoteSettings?.extras?.winstMarge?.basis ?? 'totaal';
-        const pdfWorkDescription = forceSummaryIntoWorkScope(workDescriptionStructured);
-
-        return {
-            language: quote?.pdfLanguage || 'nl',
-            englishTranslation: quote?.pdfEnglishTranslation,
-            offerteNummer: formatOfferteNummerLabel((quote as any)?.offerteNummer, (quote as any)?.offerteVersie),
-            datum: new Date().toLocaleDateString('nl-NL', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            }),
-            geldigTot: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            }),
-            logoUrl: userProfile?.settings?.logoUrl || undefined,
-            signatureUrl: userProfile?.settings?.signatureUrl || userProfile?.signatureUrl || undefined,
-            logoScale: userProfile?.settings?.logoScale || 1.0,
-            bedrijf: {
-                naam: (
-                    userProfile?.settings?.bedrijfsnaam ||
-                    businessData?.bedrijfsnaam ||
-                    userProfile?.bedrijfsnaam ||
-                    userProfile?.companyName ||
-                    'Uw Bedrijfsnaam'
-                ),
-                adres:
-                    `${userProfile?.settings?.adres || ''} ${userProfile?.settings?.huisnummer || ''}`.trim() ||
-                    userProfile?.settings?.adres ||
-                    businessData?.adres ||
-                    userProfile?.adres ||
-                    userProfile?.address ||
-                    'Straatnaam 123',
-                postcode: userProfile?.settings?.postcode || businessData?.postcode || userProfile?.postcode || userProfile?.zipcode || '1234 AB',
-                plaats: userProfile?.settings?.plaats || businessData?.plaats || userProfile?.plaats || userProfile?.city || 'Plaats',
-                telefoon: userProfile?.settings?.telefoon || businessData?.telefoon || userProfile?.telefoon || userProfile?.phone || '06-12345678',
-                email: userProfile?.settings?.email || businessData?.email || userProfile?.email || user?.email || 'email@voorbeeld.nl',
-                kvk: userProfile?.settings?.kvkNummer || businessData?.kvkNummer || businessData?.kvk || userProfile?.kvkNummer || userProfile?.kvk || '12345678',
-                btw: userProfile?.settings?.btwNummer || businessData?.btwNummer || businessData?.btw || userProfile?.btwNummer || userProfile?.btw || 'NL123456789B01',
-                iban: userProfile?.settings?.iban || businessData?.iban || userProfile?.iban || '',
-            },
-            klant: {
-                klanttype: klantInfo?.klanttype || null,
-                naam: klantInfo ? `${klantInfo.voornaam || ''} ${klantInfo.achternaam || ''}`.trim() : 'Klant nog niet ingevuld',
-                adres: klantInfo ? `${klantInfo.straat || ''} ${klantInfo.huisnummer || ''}`.trim() : '',
-                postcode: klantInfo?.postcode || '',
-                plaats: klantInfo?.plaats || '',
-                telefoon: klantInfo?.telefoonnummer || '',
-                email: klantInfo?.emailadres || '',
-                kvk: klantInfo?.kvkNummer || '',
-                btw: klantInfo?.btwNummer || '',
-            },
-            projectLocatie: klantInfo?.afwijkendProjectadres && klantInfo.projectAdres
-                ? `${klantInfo.projectAdres.straat} ${klantInfo.projectAdres.huisnummer}, ${klantInfo.projectAdres.plaats}`
-                : klantInfo
-                    ? `${klantInfo.straat || ''} ${klantInfo.huisnummer || ''}, ${klantInfo.plaats || ''}`.trim().replace(/^,|,$/g, '')
-                    : '',
-            korteTitel: pdfWorkDescription.title || normalizedData?.korteTitel,
-            korteBeschrijving: pdfWorkDescription.summary || normalizedData?.korteBeschrijving,
-            werkbeschrijving: pdfWorkDescription.summary || generateWorkSummary(normalizedData?.werkbeschrijving, 800),
-            werkbeschrijvingFull: flattenStructuredWorkDescription(pdfWorkDescription),
-            werkbeschrijvingStructured: pdfWorkDescription,
-            grootmaterialen: materials.groot.map(m => ({
-                aantal: m.aantal,
-                product: m.product,
-                prijsPerStuk: m.prijs_per_stuk || 0,
-                totaal: (m.prijs_per_stuk || 0) * m.aantal,
-            })),
-            verbruiksartikelen: materials.verbruik.map(m => ({
-                aantal: m.aantal,
-                product: m.product,
-                prijsPerStuk: m.prijs_per_stuk || 0,
-                totaal: (m.prijs_per_stuk || 0) * m.aantal,
-            })),
-            urenSpecificatie: normalizedData?.uren_specificatie || [],
-            totals: {
-                materialenGroot: totals?.materialenGroot ?? 0,
-                materialenVerbruik: totals?.materialenVerbruik ?? 0,
-                materialenTotaal: totals?.materialenTotaal ?? 0,
-                arbeidTotaal: totals?.arbeidTotaal ?? 0,
-                arbeidHoogBtwUren: totals?.arbeidHoogBtwUren ?? 0,
-                arbeidLaagBtwUren: totals?.arbeidLaagBtwUren ?? 0,
-                arbeidHoogBtwTotaal: totals?.arbeidHoogBtwTotaal ?? 0,
-                arbeidLaagBtwTotaal: totals?.arbeidLaagBtwTotaal ?? 0,
-                arbeidHoogBtwTarief: totals?.arbeidHoogBtwTarief ?? pdfBtwPercentage,
-                arbeidLaagBtwTarief: totals?.arbeidLaagBtwTarief ?? 9,
-                transportTotaal: totals?.transportTotaal ?? 0,
-                subtotaalExclBtw: totals?.subtotaalExclBtw ?? 0,
-                winstMarge: totals?.winstMarge ?? 0,
-                totaalExclBtw: totals?.totaalExclBtw ?? 0,
-                btw: totals?.btw ?? 0,
-                btwHoog: totals?.btwHoog ?? totals?.btw ?? 0,
-                btwLaag: totals?.btwLaag ?? 0,
-                totaalInclBtw: totals?.totaalInclBtw ?? 0,
-                totaalUren: normalizedData?.totaal_uren || 0,
-                uurTarief: pdfHourlyRate,
-                btwPercentage: pdfBtwPercentage,
-                margePercentage: pdfMarginPercentage,
-                margeBasis: pdfMarginBasis,
-            },
-            settings: pdfSettings,
-            drawingImages: capturedDrawings, // Include captured drawings for preview
-            materialPresentations,
-            onderVoorbehoud,
-            tekstInstellingen: pdfTextSettings,
-            algemeneVoorwaardenTekst,
-            algemeneVoorwaardenTitel,
-        };
+        return buildOfficialQuotePdfData({
+            quote, quoteSettings, normalizedData, klantInfo, userProfile, businessData,
+            userEmail: user?.email, workDescriptionStructured, materials, totals, pdfSettings,
+            capturedDrawings, materialPresentations, onderVoorbehoud, pdfTextSettings,
+            algemeneVoorwaardenTekst, algemeneVoorwaardenTitel,
+        });
     };
 
     const officialPdfCacheRef = useRef<{ signature: string; blob: Blob } | null>(null);
@@ -5659,6 +5414,28 @@ export default function QuotePage() {
         }
     };
 
+    const handleDownloadSelectedQuotes = async (selectedIds: string[] = [id]): Promise<void> => {
+        if (!quote || !user || !firestore || selectedIds.length === 0) throw new Error('Selecteer minimaal één offerte.');
+        const token = await user.getIdToken();
+        const files: Array<{ fileName: string; blob: Blob }> = [];
+        for (const quoteId of [...new Set(selectedIds)]) {
+            const data = quoteId === id ? buildPDFData() : await loadQuotePdfData({
+                firestore, token, quoteId, currentQuote: quote, userProfile, businessData,
+                userEmail: user.email, pdfSettings,
+            });
+            const blob = quoteId === id ? await getOfficialQuotePdf(data) : await generateQuotePDF(data);
+            files.push({ fileName: getQuotePdfFileName(data.klant.naam, data.offerteNummer), blob });
+        }
+        // Eerst alle PDF's gereed; bij een fout niets gedeeltelijk downloaden of als verzonden markeren.
+        const download = await prepareQuotePdfDownload(files, `Offertes-${sanitizeFileNamePart(klantInfo?.bedrijfsnaam || `${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`) || 'selectie'}.zip`);
+        downloadBlobWithName(download.blob, download.fileName);
+    };
+
+    const handleMarkSelectedQuotesAsSent = async (selectedIds: string[] = [id]): Promise<void> => {
+        if (!firestore || !user || !quote || selectedIds.length === 0) throw new Error('Selecteer minimaal één offerte.');
+        await markQuoteSelectionAsSent({ firestore, userId: user.uid, currentQuote: quote, selectedIds, currentTotal: effectiveQuoteTotalInclBtw });
+    };
+
     const handleRecordPriceChange = async (): Promise<void> => {
         if (!firestore || !user || !id || !quote || priceChangeSaving) return;
 
@@ -6104,37 +5881,8 @@ export default function QuotePage() {
     };
 
     const currentWerkbeschrijvingStructured = useMemo(
-        () => {
-            const structured = toStructuredWorkDescription({
-            werkbeschrijving: normalizedData?.werkbeschrijving,
-            werkbeschrijving_jobs: (normalizedData as any)?.werkbeschrijving_jobs,
-            werkbeschrijving_structured: (normalizedData as any)?.werkbeschrijving_structured,
-            korteTitel: normalizedData?.korteTitel,
-            korteBeschrijving: normalizedData?.korteBeschrijving,
-            });
-            const repaired = repairCopiedNoteBlobs(
-                structured,
-                buildQuoteNotesContextWithoutLinks(quoteNoteSections),
-                isWasteRemovalRow,
-            );
-            const completed = completeStructuredWorkDescription(repaired, quote?.titel);
-            const jobs = completed.jobs.map((job) => ({
-                ...job,
-                dimensions: deduplicateMeasurementRows(job.dimensions),
-            }));
-            const activeIndex = Math.max(0, Math.min(
-                completed.activeJobIndex || 0,
-                Math.max(0, jobs.length - 1),
-            ));
-            return forceSummaryIntoWorkScope({
-                ...completed,
-                jobs,
-                dimensions: jobs[activeIndex]
-                    ? [...jobs[activeIndex].dimensions]
-                    : deduplicateMeasurementRows(completed.dimensions),
-            });
-        },
-        [normalizedData, quote?.titel, quoteNoteSections],
+        () => resolveQuotePdfWorkDescription(normalizedData, quote?.titel),
+        [normalizedData, quote?.titel],
     );
 
     const resolvedWorkDescriptionCategory = useMemo(() => {
@@ -6723,6 +6471,7 @@ export default function QuotePage() {
         }
 
         setIsGeneratingDistanceDev(true);
+        setDistanceGenerationError(null);
         try {
             const token = await user.getIdToken();
             const response = await fetch('/api/generate-distance', {
@@ -6765,8 +6514,7 @@ export default function QuotePage() {
 
             if (calculation?.data_json) {
                 const root = unwrapRoot(calculation.data_json);
-                await updateDataJson({
-                    ...root,
+                await updateDataJsonPatch({
                     transport_berekening: {
                         ...(root as any)?.transport_berekening,
                         distanceKm: distanceKmOneWay,
@@ -6790,6 +6538,7 @@ export default function QuotePage() {
                 });
             }
         } catch (error: any) {
+            setDistanceGenerationError(error?.message || 'Afstand berekenen mislukt.');
             if (options?.notify !== false) {
                 toast({
                     variant: 'destructive',
@@ -6800,7 +6549,7 @@ export default function QuotePage() {
         } finally {
             setIsGeneratingDistanceDev(false);
         }
-    }, [calculation?.data_json, id, quoteSettings?.extras?.transport?.prijsPerKm, routeDestinationAddress, routeOriginAddress, toast, updateDataJson, user]);
+    }, [calculation?.data_json, id, quoteSettings?.extras?.transport?.prijsPerKm, routeDestinationAddress, routeOriginAddress, toast, updateDataJsonPatch, user]);
 
     const hasTransportDistance = useMemo(() => {
         const rawTransport = (normalizedData as any)?.transport_berekening || {};
@@ -8177,6 +7926,9 @@ export default function QuotePage() {
                                         onUpdateMaterialenSubtotal={handleUpdateMaterialenSubtotal}
                                         onUpdateTransportTotal={handleUpdateTransportTotal}
                                         onUpdateTransportRatePerKm={handleUpdateTransportRatePerKm}
+                                        isCalculatingDistance={isGeneratingDistanceDev}
+                                        distanceError={distanceGenerationError}
+                                        onRetryDistance={() => { void runDistanceGeneration(); }}
                                         onUpdateWinstMargePercentage={handleUpdateWinstMargePercentage}
                                         onUpdateWinstMargeAmountExcl={handleUpdateWinstMargeAmountExcl}
                                     />
@@ -9983,14 +9735,9 @@ export default function QuotePage() {
                 onClose={() => setIsWhatsAppModalOpen(false)}
                 klantInfo={klantInfo}
                 clientName={`${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`.trim() || (klantInfo?.bedrijfsnaam || 'klant')}
-                onDownloadOfficialPdf={() =>
-                    handleDownloadPDF({
-                        includeOfferte: true,
-                        includeTekeningen: false,
-                        includeWerkbeschrijving: false,
-                    })
-                }
-                onMarkAsSent={handleMarkQuoteAsSent}
+                quoteSelection={whatsAppQuoteSelection}
+                onDownloadOfficialPdf={handleDownloadSelectedQuotes}
+                onMarkAsSent={handleMarkSelectedQuotesAsSent}
             />
 
             {activeCategory && (

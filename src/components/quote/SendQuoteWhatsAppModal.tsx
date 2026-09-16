@@ -8,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { formatCurrency } from '@/lib/quote-calculations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,17 +19,25 @@ import { type KlantInformatie } from '@/lib/quote-calculations';
 import { toast } from '@/hooks/use-toast';
 import { loadWhatsAppPreset, stripDocumentLinksFromMessage, whatsappPresetKey } from '@/lib/whatsapp-message-preset';
 
+export interface QuoteSendOption {
+  id: string;
+  number: string;
+  title: string;
+  price: number | null;
+}
+
 interface SendQuoteWhatsAppModalProps {
   isOpen: boolean;
   onClose: () => void;
   klantInfo: KlantInformatie | null;
   clientName: string;
+  quoteSelection?: { currentId: string; options: QuoteSendOption[]; loading: boolean; error: string | null };
   storageKey?: string;
   language?: 'nl' | 'en';
   onTranslateMessage?: (source: string) => Promise<string>;
   successDescription?: string;
-  onDownloadOfficialPdf?: () => Promise<void> | void;
-  onMarkAsSent?: () => Promise<void> | void;
+  onDownloadOfficialPdf?: (selectedIds?: string[]) => Promise<void> | void;
+  onMarkAsSent?: (selectedIds?: string[]) => Promise<void> | void;
 }
 
 function normalizePhoneForWhatsApp(raw: string): string {
@@ -73,7 +83,16 @@ export function SendQuoteWhatsAppModal({
   successDescription = 'De officiële PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur.',
   onDownloadOfficialPdf,
   onMarkAsSent,
+  quoteSelection,
 }: SendQuoteWhatsAppModalProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const currentQuoteId = quoteSelection?.currentId;
+  useEffect(() => {
+    if (isOpen && currentQuoteId) setSelectedIds([currentQuoteId]);
+  }, [isOpen, currentQuoteId]);
+  const selectedQuoteIds = quoteSelection ? selectedIds.filter((id) => quoteSelection.options.some((quote) => quote.id === id)) : undefined;
+  const selectionBlocked = Boolean(quoteSelection && (quoteSelection.loading || quoteSelection.error || !selectedQuoteIds?.length));
+  const multipleQuotes = (selectedQuoteIds?.length || 0) > 1;
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState(''); // editable after prefill
   const [manualFirstName, setManualFirstName] = useState('');
@@ -131,7 +150,7 @@ export function SendQuoteWhatsAppModal({
   };
 
   const handleSendViaWhatsApp = async () => {
-    if (isOpening || isLaunchingWhatsAppRef.current || isPreparingMessage || messageError) return;
+    if (isOpening || isLaunchingWhatsAppRef.current || isPreparingMessage || messageError || selectionBlocked) return;
     isLaunchingWhatsAppRef.current = true;
 
     const trimmedPhone = phone.trim();
@@ -152,6 +171,7 @@ export function SendQuoteWhatsAppModal({
     try {
       const template = stripDocumentLinksFromMessage(message);
       if (!template) {
+        if (popup && !popup.closed) popup.close();
         toast({
           title: 'Geen bericht ingevuld',
           description: 'Vul eerst je eigen berichtpreset in.',
@@ -164,13 +184,14 @@ export function SendQuoteWhatsAppModal({
       const outgoingMessage = template.replaceAll(FIRST_NAME_TOKEN, nameValue);
 
       if (onDownloadOfficialPdf) {
-        await Promise.resolve(onDownloadOfficialPdf());
+        await Promise.resolve(onDownloadOfficialPdf(selectedQuoteIds));
       }
 
       if (onMarkAsSent) {
         try {
-          await Promise.resolve(onMarkAsSent());
+          await Promise.resolve(onMarkAsSent(selectedQuoteIds));
         } catch (error) {
+          if (popup && !popup.closed) popup.close();
           console.error('Error marking quote as sent:', error);
           toast({
             title: 'Status bijwerken mislukt',
@@ -191,7 +212,7 @@ export function SendQuoteWhatsAppModal({
 
       toast({
         title: 'WhatsApp geopend',
-        description: successDescription,
+        description: multipleQuotes ? `${selectedQuoteIds?.length} PDF’s gedownload in één ZIP. Pak deze uit en voeg de PDF’s handmatig toe in WhatsApp.` : successDescription,
         duration: 5000,
       });
 
@@ -214,8 +235,8 @@ export function SendQuoteWhatsAppModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] bg-zinc-900 border-zinc-800 text-white">
+    <Dialog open={isOpen} onOpenChange={() => { if (!isOpening) onClose(); }}>
+      <DialogContent className="grid-cols-[minmax(0,1fr)] max-h-[90dvh] overflow-y-auto sm:max-w-[500px] bg-zinc-900 border-zinc-800 text-white">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <MessageCircle className="w-5 h-5 text-emerald-400" />
@@ -223,27 +244,53 @@ export function SendQuoteWhatsAppModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="whatsapp-phone" className="text-zinc-400">Klant WhatsApp nummer</Label>
-            <Input
-              id="whatsapp-phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Bijv. +31 6 12345678"
-              className="bg-zinc-800 border-zinc-700 focus:ring-emerald-500 text-white"
-            />
-          </div>
+        <div className="min-w-0 space-y-4 py-2">
+          {quoteSelection && (
+            <fieldset disabled={isOpening} className="min-w-0 space-y-2">
+              <legend className="mb-2 flex w-full justify-between text-sm text-zinc-400">
+                <span>Offertes</span><span className="text-xs">Incl. btw</span>
+              </legend>
+              <div className="max-h-40 overflow-y-auto divide-y divide-zinc-800 rounded-md border border-zinc-800">
+                {quoteSelection.options.map((quote) => (
+                  <label key={quote.id} className="flex min-w-0 cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-800/60">
+                    <Checkbox
+                      checked={selectedQuoteIds?.includes(quote.id)}
+                      disabled={isOpening}
+                      onCheckedChange={(checked) => setSelectedIds((ids) => checked ? [...ids.filter((id) => id !== quote.id), quote.id] : ids.filter((id) => id !== quote.id))}
+                      aria-label={`Offerte ${quote.number}`}
+                    />
+                    <span className="min-w-0 flex-1 truncate" title={`${quote.number} · ${quote.title}`}>{quote.number} · {quote.title}</span>
+                    <span className="shrink-0 tabular-nums">{quote.price === null ? '—' : formatCurrency(quote.price)}</span>
+                  </label>
+                ))}
+              </div>
+              {quoteSelection.loading && <p role="status" className="text-xs text-zinc-400">Conceptoffertes laden...</p>}
+              {quoteSelection.error && <p role="alert" className="text-xs text-red-400">{quoteSelection.error}</p>}
+            </fieldset>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp-phone" className="text-zinc-400">WhatsApp-nummer</Label>
+              <Input
+                id="whatsapp-phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Bijv. +31 6 12345678"
+                className="bg-zinc-800 border-zinc-700 focus:ring-emerald-500 text-white"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="whatsapp-first-name" className="text-zinc-400">Voornaam in bericht</Label>
-            <Input
-              id="whatsapp-first-name"
-              value={manualFirstName}
-              onChange={(event) => setManualFirstName(event.target.value)}
-              placeholder="Bijv. Sjoerd"
-              className="bg-zinc-800 border-zinc-700 text-zinc-200"
-            />
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp-first-name" className="text-zinc-400">Voornaam</Label>
+              <Input
+                id="whatsapp-first-name"
+                value={manualFirstName}
+                onChange={(event) => setManualFirstName(event.target.value)}
+                placeholder="Bijv. Sjoerd"
+                className="bg-zinc-800 border-zinc-700 text-zinc-200"
+              />
+            </div>
+
           </div>
 
           <div className="space-y-2">
@@ -288,7 +335,7 @@ export function SendQuoteWhatsAppModal({
                 });
               }}
               placeholder="Typ je eigen berichtpreset. Dit wordt automatisch bewaard."
-              className="min-h-[120px] bg-zinc-800 border-zinc-700 text-zinc-200"
+              className="min-h-[100px] bg-zinc-800 border-zinc-700 text-zinc-200"
             />
             {isPreparingMessage && <p role="status" className="text-xs text-zinc-400">{language === 'en' ? 'Bericht naar Engels vertalen...' : 'Bericht laden...'}</p>}
             {messageError && <div role="alert" className="space-y-2 text-sm text-red-400">
@@ -296,7 +343,7 @@ export function SendQuoteWhatsAppModal({
               <Button type="button" variant="outline" size="sm" onClick={() => setRetryTranslation((value) => value + 1)}>Opnieuw proberen</Button>
             </div>}
             <p className="text-xs text-zinc-500">
-              Dit bericht wordt automatisch opgeslagen. Gebruik {FIRST_NAME_TOKEN} voor de voornaam. De PDF voeg je handmatig toe in WhatsApp.
+              Dit bericht wordt automatisch opgeslagen. Gebruik {FIRST_NAME_TOKEN} voor de voornaam. {multipleQuotes ? 'Pak de ZIP uit en voeg de PDF’s toe in WhatsApp.' : 'De PDF voeg je handmatig toe in WhatsApp.'}
             </p>
           </div>
         </div>
@@ -306,13 +353,13 @@ export function SendQuoteWhatsAppModal({
             type="button"
             variant="success"
             onClick={handleSendViaWhatsApp}
-            disabled={isOpening || isPreparingMessage || Boolean(messageError) || !message.trim() || !normalizePhoneForWhatsApp(phone)}
+            disabled={selectionBlocked || isOpening || isPreparingMessage || Boolean(messageError) || !message.trim() || !normalizePhoneForWhatsApp(phone)}
             className="w-full py-6 rounded-xl flex items-center justify-center gap-2"
           >
             {isOpening ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageCircle className="w-5 h-5" />}
             <div className="flex flex-col items-start leading-tight">
-              <span>{isOpening ? 'WhatsApp openen...' : 'Verstuur via WhatsApp'}</span>
-              <span className="text-[10px] opacity-80 font-normal">Download officiële PDF + open WhatsApp (handmatig bijvoegen)</span>
+              <span>{isOpening ? 'PDF’s voorbereiden...' : multipleQuotes ? `Verstuur ${selectedQuoteIds?.length} offertes` : 'Verstuur via WhatsApp'}</span>
+              <span className="text-[10px] opacity-80 font-normal">{multipleQuotes ? 'Download PDF’s als ZIP + open WhatsApp' : 'Download officiële PDF + open WhatsApp (handmatig bijvoegen)'}</span>
             </div>
           </Button>
         </DialogFooter>
