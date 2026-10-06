@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { getQuoteVisitReminders, OPEN_VISIT_REMINDER_STATUSES } from '@/lib/quote-visit-reminder';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,7 +62,7 @@ function cleanText(value: unknown): string {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
 }
 
-function getClientName(data: Record<string, unknown>): string {
+function getClientName(data: Record<string, unknown>, fallback = 'Onbekende klant'): string {
   const info = data.klantinformatie && typeof data.klantinformatie === 'object'
     ? data.klantinformatie as Record<string, unknown>
     : {};
@@ -69,7 +70,7 @@ function getClientName(data: Record<string, unknown>): string {
   if (company) return company;
 
   const person = [cleanText(info.voornaam), cleanText(info.achternaam)].filter(Boolean).join(' ');
-  return person || 'Onbekende klant';
+  return person || fallback;
 }
 
 function getQuoteTitle(data: Record<string, unknown>): string {
@@ -97,9 +98,10 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   try {
     const { firestore } = initFirebaseAdmin();
-    const [quotesSnapshot, invoicesSnapshot] = await Promise.all([
+    const [quotesSnapshot, invoicesSnapshot, planningSnapshot] = await Promise.all([
       firestore.collection('quotes').where('userId', '==', uid).get(),
       firestore.collection('invoices').where('userId', '==', uid).get(),
+      firestore.collection('planning_entries').where('userId', '==', uid).get(),
     ]);
 
     const acceptedQuoteIds = new Set<string>();
@@ -107,14 +109,56 @@ export async function GET(request: Request): Promise<NextResponse> {
       const data = invoice.data() as Record<string, unknown>;
       if (data.archived === true) return;
       if (data.status !== 'gedeeltelijk_betaald' && data.status !== 'betaald') return;
-      const quoteId = cleanText(data.quoteId);
-      if (quoteId) acceptedQuoteIds.add(quoteId);
+      const context = data.combinedContext && typeof data.combinedContext === 'object'
+        ? data.combinedContext as Record<string, unknown> : {};
+      const quoteIds = [data.quoteId,
+        ...(Array.isArray(data.combinedQuoteIds) ? data.combinedQuoteIds : []),
+        ...(Array.isArray(context.quoteIds) ? context.quoteIds : [])];
+      quoteIds.forEach((value) => {
+        const quoteId = cleanText(value);
+        if (quoteId) acceptedQuoteIds.add(quoteId);
+      });
     });
 
+    const visitReminders = getQuoteVisitReminders(
+      quotesSnapshot.docs.map((quote) => {
+        const data = quote.data() as Record<string, unknown>;
+        const client = data.klantinformatie && typeof data.klantinformatie === 'object'
+          ? data.klantinformatie as Record<string, unknown> : {};
+        return {
+          id: quote.id,
+          clientId: cleanText(data.clientId) || cleanText(client.clientId),
+          clientName: getClientName(data, ''),
+          status: cleanText(data.status) || 'concept',
+          archived: data.archived === true,
+          createdAt: timestampToDate(data.createdAt),
+        };
+      }),
+      planningSnapshot.docs.map((planning) => {
+        const data = planning.data() as Record<string, unknown>;
+        const cache = data.cache && typeof data.cache === 'object'
+          ? data.cache as Record<string, unknown> : {};
+        return {
+          id: planning.id,
+          quoteId: cleanText(data.quoteId),
+          clientName: cleanText(cache.clientName) || cleanText(cache.projectTitle),
+          planningType: cleanText(data.planningType),
+          status: cleanText(data.status),
+          startDate: timestampToDate(data.startDate),
+          endDate: timestampToDate(data.endDate),
+          scheduledHours: Number(data.scheduledHours),
+        };
+      }),
+      acceptedQuoteIds,
+    );
+    const visitsByQuoteId = new Map(visitReminders.map((visit) => [visit.quoteId, visit]));
+
     const quotes = quotesSnapshot.docs
+      .filter((quote) => visitsByQuoteId.has(quote.id))
       .map((quote) => {
         const data = quote.data() as Record<string, unknown>;
         const offerteNummer = Number(data.offerteNummer);
+        const visit = visitsByQuoteId.get(quote.id)!;
         return {
           id: quote.id,
           offerteNummer: Number.isFinite(offerteNummer) ? offerteNummer : null,
@@ -125,9 +169,10 @@ export async function GET(request: Request): Promise<NextResponse> {
           updatedAt: toIsoDate(data.updatedAt),
           url: `${CALVORA_BASE_URL}/offertes/${encodeURIComponent(quote.id)}`,
           archived: data.archived === true,
+          visitedAt: visit.visitedAt,
+          planningEntryId: visit.planningEntryId,
         };
       })
-      .filter((quote) => quote.status === 'concept' && !quote.archived && !acceptedQuoteIds.has(quote.id))
       .sort((left, right) => {
         const leftNumber = left.offerteNummer ?? 0;
         const rightNumber = right.offerteNummer ?? 0;
@@ -137,15 +182,16 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     return NextResponse.json({
       ok: true,
+      visitsOnly: true,
       shouldAlert: quotes.length > 0,
       count: quotes.length,
-      status: 'concept',
+      statuses: OPEN_VISIT_REMINDER_STATUSES,
       timezone: AMSTERDAM_TIME_ZONE,
       checkedAt: new Date().toISOString(),
       checkedAtLocal: getAmsterdamDateTime(),
       message: quotes.length > 0
-        ? `Er staan nog ${quotes.length} offerte${quotes.length === 1 ? '' : 's'} klaar om te maken.`
-        : 'Er staan geen open concept-offertes klaar om te maken.',
+        ? `Je moet nog ${quotes.length} offerte${quotes.length === 1 ? '' : 's'} maken na je bezoek.`
+        : 'Er staan geen offertes meer open na een bezoek.',
       quotes,
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
