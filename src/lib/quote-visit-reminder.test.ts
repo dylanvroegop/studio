@@ -77,7 +77,17 @@ test('afspraken zonder koppeling gebruiken alleen een ondubbelzinnige klantnaam'
 test('oude klantbezoeken worden niet hergebruikt voor een nieuwe offerte', () => {
   const newQuote = quote('new', { createdAt: new Date('2026-10-06T16:00:00Z') });
   assert.deepEqual(ids([quote(), newQuote]), ['one']);
-  assert.deepEqual(ids([newQuote], [meeting({ quoteId: 'new' })]), ['new']);
+  assert.deepEqual(ids([newQuote], [meeting({ quoteId: 'new' })]), []);
+  assert.deepEqual(ids([newQuote], [meeting({ quoteId: 'new', status: 'completed' })]), ['new']);
+  assert.deepEqual(ids([quote(), newQuote], [meeting({ status: 'completed' })]), ['one']);
+});
+
+test('een expliciet gekoppelde afspraak uit 2020 bewijst geen bezoek voor een offerte uit 2026', () => {
+  const quotes = [quote('historical-year', { createdAt: new Date('2026-09-17T18:09:22.859Z') })];
+  for (const status of ['scheduled', 'in_progress']) {
+    assert.deepEqual(ids(quotes, [meeting({ quoteId: 'historical-year', status,
+      startDate: new Date('2020-09-19T15:00:00Z'), endDate: new Date('2020-09-19T16:00:00Z') })]), []);
+  }
 });
 
 test('nieuwere onbevestigde of toekomstige gekoppelde afspraak onderdrukt oud bezoek', () => {

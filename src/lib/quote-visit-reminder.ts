@@ -93,9 +93,11 @@ export function getQuoteVisitReminders(
     for (const quote of matchingQuotes(meeting, quotes)) {
       if (quote.archived || !OPEN_VISIT_REMINDER_STATUSES.includes(quote.status)
         || acceptedQuoteIds.has(quote.id)) continue;
-      // Een oudere afspraak voor dezelfde klant is geen bewijs van bezoek voor
-      // een later aangemaakte offerte. Een expliciete koppeling blijft leidend.
-      if (meeting.quoteId !== quote.id && validDate(quote.createdAt) && quote.createdAt > end) continue;
+      // Een geplande afspraak van vóór de offerte kan een verkeerd jaartal
+      // bevatten, ook bij een expliciete koppeling. Alleen een gekoppeld bezoek
+      // dat expliciet is afgerond mag een achteraf aangemaakte offerte onderbouwen.
+      const explicitlyCompletedVisit = meeting.quoteId === quote.id && meeting.status === 'completed';
+      if (validDate(quote.createdAt) && quote.createdAt > end && !explicitlyCompletedVisit) continue;
       const hasNewerUnfinishedVisit = workMeetings.some((other) => other.quoteId === quote.id
         && other.startDate!.getTime() > meeting.startDate!.getTime()
         && (other.status === 'pending' || (meetingEnd(other)?.getTime() ?? Infinity) > nowMs));
