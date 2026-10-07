@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getIdTokenResult } from 'firebase/auth';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Clock3, ClipboardList } from 'lucide-react';
+import { Menu, X, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Clock3, ClipboardList, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -101,6 +101,13 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
         icon: Users,
         iconColorClass: 'text-blue-400',
         iconColorClassActive: 'text-blue-300',
+    },
+    {
+        href: '/klantgesprekken',
+        label: 'Klantgesprekken',
+        icon: Mic,
+        iconColorClass: 'text-cyan-400',
+        iconColorClassActive: 'text-cyan-300',
     },
     {
         href: '/urenregistratie',

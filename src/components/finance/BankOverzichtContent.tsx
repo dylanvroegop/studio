@@ -53,6 +53,7 @@ import {
 import type { WinstMetricsResponse } from '@/lib/winst-types';
 import { formatOfferteNummerLabel } from '@/lib/quote-number';
 import { refreshBankData } from '@/lib/refresh-bank-data';
+import { FinancialExportButton } from '@/components/finance/FinancialExportButton';
 
 type ApiSyncResponse = {
   ok: boolean;
@@ -1329,6 +1330,7 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
                         <div className="text-sm text-muted-foreground">Knab zakelijk en bunq personal in één overzicht.</div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <FinancialExportButton />
                       {knabConnection?.status === 'connected' ? (
                         <Button type="button" onClick={() => void handleSync('enablebanking')} disabled={syncingProvider !== null} className="gap-2">
                           {syncingProvider === 'enablebanking' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}

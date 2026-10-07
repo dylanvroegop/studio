@@ -38,23 +38,25 @@ function importMessage(data, client = {}) {
   if (data.appointment_status === 'scheduled') {
     return 'Klant en offerte zijn opgeslagen. Er staat al een bevestigde werkbespreking in Calvora. Er is geen nieuw voorstel gemaakt.';
   }
-  // Ook oudere API-reacties kunnen nog twee opties of helemaal geen tekst bevatten.
-  // Gebruik alleen het daadwerkelijk opgeslagen eerste voorstel, nooit optie twee.
-  const date = data.appointment_date || data.suggested_appointment_date;
-  const time = data.appointment_time || data.suggested_appointment_time;
+  // Gebruik één volledig opgeslagen voorstel. Meng nooit een datum uit de
+  // actuele afspraak met een tijd uit een ouder gecachet voorstel.
+  const hasAppointment = data.appointment_date != null || data.appointment_time != null;
+  const date = hasAppointment ? data.appointment_date : data.suggested_appointment_date;
+  const time = hasAppointment ? data.appointment_time : data.suggested_appointment_time;
   const parsedDate = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
     ? new Date(date + 'T12:00:00Z') : null;
   const validSlot = parsedDate && Number.isFinite(parsedDate.getTime())
     && parsedDate.toISOString().slice(0, 10) === date
     && typeof time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+  if (!validSlot) {
+    throw new Error('AFSPRAAKVOORSTEL_ONTBREEKT: er is geen geldige datum en tijd teruggekomen. Klantbericht niet versturen; controleer de kalenderreservering en probeer opnieuw.');
+  }
   const cachedName = valid(data.telegram_message)
     ? data.telegram_message.match(/^Beste ([^\n,]+),/)?.[1] : null;
   const name = valid(client.client_name) ? client.client_name.trim().split(/\s+/)[0] : cachedName || 'klant';
-  const proposal = validSlot
-    ? 'Ik kan op ' + new Intl.DateTimeFormat('nl-NL', {
+  const proposal = 'Ik kan op ' + new Intl.DateTimeFormat('nl-NL', {
       weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Amsterdam',
-    }).format(parsedDate) + ' om ' + time + ' langskomen voor een werkbespreking.\n\nKomt dit moment u gelegen? Mocht dit moment niet uitkomen, welke dag en tijd zouden u beter uitkomen?'
-    : 'Ik kom graag langs voor een werkbespreking. Welke dag en tijd zouden u goed uitkomen?';
+    }).format(parsedDate) + ' om ' + time + ' langskomen voor een werkbespreking.\n\nKomt dit moment u gelegen? Mocht dit moment niet uitkomen, welke dag en tijd zouden u beter uitkomen?';
   return 'Beste ' + name + ',\n\nBedankt voor uw bericht.\n\n' + proposal
     + '\n\nDan bespreek ik de werkzaamheden met u en maak ik daarna kosteloos een offerte voor u op.\n\nMvg,\nDylan\n\nVroegop timmerwerken';
 }

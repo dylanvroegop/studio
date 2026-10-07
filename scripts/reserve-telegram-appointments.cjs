@@ -5,12 +5,26 @@ const { importMessage } = require('./harden-telegram-workflow.cjs');
 function calendarImportSucceeded(data) {
   const identifier = value => typeof value === 'string' && value.trim().length > 0
     && !['null', 'undefined'].includes(value.trim().toLowerCase());
+  const date = typeof data.appointment_date === 'string' ? data.appointment_date : '';
+  const time = typeof data.appointment_time === 'string' ? data.appointment_time : '';
+  const parsed = new Date(date + 'T12:00:00Z');
+  const dated = /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(parsed.getTime())
+    && parsed.toISOString().slice(0, 10) === date && /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
   return data.success === true && identifier(data.client_id) && identifier(data.project_id)
     && data.calendar_synced === true
     && (data.appointment_status === 'cancelled' || (
       ['pending', 'scheduled'].includes(data.appointment_status)
-      && identifier(data.appointment_id) && identifier(data.google_calendar_event_id)
+      && identifier(data.appointment_id) && identifier(data.google_calendar_event_id) && dated
     ));
+}
+
+function excludeTransparentCalendarEvents(code) {
+  const before = 'const sameDayEvents = routedEvents.map(';
+  const after = "const sameDayEvents = routedEvents.filter(({ event }) => event.transparency !== 'transparent').map(";
+  if (!code.includes(before) && code.split(after).length === 2) return code;
+  if (code.split(before).length !== 2 || code.includes(after)) throw new Error('Agendafilter wijkt af; controleer de migratie.');
+  // Behoud de koppeling tussen agenda-items en reistijden; filter pas daarna.
+  return code.replace(before, after);
 }
 
 function reserveTelegramAppointments(original) {
@@ -37,6 +51,8 @@ function reserveTelegramAppointments(original) {
   gate('Afspraak bestaat');
   workflow.connections['Afspraak bestaat'].main = [[edge('Send a text message1')], [edge('Send a text message3')]];
   node('Send a text message4').parameters.text = `={{ (${importMessage.toString()})($json, $('If1').first().json.client_json || {}) }}`;
+  node('Send a text message4').onError = 'continueErrorOutput';
+  workflow.connections['Send a text message4'] = { main: [[], [edge('Send a text message3')]] };
   node('Send a text message1').parameters.text = "={{ $json.appointment_status === 'scheduled' ? 'Afspraak bevestigd en bijgewerkt in Google Agenda.' : $json.appointment_status === 'cancelled' ? 'Het eerdere voorstel is verwijderd uit Google Agenda. Het tijdslot is weer vrij.' : 'Voorstel opgeslagen als PENDING in Google Agenda; klant heeft nog niet bevestigd.' }}";
 
   // De API beheert één stabiele afspraak. Een tweede Google-write vanuit n8n
@@ -58,6 +74,7 @@ function reserveTelegramAppointments(original) {
   const before = "if (status === 'pending' && appointmentDate) {";
   if (!scheduler.parameters.jsCode.includes(before)) throw new Error('Planningscode wijkt af; controleer de migratie.');
   scheduler.parameters.jsCode = scheduler.parameters.jsCode.replace(before, "if (status === 'pending' && appointmentDate && !requestedTime) {");
+  scheduler.parameters.jsCode = excludeTransparentCalendarEvents(scheduler.parameters.jsCode);
   return workflow;
 }
 
@@ -91,11 +108,11 @@ function prepareCalendarDeployment(original) {
   return workflow;
 }
 
-module.exports = { calendarImportSucceeded, reserveTelegramAppointments, prepareCalendarDeployment };
+module.exports = { calendarImportSucceeded, excludeTransparentCalendarEvents, reserveTelegramAppointments, prepareCalendarDeployment };
 if (require.main === module) {
   const [, , source, destination, mode] = process.argv;
   if (!source || !destination || source === destination) throw new Error('Geef een bronexport en apart uitvoerbestand.');
   const transform = mode === '--prepare-deployment' ? prepareCalendarDeployment : reserveTelegramAppointments;
   fs.writeFileSync(destination, JSON.stringify(transform(JSON.parse(fs.readFileSync(source))), null, 2), { mode: 0o600 });
-  console.log('Workflow voorbereid. Alleen publiceren nadat de API calendar_synced ondersteunt.');
+  console.log(mode === '--prepare-deployment' ? 'Overgangsworkflow voorbereid voor publicatie vóór de API-uitrol.' : 'Workflow voorbereid. Alleen publiceren nadat de API calendar_synced ondersteunt.');
 }

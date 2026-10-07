@@ -1,0 +1,31 @@
+import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import {SpreadsheetFile,FileBlob} from '@oai/artifact-tool';
+const out=new URL('.',import.meta.url).pathname;
+const wb=await SpreadsheetFile.importXlsx(await FileBlob.load(out+'Financieel-dashboard.xlsx'));
+const sh=n=>wb.worksheets.getItem(n);
+const put=(s,c,v)=>sh(s).getRange(c).values=[[v]];
+const get=(s,c)=>sh(s).getRange(c).values[0][0];
+assert.equal(wb.worksheets.items.length,21);
+assert.equal(get('Net Worth','E6'),'n.b.');
+put('Settings & Assumptions','B17',.2);put('Settings & Assumptions','B18',400);put('Settings & Assumptions','B19',.3);
+wb.recalculate();assert.ok(Math.abs(get('Settings & Assumptions','B34')-350)<.001);
+put('Settings & Assumptions','B9',1);
+const acc=sh('Settings & Assumptions').tables.items.find(t=>t.name==='Accounts');
+sh('Settings & Assumptions').getRange('A58:L58').values=[['test','Eigen rekening','business','EUR',50000,new Date('2026-10-07'),50000,new Date('2026-09-30'),1,new Date('2026-10-07'),1,'closingBooked']];
+wb.recalculate();assert.equal(get('Net Worth','E6'),50000);
+sh('Work & Travel Planning').getRange('B6:K41').values=Array.from({length:36},()=>[20,0,0,0,0,0,0,0,0,'Test']);
+wb.recalculate();console.log((await wb.inspect({kind:'table',range:"'Cash Flow Forecast'!A6:N6",include:'values,formulas',tableMaxCols:14,maxChars:5000})).ndjson);assert.equal(get('Cash Flow Forecast','M6'),58000); // 50k +13k -3k -2k
+put('Settings & Assumptions','B8',1);wb.recalculate();assert.equal(get('Cash Flow Forecast','M6'),55548);
+put('Settings & Assumptions','B8',3);wb.recalculate();assert.equal(get('Cash Flow Forecast','M6'),60256);
+put('Work & Travel Planning','E30',15000);wb.recalculate();assert.equal(get('Cash Flow Forecast','I30'),15000);
+put('Work & Travel Planning','B7',null);wb.recalculate();assert.equal(get('Cash Flow Forecast','M7'),'n.b.');assert.equal(get('Cash Flow Forecast','M41'),'n.b.');
+// Iedere dag omzet is excl. btw; netto werkdag blijft afhankelijk van ontbrekende kosten.
+put('Settings & Assumptions','B17',null);wb.recalculate();assert.equal(get('Settings & Assumptions','B34'),'n.b.');
+for(const r of [36,37,39,43,44,45,46,47])put('Settings & Assumptions',`B${r}`,0);
+put('Settings & Assumptions','B38',65000);put('Settings & Assumptions','B40',1);put('Settings & Assumptions','B42',1);put('Settings & Assumptions','B48',1);
+wb.recalculate();assert.equal(get('Dutch Taxes','E7'),1200);assert.ok(Math.abs(get('Dutch Taxes','E10')-55697.4)<.001);
+assert.ok(Math.abs(get('Dutch Taxes','E15')-55697.4*.0485)<.001);
+put('Settings & Assumptions','B40',0);put('Settings & Assumptions','B41',1);wb.recalculate();assert.equal(get('Dutch Taxes','E7'),0);
+const picture=await wb.render({sheetName:'Dashboard',range:'A24:P54',scale:.7});await fs.writeFile(out+'charts-test.png',new Uint8Array(await picture.arrayBuffer()));
+console.log('Passed: 21 tabs, missing data, €350 net daily cash, 3 scenarios, later-month purchase, missing input propagation. Test changes not saved.');

@@ -25,7 +25,10 @@
     "materials:convert": "python3 scripts/convert_easy_scraper_materials.py",
     "set-dev-claim": "ts-node --transpile-only src/scripts/set-dev-claim.ts",
     "set-admin-claim": "ts-node --transpile-only src/scripts/set-admin-claim.ts",
-    "autoclick": "swift scripts/autoclicker.swift"
+    "autoclick": "swift scripts/autoclicker.swift",
+    "meetings:worker": "ts-node --transpile-only --compiler-options '{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' scripts/client-meetings-worker.ts",
+    "test:meetings": "ts-node --transpile-only --compiler-options '{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' src/scripts/run-client-meetings-tests.ts",
+    "test:meetings:recorder": "node scripts/test-client-meeting-recorder.cjs"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "1.2.3",

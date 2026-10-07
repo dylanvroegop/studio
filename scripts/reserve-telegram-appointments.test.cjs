@@ -1,8 +1,8 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { calendarImportSucceeded, reserveTelegramAppointments, prepareCalendarDeployment } = require('./reserve-telegram-appointments.cjs');
+const { calendarImportSucceeded, excludeTransparentCalendarEvents, reserveTelegramAppointments, prepareCalendarDeployment } = require('./reserve-telegram-appointments.cjs');
 const valid = { success: true, client_id: 'client', project_id: 'quote', appointment_id: 'appointment',
-  appointment_status: 'pending', calendar_synced: true, google_calendar_event_id: 'event' };
+  appointment_status: 'pending', calendar_synced: true, google_calendar_event_id: 'event', appointment_date: '2026-10-23', appointment_time: '19:00' };
 
 test('alleen na geslaagde kalenderreservering mag een voorstelbericht worden verstuurd', () => {
   assert.equal(calendarImportSucceeded(valid), true);
@@ -11,6 +11,28 @@ test('alleen na geslaagde kalenderreservering mag een voorstelbericht worden ver
   }
   assert.equal(calendarImportSucceeded({ ...valid, appointment_status: 'scheduled' }), true);
   assert.equal(calendarImportSucceeded({ ...valid, appointment_status: 'cancelled', appointment_id: null, google_calendar_event_id: null }), true);
+  for (const change of [{ appointment_date: null }, { appointment_time: null }, { appointment_date: '2026-02-30' }, { appointment_time: '25:00' }, { appointment_date: null, suggested_appointment_date: '2026-10-23' }]) {
+    assert.equal(calendarImportSucceeded({ ...valid, ...change }), false);
+  }
+});
+
+test('vrije agenda-items verdwijnen zonder reistijden aan andere items te koppelen', () => {
+  const code = `
+    const routedEvents = events.map((event, index) => ({ event, route: routes[index] }));
+    const sameDayEvents = routedEvents.map(({ event, route }) => ({ id: event.id, minutes: route.minutes }));
+    return sameDayEvents;
+  `;
+  const patched = excludeTransparentCalendarEvents(code);
+  const evaluate = new Function('events', 'routes', patched);
+  assert.deepEqual(evaluate([
+    { id: 'free-job', transparency: 'transparent' },
+    { id: 'busy-job', transparency: 'opaque' },
+    { id: 'default-busy' },
+  ], [{ minutes: 120 }, { minutes: 30 }, { minutes: 45 }]), [
+    { id: 'busy-job', minutes: 30 }, { id: 'default-busy', minutes: 45 },
+  ]);
+  assert.equal(excludeTransparentCalendarEvents(patched), patched);
+  assert.throws(() => excludeTransparentCalendarEvents('return [];'), /Agendafilter wijkt af/);
 });
 
 if (process.env.TELEGRAM_RESERVATION_WORKFLOW_EXPORT) {
@@ -52,5 +74,31 @@ if (process.env.TELEGRAM_RESERVATION_WORKFLOW_EXPORT) {
     const result = new Function('$', '$json', '$input', code)($, {}, { all: () => [] });
     assert.equal(result[0].json.client_json.appointment_time, '18:00');
     assert.equal(result[0].json.appointment_status, 'pending');
+  });
+  test('een vrij gemarkeerde werkdag laat 19:00 beschikbaar; een bezet agenda-item blokkeert wel', () => {
+    const updated = reserveTelegramAppointments(source);
+    const code = updated.nodes.find(node => node.name === 'Code in JavaScript1').parameters.jsCode;
+    const evaluate = (events, routes = [], requestedTime) => {
+      const records = {
+        If1: { id: 'session', client_json: { client_name: 'Test', city: 'Almere' } },
+        'AI Agent': { output: { appointment_status: 'pending', appointment_date: '2026-10-20', appointment_time: requestedTime } },
+      };
+      const $ = name => ({ first: () => ({ json: records[name] }), all: () => events.map(json => ({ json })) });
+      return new Function('$', '$json', '$input', code)($, {}, { all: () => routes.map(json => ({ json })) })[0].json;
+    };
+    const work = { id: 'work', summary: 'Geplande klus', start: { dateTime: '2026-10-20T19:00:00+02:00' }, end: { dateTime: '2026-10-20T20:00:00+02:00' } };
+    const free = evaluate([{ ...work, transparency: 'transparent' }]);
+    assert.equal(free.client_json.appointment_time, '19:00');
+    assert.equal(free.calendar_events_checked, 0);
+    for (const transparency of ['opaque', undefined]) {
+      const busy = evaluate([{ ...work, transparency }]);
+      assert.equal(busy.client_json.appointment_time, '17:30');
+      assert.equal(busy.calendar_events_checked, 1);
+    }
+    const later = { ...work, id: 'later', start: { dateTime: '2026-10-20T20:00:00+02:00' }, end: { dateTime: '2026-10-20T21:00:00+02:00' } };
+    const mixed = evaluate([{ ...work, transparency: 'transparent' }, later], [{ durationMinOneWay: 120 }, { durationMinOneWay: 30 }]);
+    assert.equal(mixed.client_json.appointment_time, '18:30');
+    assert.equal(mixed.travel_minutes_to_next_client, 30);
+    assert.equal(evaluate([work], [], '19:00').client_json.appointment_time, '19:00');
   });
 }

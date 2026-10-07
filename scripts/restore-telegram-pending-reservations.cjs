@@ -66,20 +66,29 @@ function evaluateEligibility({ uid, importId, imported, quote, client, entry, no
   if ((imported.suggested_appointment_date && imported.suggested_appointment_date !== date)
     || (imported.suggested_appointment_time && imported.suggested_appointment_time !== time)) return reject('conflicting_offered_date');
   const importFingerprint = fingerprint(imported);
+  let reason = 'legacy_missing_planning';
   if (entry) {
-    const ownRetry = entry.userId === uid && entry.source === SOURCE && entry.quoteId === imported.project_id
-      && entry.leadKey === imported.lead_key && entry.legacyRestoreSource === RESTORE_SOURCE
+    const ownIdentity = entry.userId === uid && entry.source === SOURCE && entry.quoteId === imported.project_id
+      && entry.leadKey === imported.lead_key;
+    const ownRetry = ownIdentity && entry.legacyRestoreSource === RESTORE_SOURCE
       && entry.legacyRestoreImportFingerprint === importFingerprint;
-    if (!ownRetry || cancelled(entry) || entry.status !== 'pending' || entry.googleCalendarEventId
+    const existingLegacy = ownIdentity && entry.suggestedBy === 'telegram_auto_message'
+      && entry.planningType === 'werkbespreking' && entry.appointmentState === 'pending'
+      && !entry.calendarSyncState && !entry.calendarSyncRevision && !entry.calendarSyncLeaseToken
+      && !entry.calendarSyncLeaseUntil && !entry.googleCalendarHtmlLink && !entry.googleCalendarSyncedAt
+      && !entry.legacyRestoreSource && !entry.legacyRestoreGoogleInsertAttempted;
+    if ((!ownRetry && !existingLegacy) || cancelled(entry) || entry.status !== 'pending' || entry.googleCalendarEventId
       || entry.calendarSyncState === 'synced') return reject('planning_exists_or_tombstone');
     if ((dateValue(entry.calendarSyncLeaseUntil)?.getTime() || 0) > now.getTime()) return reject('restore_lease_active');
     if (dateValue(entry.startDate)?.getTime() !== startDate.getTime()
       || dateValue(entry.endDate)?.getTime() !== startDate.getTime() + 3_600_000) return reject('restore_date_changed');
+    reason = ownRetry ? 'retry_own_restore' : 'legacy_existing_pending';
   }
-  return { eligible: true, reason: entry ? 'retry_own_restore' : 'legacy_missing_planning',
+  return { eligible: true, reason,
     importId, importFingerprint, appointmentId: imported.appointment_id, quoteId: imported.project_id,
     clientId: imported.client_id, leadKey: imported.lead_key, date, time, startDate,
-    endDate: new Date(startDate.getTime() + 3_600_000), imported, quote, client };
+    endDate: new Date(startDate.getTime() + 3_600_000), imported, quote, client,
+    existingEntryFingerprint: entry ? fingerprint(entry) : null };
 }
 function overlaps(left, right) {
   return left.startDate < right.endDate && left.endDate > right.startDate;
@@ -173,6 +182,9 @@ async function restoreCandidate({ firestore, calendar, uid, candidate, runtime }
     const checked = evaluateEligibility({ uid, importId: candidate.importId, imported: importSnap.data(), quote: quoteSnap.data(),
       client: clientSnap.data(), entry: entrySnap.data(), assertIdentity });
     if (!checked.eligible) throw new Error(checked.reason);
+    if (fingerprint(quoteSnap.data()) !== fingerprint(candidate.quote)
+      || fingerprint(clientSnap.data()) !== fingerprint(candidate.client)) throw new Error('quote_or_client_changed');
+    if ((entrySnap.exists ? fingerprint(entrySnap.data()) : null) !== candidate.existingEntryFingerprint) throw new Error('planning_changed_since_read');
     const collisions = planning.docs.filter(document => {
       const data = document.data();
       const range = { startDate: dateValue(data.startDate), endDate: dateValue(data.endDate) };
@@ -180,22 +192,28 @@ async function restoreCandidate({ firestore, calendar, uid, candidate, runtime }
         && range.startDate && range.endDate && overlaps(candidate, range);
     }).map(document => document.id);
     const payload = pendingPayload(checked);
-    transaction.set(entryRef, {
+    const newPlanning = {
       userId: uid, quoteId: candidate.quoteId, leadKey: candidate.leadKey, source: SOURCE,
       startDate: Timestamp.fromDate(candidate.startDate), endDate: Timestamp.fromDate(candidate.endDate),
       status: 'pending', appointmentState: 'pending', planningType: 'werkbespreking', scheduledHours: 1,
       isAutoSplit: false, parentEntryId: null, suggestedBy: 'telegram_auto_message',
       notes: 'Oorspronkelijk aangeboden voorstel hersteld; wacht op bevestiging van de klant.',
-      calendarSyncState: 'pending', calendarSyncRevision: revision,
-      calendarSyncLeaseToken: leaseToken, calendarSyncLeaseUntil: Timestamp.fromDate(new Date(Date.now() + 120_000)),
-      legacyRestoreSource: RESTORE_SOURCE, legacyRestoreImportFingerprint: candidate.importFingerprint,
-      legacyRestoreOverlaps: collisions, legacyRestoreAt: FieldValue.serverTimestamp(),
       cache: { clientName: [checked.client.voornaam, checked.client.achternaam].filter(Boolean).join(' '),
         projectTitle: `Werkbespreking · ${checked.quote.titel || 'Werkbespreking'}`, projectAddress: payload.location,
         totalQuoteHours: 1, totalQuoteAmount: 0, totalQuoteEarnings: 0,
         suggestedAppointmentOptions: candidate.imported.suggested_appointment_options || [{ date: candidate.date, time: candidate.time }],
       },
-      ...(!entrySnap.exists ? { createdAt: FieldValue.serverTimestamp() } : {}), updatedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    };
+    transaction.set(entryRef, {
+      // Bestaande legacyplanning behoudt haar volledige datum, omschrijving,
+      // klantcache en financiële metadata; alleen de synchronisatie wordt toegevoegd.
+      ...(!entrySnap.exists ? newPlanning : {}),
+      calendarSyncState: 'pending', calendarSyncRevision: revision,
+      calendarSyncLeaseToken: leaseToken, calendarSyncLeaseUntil: Timestamp.fromDate(new Date(Date.now() + 120_000)),
+      legacyRestoreSource: RESTORE_SOURCE, legacyRestoreImportFingerprint: candidate.importFingerprint,
+      legacyRestoreOverlaps: collisions, legacyRestoreAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     }, { merge: entrySnap.exists });
     transaction.set(lockRef, { version: Number(lockSnap.data()?.version || 0) + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     return collisions;
@@ -208,7 +226,8 @@ async function restoreCandidate({ firestore, calendar, uid, candidate, runtime }
       await firestore.runTransaction(async transaction => {
         const [entrySnap, importSnap] = await transaction.getAll(entryRef, importRef);
         const data = entrySnap.data();
-        if (data?.calendarSyncLeaseToken !== leaseToken || data.calendarSyncRevision !== revision || cancelled(data)
+        if (data?.userId !== uid || data.quoteId !== candidate.quoteId || data.leadKey !== candidate.leadKey
+          || data.status !== 'pending' || data.calendarSyncLeaseToken !== leaseToken || data.calendarSyncRevision !== revision || cancelled(data)
           || (dateValue(data.calendarSyncLeaseUntil)?.getTime() || 0) <= Date.now()
           || fingerprint(importSnap.data()) !== candidate.importFingerprint) throw new Error('restore_changed_during_sync');
         transaction.set(entryRef, { legacyRestoreGoogleInsertAttempted: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
@@ -226,7 +245,8 @@ async function restoreCandidate({ firestore, calendar, uid, candidate, runtime }
     await firestore.runTransaction(async transaction => {
       const [entrySnap, importSnap, lockSnap] = await transaction.getAll(entryRef, importRef, lockRef);
       const data = entrySnap.data();
-      if (data?.calendarSyncLeaseToken !== leaseToken || data.calendarSyncRevision !== revision
+      if (data?.userId !== uid || data.quoteId !== candidate.quoteId || data.leadKey !== candidate.leadKey
+        || data.status !== 'pending' || data.calendarSyncLeaseToken !== leaseToken || data.calendarSyncRevision !== revision
         || cancelled(data) || fingerprint(importSnap.data()) !== candidate.importFingerprint) throw new Error('restore_changed_during_sync');
       transaction.set(entryRef, {
         googleCalendarEventId: candidate.eventId, calendarSyncState: 'synced', calendarSyncError: null,
@@ -320,7 +340,7 @@ async function main(args = process.argv.slice(2)) {
   }
   const report = {
     mode: apply ? 'apply' : 'dry-run', phase: 'plan', eligibleCount: eligible.length, rejected, blocked,
-    proposals: eligible.map(({ appointmentId, quoteId, date, time }) => ({ appointmentId, quoteId, date, time })),
+    proposals: eligible.map(({ appointmentId, quoteId, date, time, reason }) => ({ appointmentId, quoteId, date, time, reason })),
     legacyOverlapPairs: pairCollisions, overlappingPlanning, overlappingGoogle,
     databaseWrites: 0, calendarWrites: 0, messages: 0,
   };

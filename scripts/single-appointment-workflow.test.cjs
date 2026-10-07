@@ -42,3 +42,23 @@ test('echte n8n-expressie gebruikt eigen klantsessie en de eerste afspraak', () 
 test('vastgezette invoer wordt niet ongemerkt meegenomen', () => {
   assert.throws(() => singleAppointmentWorkflow({ ...source, pinData: { 'AI Agent': [{}] } }), /testgegevens/);
 });
+
+test('n8n-expressie stopt zonder volledige geldige afspraak, ook met oud ongedateerd bericht', () => {
+  const expression = singleAppointmentWorkflow(source).nodes.find(node => node.name === 'Send a text message4').parameters.text;
+  const evaluate = new Function('$json', '$', `return (${expression.slice(3, -2)});`);
+  const $ = () => ({ first: () => ({ json: { client_json: { client_name: 'Voorbeeld' } } }) });
+  for (const fields of [{}, { appointment_date: '2026-10-30' }, { appointment_date: '2026-02-30', appointment_time: '19:00' }]) {
+    assert.throws(() => evaluate({ success: true, client_id: 'client', project_id: 'project', appointment_status: 'pending',
+      telegram_message: 'Welke dag en tijd zouden u goed uitkomen?', ...fields }, $), /AFSPRAAKVOORSTEL_ONTBREEKT/);
+  }
+});
+
+test('n8n-expressie geeft ook na twee weken een concrete dag en tijd', () => {
+  const expression = singleAppointmentWorkflow(source).nodes.find(node => node.name === 'Send a text message4').parameters.text;
+  const result = new Function('$json', '$', `return (${expression.slice(3, -2)});`)({
+    success: true, client_id: 'client', project_id: 'project', appointment_status: 'pending',
+    appointment_date: '2026-10-30', appointment_time: '19:00',
+  }, () => ({ first: () => ({ json: { client_json: { client_name: 'Voorbeeld' } } }) }));
+  assert.match(result, /vrijdag 30 oktober om 19:00/);
+  assert.match(result, /Mocht dit moment niet uitkomen/);
+});

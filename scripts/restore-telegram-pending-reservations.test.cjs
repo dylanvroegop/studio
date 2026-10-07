@@ -62,6 +62,25 @@ test('bestaande planning of tombstone blijft altijd staan, ook als de import nog
   }
 });
 
+test('exacte bestaande legacy pending planning zonder enig synchronisatiespoor mag alleen gekoppeld worden', () => {
+  const entry = {
+    userId: uid, source: 'telegram_werkspot', quoteId: 'quote', leadKey,
+    status: 'pending', appointmentState: 'pending', planningType: 'werkbespreking', suggestedBy: 'telegram_auto_message',
+    startDate: new Date('2026-10-09T17:00Z'), endDate: new Date('2026-10-09T18:00Z'),
+    notes: 'Eigen omschrijving', cache: { totalQuoteAmount: 900 },
+  };
+  assert.equal(eligible({ entry }).reason, 'legacy_existing_pending');
+  assert.equal(eligible({ entry }).existingEntryFingerprint, restore.fingerprint(entry));
+  for (const extra of [
+    { status: 'cancelled' }, { appointmentState: 'scheduled' }, { googleCalendarEventId: 'old' },
+    { googleCalendarHtmlLink: 'old' }, { calendarSyncState: 'pending' }, { calendarSyncState: 'failed' },
+    { calendarSyncRevision: 'new-runtime' }, { calendarSyncLeaseToken: 'old-token' },
+    { calendarSyncLeaseUntil: new Date('2026-10-01T00:00Z') }, { suggestedBy: null },
+    { leadKey: 'telegram_session_other' }, { quoteId: 'different-quote' },
+    { startDate: new Date('2026-10-10T17:00Z') },
+  ]) assert.equal(eligible({ entry: { ...entry, ...extra } }).eligible, false);
+});
+
 test('alleen een eigen ongewijzigde mislukte herstelpoging zonder actieve lease kan opnieuw', () => {
   const entry = {
     userId: uid, source: 'telegram_werkspot', quoteId: 'quote', leadKey,
@@ -129,4 +148,63 @@ test('dry-run Googlecontrole schrijft niets en blokkeert een verwijderd of onzek
 test('fingerprint vergelijkt veldinhoud ongeacht mapvolgorde en verandert wel bij gewijzigde import', () => {
   assert.equal(restore.fingerprint({ a: 1, b: 2 }), restore.fingerprint({ b: 2, a: 1 }));
   assert.notEqual(restore.fingerprint(imported), restore.fingerprint({ ...imported, appointment_time: '20:00' }));
+});
+
+test('apply-mock koppelt bestaande legacyplanning zonder range, metadata, klant of offerte te wijzigen', async () => {
+  const legacyImport = { ...imported, appointment_date: '2099-10-09', suggested_appointment_date: '2099-10-09' };
+  const startDate = restore.originalStart('2099-10-09', '19:00');
+  const entry = {
+    userId: uid, source: 'telegram_werkspot', quoteId: 'quote', leadKey,
+    status: 'pending', appointmentState: 'pending', planningType: 'werkbespreking', suggestedBy: 'telegram_auto_message',
+    startDate, endDate: new Date(startDate.getTime() + 3_600_000),
+    notes: 'Bestaande omschrijving', cache: { clientName: 'Test Klant', totalQuoteAmount: 900, nested: { preserve: true } },
+    createdAt: new Date('2026-10-07T07:00:00Z'),
+  };
+  const candidate = { ...restore.evaluateEligibility(input({ imported: legacyImport, entry })), eventId: 'deterministic-event' };
+  assert.equal(candidate.eligible, true);
+  const rows = new Map([
+    ['telegram_lead_imports/' + importId, legacyImport], ['planning_entries/appointment', entry],
+    ['quotes/quote', quote], ['clients/client', client],
+  ]);
+  const writes = [];
+  const ref = path => ({ path, id: path.split('/').at(-1) });
+  const snapshot = target => ({ ref: target, exists: rows.has(target.path), data: () => rows.get(target.path) });
+  const firestore = {
+    collection: name => ({ doc: id => ref(name + '/' + id), where: () => ({ name }) }),
+    async runTransaction(callback) {
+      const pending = [];
+      const result = await callback({
+        getAll: async (...refs) => refs.map(snapshot),
+        get: async query => ({ docs: [...rows].filter(([path]) => path.startsWith(query.name + '/'))
+          .map(([path]) => ({ ...snapshot(ref(path)), id: path.split('/').at(-1) })) }),
+        set: (target, data, options) => pending.push({ path: target.path, data, options }),
+      });
+      for (const write of pending) {
+        writes.push(write);
+        rows.set(write.path, write.options?.merge ? { ...rows.get(write.path), ...write.data } : write.data);
+      }
+      return result;
+    },
+  };
+  let googleEvent;
+  let insertCount = 0;
+  const calendar = { events: {
+    get: async () => { if (!googleEvent) throw { code: 404 }; return { data: googleEvent }; },
+    list: async () => ({ data: { items: [] } }),
+    insert: async request => { insertCount++; assert.equal(request.sendUpdates, 'none'); googleEvent = request.requestBody; return { data: googleEvent }; },
+  } };
+  const result = await restore.restoreCandidate({ firestore, calendar, uid, candidate, runtime: {
+    assertIdentity, Timestamp: { fromDate: date => date }, FieldValue: { serverTimestamp: () => new Date() },
+  } });
+  assert.equal(result.restored, true);
+  assert.equal(insertCount, 1);
+  const saved = rows.get('planning_entries/appointment');
+  for (const key of ['startDate', 'endDate', 'notes', 'cache', 'createdAt']) assert.deepEqual(saved[key], entry[key]);
+  assert.equal(saved.status, 'pending');
+  assert.equal(saved.calendarSyncState, 'synced');
+  assert.equal(saved.googleCalendarEventId, 'deterministic-event');
+  assert.equal(saved.calendarSyncLeaseToken, null);
+  assert.deepEqual(rows.get('quotes/quote'), quote);
+  assert.deepEqual(rows.get('clients/client'), client);
+  assert.equal(writes.some(write => write.path.startsWith('quotes/') || write.path.startsWith('clients/')), false);
 });

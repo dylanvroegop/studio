@@ -3,17 +3,16 @@ const { test } = require('node:test');
 const { importBody, successfulImport, importMessage, expression, hardenWorkflow } = require('./harden-telegram-workflow.cjs');
 
 const saved = { success: true, client_id: 'client', project_id: 'project', appointment_status: 'none' };
-test('opgeslagen klant zonder voorstel geeft een bruikbaar bericht, nooit null', () => {
+test('opgeslagen klant zonder voorstel stopt altijd vóór een klantbericht', () => {
   for (const value of [null, undefined, '', '  ', 'null', ' NULL ', 'undefined', false, 0, {}]) {
     const data = { ...saved, telegram_message: value };
     assert.equal(successfulImport(data), true);
-    assert.match(importMessage(data), /Welke dag en tijd zouden u goed uitkomen/);
-    assert.doesNotMatch(importMessage(data), /geen afspraakvoorstel|geen afspraak gemaakt|Controleer de planning/);
+    assert.throws(() => importMessage(data), /AFSPRAAKVOORSTEL_ONTBREEKT/);
   }
 });
 test('bestaande afspraak wordt niet beschreven als ontbrekend voorstel', () => {
   assert.match(importMessage({ ...saved, appointment_status: 'scheduled' }), /bevestigde werkbespreking/);
-  assert.match(importMessage({ ...saved, appointment_status: 'pending' }), /Welke dag en tijd/);
+  assert.throws(() => importMessage({ ...saved, appointment_status: 'pending' }), /AFSPRAAKVOORSTEL_ONTBREEKT/);
 });
 test('handmatig verwijderd voorstel wordt niet opnieuw aangeboden', () => {
   const text = importMessage({ ...saved, appointment_status: 'cancelled', appointment_date: '2026-10-09', appointment_time: '19:00' });
@@ -33,11 +32,25 @@ test('oude gecachete tekst met twee opties wordt opnieuw gemaakt met eerste afsp
   assert.match(text, /vrijdag 9 oktober om 19:00/);
   assert.doesNotMatch(text, /twee momenten|zaterdag|1\.|2\./);
 });
-test('ontbrekende of ongeldige afspraak krijgt klantbericht zonder verzonnen datum', () => {
-  for (const date of [null, '2026-02-30', 'ongeldig']) {
-    const text = importMessage({ ...saved, appointment_date: date, appointment_time: '19:00' });
-    assert.match(text, /Welke dag en tijd zouden u goed uitkomen/);
-    assert.doesNotMatch(text, /19:00|geen afspraak/);
+test('ontbrekende of ongeldige datum/tijd stopt zonder ongedateerde uitnodiging', () => {
+  for (const date of [null, undefined, '', '2026-02-30', 'ongeldig']) {
+    assert.throws(() => importMessage({ ...saved, appointment_date: date, appointment_time: '19:00' }), /AFSPRAAKVOORSTEL_ONTBREEKT/);
+  }
+  for (const time of [null, undefined, '', '24:00', '19:60', 'avond', 19]) {
+    assert.throws(() => importMessage({ ...saved, appointment_date: '2026-10-30', appointment_time: time }), /AFSPRAAKVOORSTEL_ONTBREEKT/);
+  }
+});
+test('voorstel verder dan twee weken blijft een expliciete dag en tijd bevatten', () => {
+  const text = importMessage({ ...saved, appointment_status: 'pending', appointment_date: '2026-10-30', appointment_time: '19:00',
+    telegram_message: 'Ik kom graag langs. Welke dag en tijd zouden u goed uitkomen?' });
+  assert.match(text, /vrijdag 30 oktober om 19:00 langskomen/);
+  assert.match(text, /Mocht dit moment niet uitkomen/);
+  assert.doesNotMatch(text, /Welke dag en tijd zouden u goed uitkomen/);
+});
+test('een volledig oud voorstel blijft bruikbaar maar losse velden worden nooit gecombineerd', () => {
+  assert.match(importMessage({ ...saved, suggested_appointment_date: '2026-10-30', suggested_appointment_time: '19:00' }), /vrijdag 30 oktober om 19:00/);
+  for (const partial of [{ appointment_date: '2026-10-31' }, { appointment_time: '18:00' }]) {
+    assert.throws(() => importMessage({ ...saved, ...partial, suggested_appointment_date: '2026-10-30', suggested_appointment_time: '19:00' }), /AFSPRAAKVOORSTEL_ONTBREEKT/);
   }
 });
 test('mislukte of onvolledige import gaat nooit door als succes', () => {

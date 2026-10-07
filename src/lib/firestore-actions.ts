@@ -8,9 +8,7 @@ import {
     Firestore,
     getDoc
 } from 'firebase/firestore';
-import { sanitizeQuotePdfTextSettings } from '@/lib/quote-pdf-text-settings';
-
-const DEFAULT_STANDARD_HOURLY_RATE = 55;
+import { buildEmptyQuoteDefaults } from '@/lib/quote-defaults';
 
 /**
  * Reserves the next available quote number for a specific user.
@@ -88,112 +86,13 @@ export async function reserveInvoiceNumber(
 export async function createEmptyQuote(firestore: Firestore, userId: string): Promise<string> {
     const number = await reserveQuoteNumber(firestore, userId);
 
-    // Fetch user settings to use as defaults
-    let settings = {
-        standaardUurtarief: DEFAULT_STANDARD_HOURLY_RATE,
-        standaardWinstMarge: { percentage: 10 },
-        standaardTransport: { vasteTransportkosten: 45.00 }
-    };
-    let defaultPdfTeksten: ReturnType<typeof sanitizeQuotePdfTextSettings> | null = null;
-    let defaultAlgemeneVoorwaarden: {
-        titel?: string;
-        tekst?: string;
-        pdfUrl?: string;
-        pdfBestandsnaam?: string;
-    } | null = null;
-
+    let defaults = buildEmptyQuoteDefaults();
     try {
-        const userDocRef = doc(firestore, 'users', userId);
-        const userSnap = await getDoc(userDocRef);
-        if (userSnap.exists()) {
-            const data = userSnap.data() as any;
-            const legacySettings = data?.settings ?? {};
-            const nieuweInstellingen = data?.instellingen ?? {};
-            // Prefer explicit `instellingen`, fallback to legacy `settings`
-            settings = { ...settings, ...legacySettings, ...nieuweInstellingen };
-
-            // Keep the quote default in sync with both the current settings field
-            // and legacy hourly-rate field names used by older user documents.
-            const hourlyRateCandidates = [
-                nieuweInstellingen?.standaardUurtarief,
-                nieuweInstellingen?.standaardUurTarief,
-                nieuweInstellingen?.uurTariefExclBtw,
-                legacySettings?.standaardUurtarief,
-                legacySettings?.standaardUurTarief,
-                legacySettings?.uurTariefExclBtw,
-                legacySettings?.uurTarief,
-            ];
-            const configuredHourlyRate = hourlyRateCandidates
-                .map((value: unknown) => Number(value))
-                .find((value: number) => Number.isFinite(value) && value > 0);
-            if (configuredHourlyRate !== undefined) {
-                settings.standaardUurtarief = configuredHourlyRate;
-            }
-            if (data?.defaultPdfTeksten) {
-                defaultPdfTeksten = sanitizeQuotePdfTextSettings(data.defaultPdfTeksten);
-            }
-            if (data?.defaultAlgemeneVoorwaarden && typeof data.defaultAlgemeneVoorwaarden === 'object') {
-                defaultAlgemeneVoorwaarden = {
-                    titel: String((data.defaultAlgemeneVoorwaarden as any).titel || 'ALGEMENE VOORWAARDEN'),
-                    tekst: String((data.defaultAlgemeneVoorwaarden as any).tekst || ''),
-                    pdfUrl: String((data.defaultAlgemeneVoorwaarden as any).pdfUrl || ''),
-                    pdfBestandsnaam: String((data.defaultAlgemeneVoorwaarden as any).pdfBestandsnaam || ''),
-                };
-            }
-        }
-    } catch (e) {
-        console.error("Error fetching user settings for new quote defaults:", e);
+        const userSnap = await getDoc(doc(firestore, 'users', userId));
+        if (userSnap.exists()) defaults = buildEmptyQuoteDefaults(userSnap.data());
+    } catch (error) {
+        console.error('Error fetching user settings for new quote defaults:', error);
     }
-
-    const rawSettings = settings as any;
-    const rawTransport = rawSettings.standaardTransport ?? {};
-    const standardTransport = {
-        mode: rawTransport.mode === 'none' || rawTransport.mode === 'perKm' || rawTransport.mode === 'fixed'
-            ? rawTransport.mode
-            : rawTransport.vasteTransportkosten != null
-                ? 'fixed'
-                : 'perKm',
-        ...(rawTransport.prijsPerKm != null ? { prijsPerKm: Number(rawTransport.prijsPerKm) } : {}),
-        ...(rawTransport.vasteTransportkosten != null ? { vasteTransportkosten: Number(rawTransport.vasteTransportkosten) } : {}),
-    };
-    const rawMargin = rawSettings.standaardWinstMarge ?? {};
-    const standardMargin = {
-        mode: rawMargin.mode === 'none' || rawMargin.mode === 'fixed' || rawMargin.mode === 'percentage'
-            ? rawMargin.mode
-            : rawMargin.fixedAmount != null
-                ? 'fixed'
-                : 'percentage',
-        ...(rawMargin.percentage != null ? { percentage: Number(rawMargin.percentage) } : {}),
-        ...(rawMargin.fixedAmount != null ? { fixedAmount: Number(rawMargin.fixedAmount) } : {}),
-        ...(rawMargin.basis ? { basis: rawMargin.basis } : {}),
-    };
-
-    const selectedPackageItems = (
-        packages: unknown,
-        selectedId: unknown,
-    ): Array<Record<string, unknown>> => {
-        if (!Array.isArray(packages)) return [];
-        const selected = packages.find((pkg: any) => pkg?.id === selectedId);
-        if (!Array.isArray(selected?.items)) return [];
-        return selected.items
-            .map((item: any) => ({
-                id: String(item?.id ?? ''),
-                naam: String(item?.naam ?? '').trim(),
-                prijs: Number(item?.prijs),
-                per: item?.per || 'klus',
-                isVast: Boolean(item?.isVast),
-            }))
-            .filter((item: Record<string, unknown>) => item.naam && Number.isFinite(item.prijs) && Number(item.prijs) > 0);
-    };
-
-    const standardBouwplaatsItems = selectedPackageItems(
-        rawSettings.bouwplaatsKostenPakketten,
-        rawSettings.bouwplaatsKostenStandaardId,
-    );
-    const standardVerzendItems = selectedPackageItems(
-        rawSettings.verzendKostenPakketten,
-        rawSettings.verzendKostenStandaardId,
-    );
 
     const docRef = await addDoc(collection(firestore, 'quotes'), {
         userId,
@@ -206,18 +105,7 @@ export async function createEmptyQuote(firestore: Firestore, userId: string): Pr
             // Initialize with empty strings if needed, or leave mostly empty.
             // We'll trust the form to fill these in on update.
         },
-        instellingen: {
-            btwTarief: 21,
-            uurTariefExclBtw: settings.standaardUurtarief ?? DEFAULT_STANDARD_HOURLY_RATE,
-        },
-        extras: {
-            transport: standardTransport,
-            winstMarge: standardMargin,
-            ...(standardBouwplaatsItems.length > 0 ? { materieel: standardBouwplaatsItems } : {}),
-            ...(standardVerzendItems.length > 0 ? { verzendkosten: standardVerzendItems } : {}),
-        },
-        ...(defaultPdfTeksten ? { pdfTeksten: defaultPdfTeksten } : {}),
-        ...(defaultAlgemeneVoorwaarden ? { algemeneVoorwaarden: defaultAlgemeneVoorwaarden } : {})
+        ...defaults,
     });
 
     return docRef.id;

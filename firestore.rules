@@ -11,6 +11,15 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
+
+    // Klantgesprekken lopen volledig via eigenaar-gecontroleerde serverroutes.
+    // Ook subcollecties, workerleases en tombstones blijven server-only.
+    match /client_meetings/{meetingId}/{allPaths=**} {
+      allow read, write: if false;
+    }
+    match /client_meeting_worker/{allPaths=**} {
+      allow read, write: if false;
+    }
     
     // Rules for the 'quotes' collection
     match /quotes/{quoteId} {
