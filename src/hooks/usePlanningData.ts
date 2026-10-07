@@ -10,12 +10,12 @@ import {
     onSnapshot,
     doc,
     addDoc,
-    updateDoc,
     deleteDoc,
     serverTimestamp,
     Timestamp,
     writeBatch,
-    getDocs
+    getDocs,
+    runTransaction,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { PlanningEntry, PlanningEntryType, PlanningStatus } from '@/lib/types-planning';
@@ -24,6 +24,13 @@ interface UsePlanningDataOptions {
     startDate?: Date;
     endDate?: Date;
     quoteId?: string;
+}
+
+interface EditablePlanningEntry extends Omit<PlanningEntry, 'source'> {
+    source?: PlanningEntry['source'] | 'telegram_werkspot';
+    calendarSyncState?: string;
+    calendarSyncLeaseToken?: string | null;
+    calendarSyncLeaseUntil?: Timestamp | null;
 }
 
 export function usePlanningData(options: UsePlanningDataOptions = {}) {
@@ -281,9 +288,32 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         if (data.notes !== undefined) updateData.notes = data.notes;
         if (data.cache !== undefined) updateData.cache = data.cache;
 
-        await updateDoc(docRef, updateData);
+        const currentEntry = await runTransaction(firestore, async transaction => {
+            const snapshot = await transaction.get(docRef);
+            if (!snapshot.exists()) throw new Error('Deze planning bestaat niet meer. Ververs de planning.');
+            const current = { ...snapshot.data(), id: snapshot.id } as EditablePlanningEntry;
+            if (current.userId !== user.uid) throw new Error('Deze planning hoort bij een andere gebruiker.');
+
+            const safeUpdateData = { ...updateData };
+            if (current.source === 'telegram_werkspot') {
+                const activeLease = current.calendarSyncLeaseToken
+                    && (current.calendarSyncLeaseUntil?.toMillis() || 0) > Date.now();
+                if (activeLease || ['pending', 'failed'].includes(current.calendarSyncState || '')) {
+                    throw new Error('De Telegram-afspraak wordt nog met Google Calendar gesynchroniseerd. Ververs de planning en probeer opnieuw.');
+                }
+                if (current.status === 'cancelled' || current.calendarSyncState === 'cancelled') {
+                    throw new Error('Deze afspraak is verwijderd uit Google Calendar. Ververs de planning.');
+                }
+                // Gewoon opslaan bevestigt geen voorstel en mag een inmiddels
+                // bevestigde afspraak niet vanuit verouderde UI terugzetten.
+                if (data.status === 'pending' || data.status === 'scheduled') {
+                    safeUpdateData.status = current.status;
+                }
+            }
+            transaction.update(docRef, safeUpdateData);
+            return current;
+        });
         if (data.quoteId !== undefined || data.startDate !== undefined || data.endDate !== undefined || data.cache !== undefined || data.planningType !== undefined || data.notes !== undefined) {
-            const currentEntry = entries.find((entry) => entry.id === entryId);
             if (currentEntry?.source === 'google') return;
             const effectiveStartDate = data.startDate
                 || (currentEntry?.startDate instanceof Timestamp ? currentEntry.startDate.toDate() : undefined);
@@ -297,6 +327,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
                 await syncEntryToGoogleCalendar({
                     action: 'upsert',
                     entryId,
+                    googleCalendarEventId: currentEntry.googleCalendarEventId,
                     quoteId: effectiveQuoteId,
                     planningType: effectiveType,
                     startDate: effectiveStartDate,
@@ -310,7 +341,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
                 });
             }
         }
-    }, [user, firestore, entries, syncEntryToGoogleCalendar]);
+    }, [user, firestore, syncEntryToGoogleCalendar]);
 
     const deleteEntry = useCallback(async (entryId: string) => {
         if (!user || !firestore) throw new Error('Not authenticated');

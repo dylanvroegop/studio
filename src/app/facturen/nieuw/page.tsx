@@ -1,748 +1,194 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { ArrowLeft, FileText, Loader2, ReceiptText } from 'lucide-react';
+import { ArrowLeft, Loader2, ReceiptText, Share2 } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFirestore, useUser } from '@/firebase';
 import type { UserSettings } from '@/lib/types-settings';
-import { calculateQuoteTotals, normalizeDataJson, type QuoteSettings as CalculationQuoteSettings } from '@/lib/quote-calculations';
 import { toast } from '@/hooks/use-toast';
-import { createInvoiceFromQuote, findExistingVoorschotInvoiceId, getInvoiceSnapshotForAdjustments } from '@/lib/invoice-actions';
+import { createInvoiceFromQuote } from '@/lib/invoice-actions';
 import { parsePriceToNumber } from '@/lib/utils';
 import { formatOfferteNummerLabel } from '@/lib/quote-number';
+import { loadInvoicePreparation } from '@/lib/invoice-preparation';
+import { summarizeInvoiceBilling, invoiceBillingSignature, type InvoiceBillingRow } from '@/lib/invoice-billing';
+import { invoiceQuoteSignature } from '@/lib/invoice-quote-signature';
+import { resolveInvoiceTotal } from '@/lib/invoice-total';
 
-function formatCurrency(amount?: number) {
-  const n = typeof amount === 'number' && Number.isFinite(amount) ? amount : 0;
-  return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
-}
-
-function clampPct(value: number) {
-  return Math.max(0, Math.min(100, value));
-}
-
-function roundCurrency(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-function parseCurrencyInput(value: string): number | null {
+const formatCurrency = (value: number): string => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value);
+const roundMoney = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
+function parseAmount(value: string): number | null {
   const parsed = parsePriceToNumber(value);
-  if (parsed === null || !Number.isFinite(parsed)) return null;
-  return roundCurrency(Math.max(0, parsed));
-}
-
-function toNumber(value: unknown): number | null {
-  const n = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(n)) return null;
-  return n;
-}
-
-function resolveTotalFromQuote(quote: any): number {
-  if (!quote) return 0;
-
-  const candidates = [
-    quote?.financieel?.afgesprokenPrijsInclBtw,
-    quote?.amount,
-    quote?.totaalbedrag,
-    quote?.totaalInclBtw,
-    quote?.totals?.totaalInclBtw,
-    quote?.totalsSnapshot?.totaalInclBtw,
-    quote?.financialAdjustments?.originalTotalInclBtw,
-    quote?.calculationSnapshot?.totals?.totaalInclBtw,
-  ];
-
-  for (const candidate of candidates) {
-    const n = toNumber(candidate);
-    if (n !== null && n > 0) return n;
-  }
-
-  return 0;
-}
-
-function mapSettingsForTotals(input: unknown, quote?: any): CalculationQuoteSettings {
-  const normalized = normalizeDataJson(input as any);
-  const rawInst = (normalized?.instellingen || {}) as any;
-  const rawExtras = (normalized?.extras || {}) as any;
-  const quoteInst = (quote?.instellingen || {}) as any;
-  const quoteExtras = (quote?.extras || {}) as any;
-
-  return {
-    btwTarief: quoteInst?.btwTarief ?? rawInst?.btwTarief ?? 21,
-    btwMode: quoteInst?.btwMode ?? rawInst?.btwMode ?? 'normaal',
-    arbeidBtwLaagUren: quoteInst?.arbeidBtwLaagUren ?? rawInst?.arbeidBtwLaagUren ?? 0,
-    arbeidBtwLaagTarief: quoteInst?.arbeidBtwLaagTarief ?? rawInst?.arbeidBtwLaagTarief ?? 9,
-    uurTariefExclBtw: quoteInst?.uurTariefExclBtw ?? quoteInst?.uurTarief ?? rawInst?.uurTariefExclBtw ?? rawInst?.uurTarief ?? 50,
-    schattingUren: quoteInst?.schattingUren ?? rawInst?.schattingUren ?? false,
-    extras: {
-      transport: {
-        prijsPerKm: quoteExtras?.transport?.prijsPerKm ?? quoteInst?.extras?.transport?.prijsPerKm ?? rawExtras?.transport?.prijsPerKm ?? rawInst?.extras?.transport?.prijsPerKm ?? rawInst?.transportPrijsPerKm,
-        vasteTransportkosten: quoteExtras?.transport?.vasteTransportkosten ?? quoteInst?.extras?.transport?.vasteTransportkosten ?? rawExtras?.transport?.vasteTransportkosten ?? rawInst?.extras?.transport?.vasteTransportkosten,
-        tunnelkosten: quoteExtras?.transport?.tunnelkosten ?? quoteInst?.extras?.transport?.tunnelkosten ?? rawExtras?.transport?.tunnelkosten ?? rawInst?.extras?.transport?.tunnelkosten,
-        mode: quoteExtras?.transport?.mode
-          ?? (quoteInst?.reiskosten_type === 'vast'
-            ? 'vast'
-            : quoteInst?.reiskosten_type === 'perKm'
-              ? 'perKm'
-              : quoteInst?.extras?.transport?.mode)
-          ?? rawExtras?.transport?.mode
-          ?? rawInst?.extras?.transport?.mode,
-      },
-      winstMarge: {
-        percentage: quoteExtras?.winstMarge?.percentage ?? quoteInst?.extras?.winstMarge?.percentage ?? rawExtras?.winstMarge?.percentage ?? rawInst?.extras?.winstMarge?.percentage ?? 10,
-        fixedAmount: quoteExtras?.winstMarge?.fixedAmount ?? quoteInst?.extras?.winstMarge?.fixedAmount ?? rawExtras?.winstMarge?.fixedAmount ?? 0,
-        mode: quoteExtras?.winstMarge?.mode ?? quoteInst?.extras?.winstMarge?.mode ?? rawExtras?.winstMarge?.mode ?? 'percentage',
-        basis: quoteExtras?.winstMarge?.basis ?? quoteInst?.extras?.winstMarge?.basis ?? rawExtras?.winstMarge?.basis ?? 'totaal',
-      },
-    },
-  };
-}
-
-function resolveTotalFromCalculation(dataJson: unknown, quote?: any, laborHoursPerDay = 8): number | null {
-  if (!dataJson) return null;
-
-  try {
-    const settings = mapSettingsForTotals(dataJson, quote);
-    const totals = calculateQuoteTotals(dataJson as any, settings, laborHoursPerDay);
-    const total = toNumber(totals?.totaalInclBtw);
-    if (total !== null && total > 0) return total;
-  } catch {
-    // Fallback candidates below handle malformed shapes.
-  }
-
-  const normalized = normalizeDataJson(dataJson as any) as any;
-  const candidates = [
-    normalized?.totaalInclBtw,
-    normalized?.totaal_incl_btw,
-    normalized?.totals?.totaalInclBtw,
-    normalized?.totals?.totaal_incl_btw,
-    (dataJson as any)?.totaalInclBtw,
-    (dataJson as any)?.totaal_incl_btw,
-    (dataJson as any)?.totals?.totaalInclBtw,
-    (dataJson as any)?.totals?.totaal_incl_btw,
-  ];
-
-  for (const candidate of candidates) {
-    const n = toNumber(candidate);
-    if (n !== null && n > 0) return n;
-  }
-
-  return null;
+  return parsed !== null && Number.isFinite(parsed) && parsed >= 0 ? roundMoney(parsed) : null;
 }
 
 function NieuweFactuurPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const quoteId = searchParams?.get('quoteId') || '';
-  const initialType = (searchParams?.get('type') === 'voorschot' || searchParams?.get('type') === 'eind')
-    ? (searchParams.get('type') as 'voorschot' | 'eind')
-    : 'eind';
-
+  const requestedType = searchParams?.get('type');
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
-
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [quote, setQuote] = useState<any>(null);
+  const [quoteSignature, setQuoteSignature] = useState('');
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [selectedType, setSelectedType] = useState<'voorschot' | 'eind'>(initialType);
-  const [voorschotIngeschakeld, setVoorschotIngeschakeld] = useState(false);
-  const [voorschotPercentage, setVoorschotPercentage] = useState<number>(50);
-  const [existingVoorschotId, setExistingVoorschotId] = useState<string | null>(null);
+  const [invoices, setInvoices] = useState<InvoiceBillingRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [selectedType, setSelectedType] = useState<'voorschot' | 'eind'>('voorschot');
+  const [advancePercentage, setAdvancePercentage] = useState(50);
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [manualFinalAmount, setManualFinalAmount] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
+  const [adjusting, setAdjusting] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [voorschotBedragStr, setVoorschotBedragStr] = useState<string>('');
-  const [voorschotAftrekStr, setVoorschotAftrekStr] = useState<string>('');
-  const isEditingVoorschotAftrekRef = useRef(false);
-  const [handmatigEindbedrag, setHandmatigEindbedrag] = useState(false);
-  const [handmatigEindbedragStr, setHandmatigEindbedragStr] = useState<string>('');
-  const [eindfactuurOpmerking, setEindfactuurOpmerking] = useState<string>('');
+  const billing = useMemo(() => summarizeInvoiceBilling(invoices), [invoices]);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    if (!user || !firestore || !quoteId) return;
+    if (!user || !firestore) return;
+    if (!quoteId) { setLoading(false); return; }
     let cancelled = false;
-    (async () => {
-      setLoading(true);
+    const controller = new AbortController();
+    setLoading(true);
+    setLoadError(null);
+    void (async () => {
       try {
-        const userRef = doc(firestore, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        const s = userSnap.exists() ? (userSnap.data() as any)?.settings : null;
-        const laborHoursPerDay = Number(s?.planningSettings?.defaultWorkdayHours) || 8;
-        if (!cancelled) setSettings(s as UserSettings);
-
-        const quoteRef = doc(firestore, 'quotes', quoteId);
-        const quoteSnap = await getDoc(quoteRef);
-        let q = quoteSnap.exists() ? ({ id: quoteSnap.id, ...(quoteSnap.data() as any) }) : null;
-
-        let resolvedTotal = 0;
-
-        if (q) {
-          try {
-            const token = await user.getIdToken();
-            const response = await fetch('/api/quotes/get-calculations', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({ quoteId, latestOnly: true, preferCompletedFallback: true }),
-            });
-
-            const payload = await response.json().catch(() => null);
-            if (response.ok && payload?.ok === true && payload?.row?.data_json) {
-              q = {
-                ...q,
-                calculationSnapshot: payload.row.data_json,
-              };
-              const calculatedTotal = resolveTotalFromCalculation(payload.row.data_json, q, laborHoursPerDay);
-              const agreedTotal = toNumber(q?.financieel?.afgesprokenPrijsInclBtw);
-              if (agreedTotal !== null && agreedTotal >= 0) {
-                resolvedTotal = agreedTotal;
-              } else if (calculatedTotal && calculatedTotal > 0) {
-                resolvedTotal = calculatedTotal;
-              }
-            }
-          } catch (err) {
-            console.warn('Kon calculatie niet ophalen voor factuurtotaal:', err);
-          }
-        }
-
-        if (resolvedTotal <= 0) {
-          resolvedTotal = resolveTotalFromQuote(q);
-        }
-
-        const existingOriginalPrice = toNumber(q?.financieel?.oorspronkelijkePrijsInclBtw);
-        if (q && resolvedTotal > 0 && (existingOriginalPrice === null || existingOriginalPrice < 0)) {
-          const financial = q.financieel && typeof q.financieel === 'object' ? q.financieel : {};
-          const originalPrice = roundCurrency(resolvedTotal);
-          await updateDoc(quoteRef, {
-            financieel: {
-              ...financial,
-              oorspronkelijkePrijsInclBtw: originalPrice,
-            },
-            updatedAt: serverTimestamp(),
-          });
-          q = {
-            ...q,
-            financieel: {
-              ...financial,
-              oorspronkelijkePrijsInclBtw: originalPrice,
-            },
-          };
-        }
-
-        if (q && resolvedTotal > 0 && Math.abs(resolveTotalFromQuote(q) - resolvedTotal) > 0.01) {
-          try {
-            await updateDoc(quoteRef, {
-              amount: resolvedTotal,
-              totaalbedrag: resolvedTotal,
-              updatedAt: serverTimestamp(),
-            });
-          } catch (err) {
-            console.warn('Kon totaal niet terugschrijven op quote:', err);
-          }
-        }
-
-        if (!cancelled) setQuote(q);
-
-        if (q?.facturatie) {
-          setVoorschotIngeschakeld(!!q.facturatie.voorschotIngeschakeld);
-          if (typeof q.facturatie.voorschotPercentage === 'number' && Number.isFinite(q.facturatie.voorschotPercentage)) {
-            setVoorschotPercentage(q.facturatie.voorschotPercentage);
-          }
-        } else if (s?.standaardVoorschotPercentage) {
-          setVoorschotPercentage(Number(s.standaardVoorschotPercentage) || 50);
-        }
-
-        const existingId = await findExistingVoorschotInvoiceId(firestore, { userId: user.uid, quoteId });
-        if (!cancelled) {
-          setExistingVoorschotId(existingId);
-          // Auto-gedrag: alleen aftrekken als er echt al een voorschotfactuur bestaat.
-          setVoorschotIngeschakeld(!!existingId);
-        }
-      } catch (e) {
-        console.error(e);
+        const data = await loadInvoicePreparation(firestore, user, quoteId, controller.signal);
+        if (cancelled) return;
+        if (!data.quoteSnapshot.exists()) { setQuote(null); return; }
+        const source = data.quoteSnapshot.data();
+        const loadedSettings = data.userSnapshot.data()?.settings as UserSettings | undefined;
+        const nextBilling = summarizeInvoiceBilling(data.invoices);
+        const nextTotal = roundMoney(resolveInvoiceTotal(source, data.calculationSnapshot, Number(loadedSettings?.planningSettings?.defaultWorkdayHours) || 8));
+        const rawPercentage = source.facturatie?.voorschotPercentage ?? loadedSettings?.standaardVoorschotPercentage ?? 50;
+        const percentage = Math.max(0, Math.min(100, Number(rawPercentage) || 0));
+        setQuote({ ...source, id: quoteId, calculationSnapshot: data.calculationSnapshot || source.calculationSnapshot });
+        setQuoteSignature(invoiceQuoteSignature(source));
+        setSettings(loadedSettings || null);
+        setInvoices(data.invoices);
+        setTotal(nextTotal);
+        setAdvancePercentage(percentage);
+        setAdvanceAmount(roundMoney(nextTotal * percentage / 100).toFixed(2));
+        setManualFinalAmount(null);
+        setReason('');
+        setSelectedType(requestedType === 'voorschot' || requestedType === 'eind'
+          ? requestedType
+          : nextBilling.existingFinalId || nextBilling.issuedAdvances.length > 0 || source.facturatie?.voorschotIngeschakeld === false
+            ? 'eind' : 'voorschot');
+      } catch (error) {
+        console.error(error);
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Factuurgegevens konden niet worden geladen.');
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
-  }, [user, firestore, quoteId]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [user, firestore, quoteId, requestedType, loadAttempt]);
 
-  const totalIncl = useMemo(() => {
-    return resolveTotalFromQuote(quote);
-  }, [quote]);
+  const existingId = selectedType === 'voorschot' ? billing.existingAdvanceId : billing.existingFinalId;
+  const existingInvoice = invoices.find((invoice) => invoice.id === existingId);
+  const calculatedFinal = roundMoney(total - billing.billedAdvanceAmount);
+  const newAmount = selectedType === 'voorschot' ? parseAmount(advanceAmount)
+    : manualFinalAmount === null ? calculatedFinal : parseAmount(manualFinalAmount);
+  const displayedAmount = existingInvoice?.totalsSnapshot?.totaalInclBtw ?? newAmount;
+  const blockingMessage = billing.ambiguity
+    || (!existingId && selectedType === 'voorschot' && billing.issuedAdvances.length > 1 ? 'Er zijn al meerdere voorschotfacturen. Open de facturen of kies Eindfactuur.' : null)
+    || (!existingId && selectedType === 'voorschot' && billing.finalInvoices.length > 0 ? 'Deze offerte heeft al een eindfactuur.' : null)
+    || (!existingId && selectedType === 'eind' && billing.draftAdvances.length > 0 ? 'Er staat nog een voorschotconcept. Open of annuleer dit eerst voordat je de eindfactuur maakt.' : null)
+    || (!existingId && billing.billedAdvanceAmount > total ? 'Het gefactureerde voorschot is hoger dan het offertebedrag. Controleer dit eerst.' : null);
+  const validAmount = newAmount !== null && newAmount > 0 && newAmount <= total;
+  const canCreate = !loading && !loadError && !!user && !!firestore && !!quote && !blockingMessage
+    && (!!existingId || (!!settings && total > 0 && validAmount && (selectedType !== 'eind' || manualFinalAmount === null || !!reason.trim())));
+  const customer = quote?.klantinformatie;
+  const customerName = customer?.bedrijfsnaam || [customer?.voornaam, customer?.achternaam].filter(Boolean).join(' ') || 'Onbekende klant';
 
-  const pct = useMemo(() => clampPct(Number(voorschotPercentage) || 0), [voorschotPercentage]);
-  const voorschotBedrag = useMemo(() => roundCurrency(totalIncl * (pct / 100)), [totalIncl, pct]);
-
-  useEffect(() => {
-    if (totalIncl > 0 && !isEditingVoorschotAftrekRef.current) {
-      const bedrag = roundCurrency(totalIncl * (pct / 100));
-      setVoorschotBedragStr(bedrag.toFixed(2));
-      setVoorschotAftrekStr(bedrag.toFixed(2));
-    }
-  }, [totalIncl, pct]);
-  const hasVoorschotFactuur = !!existingVoorschotId;
-  const voorschotAftrekParsed = useMemo(() => parseCurrencyInput(voorschotAftrekStr), [voorschotAftrekStr]);
-  const berekendeAftrek = useMemo(
-    () => (hasVoorschotFactuur && voorschotIngeschakeld && voorschotAftrekParsed !== null
-      ? roundCurrency(Math.min(totalIncl, Math.max(0, voorschotAftrekParsed)))
-      : 0),
-    [hasVoorschotFactuur, voorschotIngeschakeld, voorschotAftrekParsed, totalIncl]
-  );
-  const berekendEindBedrag = useMemo(() => roundCurrency(Math.max(0, totalIncl - berekendeAftrek)), [totalIncl, berekendeAftrek]);
-  const handmatigEindbedragParsed = useMemo(() => parseCurrencyInput(handmatigEindbedragStr), [handmatigEindbedragStr]);
-  const effectiefEindBedrag = useMemo(() => {
-    if (handmatigEindbedrag && handmatigEindbedragParsed !== null) {
-      return roundCurrency(Math.min(totalIncl, handmatigEindbedragParsed));
-    }
-    return berekendEindBedrag;
-  }, [handmatigEindbedrag, handmatigEindbedragParsed, totalIncl, berekendEindBedrag]);
-  const effectiefAftrek = useMemo(
-    () => roundCurrency(Math.max(0, totalIncl - effectiefEindBedrag)),
-    [totalIncl, effectiefEindBedrag]
-  );
-
-  useEffect(() => {
-    if (!handmatigEindbedrag) {
-      setHandmatigEindbedragStr(berekendEindBedrag.toFixed(2));
-    }
-  }, [handmatigEindbedrag, berekendEindBedrag]);
-
-  const canCreate = !!user && !!firestore && !!settings && !!quote && totalIncl > 0;
-
-  const handleCreate = async () => {
-    if (!user || !firestore) return;
-    if (!settings) {
-      toast({ title: 'Instellingen ontbreken', description: 'Open Instellingen en sla minimaal uw gegevens op.', variant: 'destructive' });
-      return;
-    }
-    if (!quote) return;
-    if (!totalIncl || totalIncl <= 0) {
-      toast({ title: 'Geen totaalbedrag', description: 'Open de offerte om eerst een totaalbedrag te berekenen.', variant: 'destructive' });
-      return;
-    }
-    if (creating) return;
-
+  async function handleCreate(share: boolean): Promise<void> {
+    if (!canCreate || creating || !user || !firestore || !quote) return;
     setCreating(true);
     try {
-      if (selectedType === 'voorschot') {
-        const existingId = await findExistingVoorschotInvoiceId(firestore, { userId: user.uid, quoteId });
-        if (existingId) {
-          router.push(`/facturen/${existingId}`);
-          return;
-        }
-
-        const invoiceId = await createInvoiceFromQuote(firestore, {
-          userId: user.uid,
-          quoteId,
-          quote,
-          settings,
-          invoiceType: 'voorschot',
-          calculationSnapshot: quote.calculationSnapshot,
-          originalTotalInclBtw: totalIncl,
-          totalsInclBtw: voorschotBedrag,
-          voorschotAftrekInclBtw: 0,
-        });
-        router.push(`/facturen/${invoiceId}`);
-        return;
-      }
-
-      const existingId = await findExistingVoorschotInvoiceId(firestore, { userId: user.uid, quoteId });
-      const voorschotSnapshot = existingId ? await getInvoiceSnapshotForAdjustments(firestore, existingId) : null;
-      if (handmatigEindbedrag && handmatigEindbedragParsed === null) {
-        toast({ title: 'Ongeldig bedrag', description: 'Vul een geldig handmatig eindbedrag in.', variant: 'destructive' });
-        return;
-      }
-
-      const invoiceId = await createInvoiceFromQuote(firestore, {
-        userId: user.uid,
-        quoteId,
-        quote,
-        settings,
-        invoiceType: 'eind',
+      const invoiceId = existingId || await createInvoiceFromQuote(firestore, {
+        userId: user.uid, quoteId, quote, settings: settings!, invoiceType: selectedType,
         calculationSnapshot: quote.calculationSnapshot,
-        originalTotalInclBtw: totalIncl,
-        totalsInclBtw: effectiefEindBedrag,
-        voorschotAftrekInclBtw: existingId && voorschotIngeschakeld ? berekendeAftrek : 0,
-        voorschotFactuurSnapshot: voorschotSnapshot,
-        handmatigEindbedrag,
-        opmerking: eindfactuurOpmerking.trim()
-          || (handmatigEindbedrag
-            ? `Handmatig eindbedrag ingesteld op ${formatCurrency(effectiefEindBedrag)} (berekend was ${formatCurrency(berekendEindBedrag)}).`
-            : ''),
+        originalTotalInclBtw: total, totalsInclBtw: newAmount!,
+        voorschotPercentage: advancePercentage,
+        voorschotAftrekInclBtw: selectedType === 'eind' ? billing.billedAdvanceAmount : 0,
+        handmatigEindbedrag: selectedType === 'eind' && manualFinalAmount !== null,
+        opmerking: reason.trim(),
+        expectedQuoteSignature: quoteSignature,
+        expectedBillingSignature: invoiceBillingSignature(invoices),
       });
-      router.push(`/facturen/${invoiceId}`);
-    } catch (e) {
-      console.error(e);
-      toast({ title: 'Fout', description: 'Kon factuur niet aanmaken.', variant: 'destructive' });
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  if (isUserLoading || loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="animate-spin text-primary w-8 h-8" />
-      </div>
-    );
+      router.push(`/facturen/${invoiceId}${share ? '?share=1' : ''}`);
+    } catch (error) {
+      toast({ title: 'Factuur niet aangemaakt', description: error instanceof Error ? error.message : 'Probeer opnieuw.', variant: 'destructive' });
+      setLoadError(error instanceof Error ? error.message : 'Factuurgegevens opnieuw laden.');
+    } finally { setCreating(false); }
   }
 
   return (
-    <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
+    <div className="app-shell min-h-screen bg-background">
       <AppNavigation />
-      <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-4">
-            <div>
-              <div className="flex items-center gap-3">
-                <ReceiptText className="h-5 w-5 text-emerald-400" />
-                <h1 className="text-xl font-bold text-foreground">Nieuwe factuur</h1>
-                <span className="text-xs text-muted-foreground border border-border rounded-md px-2 py-1">Facturen</span>
+      <main className="mx-auto max-w-2xl space-y-4 p-4 pb-24 sm:p-6">
+        <div className="flex items-center gap-3 pl-12 md:pl-0">
+          <Button asChild size="icon" variant="ghost"><Link href="/facturen/start" aria-label="Terug naar factureren"><ArrowLeft className="h-5 w-5" /></Link></Button>
+          <h1 className="text-xl font-semibold">Factuur maken</h1>
+        </div>
+        {isUserLoading || loading ? (
+          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Factuurgegevens laden…</div>
+        ) : loadError ? (
+          <div className="space-y-3 rounded-lg border p-4"><p className="text-sm">{loadError}</p><Button variant="outline" onClick={() => setLoadAttempt((value) => value + 1)}>Gegevens opnieuw laden</Button></div>
+        ) : !quote ? (
+          <p className="text-sm text-muted-foreground">Offerte niet gevonden. <Link className="underline" href="/facturen/start">Kies een offerte</Link></p>
+        ) : (
+          <>
+            <section className="space-y-4 rounded-lg border p-4">
+              <div>
+                <h2 className="font-semibold">{customerName}</h2>
+                <p className="text-sm text-muted-foreground">{quote.titel || quote.title || 'Offerte'}{typeof quote.offerteNummer === 'number' ? ` · #${formatOfferteNummerLabel(quote.offerteNummer, quote.offerteVersie)}` : ''}</p>
               </div>
-              {quote ? (
-                <p className="text-muted-foreground text-sm">
-                  {typeof quote?.offerteNummer === 'number' ? `Offerte #${formatOfferteNummerLabel(quote.offerteNummer, quote.offerteVersie)}` : 'Offerte'}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex gap-3 w-full sm:w-auto">
-            <Button asChild variant="outline" className="flex-1 sm:flex-none gap-2">
-              <Link href={quoteId ? `/offertes/${quoteId}` : '/facturen'}>
-                <ArrowLeft className="h-4 w-4" />
-                Terug
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
-        <div className="mx-auto max-w-3xl space-y-6">
-
-          {!quote ? (
-            <Card>
-              <CardContent className="p-8 text-center space-y-3">
-                <div className="font-semibold">Offerte niet gevonden</div>
-                <Button asChild variant="outline">
-                  <Link href="/facturen">Terug naar facturen</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-emerald-400" />
-                    Offerte {typeof quote?.offerteNummer === 'number' ? `#${formatOfferteNummerLabel(quote.offerteNummer, quote.offerteVersie)}` : ''}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <div className="text-muted-foreground">{(quote?.titel || quote?.title || quote?.werkomschrijving || '—').toString()}</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Totaal (incl. BTW)</span>
-                    <span className="font-semibold">{formatCurrency(totalIncl)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Tabs value={selectedType} onValueChange={(value) => setSelectedType(value as 'voorschot' | 'eind')} className="space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-1 rounded-lg w-full sm:w-auto">
-                  <TabsList className="bg-transparent border-0 p-0 h-auto flex-wrap justify-start w-full sm:w-auto">
-                    <TabsTrigger value="voorschot" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                      <ReceiptText className="h-4 w-4" /> Voorschotfactuur
-                    </TabsTrigger>
-                    <TabsTrigger value="eind" className="flex-1 sm:flex-none items-center gap-2 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground">
-                      <ReceiptText className="h-4 w-4" /> Eindfactuur
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
-
-                <TabsContent value="voorschot" className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Voorschot</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>Voorschot (%)</Label>
-                          <div className="relative">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={voorschotPercentage}
-                              onChange={(e) => {
-                                const newPct = Number(e.target.value);
-                                isEditingVoorschotAftrekRef.current = false;
-                                setVoorschotPercentage(newPct);
-                                const newBedrag = roundCurrency(totalIncl * (clampPct(newPct) / 100));
-                                setVoorschotBedragStr(newBedrag.toFixed(2));
-                                setVoorschotAftrekStr(newBedrag.toFixed(2));
-                              }}
-                              className="pr-10"
-                            />
-                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Bedrag (incl. BTW)</Label>
-                          <div className="relative">
-                            <Input
-                              type="number"
-                              min={0}
-                              value={voorschotBedragStr}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setVoorschotBedragStr(val);
-                                const numVal = parseFloat(val);
-                                if (!isNaN(numVal) && totalIncl > 0) {
-                                  const newPct = clampPct(Math.round((numVal / totalIncl) * 100 * 100) / 100);
-                                  setVoorschotPercentage(newPct);
-                                }
-                              }}
-                              onBlur={(e) => {
-                                const numVal = parseFloat(e.target.value);
-                                if (!isNaN(numVal)) {
-                                  setVoorschotBedragStr(numVal.toFixed(2));
-                                }
-                              }}
-                              className="pr-8"
-                            />
-                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">€</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {existingVoorschotId && (
-                        <Button asChild variant="outline" className="w-full">
-                          <Link href={`/facturen/${existingVoorschotId}`}>Open bestaande voorschotfactuur</Link>
-                        </Button>
-                      )}
-
-                      <Button
-                        type="button"
-                        variant="success"
-                        className="w-full gap-2"
-                        onClick={handleCreate}
-                        disabled={!canCreate || creating}
-                      >
-                        {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />}
-                        {existingVoorschotId ? 'Open voorschotfactuur' : 'Maak voorschotfactuur'}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="eind" className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Eindfactuur</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="font-medium">Voorschot aftrekken</div>
-                          <div className="text-sm text-muted-foreground">
-                            Eindfactuur = totaal - voorschotfactuur (alleen als die bestaat).
-                          </div>
-                        </div>
-                        <Switch
-                          checked={voorschotIngeschakeld}
-                          onCheckedChange={setVoorschotIngeschakeld}
-                          disabled={!hasVoorschotFactuur}
-                        />
-                      </div>
-
-                      {!hasVoorschotFactuur && (
-                        <div className="text-sm text-muted-foreground">
-                          Geen voorschotfactuur gevonden. Eindfactuur gebruikt het volledige bedrag.
-                        </div>
-                      )}
-
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>Voorschot (%)</Label>
-                          <div className="relative">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={voorschotPercentage}
-                              onChange={(e) => {
-                                const newPct = Number(e.target.value);
-                                isEditingVoorschotAftrekRef.current = false;
-                                setVoorschotPercentage(newPct);
-                                const newBedrag = roundCurrency(totalIncl * (clampPct(newPct) / 100));
-                                setVoorschotBedragStr(newBedrag.toFixed(2));
-                                setVoorschotAftrekStr(newBedrag.toFixed(2));
-                              }}
-                              disabled={!voorschotIngeschakeld}
-                              className="pr-10"
-                            />
-                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">%</span>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Voorschot in mindering (incl. BTW)</Label>
-                          <div className="relative">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={totalIncl}
-                              step="0.01"
-                              value={voorschotAftrekStr}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                isEditingVoorschotAftrekRef.current = true;
-                                setVoorschotAftrekStr(value);
-                                const parsed = parseCurrencyInput(value);
-                                if (parsed !== null) {
-                                  setVoorschotPercentage(clampPct(Math.round((parsed / totalIncl) * 100 * 100) / 100));
-                                }
-                              }}
-                              onBlur={() => {
-                                if (voorschotAftrekParsed !== null) {
-                                  setVoorschotAftrekStr(Math.min(totalIncl, Math.max(0, voorschotAftrekParsed)).toFixed(2));
-                                }
-                                isEditingVoorschotAftrekRef.current = false;
-                              }}
-                              disabled={!voorschotIngeschakeld}
-                              className="pr-8"
-                            />
-                            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">€</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-4 rounded-md border border-input bg-background/40 px-3 py-2">
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium">Handmatig eindbedrag</div>
-                          <div className="text-xs text-muted-foreground">
-                            Zet aan om het eindbedrag zelf te kiezen (bijv. factuur lager maken).
-                          </div>
-                        </div>
-                        <Switch
-                          checked={handmatigEindbedrag}
-                          onCheckedChange={(checked) => {
-                            setHandmatigEindbedrag(checked);
-                            if (checked) setHandmatigEindbedragStr(berekendEindBedrag.toFixed(2));
-                          }}
-                        />
-                      </div>
-
-                      {handmatigEindbedrag ? (
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Handmatig bedrag (incl. BTW)</Label>
-                            <Input
-                              value={handmatigEindbedragStr}
-                              onChange={(e) => setHandmatigEindbedragStr(e.target.value)}
-                              onBlur={() => {
-                                if (handmatigEindbedragParsed !== null) {
-                                  setHandmatigEindbedragStr(Math.min(totalIncl, handmatigEindbedragParsed).toFixed(2));
-                                }
-                              }}
-                              placeholder="bijv. 650,00"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Berekend bedrag</Label>
-                            <div className="h-10 rounded-md border border-input bg-background/50 px-3 flex items-center justify-between">
-                              <span className="text-sm text-muted-foreground">Standaard</span>
-                              <span className="text-sm font-semibold">{formatCurrency(berekendEindBedrag)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      <div className="space-y-2">
-                        <Label>Notitie bij aanpassing (optioneel)</Label>
-                        <Input
-                          value={eindfactuurOpmerking}
-                          onChange={(e) => setEindfactuurOpmerking(e.target.value)}
-                          placeholder="bijv. afgesproken korting"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Te betalen eindfactuur (incl. BTW)</Label>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={totalIncl}
-                            step="0.01"
-                            value={handmatigEindbedragStr}
-                            onChange={(e) => {
-                              setHandmatigEindbedrag(true);
-                              setHandmatigEindbedragStr(e.target.value);
-                            }}
-                            onBlur={() => {
-                              if (handmatigEindbedragParsed !== null) {
-                                setHandmatigEindbedragStr(Math.min(totalIncl, Math.max(0, handmatigEindbedragParsed)).toFixed(2));
-                              }
-                            }}
-                            className="pr-8"
-                          />
-                          <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">€</span>
-                        </div>
-                      </div>
-                      {handmatigEindbedrag && effectiefAftrek > 0 ? (
-                        <div className="text-xs text-muted-foreground">
-                          Verschil t.o.v. offerte: {formatCurrency(effectiefAftrek)} lager.
-                        </div>
-                      ) : null}
-
-                      <Button
-                        type="button"
-                        variant="success"
-                        className="w-full gap-2"
-                        onClick={handleCreate}
-                        disabled={!canCreate || creating}
-                      >
-                        {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />}
-                        Maak eindfactuur
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </>
-          )}
-        </div>
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Factuur</dt><dd className="text-right">{selectedType === 'voorschot' ? 'Voorschot' : 'Eindfactuur'}{existingInvoice ? ` #${existingInvoice.invoiceNumberLabel || ''}` : selectedType === 'voorschot' ? ` ${new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2 }).format(advancePercentage)}%` : ''}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Offerte incl. btw</dt><dd>{formatCurrency(total)}</dd></div>
+                {billing.issuedAdvances.length > 0 && <>
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Voorschot gefactureerd</dt><dd>{formatCurrency(billing.billedAdvanceAmount)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Voorschot ontvangen</dt><dd>{formatCurrency(billing.receivedAdvanceAmount)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Voorschot nog open</dt><dd>{formatCurrency(billing.openAdvanceAmount)}</dd></div>
+                </>}
+                <div className="flex justify-between gap-3 border-t pt-3 font-semibold"><dt>Deze factuur incl. btw</dt><dd>{displayedAmount !== null ? formatCurrency(displayedAmount) : 'Vul een bedrag in'}</dd></div>
+              </dl>
+              {existingInvoice && <p className="text-sm text-muted-foreground">{existingInvoice.status === 'concept' ? 'Het bestaande concept wordt geopend.' : 'Deze factuur bestaat al en wordt opnieuw geopend.'}</p>}
+              {blockingMessage && <div className="space-y-2 text-sm text-amber-300"><p>{blockingMessage}</p><Link href={`/facturen?quoteId=${encodeURIComponent(quoteId)}`} className="underline">Open facturen</Link>{billing.draftAdvances.length === 1 && <Link href={`/facturen/${billing.draftAdvances[0].id}`} className="ml-3 underline">Open voorschotconcept</Link>}</div>}
+              <div className="flex flex-col gap-2">
+                <Button variant="success" className="gap-2" disabled={!canCreate || creating} onClick={() => void handleCreate(true)}>{creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}{existingId ? 'Open en deel' : 'Maak en deel'}</Button>
+                <div className="flex gap-2"><Button className="flex-1" variant="outline" disabled={!canCreate || creating} onClick={() => void handleCreate(false)}>{existingId ? 'Open factuur' : 'Alleen aanmaken'}</Button><Button variant="ghost" onClick={() => setAdjusting((value) => !value)} aria-expanded={adjusting}>{adjusting ? 'Sluiten' : 'Aanpassen'}</Button></div>
+              </div>
+            </section>
+            {adjusting && <section className="space-y-4 rounded-lg border p-4">
+              <div className="flex gap-2"><Button variant={selectedType === 'voorschot' ? 'secondary' : 'outline'} onClick={() => setSelectedType('voorschot')}>Voorschot</Button><Button variant={selectedType === 'eind' ? 'secondary' : 'outline'} onClick={() => setSelectedType('eind')}>Eindfactuur</Button></div>
+              {existingId ? <p className="text-sm text-muted-foreground">Open de bestaande factuur om deze te controleren.</p> : selectedType === 'voorschot' ? <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2"><Label htmlFor="advance-percentage">Voorschot (%)</Label><Input id="advance-percentage" type="number" min="0" max="100" value={advancePercentage} onChange={(event) => { const pct = Math.max(0, Math.min(100, Number(event.target.value) || 0)); setAdvancePercentage(pct); setAdvanceAmount(roundMoney(total * pct / 100).toFixed(2)); }} /></div>
+                <div className="space-y-2"><Label htmlFor="advance-amount">Bedrag incl. btw</Label><Input id="advance-amount" inputMode="decimal" value={advanceAmount} onChange={(event) => { setAdvanceAmount(event.target.value); const value = parseAmount(event.target.value); if (value !== null && total > 0) setAdvancePercentage(value / total * 100); }} /></div>
+              </div> : <>
+                <div className="space-y-2"><Label htmlFor="final-amount">Eindbedrag incl. btw</Label><Input id="final-amount" inputMode="decimal" value={manualFinalAmount ?? calculatedFinal.toFixed(2)} onChange={(event) => setManualFinalAmount(event.target.value)} /><p className="text-xs text-muted-foreground">Berekend: {formatCurrency(total)} − {formatCurrency(billing.billedAdvanceAmount)} gefactureerd voorschot = {formatCurrency(calculatedFinal)}.</p></div>
+                {manualFinalAmount !== null && <><div className="space-y-2"><Label htmlFor="adjustment-reason">Reden aanpassing</Label><Input id="adjustment-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Bijv. afgesproken korting" /></div><Button variant="ghost" onClick={() => { setManualFinalAmount(null); setReason(''); }}>Gebruik berekend bedrag</Button></>}
+              </>}
+            </section>}
+          </>
+        )}
       </main>
     </div>
   );
 }
 
-function NieuweFactuurPageFallback() {
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <Loader2 className="animate-spin text-primary w-8 h-8" />
-    </div>
-  );
-}
-
 export default function NieuweFactuurPage() {
-  return (
-    <Suspense fallback={<NieuweFactuurPageFallback />}>
-      <NieuweFactuurPageContent />
-    </Suspense>
-  );
+  return <Suspense fallback={<div className="flex items-center gap-2 p-4"><ReceiptText className="h-4 w-4" /> Factuur laden…</div>}><NieuweFactuurPageContent /></Suspense>;
 }

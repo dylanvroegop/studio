@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
-import { Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { reportGoogleCalendarAlert } from '@/lib/google-calendar-alerts';
 import { getCalendarClient, isGoogleInvalidGrantError } from '@/lib/integrations/google-calendar';
 import { GOOGLE_CALENDAR_RED_COLOR_ID } from '@/lib/planning-colors';
+import {
+  googleAppointmentStatus,
+  googleEventIsMissing,
+  isTelegramReservation,
+  reservationRefreshIsProtected,
+} from '@/lib/google-calendar-reservations';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -148,6 +154,7 @@ interface GoogleCalendarEvent {
 }
 
 export async function POST(request: Request) {
+  const refreshStartedAt = new Date();
   try {
     const token = extractBearerToken(request.headers.get('authorization'));
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -223,7 +230,10 @@ export async function POST(request: Request) {
     const localEntriesByGoogleId = new Map<string, PlanningDocument>();
     planningSnapshot.docs.forEach((planningDoc) => {
       const eventId = String(planningDoc.data().googleCalendarEventId || '').trim();
-      if (eventId && !localEntriesByGoogleId.has(eventId)) {
+      const existing = localEntriesByGoogleId.get(eventId);
+      // Een eerder geïmporteerde Google-kopie mag de oorspronkelijke
+      // Telegramreservering en de offerte-/sessiekoppeling niet verdringen.
+      if (eventId && (!existing || (isTelegramReservation(planningDoc.data()) && !isTelegramReservation(existing.data())))) {
         localEntriesByGoogleId.set(eventId, planningDoc);
       }
     });
@@ -271,6 +281,32 @@ export async function POST(request: Request) {
       pageToken = listResponse.data.nextPageToken || undefined;
     } while (pageToken);
 
+    // Een ontbrekend item in dit datumbereik kan ook handmatig zijn verplaatst.
+    // Alleen een expliciete Google-verwijdering mag een reservering vrijgeven.
+    const cancelledReservationIds = new Set<string>();
+    for (const planningDoc of planningSnapshot.docs) {
+      const data = planningDoc.data();
+      const eventId = String(data.googleCalendarEventId || '').trim();
+      if (!isTelegramReservation(data) || !eventId || googleEventIdsInRange.has(eventId)
+        || data.status === 'cancelled' || reservationRefreshIsProtected(data, refreshStartedAt)
+        || !planningEntryOverlapsRange(data, rangeStart, rangeEnd)) continue;
+      try {
+        const found = await calendar.events.get({ calendarId: 'primary', eventId });
+        if (found.data.status === 'cancelled') {
+          cancelledReservationIds.add(planningDoc.id);
+          continue;
+        }
+        const parsedRange = eventDateRange(found.data);
+        if (parsedRange) {
+          googleEventIdsInRange.add(eventId);
+          googleEventsInRange.push({ eventId, event: found.data, parsedRange });
+        }
+      } catch (error) {
+        if (!googleEventIsMissing(error)) throw error;
+        cancelledReservationIds.add(planningDoc.id);
+      }
+    }
+
     // Google Calendar is the source of truth. Replace every local planning row
     // in the requested range, including legacy Calvora rows without an event ID.
     // This prevents an old local row and its Google counterpart from surviving
@@ -287,11 +323,13 @@ export async function POST(request: Request) {
     const writes: Array<{ ref: FirebaseFirestore.DocumentReference; data: Record<string, unknown> }> = [];
 
     for (const { eventId, event, parsedRange } of googleEventsInRange) {
-      const directMatch = localEntriesByGoogleId.get(eventId);
+      const markedEntryId = event.extendedProperties?.private?.calvoraPlanningEntryId;
+      const markedEntry = markedEntryId ? planningSnapshot.docs.find(document => document.id === markedEntryId) : undefined;
+      const markedReservation = markedEntry && markedEntry.data().userId === decoded.uid
+        && isTelegramReservation(markedEntry.data()) ? markedEntry : undefined;
+      const directMatch = markedReservation || localEntriesByGoogleId.get(eventId);
       const summary = event.summary?.trim() || 'Google Calendar';
       const description = event.description?.trim() || '';
-      const pendingFromGoogle = /^PENDING\b/i.test(summary)
-        || /(?:^|\n)\s*Status\s*:\s*pending\b/i.test(description);
       const scheduledHours = Math.max(
         0,
         (parsedRange.endDate.getTime() - parsedRange.startDate.getTime()) / 3_600_000,
@@ -321,20 +359,24 @@ export async function POST(request: Request) {
 
       const existing = existingDoc?.data() as {
         quoteId?: string;
-        source?: 'calvora' | 'google';
+        source?: string;
         planningType?: string;
         isAutoSplit?: boolean;
         parentEntryId?: string | null;
         status?: string;
-        cache?: { projectTitle?: string; projectAddress?: string; totalQuoteAmount?: number; totalQuoteEarnings?: number };
+        cache?: { clientName?: string; projectTitle?: string; projectAddress?: string; totalQuoteAmount?: number; totalQuoteEarnings?: number };
         notes?: string;
         createdAt?: unknown;
       } | undefined;
-      const importedStatus = pendingFromGoogle || existing?.status === 'pending'
-        ? 'pending'
-        : 'scheduled';
+      const importedStatus = googleAppointmentStatus(event, existing?.status);
       const targetRef = existingDoc?.ref || firestore.collection('planning_entries').doc(googleEventDocId(eventId));
       targetDocs.add(targetRef.path);
+
+      if (existingDoc && isTelegramReservation(existingDoc.data())
+        && (existing?.status === 'cancelled' || reservationRefreshIsProtected(existingDoc.data(), refreshStartedAt))) {
+        skipped += 1;
+        continue;
+      }
 
       const sameDates = existingDoc && samePlanningRange(existingDoc.data(), parsedRange.startDate, parsedRange.endDate);
       const sameTitle = existingDoc?.data().cache?.clientName === summary
@@ -366,9 +408,13 @@ export async function POST(request: Request) {
           isAutoSplit: existing?.isAutoSplit || false,
           parentEntryId: existing?.parentEntryId || null,
           status: importedStatus,
+          ...(existingDoc && isTelegramReservation(existingDoc.data()) ? {
+            appointmentState: importedStatus,
+            calendarSyncState: 'synced',
+          } : {}),
           notes: description || existing?.notes || '',
           cache: {
-            clientName: summary,
+            clientName: existingDoc && isTelegramReservation(existingDoc.data()) ? existing?.cache?.clientName || summary : summary,
             projectTitle: existing?.cache?.projectTitle || summary,
             projectAddress: existing?.cache?.projectAddress || '',
             totalQuoteHours: scheduledHours,
@@ -394,11 +440,35 @@ export async function POST(request: Request) {
     // Write the authoritative Google state first, then remove stale local rows.
     // Chunking keeps this safe for larger calendar ranges under Firestore's
     // 500-operation batch limit.
-    await Promise.all(writeBatches(writes, (batch, write) => batch.set(write.ref, write.data)).map((batch) => batch.commit()));
+    const telegramPaths = new Set(planningSnapshot.docs.filter(document => isTelegramReservation(document.data())).map(document => document.ref.path));
+    const lockRef = firestore.collection('telegram_appointment_locks').doc(decoded.uid);
+    const guardedReservationWrite = async (ref: FirebaseFirestore.DocumentReference, data: Record<string, unknown>) => {
+      await firestore.runTransaction(async transaction => {
+        const [current, lock] = await transaction.getAll(ref, lockRef);
+        const currentData = current.data();
+        if (!currentData || currentData.userId !== decoded.uid || currentData.status === 'cancelled'
+          || reservationRefreshIsProtected(currentData, refreshStartedAt)) return;
+        transaction.set(ref, data, { merge: true });
+        transaction.set(lockRef, { version: Number(lock.data()?.version || 0) + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      });
+    };
+    await Promise.all(writeBatches(writes.filter(write => !telegramPaths.has(write.ref.path)), (batch, write) => batch.set(write.ref, write.data, { merge: true })).map((batch) => batch.commit()));
+    for (const write of writes.filter(write => telegramPaths.has(write.ref.path))) {
+      await guardedReservationWrite(write.ref, write.data);
+    }
 
-    const staleEntries = localEntriesToReplace.filter((planningDoc) => !targetDocs.has(planningDoc.ref.path));
+    const staleEntries = localEntriesToReplace.filter((planningDoc) => !targetDocs.has(planningDoc.ref.path) && !isTelegramReservation(planningDoc.data()));
     removed = staleEntries.length;
     await Promise.all(writeBatches(staleEntries, (batch, planningDoc) => batch.delete(planningDoc.ref)).map((batch) => batch.commit()));
+
+    // Bewaar de annulering: een herhaalde Telegram-inzending mag een handmatig
+    // verwijderd voorstel niet opnieuw in Google aanmaken.
+    for (const planningDoc of planningSnapshot.docs.filter(document => cancelledReservationIds.has(document.id))) {
+      await guardedReservationWrite(planningDoc.ref, {
+        status: 'cancelled', appointmentState: 'cancelled', calendarSyncState: 'cancelled',
+        cancelledInGoogle: true, updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
 
     return NextResponse.json({
       ok: true,

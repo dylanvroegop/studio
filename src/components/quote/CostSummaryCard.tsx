@@ -1,22 +1,26 @@
 'use client';
 
 import { CalculationResult, QuoteSettings, formatCurrency } from '@/lib/quote-calculations';
-import { Euro } from 'lucide-react';
+import { Euro, Minus, Plus } from 'lucide-react';
 import styles from './CostSummaryCard.module.css';
+import type { ScopeCostKey } from '@/lib/quote-scope-costs';
+import { Switch } from '@/components/ui/switch';
 
 interface CostSummaryCardProps {
     totals: CalculationResult | null;
     settings: QuoteSettings | null;
     totalUren: number;
     urenPerDag?: number;
-    extraKostenExcl?: number;
+    scopeCosts: Record<ScopeCostKey | 'groot' | 'verbruik', number>;
+    missingScopeCosts: Record<ScopeCostKey, boolean>;
     onUpdateHourlyRate?: (rate: number) => void;
-    onUpdateTotalHours?: (hours: number) => void;
+    onUpdateTotalHours?: (hours: number) => void | Promise<void>;
     onUpdateLowVatLaborHours?: (hours: number) => void;
+    onUpdateLaborWithoutVat?: (checked: boolean) => void | Promise<void>;
     onUpdateMaterialenGrootTotal?: (value: number) => void;
     onUpdateMaterialenVerbruikTotal?: (value: number) => void;
     onUpdateMaterialenSubtotal?: (value: number) => void;
-    onUpdateExtraKostenTotal?: (value: number) => void;
+    onUpdateScopeCost?: (key: ScopeCostKey, value: number) => void;
     onUpdateTransportTotal?: (value: number) => void;
     onUpdateTransportRatePerKm?: (value: number) => void;
     isCalculatingDistance?: boolean;
@@ -26,16 +30,16 @@ interface CostSummaryCardProps {
     onUpdateWinstMargeAmountExcl?: (value: number) => void;
 }
 
-import { useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Input } from '@/components/ui/input';
 import { Pencil } from 'lucide-react';
 
-type EditableAmountField = 'groot' | 'verbruik' | 'extra' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount';
+type EditableAmountField = 'groot' | 'verbruik' | 'afval' | 'steiger' | 'subtotaal' | 'transport' | 'margePct' | 'margeAmount';
 type AmountEditMode = 'excl' | 'incl';
 type AdditiveAmountField =
     | 'groot'
     | 'verbruik'
-    | 'extra'
+    | 'afval' | 'steiger'
     | 'subtotaal'
     | 'arbeid'
     | 'arbeidHoog'
@@ -53,14 +57,16 @@ export function CostSummaryCard({
     settings,
     totalUren,
     urenPerDag = 8,
-    extraKostenExcl = 0,
+    scopeCosts,
+    missingScopeCosts,
     onUpdateHourlyRate,
     onUpdateTotalHours,
     onUpdateLowVatLaborHours,
+    onUpdateLaborWithoutVat,
     onUpdateMaterialenGrootTotal,
     onUpdateMaterialenVerbruikTotal,
     onUpdateMaterialenSubtotal,
-    onUpdateExtraKostenTotal,
+    onUpdateScopeCost,
     onUpdateTransportTotal,
     onUpdateTransportRatePerKm,
     isCalculatingDistance = false,
@@ -69,6 +75,13 @@ export function CostSummaryCard({
     onUpdateWinstMargePercentage,
     onUpdateWinstMargeAmountExcl,
 }: CostSummaryCardProps) {
+    const [pendingDayUpdates, setPendingDayUpdates] = useState(0);
+    const requestedHoursRef = useRef(totalUren);
+    const dayUpdateVersionRef = useRef(0);
+    const [dayUpdateError, setDayUpdateError] = useState<string | null>(null);
+    useEffect(() => {
+        requestedHoursRef.current = totalUren;
+    }, [totalUren]);
     const [isEditingRate, setIsEditingRate] = useState(false);
     const [tempRate, setTempRate] = useState<string>('');
 
@@ -205,7 +218,7 @@ export function CostSummaryCard({
 
     const convertInclToExcl = (field: EditableAmountField, value: number): number => {
         // In materiaal-only mode, transport and winstmarge are not subject to VAT.
-        const isMaterialAmount = field === 'groot' || field === 'verbruik' || field === 'extra' || field === 'subtotaal';
+        const isMaterialAmount = field === 'groot' || field === 'verbruik' || field === 'afval' || field === 'steiger' || field === 'subtotaal';
         const isVatApplicable = isMaterialAmount || settings?.btwMode !== 'materiaal_only';
         if (!isVatApplicable) return value;
 
@@ -219,7 +232,9 @@ export function CostSummaryCard({
             return;
         }
         if (!editingField) return;
-        const parsed = parseLocalizedNumber(tempFieldValue);
+        const parsed = (editingField === 'afval' || editingField === 'steiger') && !tempFieldValue.trim()
+            ? 0
+            : parseLocalizedNumber(tempFieldValue);
         if (Number.isNaN(parsed)) {
             cancelEditingAmount();
             return;
@@ -233,8 +248,8 @@ export function CostSummaryCard({
             onUpdateMaterialenGrootTotal(value);
         } else if (editingField === 'verbruik' && onUpdateMaterialenVerbruikTotal) {
             onUpdateMaterialenVerbruikTotal(value);
-        } else if (editingField === 'extra' && onUpdateExtraKostenTotal) {
-            onUpdateExtraKostenTotal(value);
+        } else if ((editingField === 'afval' || editingField === 'steiger') && onUpdateScopeCost) {
+            onUpdateScopeCost(editingField, value);
         } else if (editingField === 'subtotaal' && onUpdateMaterialenSubtotal) {
             onUpdateMaterialenSubtotal(value);
         } else if (editingField === 'transport' && onUpdateTransportTotal) {
@@ -269,6 +284,7 @@ export function CostSummaryCard({
     const vatRate = Math.max(0, Number(settings?.btwTarief) || 0);
     const vatMultiplier = 1 + vatRate / 100;
     const isMaterialsOnlyVatMode = settings?.btwMode === 'materiaal_only';
+    const isLaborWithoutVat = isMaterialsOnlyVatMode || settings?.arbeidZonderBtw === true;
     const amountGridClass = styles.amountGrid;
     const winstMargeBasisLabel =
         settings?.extras?.winstMarge?.basis === 'materiaal'
@@ -297,8 +313,12 @@ export function CostSummaryCard({
                 <span className={`${styles.mobileLabel} text-muted-foreground`}>Incl. btw</span>
                 {inclNode}
             </div>
-            {addField ? renderAdditionInput(addField, 'excl') : <div />}
-            {addField ? renderAdditionInput(addField, 'incl') : <div />}
+            {addField === 'arbeid' ? renderDayControls() : (
+                <>
+                    {addField ? renderAdditionInput(addField, 'excl') : <div />}
+                    {addField ? renderAdditionInput(addField, 'incl') : <div />}
+                </>
+            )}
         </div>
     );
 
@@ -357,13 +377,8 @@ export function CostSummaryCard({
         );
     }
     const winstProjectie = totals.winstProjectie;
-    // "Extra kosten" wordt als verbruiksartikel opgeslagen zodat het onderdeel
-    // blijft van het materiaalsubtotaal. Trek het hier af omdat deze kosten op
-    // de volgende regel als eigen kostencategorie worden getoond.
-    const verbruiksartikelenExclExtraKosten = Math.max(
-        0,
-        totals.materialenVerbruik - extraKostenExcl,
-    );
+    const materialenGrootExclScopeKosten = totals.materialenGroot - scopeCosts.groot;
+    const verbruiksartikelenExclScopeKosten = totals.materialenVerbruik - scopeCosts.verbruik;
     const winstInclBtw = winstProjectie.winstInclBtw ?? (winstProjectie.omzetInclBtw - (winstProjectie.kostenInclBtw ?? 0));
     const winstNaBtwArbeidEnMarge = winstProjectie.winstNaBtwArbeidEnMarge ?? winstInclBtw;
     const btwArbeidEnMarge = winstProjectie.btwArbeidEnMarge ?? 0;
@@ -374,13 +389,56 @@ export function CostSummaryCard({
     const aantalWerkdagen = totalUren > 0 ? Math.max(1, Math.ceil(totalUren / safeUrenPerDag)) : 0;
     const winstPerWerkdag = aantalWerkdagen > 0 ? winstNaBtwArbeidEnMarge / aantalWerkdagen : 0;
     const arbeidLaagBtwUren = Math.max(0, totals.arbeidLaagBtwUren || 0);
-    const arbeidHoogBtwUren = Math.max(0, totals.arbeidHoogBtwUren || totalUren);
+    const arbeidHoogBtwUren = Math.max(0, totals.arbeidHoogBtwUren ?? totalUren);
     const arbeidLaagBtwTotaal = Math.max(0, totals.arbeidLaagBtwTotaal || 0);
-    const arbeidHoogBtwTotaal = Math.max(0, totals.arbeidHoogBtwTotaal || totals.arbeidTotaal);
+    const arbeidHoogBtwTotaal = Math.max(0, totals.arbeidHoogBtwTotaal ?? totals.arbeidTotaal);
     const arbeidLaagBtwTarief = Math.max(0, totals.arbeidLaagBtwTarief || settings.arbeidBtwLaagTarief || 9);
-    const hasLaborVatSplit = arbeidLaagBtwUren > 0 && arbeidLaagBtwTotaal > 0 && !isMaterialsOnlyVatMode;
+    const hasLaborVatSplit = arbeidLaagBtwUren > 0 && arbeidLaagBtwTotaal > 0 && !isLaborWithoutVat;
+    const laborInclBtw = totals.arbeidTotaal + (isLaborWithoutVat ? 0
+        : (arbeidHoogBtwTotaal * vatRate + arbeidLaagBtwTotaal * arbeidLaagBtwTarief) / 100);
+    const subtotalInclBtw = totals.totaalInclBtw - calculateInclAmount(winstMargeExclBtw, !isMaterialsOnlyVatMode);
+    const adjustLaborDays = async (delta: number): Promise<void> => {
+        if (!onUpdateTotalHours) return;
+        // Tel snelle klikken door, ook voordat React de nieuwe uren heeft getoond.
+        const newHours = Number(Math.max(0, requestedHoursRef.current + delta * safeUrenPerDag).toFixed(2));
+        requestedHoursRef.current = newHours;
+        const version = ++dayUpdateVersionRef.current;
+        setPendingDayUpdates((count) => count + 1);
+        setDayUpdateError(null);
+        try {
+            await onUpdateTotalHours(newHours);
+        } catch {
+            if (version === dayUpdateVersionRef.current) {
+                setDayUpdateError('Uren opslaan mislukt. Probeer opnieuw.');
+            }
+        } finally {
+            setPendingDayUpdates((count) => count - 1);
+        }
+    };
+    const renderDayControls = () => (
+        <div className="col-span-2 space-y-1" role="group" aria-label="Arbeidsdagen aanpassen">
+            <div className="flex items-center justify-between gap-1 rounded-md border border-border px-1 py-0.5">
+                <button type="button" className="flex h-8 w-8 shrink-0 items-center justify-center rounded hover:bg-muted disabled:opacity-40" aria-label="Verlaag met 1 dag" title={`-${safeUrenPerDag} uur`} disabled={!onUpdateTotalHours || totalUren <= 0} onClick={() => void adjustLaborDays(-1)}>
+                    <Minus size={14} />
+                </button>
+                <span className="text-center text-xs tabular-nums" title={`1 dag = ${safeUrenPerDag} uur`}>
+                    {(totalUren / safeUrenPerDag).toLocaleString('nl-NL', { maximumFractionDigits: 2 })} {totalUren === safeUrenPerDag ? 'dag' : 'dagen'}
+                </span>
+                <button type="button" className="flex h-8 w-8 shrink-0 items-center justify-center rounded hover:bg-muted disabled:opacity-40" aria-label="Verhoog met 1 dag" title={`+${safeUrenPerDag} uur`} disabled={!onUpdateTotalHours} onClick={() => void adjustLaborDays(1)}>
+                    <Plus size={14} />
+                </button>
+            </div>
+            {pendingDayUpdates > 0 && <p role="status" className="text-xs text-muted-foreground">Opslaan…</p>}
+            {dayUpdateError && (
+                <div role="alert" className="text-xs text-red-400">
+                    <p>{dayUpdateError}</p>
+                    <button type="button" className="underline" onClick={() => void adjustLaborDays(0)}>Opnieuw opslaan</button>
+                </div>
+            )}
+        </div>
+    );
     const calculateInclAmountForRate = (exclValue: number, rate: number): number => {
-        if (isMaterialsOnlyVatMode) return exclValue;
+        if (isLaborWithoutVat) return exclValue;
         return exclValue + ((exclValue * Math.max(0, rate)) / 100);
     };
 
@@ -413,7 +471,8 @@ export function CostSummaryCard({
             return value / (currentIncl / currentExcl);
         }
 
-        const isMaterialAmount = field === 'groot' || field === 'verbruik' || field === 'extra' || field === 'subtotaal';
+        const isMaterialAmount = field === 'groot' || field === 'verbruik' || field === 'afval' || field === 'steiger' || field === 'subtotaal';
+        if (isLaborWithoutVat && (field === 'arbeid' || field === 'arbeidHoog' || field === 'arbeidLaag')) return value;
         const isVatApplicable = isMaterialAmount || settings?.btwMode !== 'materiaal_only';
         if (!isVatApplicable) return value;
 
@@ -440,26 +499,22 @@ export function CostSummaryCard({
         const amountToAdd = Math.max(0, parsed);
         const currentAmounts: Record<AdditiveAmountField, { excl: number; incl: number }> = {
             groot: {
-                excl: totals.materialenGroot,
-                incl: calculateInclAmount(totals.materialenGroot, true),
+                excl: materialenGrootExclScopeKosten,
+                incl: calculateInclAmount(materialenGrootExclScopeKosten, true),
             },
             verbruik: {
-                excl: verbruiksartikelenExclExtraKosten,
-                incl: calculateInclAmount(verbruiksartikelenExclExtraKosten, true),
+                excl: verbruiksartikelenExclScopeKosten,
+                incl: calculateInclAmount(verbruiksartikelenExclScopeKosten, true),
             },
-            extra: {
-                excl: extraKostenExcl,
-                incl: calculateInclAmount(extraKostenExcl, true),
-            },
+            afval: { excl: scopeCosts.afval, incl: calculateInclAmount(scopeCosts.afval, true) },
+            steiger: { excl: scopeCosts.steiger, incl: calculateInclAmount(scopeCosts.steiger, true) },
             subtotaal: {
                 excl: totals.materialenTotaal,
                 incl: calculateInclAmount(totals.materialenTotaal, true),
             },
             arbeid: {
                 excl: totals.arbeidTotaal,
-                incl: hasLaborVatSplit
-                    ? calculateInclAmountForRate(arbeidHoogBtwTotaal, vatRate) + calculateInclAmountForRate(arbeidLaagBtwTotaal, arbeidLaagBtwTarief)
-                    : calculateInclAmount(totals.arbeidTotaal, !isMaterialsOnlyVatMode),
+                incl: laborInclBtw,
             },
             arbeidHoog: {
                 excl: arbeidHoogBtwTotaal,
@@ -475,9 +530,7 @@ export function CostSummaryCard({
             },
             totaalExcl: {
                 excl: totaalExclZonderMarge,
-                incl: isMaterialsOnlyVatMode
-                    ? totaalExclZonderMarge + ((Math.max(0, totals.materialenTotaal) * vatRate) / 100)
-                    : calculateInclAmount(totaalExclZonderMarge, true),
+                incl: subtotalInclBtw,
             },
             margeAmount: {
                 excl: winstMargeExclBtw,
@@ -511,8 +564,8 @@ export function CostSummaryCard({
             await onUpdateMaterialenGrootTotal(current.excl + amountToAddExcl);
         } else if (field === 'verbruik' && onUpdateMaterialenVerbruikTotal) {
             await onUpdateMaterialenVerbruikTotal(current.excl + amountToAddExcl);
-        } else if (field === 'extra' && onUpdateExtraKostenTotal) {
-            await onUpdateExtraKostenTotal(current.excl + amountToAddExcl);
+        } else if ((field === 'afval' || field === 'steiger') && onUpdateScopeCost) {
+            await onUpdateScopeCost(field, current.excl + amountToAddExcl);
         } else if (field === 'subtotaal' && onUpdateMaterialenSubtotal) {
             await onUpdateMaterialenSubtotal(current.excl + amountToAddExcl);
         } else if (field === 'transport' && onUpdateTransportTotal) {
@@ -610,26 +663,27 @@ export function CostSummaryCard({
                         <span className="text-muted-foreground">Materialen (groot)</span>
                         {renderEditableAmount(
                             'groot',
-                            totals.materialenGroot,
-                            calculateInclAmount(totals.materialenGroot, true),
+                            materialenGrootExclScopeKosten,
+                            calculateInclAmount(materialenGrootExclScopeKosten, true),
                         )}
                     </div>
                     <div className={`${styles.costRow} text-sm`}>
                         <span className="text-muted-foreground">Verbruiksartikelen</span>
                         {renderEditableAmount(
                             'verbruik',
-                            verbruiksartikelenExclExtraKosten,
-                            calculateInclAmount(verbruiksartikelenExclExtraKosten, true),
+                            verbruiksartikelenExclScopeKosten,
+                            calculateInclAmount(verbruiksartikelenExclScopeKosten, true),
                         )}
                     </div>
-                    <div className={`${styles.costRow} text-sm`}>
-                        <span className="text-muted-foreground">Extra kosten</span>
-                        {renderEditableAmount(
-                            'extra',
-                            extraKostenExcl,
-                            calculateInclAmount(extraKostenExcl, true),
-                        )}
-                    </div>
+                    {(['afval', 'steiger'] as const).map((key) => (
+                        <div key={key} data-scope-cost={key} className={`${styles.costRow} text-sm ${missingScopeCosts[key] ? 'rounded border border-red-500/50 bg-red-500/5 p-1.5 [&_button]:text-red-400' : ''}`}>
+                            <span className={missingScopeCosts[key] ? 'text-red-400' : 'text-muted-foreground'}>
+                                {key === 'afval' ? 'Afvalkosten' : 'Steigerkosten'}
+                                {missingScopeCosts[key] && <span className="block text-xs">Aan bij Beschrijving; vul een bedrag in.</span>}
+                            </span>
+                            {renderEditableAmount(key, scopeCosts[key], calculateInclAmount(scopeCosts[key], true))}
+                        </div>
+                    ))}
                     <div className={`${styles.costRow} border-t border-border pt-1.5 text-sm`}>
                         <span className="text-muted-foreground">Subtotaal materialen</span>
                         {renderEditableAmount(
@@ -695,24 +749,29 @@ export function CostSummaryCard({
                                 </button>
                             )}
                             <span className="text-xs text-muted-foreground ml-1">excl. btw</span>)
-                        </span>
-                        {hasLaborVatSplit
-                            ? renderAmountColumns(
-                                <span>{formatCurrency(totals.arbeidTotaal)}</span>,
-                                calculateInclAmountForRate(arbeidHoogBtwTotaal, vatRate) + calculateInclAmountForRate(arbeidLaagBtwTotaal, arbeidLaagBtwTarief),
-                                'text-foreground',
-                                undefined,
-                                'arbeid',
-                            )
-                            : renderAmountColumns(
-                                <span>{formatCurrency(totals.arbeidTotaal)}</span>,
-                                calculateInclAmount(totals.arbeidTotaal, !isMaterialsOnlyVatMode),
-                                'text-foreground',
-                                undefined,
-                                'arbeid',
+                            {onUpdateLaborWithoutVat && (
+                                <label className="ml-2 inline-flex items-center gap-1.5 whitespace-nowrap text-xs">
+                                    <Switch
+                                        checked={isLaborWithoutVat}
+                                        onCheckedChange={(checked) => void onUpdateLaborWithoutVat(checked)}
+                                        disabled={isMaterialsOnlyVatMode}
+                                        aria-label="Arbeid zonder btw"
+                                        title={isMaterialsOnlyVatMode ? 'Ingeschakeld via Zonder btw op uren en transport in de offerte-instellingen' : undefined}
+                                        className="h-5 w-9 [&>span]:h-4 [&>span]:w-4 [&>span[data-state=checked]]:translate-x-4"
+                                    />
+                                    Zonder btw
+                                </label>
                             )}
+                        </span>
+                        {renderAmountColumns(
+                            <span>{formatCurrency(totals.arbeidTotaal)}</span>,
+                            laborInclBtw,
+                            'text-foreground',
+                            undefined,
+                            'arbeid',
+                        )}
                     </div>
-                    <div className="border-t border-border/70 pt-2 space-y-1 text-xs">
+                    {!isLaborWithoutVat && <div className="border-t border-border/70 pt-2 space-y-1 text-xs">
                         <div className={styles.costRow}>
                             <span className="text-muted-foreground">
                                 Arbeid {vatRate}% ({arbeidHoogBtwUren.toLocaleString('nl-NL', { maximumFractionDigits: 2 })} uur)
@@ -722,7 +781,6 @@ export function CostSummaryCard({
                                 calculateInclAmountForRate(arbeidHoogBtwTotaal, vatRate),
                                 'text-foreground',
                                 undefined,
-                                'arbeidHoog',
                             )}
                         </div>
                         {(hasLaborVatSplit || isEditingLowVatHours || onUpdateLowVatLaborHours) && (
@@ -757,11 +815,10 @@ export function CostSummaryCard({
                                     calculateInclAmountForRate(arbeidLaagBtwTotaal, arbeidLaagBtwTarief),
                                     'text-foreground',
                                     undefined,
-                                    'arbeidLaag',
                                 )}
                             </div>
                         )}
-                    </div>
+                    </div>}
                 </div>
 
                 <div className="h-px bg-border/60" />
@@ -824,9 +881,7 @@ export function CostSummaryCard({
                         <span className="text-muted-foreground">Totaal excl. BTW</span>
                         {renderAmountColumns(
                             <span>{formatCurrency(totaalExclZonderMarge)}</span>,
-                            isMaterialsOnlyVatMode
-                                ? totaalExclZonderMarge + ((Math.max(0, totals.materialenTotaal) * vatRate) / 100)
-                                : calculateInclAmount(totaalExclZonderMarge, true),
+                            subtotalInclBtw,
                             'text-foreground',
                             undefined,
                             'totaalExcl',

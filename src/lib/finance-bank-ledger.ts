@@ -60,10 +60,7 @@ function dateTime(value: string | null): number {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
-function withinWindow(cost: ProjectCostRow, transactionDate: string | null): boolean {
-  if (!transactionDate) return true;
-  const left = dateTime(cost.date);
-  const right = dateTime(transactionDate);
+function withinWindow(cost: ProjectCostRow, left: number, right: number): boolean {
   if (!Number.isFinite(left) || !Number.isFinite(right)) return true;
   // An invoice is normally collected after its invoice date. Do not let a
   // later-imported invoice attach to an older, unrelated bank payment.
@@ -78,21 +75,16 @@ function withinWindow(cost: ProjectCostRow, transactionDate: string | null): boo
 function tokens(value: string): string[] {
   return normalizedText(value)
     .split(' ')
+    .map((item) => item === 'bouwmaten' ? 'bouwmaat' : item)
     .filter((item) => item.length >= 3 && !SUPPLIER_STOP_WORDS.has(item));
 }
 
-function compactSupplier(value: string): string {
-  return tokens(value).join('');
-}
-
-function supplierScore(cost: ProjectCostRow, transaction: FinanceBankTransaction): number {
-  const left = tokens(cost.supplier_name);
-  const right = tokens(`${transaction.counterparty_name || ''} ${transaction.description || ''}`);
+function supplierScore(left: string[], right: string[]): number {
   if (left.length === 0 || right.length === 0) return 0;
   // Supplier names are not consistent between imported costs and bank data.
   // For example, "Derkslease" and "Derks Lease B.V." describe the same
   // supplier after legal suffixes and whitespace are removed.
-  if (compactSupplier(cost.supplier_name) === compactSupplier(`${transaction.counterparty_name || ''} ${transaction.description || ''}`)) {
+  if (left.join('') === right.join('')) {
     return 1;
   }
   const matches = left.filter((token) => right.some((candidate) => candidate.includes(token) || token.includes(candidate)));
@@ -248,9 +240,18 @@ export async function loadConnectedKnabTransactions(bankUserId: string): Promise
   }));
 }
 
+interface PreparedCost {
+  cost: ProjectCostRow;
+  amount: number;
+  supplierTokens: string[];
+  references: string[];
+  documentKey: string | null;
+  date: number;
+}
+
 function matchSources(
   transaction: FinanceBankTransaction,
-  costs: ProjectCostRow[],
+  costs: PreparedCost[],
   usedCosts: Set<string>,
 ): ProjectCostRow[] {
   const target = cents(Math.abs(transaction.amount));
@@ -259,10 +260,10 @@ function matchSources(
   // A persisted payment link is stronger evidence than any rematching
   // heuristic. Reuse every category row belonging to that payment so mixed
   // invoices remain complete and cannot silently lose tool/material lines.
-  const explicitlyLinkedCosts = costs.filter((cost) =>
+  const explicitlyLinkedCosts = costs.filter(({ cost }) =>
     !usedCosts.has(cost.id)
     && cost.paid_bank_transaction_id === transaction.id
-  );
+  ).map(({ cost }) => cost);
   if (explicitlyLinkedCosts.length > 0) {
     explicitlyLinkedCosts.forEach((cost) => usedCosts.add(cost.id));
     return explicitlyLinkedCosts;
@@ -273,12 +274,13 @@ function matchSources(
   // identifier match with an unrelated combination that merely has the same
   // total amount.
   const transactionRefs = documentReferences(`${transaction.counterparty_name || ''} ${transaction.description || ''}`);
+  const transactionTokens = tokens(`${transaction.counterparty_name || ''} ${transaction.description || ''}`);
   if (transactionRefs.length > 0) {
-    const referencedCosts = costs.filter((cost) =>
+    const referencedCosts = costs.filter(({ cost, references, supplierTokens }) =>
       !usedCosts.has(cost.id)
-      && supplierScore(cost, transaction) > 0
-      && costDocumentReferences(cost).some((reference) => transactionRefs.includes(reference))
-    );
+      && references.some((reference) => transactionRefs.includes(reference))
+      && supplierScore(supplierTokens, transactionTokens) > 0
+    ).map(({ cost }) => cost);
     if (referencedCosts.length > 0) {
       referencedCosts.forEach((cost) => usedCosts.add(cost.id));
       return referencedCosts;
@@ -288,10 +290,14 @@ function matchSources(
     return [];
   }
 
-  const candidates = costs
-    .map((cost, index) => ({ cost, index, amount: sourceAmount(cost), score: supplierScore(cost, transaction) }))
-    .filter(({ cost, amount, score }) => !usedCosts.has(cost.id) && amount > 0 && score > 0 && withinWindow(cost, transaction.booking_date))
-    .sort((left, right) => right.score - left.score || Math.abs(dateTime(left.cost.date) - dateTime(transaction.booking_date)) - Math.abs(dateTime(right.cost.date) - dateTime(transaction.booking_date)));
+  const transactionDate = dateTime(transaction.booking_date);
+  const scoredCosts = costs
+    .filter(({ cost, amount }) => !usedCosts.has(cost.id) && amount > 0)
+    .map((entry) => ({ ...entry, score: supplierScore(entry.supplierTokens, transactionTokens) }))
+    .filter(({ score }) => score > 0);
+  const candidates = scoredCosts
+    .filter(({ cost, date }) => withinWindow(cost, date, transactionDate))
+    .sort((left, right) => right.score - left.score || Math.abs(left.date - transactionDate) - Math.abs(right.date - transactionDate));
 
   const exactSingle = candidates.find((candidate) => candidate.amount === target);
   if (exactSingle) {
@@ -303,9 +309,8 @@ function matchSources(
   // If there is exactly one unused cost with the same amount and supplier,
   // link it even when the normal date window cannot be applied. This is still
   // deterministic and prevents importing a duplicate cost row.
-  const uniqueHistoricalExact = costs
-    .map((cost) => ({ cost, amount: sourceAmount(cost), score: supplierScore(cost, transaction) }))
-    .filter(({ cost, amount, score }) => !usedCosts.has(cost.id) && amount === target && score >= 0.5);
+  const uniqueHistoricalExact = scoredCosts
+    .filter(({ amount, score }) => amount === target && score >= 0.5);
   if (uniqueHistoricalExact.length === 1) {
     usedCosts.add(uniqueHistoricalExact[0].cost.id);
     return [uniqueHistoricalExact[0].cost];
@@ -314,8 +319,7 @@ function matchSources(
   // Split category rows may represent one receipt/PDF. Group only rows that
   // share that document identity; never combine unrelated costs by amount.
   const documentGroups = new Map<string, ProjectCostRow[]>();
-  candidates.forEach(({ cost }) => {
-    const key = costDocumentKey(cost);
+  candidates.forEach(({ cost, documentKey: key }) => {
     if (!key) return;
     documentGroups.set(key, [...(documentGroups.get(key) || []), cost]);
   });
@@ -334,13 +338,24 @@ export function buildFinanceBankLedger(params: {
   categoryOverrides?: ReadonlyMap<string, ProjectCostCategory>;
 }): FinanceBankCostLedgerRow[] {
   const usedCosts = new Set<string>();
+  // Normalize supplier/document/date metadata once, not for every possible
+  // cost/payment pair. Matching order and authoritative payment links stay
+  // unchanged, including mixed-category invoices and credit notes.
+  const preparedCosts = params.costs.map((cost): PreparedCost => ({
+    cost,
+    amount: sourceAmount(cost),
+    supplierTokens: tokens(cost.supplier_name),
+    references: costDocumentReferences(cost),
+    documentKey: costDocumentKey(cost),
+    date: dateTime(cost.date),
+  }));
   return params.transactions
     .filter((transaction) => Number(transaction.amount) < 0 && !isInternalOwnAccountTransfer(transaction))
     .sort((left, right) => dateTime(right.booking_date) - dateTime(left.booking_date))
     .map((transaction) => {
       const privateTransaction = isPrivate(transaction);
       const amount = roundEuro(Math.abs(Number(transaction.amount) || 0));
-      const matchedCosts = privateTransaction ? [] : matchSources(transaction, params.costs, usedCosts);
+      const matchedCosts = privateTransaction ? [] : matchSources(transaction, preparedCosts, usedCosts);
       const categoryOverride = params.categoryOverrides?.get(transaction.id);
       const sourceAmountTotal = roundEuro(matchedCosts.reduce((sum, cost) => sum + Number(cost.amount_incl_btw || 0), 0));
       const documentCount = sourceDocumentCount(matchedCosts);

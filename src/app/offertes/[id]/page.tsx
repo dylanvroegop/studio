@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { useQuoteSendSelection } from '@/hooks/useQuoteSendSelection';
 import { prepareQuotePdfDownload } from '@/lib/quote-pdf-download';
 import { loadQuotePdfData } from '@/lib/load-quote-pdf-data';
@@ -20,16 +21,18 @@ import {
     flattenStructuredWorkDescription,
     type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
+import { getScopeCosts, getMissingScopeCosts, setScopeCost, SCOPE_COST_LABELS, type ScopeCostKey } from '@/lib/quote-scope-costs';
+import { PaymentRequestDialog } from '@/components/quote/PaymentRequestDialog';
+import { Link2 } from 'lucide-react';
 import { CostSummaryCard } from '@/components/quote/CostSummaryCard';
+import { QuotePhotoImage } from '@/components/quote/QuotePhotoImage';
+import { createQuotePhotoPreview } from '@/lib/quote-photo-preview';
 import { MaterialEditor } from '@/components/quote/MaterialEditor';
-import { LaborBreakdown } from '@/components/quote/LaborBreakdown';
 import { NacalculatieTab } from '@/components/quote/NacalculatieTab';
-import { PDFPreview } from '@/components/quote/PDFPreview';
 import { createOrderedSaveQueue } from '@/lib/ordered-save-queue';
-import { QuotePdfLanguageControl } from '@/components/quote/QuotePdfLanguageControl';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { buildOfficialQuotePdfData, forceSummaryIntoWorkScope, resolveQuoteCalculationSettings, resolveQuotePdfWorkDescription } from '@/lib/quote-pdf-data';
-import { generateQuotePDF, PDFQuoteData } from '@/lib/generate-quote-pdf';
+import type { PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { validateQuotePdfTranslations } from '@/lib/quote-pdf-translation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -66,13 +69,9 @@ import { Input } from '@/components/ui/input';
 import Link from "next/link";
 import { SendQuoteModal, type QuoteAttachmentOptions } from '@/components/quote/SendQuoteModal';
 import { SendQuoteWhatsAppModal } from '@/components/quote/SendQuoteWhatsAppModal';
-import { DrawingsTab } from '@/components/quote/DrawingsTab';
 import { MaterialListExportDialog } from '@/components/quote/MaterialListExportDialog';
 import { MaterialPresentationTab } from '@/components/quote/MaterialPresentationTab';
-import { PriceBookTab } from '@/components/quote/PriceBookTab';
-import QuoteCalculationTab from '@/components/quote/QuoteCalculationTab';
 import { WorkDescriptionWorkspace } from '@/components/quote/work-description/WorkDescriptionWorkspace';
-import { MaterialSelectionModal } from '@/components/MaterialSelectionModal';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
 import { AppNavigation } from '@/components/AppNavigation';
 import { LogoUpload } from '@/components/settings/LogoUpload';
@@ -147,6 +146,18 @@ type QuoteMaterialPackage = QuoteMaterialPreset & {
 };
 
 type VoorwaardenEditorMode = 'vastePrijs' | 'onderVoorbehoud';
+
+const PDFPreview = dynamic(() => import('@/components/quote/PDFPreview').then((module) => module.PDFPreview));
+const QuotePdfLanguageControl = dynamic(() => import('@/components/quote/QuotePdfLanguageControl').then((module) => module.QuotePdfLanguageControl));
+const DrawingsTab = dynamic(() => import('@/components/quote/DrawingsTab').then((module) => module.DrawingsTab));
+const PriceBookTab = dynamic(() => import('@/components/quote/PriceBookTab').then((module) => module.PriceBookTab));
+const QuoteCalculationTab = dynamic(() => import('@/components/quote/QuoteCalculationTab'));
+const MaterialSelectionModal = dynamic(() => import('@/components/MaterialSelectionModal').then((module) => module.MaterialSelectionModal));
+
+async function generateQuotePDF(data: PDFQuoteData): Promise<Blob> {
+    const generator = await import('@/lib/generate-quote-pdf');
+    return generator.generateQuotePDF(data);
+}
 
 function toPresetItems(items: MaterialItem[]): MaterialPresetItem[] {
     const mapped: Array<MaterialPresetItem | null> = items.map((item) => {
@@ -1278,6 +1289,7 @@ export default function QuotePage() {
 
     // State for Material Selection Modal
     const [alleMaterialen, setAlleMaterialen] = useState<any[]>([]);
+    const [isMaterialCatalogLoading, setIsMaterialCatalogLoading] = useState(false);
     const [activeCategory, setActiveCategory] = useState<'groot' | 'verbruik' | null>(null);
     const [droppedMaterialImage, setDroppedMaterialImage] = useState<File | null>(null);
     const [isQuoteImageDragActive, setIsQuoteImageDragActive] = useState(false);
@@ -1313,6 +1325,7 @@ export default function QuotePage() {
         };
     }, []);
 
+    const [isPaymentRequestOpen, setIsPaymentRequestOpen] = useState(false);
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
     const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
     const [hasDeveloperWhatsAppAccess, setHasDeveloperWhatsAppAccess] = useState(false);
@@ -1322,7 +1335,7 @@ export default function QuotePage() {
     const [onderVoorbehoud, setOnderVoorbehoud] = useState(false);
     const [existingVoorschotInvoiceId, setExistingVoorschotInvoiceId] = useState<string | null>(null);
     const [quoteInvoices, setQuoteInvoices] = useState<QuoteInvoiceSummaryRow[]>([]);
-    const [quoteFinancialLoading, setQuoteFinancialLoading] = useState(false);
+    const [quoteFinancialLoading, setQuoteFinancialLoading] = useState(true);
     const [quoteFinancialError, setQuoteFinancialError] = useState<string | null>(null);
     const [priceChangeAmount, setPriceChangeAmount] = useState('');
     const [priceChangeReason, setPriceChangeReason] = useState('');
@@ -1337,7 +1350,7 @@ export default function QuotePage() {
         }
 
         const ref = collection(firestore, 'material_lists');
-        const q = query(ref, where('userId', '==', user.uid));
+        const q = query(ref, where('userId', '==', user.uid), where('quote_id', '==', id));
         const unsub = onSnapshot(
             q,
             (snapshot) => {
@@ -1431,8 +1444,13 @@ export default function QuotePage() {
             if (user && firestore) {
                 try {
                     // Fetch from users collection
-                    const userRef = doc(firestore, 'users', user.uid);
-                    const userSnap = await getDoc(userRef);
+                    const [userSnap, businessSnap] = await Promise.all([
+                        getDoc(doc(firestore, 'users', user.uid)),
+                        getDoc(doc(firestore, 'businesses', user.uid)).catch((error) => {
+                            console.warn('Bedrijfsgegevens konden niet worden geladen:', error);
+                            return null;
+                        }),
+                    ]);
                     if (userSnap.exists()) {
                         const data = userSnap.data();
                         setUserProfile(data);
@@ -1473,9 +1491,7 @@ export default function QuotePage() {
                     }
 
                     // Fetch from businesses collection
-                    const businessRef = doc(firestore, 'businesses', user.uid);
-                    const businessSnap = await getDoc(businessRef);
-                    if (businessSnap.exists()) {
+                    if (businessSnap?.exists()) {
                         setBusinessData(businessSnap.data());
                     }
                 } catch (err) {
@@ -1621,6 +1637,7 @@ export default function QuotePage() {
             setQuoteFinancialError(null);
             return;
         }
+        if (activeTab !== 'financieel') return;
 
         let cancelled = false;
         setQuoteFinancialLoading(true);
@@ -1708,7 +1725,7 @@ export default function QuotePage() {
             cancelled = true;
             unsubscribe();
         };
-    }, [firestore, id, user]);
+    }, [activeTab, firestore, id, user]);
 
     useEffect(() => {
         if (activeTab !== 'financieel' || !user || !id) return;
@@ -1817,8 +1834,10 @@ export default function QuotePage() {
     }, [onderVoorbehoud, activeTab]);
 
     useEffect(() => {
+        if (!activeCategory) return;
         const fetchMaterials = async () => {
             if (!user) return;
+            setIsMaterialCatalogLoading(true);
             try {
                 const token = await user.getIdToken();
                 const res = await fetch('/api/materialen/get', {
@@ -1874,10 +1893,12 @@ export default function QuotePage() {
                     title: 'Fout bij laden materialen',
                     description: 'Netwerkfout tijdens ophalen van materialen.',
                 });
+            } finally {
+                setIsMaterialCatalogLoading(false);
             }
         };
         fetchMaterials();
-    }, [user, materialRefreshTrigger, toast]);
+    }, [user, activeCategory, materialRefreshTrigger, toast]);
 
     // Initialize state from calculation data (Supabase)
     useEffect(() => {
@@ -2062,6 +2083,7 @@ export default function QuotePage() {
                     return {
                         btwTarief: inst.btwTarief || 21,
                         btwMode: inst.btwMode === 'materiaal_only' ? 'materiaal_only' : 'normaal',
+                        arbeidZonderBtw: inst.arbeidZonderBtw === true,
                         arbeidBtwLaagUren: inst.arbeidBtwLaagUren ?? 0,
                         arbeidBtwLaagTarief: inst.arbeidBtwLaagTarief ?? 9,
                         uurTariefExclBtw: inst.uurTariefExclBtw || inst.uurTarief || 50,
@@ -3241,19 +3263,12 @@ export default function QuotePage() {
     ].length;
 
     const roundMoney = (value: number): number => Number((value || 0).toFixed(2));
-    const isExtraKostenItem = (item: MaterialItem): boolean =>
-        String(item.product || '').trim().toLowerCase() === 'extra kosten';
-    const extraKostenExcl = roundMoney(
-        [...materials.groot, ...materials.verbruik].reduce((sum, item) => {
-            if (!isExtraKostenItem(item)) return sum;
-            return sum + (Number(item.prijs_per_stuk) || 0) * (Number(item.aantal) || 0);
-        }, 0),
-    );
+    const scopeCosts = getScopeCosts(materials);
 
     const applyMaterialTargetWithAdjustment = async (
         category: 'groot' | 'verbruik',
         targetSubtotal: number,
-        adjustmentLabel: string = 'Extra kosten',
+        adjustmentLabel: string,
     ) => {
         if (!calculation) return;
         const safeTarget = roundMoney(Math.max(0, targetSubtotal));
@@ -3322,15 +3337,14 @@ export default function QuotePage() {
     };
 
     const handleUpdateMaterialenGrootTotal = async (value: number) => {
-        await applyMaterialTargetWithAdjustment('groot', value, 'Handmatige grootmateriaalcorrectie');
+        await applyMaterialTargetWithAdjustment('groot', roundMoney(value + scopeCosts.groot), 'Handmatige grootmateriaalcorrectie');
     };
 
     const handleUpdateMaterialenVerbruikTotal = async (value: number) => {
-        // Het opgeslagen verbruikssubtotaal bevat ook de regel "Extra kosten".
-        // Behoud die regel wanneer alleen het zichtbare verbruiksbedrag wijzigt.
+        // Behoud de aparte afval- en steigerkosten bij een correctie op verbruik.
         await applyMaterialTargetWithAdjustment(
             'verbruik',
-            roundMoney(value + extraKostenExcl),
+            roundMoney(value + scopeCosts.verbruik),
             'Handmatige verbruikscorrectie',
         );
     };
@@ -3343,12 +3357,23 @@ export default function QuotePage() {
         await applyMaterialTargetWithAdjustment('groot', roundMoney(grootSubtotal + delta), 'Handmatige grootmateriaalcorrectie');
     };
 
-    const handleUpdateExtraKostenTotal = async (value: number) => {
+    const handleUpdateScopeCost = async (key: ScopeCostKey, value: number) => {
         if (!calculation) return;
-        const safeTarget = roundMoney(Math.max(0, value));
-        const delta = roundMoney(safeTarget - extraKostenExcl);
-        if (Math.abs(delta) < 0.01) return;
-        await applyMaterialTargetWithAdjustment('verbruik', roundMoney(verbruikSubtotal + delta));
+        const nextMaterials = setScopeCost(materials, key, value);
+        hasEditedMaterialsRef.current = true;
+        setSelectedMaterialPackageId('NIEUW');
+        isUpdatingRef.current = true;
+        setMaterials(nextMaterials);
+        try {
+            await updateDataJson({
+                ...unwrapRoot(calculation.data_json),
+                grootmaterialen: nextMaterials.groot,
+                verbruiksartikelen: nextMaterials.verbruik,
+            });
+            toast({ title: `${SCOPE_COST_LABELS[key]} opgeslagen` });
+        } finally {
+            isUpdatingRef.current = false;
+        }
     };
 
     const handleUpdateWinstMargePercentage = async (percentage: number) => {
@@ -4124,6 +4149,7 @@ export default function QuotePage() {
                     ...((prev.instellingen ?? {}) as any),
                     btwTarief: newSettings.btwTarief,
                     btwMode: newSettings.btwMode,
+                    arbeidZonderBtw: newSettings.arbeidZonderBtw ?? false,
                     arbeidBtwLaagUren: newSettings.arbeidBtwLaagUren ?? 0,
                     arbeidBtwLaagTarief: newSettings.arbeidBtwLaagTarief ?? 9,
                     uurTariefExclBtw: newSettings.uurTariefExclBtw,
@@ -4153,6 +4179,7 @@ export default function QuotePage() {
                 ...((quote?.instellingen ?? {}) as any),
                 btwTarief: newSettings.btwTarief,
                 btwMode: newSettings.btwMode,
+                arbeidZonderBtw: newSettings.arbeidZonderBtw ?? false,
                 arbeidBtwLaagUren: newSettings.arbeidBtwLaagUren ?? 0,
                 arbeidBtwLaagTarief: newSettings.arbeidBtwLaagTarief ?? 9,
                 uurTariefExclBtw: newSettings.uurTariefExclBtw,
@@ -4813,12 +4840,36 @@ export default function QuotePage() {
         try {
             const storage = getStorage();
             const fileRef = storageRef(storage, storagePath);
-            await uploadBytes(fileRef, file, { contentType: mimeType || 'image/jpeg' });
-            const downloadUrl = await getDownloadURL(fileRef);
+            const thumbnailPromise = createQuotePhotoPreview(file).then(async (preview) => {
+                if (!preview) return {};
+                const thumbnailExtension = preview.type === 'image/webp' ? 'webp' : 'png';
+                const thumbnailStoragePath = `users/${user.uid}/quotes/${id}/fotos/${photoId}.thumb.${thumbnailExtension}`;
+                const thumbnailRef = storageRef(storage, thumbnailStoragePath);
+                await uploadBytes(thumbnailRef, preview, {
+                    contentType: preview.type,
+                    cacheControl: 'private, max-age=31536000, immutable',
+                });
+                return {
+                    thumbnailStoragePath,
+                    thumbnailDownloadUrl: await getDownloadURL(thumbnailRef),
+                };
+            }).catch((error) => {
+                // Een mislukt voorbeeld mag het originele bestand niet tegenhouden.
+                console.warn('Foto voorbeeld kon niet worden opgeslagen:', error);
+                return {};
+            });
+            const [downloadUrl, thumbnail] = await Promise.all([
+                uploadBytes(fileRef, file, {
+                    contentType: mimeType || 'image/jpeg',
+                    cacheControl: 'private, max-age=31536000, immutable',
+                }).then(() => getDownloadURL(fileRef)),
+                thumbnailPromise,
+            ]);
 
             const nextPhoto: QuotePhotoAttachment = {
                 ...pendingPhoto,
                 downloadUrl,
+                ...thumbnail,
             };
 
             const quoteRef = doc(firestore, 'quotes', id);
@@ -4914,10 +4965,10 @@ export default function QuotePage() {
         if (!user || !firestore || !id || !quote) return;
         setPhotoActionId(photo.id);
         try {
-            if (photo.storagePath) {
-                const storage = getStorage();
-                await deleteObject(storageRef(storage, photo.storagePath));
-            }
+            const storage = getStorage();
+            await Promise.all([photo.storagePath, photo.thumbnailStoragePath]
+                .filter((path): path is string => !!path)
+                .map((path) => deleteObject(storageRef(storage, path))));
         } catch (error) {
             console.error('Error deleting foto from storage:', error);
         }
@@ -5958,6 +6009,8 @@ export default function QuotePage() {
         return !hasTitle && !hasSummary && !hasScope;
     }, [workDescriptionStructured]);
 
+    const missingScopeCosts = getMissingScopeCosts(workDescriptionStructured, scopeCosts);
+    const showOverviewWarning = !loading && (missingScopeCosts.afval || missingScopeCosts.steiger);
     const showWerkbeschrijvingWarning = !loading && isWerkbeschrijvingEmpty;
     const drawingStatus = useMemo(() => {
         const quoteWithJobs = quote as (Quote & { klussen?: Record<string, Record<string, unknown>> }) | null;
@@ -6884,15 +6937,18 @@ export default function QuotePage() {
                         </div>
                     </div>
                     {!loading && (
-                        <div className="grid w-full grid-cols-5 gap-2 sm:hidden">
+                        <div className="grid w-full grid-cols-6 gap-2 sm:hidden">
                             <Button
                                 variant="outline"
                                 className="h-11 px-0"
-                                onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`)}
-                                aria-label="Maak factuur"
-                                title="Maak factuur"
+                                asChild
                             >
-                                <ReceiptText size={16} />
+                                <Link href={`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`} prefetch aria-label="Maak factuur" title="Maak factuur">
+                                    <ReceiptText size={16} />
+                                </Link>
+                            </Button>
+                            <Button variant="outline" className="h-11 px-0" onClick={() => setIsPaymentRequestOpen(true)} aria-label="Betaalverzoek" title="Betaalverzoek">
+                                <Link2 size={16} />
                             </Button>
                             <Button
                                 variant="success"
@@ -6949,11 +7005,14 @@ export default function QuotePage() {
                                     variant="outline"
                                     size="icon"
                                     className="h-9 w-9 shrink-0"
-                                    onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`)}
-                                    aria-label="Maak factuur"
-                                    title="Maak factuur"
+                                    asChild
                                 >
-                                    <ReceiptText size={16} />
+                                    <Link href={`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`} prefetch aria-label="Maak factuur" title="Maak factuur">
+                                        <ReceiptText size={16} />
+                                    </Link>
+                                </Button>
+                                <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setIsPaymentRequestOpen(true)} aria-label="Betaalverzoek" title="Betaalverzoek">
+                                    <Link2 size={16} />
                                 </Button>
                                 <Button
                                     variant="outline"
@@ -7110,7 +7169,7 @@ export default function QuotePage() {
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="overzicht"
-                                        className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
+                                        className={cn("relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground", showOverviewWarning && "text-red-400 data-[state=active]:text-red-400")}
                                         aria-label="Overzicht"
                                         title="Overzicht"
                                     >
@@ -7217,9 +7276,10 @@ export default function QuotePage() {
                                         </div>
                                     )}
                                 </TabsTrigger>
-                                <TabsTrigger value="overzicht" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                <TabsTrigger value="overzicht" className={cn("relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground", showOverviewWarning && "text-red-400 data-[state=active]:text-red-400")}>
                                     <Euro size={16} />
                                     Overzicht
+                                    {showOverviewWarning && <AlertCircle size={12} className="text-red-500" />}
                                 </TabsTrigger>
                                 <TabsTrigger value="prijsboek" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     <BookOpen size={16} />
@@ -7897,7 +7957,8 @@ export default function QuotePage() {
                                         settings={quoteSettings}
                                         totalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
                                         urenPerDag={laborHoursPerDay}
-                                        extraKostenExcl={extraKostenExcl}
+                                        scopeCosts={scopeCosts}
+                                        missingScopeCosts={missingScopeCosts}
                                         onUpdateHourlyRate={(newRate) => {
                                             if (!quoteSettings) return;
                                             handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
@@ -7910,19 +7971,18 @@ export default function QuotePage() {
                                                 arbeidBtwLaagTarief: quoteSettings.arbeidBtwLaagTarief ?? 9,
                                             });
                                         }}
+                                        onUpdateLaborWithoutVat={(checked) => {
+                                            if (!quoteSettings) return;
+                                            return handleUpdateSettings({ ...quoteSettings, arbeidZonderBtw: checked });
+                                        }}
                                         onUpdateTotalHours={async (newHours) => {
                                             if (!calculation) return;
-                                            // Assuming we can just update the total, note: this might desync from uren_specificatie
-                                            // but since user explicitly requested editing total hours, we allow it.
-                                            const root = unwrapRoot(calculation.data_json);
-                                            await updateDataJson({
-                                                ...root,
-                                                totaal_uren: newHours,
-                                            });
+                                            // Direct bijwerken; de hook slaat wijzigingen op volgorde op.
+                                            await updateDataJsonPatch({ totaal_uren: newHours });
                                         }}
                                         onUpdateMaterialenGrootTotal={handleUpdateMaterialenGrootTotal}
                                         onUpdateMaterialenVerbruikTotal={handleUpdateMaterialenVerbruikTotal}
-                                        onUpdateExtraKostenTotal={handleUpdateExtraKostenTotal}
+                                        onUpdateScopeCost={handleUpdateScopeCost}
                                         onUpdateMaterialenSubtotal={handleUpdateMaterialenSubtotal}
                                         onUpdateTransportTotal={handleUpdateTransportTotal}
                                         onUpdateTransportRatePerKm={handleUpdateTransportRatePerKm}
@@ -7976,31 +8036,31 @@ export default function QuotePage() {
                                             <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
                                                 <div className="text-xs text-muted-foreground">Eerste betaling</div>
                                                 <div className="mt-1 text-lg font-semibold">
-                                                    {quoteFinancialTotals.firstPayment ? formatCurrency(quoteFinancialTotals.firstPayment.amount) : 'Nog geen betaling'}
+                                                    {quoteFinancialLoading ? 'Betalingen laden...' : quoteFinancialTotals.firstPayment ? formatCurrency(quoteFinancialTotals.firstPayment.amount) : 'Nog geen betaling'}
                                                 </div>
-                                                {quoteFinancialTotals.firstPayment?.date ? (
+                                                {!quoteFinancialLoading && quoteFinancialTotals.firstPayment?.date ? (
                                                     <div className="mt-1 text-xs text-muted-foreground">{quoteFinancialTotals.firstPayment.date.toLocaleDateString('nl-NL')}</div>
                                                 ) : null}
                                             </div>
                                             <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3">
                                                 <div className="text-xs text-muted-foreground">Uiteindelijk betaald</div>
-                                                <div className="mt-1 text-lg font-semibold text-emerald-300">{formatCurrency(quoteFinancialTotals.paidIncl)}</div>
+                                                <div className="mt-1 text-lg font-semibold text-emerald-300">{quoteFinancialLoading ? 'Betalingen laden...' : formatCurrency(quoteFinancialTotals.paidIncl)}</div>
                                                 <div className="mt-1 text-xs text-muted-foreground">
-                                                    {quoteFinancialTotals.payments.length > 0 ? `${quoteFinancialTotals.payments.length} betaling(en) geregistreerd.` : 'Gebaseerd op de betaalstatus van de factuur.'}
+                                                    {quoteFinancialLoading ? '' : quoteFinancialTotals.payments.length > 0 ? `${quoteFinancialTotals.payments.length} betaling(en) geregistreerd.` : 'Gebaseerd op de betaalstatus van de factuur.'}
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div className={cn(
                                             'flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-sm',
-                                            paidDifferenceFromOriginal < -0.005
+                                            quoteFinancialLoading ? 'border-border/70 bg-muted/20' : paidDifferenceFromOriginal < -0.005
                                                 ? 'border-amber-500/30 bg-amber-500/5'
                                                 : paidDifferenceFromOriginal > 0.005
                                                     ? 'border-emerald-500/30 bg-emerald-500/5'
                                                     : 'border-border/70 bg-muted/20',
                                         )}>
                                             <span>Verschil uiteindelijk betaald t.o.v. eerste prijs</span>
-                                            <span className="font-semibold tabular-nums">{paidDifferenceFromOriginal > 0.005 ? '+' : ''}{formatCurrency(paidDifferenceFromOriginal)}</span>
+                                            <span className="font-semibold tabular-nums">{quoteFinancialLoading ? '—' : `${paidDifferenceFromOriginal > 0.005 ? '+' : ''}${formatCurrency(paidDifferenceFromOriginal)}`}</span>
                                         </div>
 
                                         <div className="space-y-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
@@ -8165,54 +8225,6 @@ export default function QuotePage() {
                                 </div>
                             ) : (
                                 <>
-                                    {!quoteSettings ? (
-                                        <div className="bg-card rounded-lg border border-border p-12 text-center">
-                                            <Clock size={48} className="mx-auto text-muted mb-4" />
-                                            <h3 className="text-lg font-medium text-foreground mb-2">Nog geen uren</h3>
-                                            <p className="text-muted-foreground">
-                                                Voeg uren toe via de calculatie of werk later de offertegegevens bij.
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <LaborBreakdown
-                                            urenSpecificatie={normalizedData?.uren_specificatie || []}
-                                            totaalUren={laborTotalHours}
-                                            uurTarief={quoteSettings?.uurTariefExclBtw || 0}
-                                            btwTarief={quoteSettings?.btwTarief || 21}
-                                            urenPerDag={laborHoursPerDay}
-                                            showSummaryInHeader
-                                            onUpdateHourlyRate={(newRate) => {
-                                                if (!quoteSettings) return;
-                                                handleUpdateSettings({ ...quoteSettings, uurTariefExclBtw: newRate });
-                                            }}
-                                            onUpdateTotalHours={async (newHours) => {
-                                                if (!calculation) return;
-                                                const root = unwrapRoot(calculation.data_json);
-                                                await updateDataJson({
-                                                    ...root,
-                                                    totaal_uren: newHours,
-                                                });
-                                            }}
-                                            onUpdateItem={async (index, newHours) => {
-                                                if (!calculation || !normalizedData) return;
-                                                const updatedItems = [...(normalizedData.uren_specificatie || [])];
-                                                if (updatedItems[index]) {
-                                                    updatedItems[index] = { ...updatedItems[index], uren: newHours };
-
-                                                    // Recalculate total hours based on the new item value
-                                                    const newTotal = updatedItems.reduce((sum, item) => sum + (item.uren || 0), 0);
-
-                                                    const root = unwrapRoot(calculation.data_json);
-                                                    await updateDataJson({
-                                                        ...root,
-                                                        uren_specificatie: updatedItems,
-                                                        totaal_uren: newTotal
-                                                    });
-                                                }
-                                            }}
-                                        />
-                                    )}
-
                                     {lastSyncedAt && (
                                         <div className="flex items-center justify-end mb-4">
                                             <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -8460,6 +8472,7 @@ export default function QuotePage() {
 
                         {/* PDF Tab */}
                         <TabsContent value="pdf" className="mt-6 space-y-4">
+                            {activeTab === 'pdf' && <>
                             <div className="flex items-start justify-between gap-3">
                                 <QuotePdfLanguageControl
                                     key={id}
@@ -8506,6 +8519,7 @@ export default function QuotePage() {
                                     iframeClassName="w-full h-[82vh] rounded border border-zinc-700"
                                 />
                             )}
+                            </>}
                         </TabsContent>
 
                         <TabsContent value="werkbeschrijving" className="mt-6">
@@ -8754,7 +8768,7 @@ export default function QuotePage() {
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                            {sortedPhotoAttachments.map((photo) => {
+                                            {sortedPhotoAttachments.map((photo, photoIndex) => {
                                                 const createdAt = parseReceiptCreatedAt(photo.createdAt);
                                                 const isPending = pendingPhotoUploads.some(({ photo: pendingPhoto }) => pendingPhoto.id === photo.id);
                                                 const isBusy = photoActionId === photo.id;
@@ -8765,12 +8779,7 @@ export default function QuotePage() {
                                                             className="relative block w-full"
                                                             onClick={() => setSelectedPhoto(photo)}
                                                             >
-                                                                <img
-                                                                    src={photo.downloadUrl}
-                                                                    alt={photo.originalName || 'Projectfoto'}
-                                                                    className="h-44 w-full object-cover"
-                                                                    loading="lazy"
-                                                                />
+                                                                <QuotePhotoImage photo={photo} eager={photoIndex < 3} />
                                                             {isPending && (
                                                                 <div className="absolute left-2 top-2 flex items-center gap-1.5 rounded-md bg-background/90 px-2 py-1 text-xs text-foreground shadow">
                                                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -9702,6 +9711,15 @@ export default function QuotePage() {
 
             </main>
 
+            <PaymentRequestDialog
+                key={id}
+                open={isPaymentRequestOpen}
+                onOpenChange={setIsPaymentRequestOpen}
+                quoteId={id}
+                quoteNumber={formatOfferteNummerLabel(quote?.offerteNummer, quote?.offerteVersie)}
+                defaultAmount={totalInclBtw ?? (Number((quote as any)?.totaalbedrag) || 0)}
+            />
+
             <SendQuoteModal
                 isOpen={isSendModalOpen}
                 onClose={() => setIsSendModalOpen(false)}
@@ -9751,6 +9769,7 @@ export default function QuotePage() {
                     }}
                     initialAiImage={droppedMaterialImage}
                     existingMaterials={alleMaterialen}
+                    existingMaterialsLoading={isMaterialCatalogLoading}
                     onSelectExisting={handleSelectMaterial}
                     onMaterialAdded={handleSelectMaterial} // Handle custom created materials same way
                     defaultCategory="all"

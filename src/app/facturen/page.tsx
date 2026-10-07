@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   collection,
   doc,
-  getDocs,
   onSnapshot,
   query,
   runTransaction,
@@ -15,7 +14,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { Archive, CheckCircle2, Loader2, MoreHorizontal, Plus, ReceiptText, Search, FileText } from 'lucide-react';
+import { Archive, CheckCircle2, Loader2, MoreHorizontal, Plus, ReceiptText, Search } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,7 +23,6 @@ import { Button } from '@/components/ui/button';
 import { useFirestore, useUser } from '@/firebase';
 import type { Invoice } from '@/lib/types';
 import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -50,11 +48,11 @@ import { promoteInvoiceRelatedQuotesToAcceptedInTransaction } from '@/lib/quote-
 
 type FilterMode = 'alle' | 'concept' | 'verzonden' | 'openstaand' | 'betaald';
 
-function naarDate(value: any): Date | null {
+function naarDate(value: unknown): Date | null {
   if (!value) return null;
   if (value instanceof Date) return value;
   if (value instanceof Timestamp) return value.toDate();
-  if (typeof value === 'object' && typeof value.seconds === 'number') {
+  if (typeof value === 'object' && 'seconds' in value && typeof value.seconds === 'number') {
     return new Date(value.seconds * 1000);
   }
   return null;
@@ -77,8 +75,9 @@ function getInvoiceSideBorderClass(status: Invoice['status']): string {
   return map[status] || map.concept;
 }
 
-export default function FacturenPage() {
+function FacturenPageContent() {
   const router = useRouter();
+  const quoteFilter = useSearchParams().get('quoteId');
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
@@ -87,9 +86,6 @@ export default function FacturenPage() {
   const [invoices, setInvoices] = useState<Array<Invoice & { issueDateDate: Date | null }>>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('alle');
-  const [createOpen, setCreateOpen] = useState(false);
-  const [quotes, setQuotes] = useState<any[]>([]);
-  const [quoteSearch, setQuoteSearch] = useState('');
 
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<(Invoice & { issueDateDate: Date | null }) | null>(null);
@@ -113,13 +109,13 @@ export default function FacturenPage() {
       q,
       (snapshot) => {
         const data = snapshot.docs.map((docSnap) => {
-          const raw = docSnap.data() as any;
+          const raw = docSnap.data();
           return {
             ...(raw as Invoice),
             id: docSnap.id,
             issueDateDate: naarDate(raw?.issueDate),
           };
-        }).filter((inv) => !inv.archived);
+        }).filter((inv) => !inv.archived || Boolean(quoteFilter));
 
         data.sort((a, b) => {
           const aT = a.issueDateDate?.getTime() ?? 0;
@@ -130,7 +126,7 @@ export default function FacturenPage() {
         setInvoices(data);
         setLoading(false);
       },
-      (err: any) => {
+      (err) => {
         console.error('Fout bij ophalen facturen:', err);
         setError(`${err.code ?? 'error'}: ${err.message ?? 'Onbekende fout'}`);
         setLoading(false);
@@ -138,34 +134,14 @@ export default function FacturenPage() {
     );
 
     return () => unsub();
-  }, [user, firestore]);
-
-  useEffect(() => {
-    if (!createOpen || !user || !firestore) return;
-    (async () => {
-      try {
-        const ref = collection(firestore, 'quotes');
-        const q = query(ref, where('userId', '==', user.uid));
-        const snap = await getDocs(q);
-        const arr = snap.docs
-          .map((d) => ({ id: d.id, ...(d.data() as any) }))
-          .filter((quote) => quote.isCalculationTest !== true);
-        arr.sort((a, b) => {
-          const aT = naarDate(a.updatedAt)?.getTime() ?? naarDate(a.createdAt)?.getTime() ?? 0;
-          const bT = naarDate(b.updatedAt)?.getTime() ?? naarDate(b.createdAt)?.getTime() ?? 0;
-          return bT - aT;
-        });
-        setQuotes(arr);
-      } catch (e) {
-        console.error(e);
-      }
-    })();
-  }, [createOpen, user, firestore]);
+  }, [user, firestore, quoteFilter]);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
 
-    let result = [...invoices];
+    let result = quoteFilter
+      ? invoices.filter((invoice) => invoice.quoteId === quoteFilter || invoice.combinedQuoteIds?.includes(quoteFilter))
+      : [...invoices];
     if (filter === 'openstaand') {
       result = result.filter((inv) => (inv.paymentSummary?.openAmount ?? inv.totalsSnapshot?.totaalInclBtw ?? 0) > 0);
     }
@@ -186,7 +162,7 @@ export default function FacturenPage() {
       const offerte = inv.quoteId?.toLowerCase?.() || '';
       return klant.includes(s) || nr.includes(s) || offerte.includes(s);
     });
-  }, [invoices, search, filter]);
+  }, [invoices, search, filter, quoteFilter]);
 
   function openArchiveDialog(inv: Invoice & { issueDateDate: Date | null }) {
     setArchiveTarget(inv);
@@ -203,13 +179,13 @@ export default function FacturenPage() {
         archivedAt: serverTimestamp(),
         archivedBy: user.uid,
         updatedAt: serverTimestamp(),
-      } as any);
+      });
 
       setArchiveOpen(false);
       setArchiveTarget(null);
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      setError(`${e?.code ?? 'error'}: ${e?.message ?? 'Kon factuur niet archiveren.'}`);
+      setError(e instanceof Error ? e.message : 'Kon factuur niet archiveren.');
     } finally {
       setArchiving(false);
     }
@@ -224,7 +200,7 @@ export default function FacturenPage() {
         const snap = await tx.get(invRef);
         if (!snap.exists()) throw new Error('Factuur niet gevonden');
 
-        const data = snap.data() as any;
+        const data = snap.data();
         const total = Number(data?.totalsSnapshot?.totaalInclBtw ?? 0) || 0;
         const paidNow = Number(data?.paymentSummary?.paidAmount ?? 0) || 0;
         const nextPaidAmount = Math.max(total, paidNow);
@@ -242,28 +218,13 @@ export default function FacturenPage() {
       });
 
       toast({ title: 'Bijgewerkt', description: 'Factuur is gemarkeerd als betaald.' });
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      toast({ title: 'Fout', description: e?.message ?? 'Kon factuur niet op betaald zetten.', variant: 'destructive' });
+      toast({ title: 'Fout', description: e instanceof Error ? e.message : 'Kon factuur niet op betaald zetten.', variant: 'destructive' });
     } finally {
       setMarkingPaidId((current) => (current === inv.id ? null : current));
     }
   }
-
-  const filteredQuotes = useMemo(() => {
-    const s = quoteSearch.trim().toLowerCase();
-    let arr = [...quotes];
-    if (!s) return arr.slice(0, 30);
-    arr = arr.filter((q) => {
-      const titel = (q?.titel || q?.title || '').toString().toLowerCase();
-      const klant = (q?.klantinformatie?.bedrijfsnaam || `${q?.klantinformatie?.voornaam || ''} ${q?.klantinformatie?.achternaam || ''}`.trim() || '')
-        .toString()
-        .toLowerCase();
-      const nr = typeof q?.offerteNummer === 'number' ? String(q.offerteNummer) : '';
-      return titel.includes(s) || klant.includes(s) || nr.includes(s);
-    });
-    return arr.slice(0, 30);
-  }, [quotes, quoteSearch]);
 
   if (isUserLoading || loading) {
     return (
@@ -288,6 +249,7 @@ export default function FacturenPage() {
 
       <main className="flex flex-col items-center p-4 pb-10 md:px-6 md:pt-6">
         <div className="w-full max-w-5xl space-y-5">
+          {quoteFilter && <div className="flex items-center justify-between gap-3 text-sm"><span>Facturen bij deze klus</span><Link className="underline" href="/facturen">Alle facturen tonen</Link></div>}
           <Card>
             <CardContent className="space-y-4 pt-5">
               {error && (
@@ -307,87 +269,9 @@ export default function FacturenPage() {
                   />
                 </div>
 
-                <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                  <DialogTrigger asChild>
-                    <Button type="button" className="h-10 shrink-0 gap-2 px-4">
-                      <Plus className="h-4 w-4" />
-                      Nieuwe factuur
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Nieuwe factuur</DialogTitle>
-                      <DialogDescription>Kies een offerte en maak een voorschot- of eindfactuur.</DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-3">
-                      <Input
-                        value={quoteSearch}
-                        onChange={(e) => setQuoteSearch(e.target.value)}
-                        placeholder="Zoek offertes op klant, titel of nummer..."
-                      />
-
-                      <div className="max-h-[60vh] overflow-y-auto space-y-2 pr-1">
-                        {filteredQuotes.length === 0 ? (
-                          <div className="text-sm text-muted-foreground p-3">Geen offertes gevonden.</div>
-                        ) : (
-                          filteredQuotes.map((q) => {
-                            const klant =
-                              q?.klantinformatie?.bedrijfsnaam ||
-                              `${q?.klantinformatie?.voornaam || ''} ${q?.klantinformatie?.achternaam || ''}`.trim() ||
-                              'Onbekende klant';
-                            const label = typeof q?.offerteNummer === 'number' ? `Offerte #${q.offerteNummer}` : 'Offerte';
-                            const total = typeof q?.amount === 'number' ? q.amount : (typeof q?.totaalbedrag === 'number' ? q.totaalbedrag : 0);
-                            const disabled = !total || total <= 0;
-                            return (
-                              <div key={q.id} className="rounded-lg border border-border/50 bg-background/30 p-3 flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
-                                    <div className="font-semibold text-sm truncate">{label}</div>
-                                    <div className="text-xs text-muted-foreground truncate">• {klant}</div>
-                                  </div>
-                                  <div className="text-xs text-muted-foreground mt-1 truncate">
-                                    {(q?.titel || q?.title || '').toString() || '—'}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground mt-1">
-                                    Totaal: {formatCurrency(total)}
-                                  </div>
-                                </div>
-                                <div className="flex gap-2 shrink-0">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="h-9"
-                                    disabled={disabled}
-                                    onClick={() => {
-                                      router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=voorschot`);
-                                      setCreateOpen(false);
-                                    }}
-                                  >
-                                    Voorschot
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="success"
-                                    className="h-9"
-                                    disabled={disabled}
-                                    onClick={() => {
-                                      router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=eind`);
-                                      setCreateOpen(false);
-                                    }}
-                                  >
-                                    Eindfactuur
-                                  </Button>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <Button asChild className="h-10 shrink-0 gap-2 px-4">
+                  <Link href="/facturen/start"><Plus className="h-4 w-4" />Factureren</Link>
+                </Button>
               </div>
 
               <div className="flex flex-wrap gap-2.5">
@@ -416,14 +300,14 @@ export default function FacturenPage() {
               <CardContent className="p-8 text-center space-y-3">
                 <div className="font-semibold">Geen facturen gevonden</div>
                 <div className="text-sm text-muted-foreground">
-                  Facturen maak je aan vanuit een offerte.
+                  Kies een klant of klus om een factuur te maken.
                 </div>
                 <Button
                   asChild
                   variant="outline"
                   className="mt-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200 dark:hover:text-emerald-100"
                 >
-                  <Link href="/offertes">Ga naar offertes</Link>
+                  <Link href="/facturen/start">Factureren</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -469,6 +353,7 @@ export default function FacturenPage() {
                           <span>{datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—'}</span>
                           <span>
                             <InvoiceStatusBadge status={inv.status} className="h-6 px-2.5 text-[11px]" />
+                            {inv.archived && <span className="ml-1 text-xs text-muted-foreground">Archief</span>}
                           </span>
                         </div>
                         {titel !== '—' && (
@@ -604,4 +489,8 @@ export default function FacturenPage() {
       </AlertDialog>
     </div>
   );
+}
+
+export default function FacturenPage() {
+  return <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Facturen laden…</div>}><FacturenPageContent /></Suspense>;
 }

@@ -302,6 +302,7 @@ function mapSettingsForTotals(input: unknown): QuoteCalculationSettings {
   return {
     btwTarief: safeNumber(rawInst.btwTarief) || 21,
     btwMode: normalizeQuoteBtwMode(rawInst.btwMode),
+    arbeidZonderBtw: rawInst.arbeidZonderBtw === true,
     uurTariefExclBtw: safeNumber(rawInst.uurTariefExclBtw) || safeNumber(rawInst.uurTarief) || 50,
     schattingUren: Boolean(rawInst.schattingUren ?? false),
     extras: {

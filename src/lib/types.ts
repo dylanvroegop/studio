@@ -131,6 +131,8 @@ export interface QuotePhotoAttachment {
   sizeBytes: number;
   storagePath: string;
   downloadUrl: string;
+  thumbnailDownloadUrl?: string;
+  thumbnailStoragePath?: string;
   createdAt: Timestamp | Date | string;
   uploadedBy: string;
 }
@@ -164,6 +166,7 @@ export interface MaterialPresentation {
 
 export type QuoteSettings = {
   btwTarief: number;          // e.g. 21
+  arbeidZonderBtw?: boolean;
   uurTariefExclBtw: number;   // e.g. 45.00
   arbeidBtwLaagUren?: number;
   arbeidBtwLaagTarief?: number;

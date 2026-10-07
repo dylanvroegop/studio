@@ -6,8 +6,27 @@ function resolveSession(rows, incoming, chatId) {
     const digits = text(value).replace(/\D/g, '');
     return digits.replace(/^0031/, '0').replace(/^31/, '0');
   };
+  incoming = incoming || {};
+  if (chatId == null || !text(String(chatId)) || !text(incoming.client_name)) throw new Error('Klantnaam of Telegram-chat ontbreekt. Er is niets gewijzigd.');
   const clean = Object.fromEntries(Object.entries(incoming || {}).filter(([, value]) => text(value)));
-  let candidates = rows.filter(row => row.id && String(row.chat_id) === String(chatId));
+  const scoped = rows.filter(row => row.id && String(row.chat_id) === String(chatId));
+  const same = (client, key) => {
+    const normalize = key === 'phone' ? phone : normal;
+    return Boolean(normalize(incoming[key])) && normalize(client?.[key]) === normalize(incoming[key]);
+  };
+  const conflict = (left, right) => ['client_name', 'phone', 'email', 'city'].some(key => {
+    const normalize = key === 'phone' ? phone : normal;
+    return normalize(left?.[key]) && normalize(right?.[key]) && normalize(left[key]) !== normalize(right[key]);
+  });
+  // Een telefoon/e-mail mag nooit onder een andere klantnaam worden overgenomen.
+  const related = scoped.filter(row => same(row.client_json, 'phone') || same(row.client_json, 'email')
+    || (same(row.client_json, 'client_name') && same(row.client_json, 'city')));
+  if (related.some(row => conflict(row.client_json, incoming))) {
+    throw new Error('Tegenstrijdige klantgegevens gevonden. Er is niets gewijzigd. Controleer naam, telefoon en e-mail handmatig.');
+  }
+  let candidates = scoped.filter(row => same(row.client_json, 'client_name')
+    && (same(row.client_json, 'phone') || same(row.client_json, 'email')
+      || (same(row.client_json, 'city') && same(row.client_json, 'job_title'))));
   // Een contactgegeven uit de nieuwe screenshot mag niet met een andere klant botsen.
   for (const [key, normalize] of [['phone', phone], ['email', normal], ['city', normal]]) {
     if (text(incoming[key])) candidates = candidates.filter(row => !text(row.client_json?.[key]) || normalize(row.client_json[key]) === normalize(incoming[key]));
@@ -17,6 +36,20 @@ function resolveSession(rows, incoming, chatId) {
   }
   if (!candidates.length) {
     return { chat_id: String(chatId), output: incoming, client_json: incoming, appointment_status: incoming.appointment_status || 'not_found', matched_session_count: 0 };
+  }
+  // Controleer ook het contact dat uit een oudere sessie zou worden aangevuld.
+  // Hierdoor worden reeds vervuilde sessies niet opnieuw gebruikt.
+  for (const candidate of candidates) {
+    for (const row of scoped) {
+      const sharesContact = ['phone', 'email'].some(key => {
+        const normalize = key === 'phone' ? phone : normal;
+        return Boolean(normalize(candidate.client_json?.[key]))
+          && normalize(candidate.client_json[key]) === normalize(row.client_json?.[key]);
+      });
+      if (sharesContact && conflict(candidate.client_json, row.client_json)) {
+        throw new Error('Een contactgegeven staat bij verschillende klanten. Er is niets gewijzigd. Herstel eerst de oude sessies.');
+      }
+    }
   }
   if (candidates.length > 1) {
     for (const key of ['client_name', 'city', 'job_title', 'email', 'phone']) {

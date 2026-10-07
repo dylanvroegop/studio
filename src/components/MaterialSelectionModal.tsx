@@ -630,6 +630,7 @@ interface MaterialSelectionModalProps {
   quoteId?: string;
   klusId?: string;
   existingMaterials?: ExistingMaterial[];
+  existingMaterialsLoading?: boolean;
   onSelectExisting?: (material: ExistingMaterial) => void;
   onMaterialAdded?: (material: any) => void;
   onPendingMaterialQueued?: (payload: { clientId: string; placeholderMaterial: any; draftPayload: Record<string, unknown> }) => void;
@@ -654,6 +655,7 @@ export function MaterialSelectionModal({
   quoteId,
   klusId,
   existingMaterials = [],
+  existingMaterialsLoading = false,
   onSelectExisting,
   onMaterialAdded,
   onPendingMaterialQueued,
@@ -2868,7 +2870,7 @@ export function MaterialSelectionModal({
 
                       {allFilteredMaterials.length === 0 && (
                         <li className="p-8 text-center text-muted-foreground text-sm">
-                          Geen materialen gevonden.
+                          {existingMaterialsLoading ? 'Materialen laden...' : 'Geen materialen gevonden.'}
                         </li>
                       )}
                     </ul>

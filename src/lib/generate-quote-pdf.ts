@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { loadPdfImage as urlToBase64 } from './pdf-image-cache';
 import { createQuotePdfTranslator, type QuotePdfTranslation } from './quote-pdf-translation';
 import {
     formatCurrency,
@@ -162,32 +163,6 @@ function forceSummaryIntoPdfWorkScope(
                         : [],
         })),
     };
-}
-
-/**
- * Converts an image URL to base64 data URL for jsPDF
- * Uses server-side API route to bypass CORS issues with Firebase Storage
- */
-async function urlToBase64(url: string): Promise<string> {
-    try {
-        // Use API route to fetch and convert the image server-side (no CORS issues)
-        const response = await fetch(`/api/logo-to-base64?url=${encodeURIComponent(url)}`);
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch logo from API');
-        }
-
-        const data = await response.json();
-
-        if (!data.dataUrl) {
-            throw new Error('No data URL returned from API');
-        }
-
-        return data.dataUrl;
-    } catch (error) {
-        console.error('Failed to convert logo to base64:', error);
-        throw error;
-    }
 }
 
 function getImageFormatFromDataUrl(dataUrl: string): 'PNG' | 'JPEG' | 'WEBP' {
@@ -697,9 +672,9 @@ async function renderQuotePDF(data: PDFQuoteData, collectText?: (source: string)
     const laborLowVatAmount = Math.max(0, Number(data.totals.arbeidLaagBtwTotaal) || 0);
     const laborHighVatHours = Math.max(0, Number(data.totals.arbeidHoogBtwUren) || (data.totals.totaalUren - laborLowVatHours));
     const laborHighVatAmount = Math.max(0, Number(data.totals.arbeidHoogBtwTotaal) || (data.totals.arbeidTotaal - laborLowVatAmount));
-    const laborHighVatRate = Math.max(0, Number(data.totals.arbeidHoogBtwTarief) || Number(data.totals.btwPercentage) || 21);
-    const laborLowVatRate = Math.max(0, Number(data.totals.arbeidLaagBtwTarief) || 9);
-    const hasLaborVatSplit = laborLowVatHours > 0 && laborLowVatAmount > 0;
+    const laborHighVatRate = Math.max(0, Number(data.totals.arbeidHoogBtwTarief ?? data.totals.btwPercentage ?? 21));
+    const laborLowVatRate = Math.max(0, Number(data.totals.arbeidLaagBtwTarief ?? 9));
+    const hasLaborVatSplit = laborLowVatHours > 0 && laborLowVatAmount > 0 && laborLowVatRate > 0;
 
     if (data.settings.showSummaryArbeid) {
         const arbeidLabelParts: string[] = [];

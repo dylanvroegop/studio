@@ -27,19 +27,36 @@ function successfulImport(data) {
   return data.success === true && identifier(data.client_id) && identifier(data.project_id);
 }
 
-function importMessage(data) {
+function importMessage(data, client = {}) {
   const valid = value => typeof value === 'string' && !['', 'null', 'undefined'].includes(value.trim().toLowerCase());
   if (data.success !== true || !valid(data.client_id) || !valid(data.project_id)) {
     return 'De klantimport is niet bevestigd. Controleer de uitvoering in n8n voordat je opnieuw importeert.';
   }
-  if (valid(data.telegram_message)) return data.telegram_message.trim();
+  if (data.appointment_status === 'cancelled') {
+    return 'Het eerdere voorstel is handmatig verwijderd uit Google Agenda. Het tijdslot is weer vrij.';
+  }
   if (data.appointment_status === 'scheduled') {
     return 'Klant en offerte zijn opgeslagen. Er staat al een bevestigde werkbespreking in Calvora. Er is geen nieuw voorstel gemaakt.';
   }
-  if (data.appointment_status === 'pending') {
-    return 'Klant en offerte zijn opgeslagen. Er staat een afspraakvoorstel in Calvora, maar er is geen berichttekst beschikbaar. Controleer de planning.';
-  }
-  return 'Klant en offerte zijn opgeslagen. Er is geen afspraakvoorstel beschikbaar. Kies een moment in Calvora en bevestig dit met de klant.';
+  // Ook oudere API-reacties kunnen nog twee opties of helemaal geen tekst bevatten.
+  // Gebruik alleen het daadwerkelijk opgeslagen eerste voorstel, nooit optie twee.
+  const date = data.appointment_date || data.suggested_appointment_date;
+  const time = data.appointment_time || data.suggested_appointment_time;
+  const parsedDate = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? new Date(date + 'T12:00:00Z') : null;
+  const validSlot = parsedDate && Number.isFinite(parsedDate.getTime())
+    && parsedDate.toISOString().slice(0, 10) === date
+    && typeof time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+  const cachedName = valid(data.telegram_message)
+    ? data.telegram_message.match(/^Beste ([^\n,]+),/)?.[1] : null;
+  const name = valid(client.client_name) ? client.client_name.trim().split(/\s+/)[0] : cachedName || 'klant';
+  const proposal = validSlot
+    ? 'Ik kan op ' + new Intl.DateTimeFormat('nl-NL', {
+      weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Amsterdam',
+    }).format(parsedDate) + ' om ' + time + ' langskomen voor een werkbespreking.\n\nKomt dit moment u gelegen? Mocht dit moment niet uitkomen, welke dag en tijd zouden u beter uitkomen?'
+    : 'Ik kom graag langs voor een werkbespreking. Welke dag en tijd zouden u goed uitkomen?';
+  return 'Beste ' + name + ',\n\nBedankt voor uw bericht.\n\n' + proposal
+    + '\n\nDan bespreek ik de werkzaamheden met u en maak ik daarna kosteloos een offerte voor u op.\n\nMvg,\nDylan\n\nVroegop timmerwerken';
 }
 
 function expression(fn) {

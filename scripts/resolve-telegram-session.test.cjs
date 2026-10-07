@@ -13,12 +13,20 @@ test('andere chat wordt nooit gekoppeld',()=>assert.equal(resolveSession(rows,cl
 test('andere klus krijgt een eigen sessie',()=>assert.equal(resolveSession(rows,{...client,job_title:'Dak repareren'},'chat').id,undefined));
 test('gelijknamige verschillende klanten worden niet stil samengevoegd',()=>assert.throws(()=>resolveSession([rows[0],{...rows[1],client_json:{...client,phone:'0699999999'}}],confirmed,'chat'),/verschillende klanten/));
 test('gedeelde naam zonder gedeeld contactgegeven is onvoldoende voor samenvoegen',()=>assert.throws(()=>resolveSession(rows.map(r=>({...r,client_json:{...r.client_json,phone:null,email:null}})),confirmed,'chat'),/zonder gedeeld contactgegeven/));
-test('expliciet telefoonnummer selecteert de juiste klant',()=>assert.equal(resolveSession([rows[0],{...rows[1],client_json:{...client,phone:'0699999999',email:'other@example.com'}}],{...confirmed,phone:client.phone},'chat').id,'1'));
+test('expliciet nummer negeert geen tegenstrijdige oude sessie op dezelfde naam en plaats',()=>assert.throws(()=>resolveSession([rows[0],{...rows[1],client_json:{...client,phone:'0699999999',email:'other@example.com'}}],{...confirmed,phone:client.phone},'chat'),/Tegenstrijdige klantgegevens/));
 test('bestaande bevestigde sessie heeft voorrang op recente kopie',()=>assert.equal(resolveSession([{...rows[0],appointment_status:'confirmed',appointment_json:'2026-09-19 19:00'},rows[2]],confirmed,'chat').id,'1'));
 test('screenshot zonder afspraak wist bevestiging niet',()=>{
  const r=resolveSession([{...rows[0],appointment_status:'confirmed',client_json:{...client,...confirmed}}],client,'chat');assert.equal(r.client_json.appointment_status,'confirmed');assert.equal(r.client_json.appointment_time,'19:00');
 });
 test('internationaal en Nederlands telefoonnummer zijn dezelfde identiteit',()=>assert.equal(resolveSession([rows[0],{...rows[1],client_json:{...client,phone:'0612345678'}}],confirmed,'chat').id,'2'));
+test('numerieke Telegram-chat-ID wordt ondersteund',()=>assert.equal(resolveSession([{...rows[0],chat_id:'123'}],client,123).id,'1'));
+test('één vreemde rij zonder overeenkomstige naam wordt nooit aangevuld',()=>assert.equal(resolveSession([rows[0]],{...confirmed,client_name:'Andere klant',city:null,job_title:null},'chat').id,undefined));
+test('telefoon van een andere naam stopt voor samenvoegen',()=>assert.throws(()=>resolveSession(rows,{...client,client_name:'Andere klant'},'chat'),/Tegenstrijdige klantgegevens/));
+test('telefoon en e-mail van verschillende klanten stoppen',()=>assert.throws(()=>resolveSession([rows[0],{...rows[1],client_json:{...client,client_name:'Andere klant',phone:'0699999999',email:'other@example.com'}}],{...client,email:'other@example.com'},'chat'),/Tegenstrijdige klantgegevens/));
+test('contact uit een vervuilde oude sessie wordt nooit geërfd',()=>assert.throws(()=>resolveSession([rows[0],{...rows[1],client_json:{...client,client_name:'Andere klant',city:'Andere stad'}}],confirmed,'chat'),/verschillende klanten/));
+test('alleen een naam is onvoldoende om een oud nummer te erven',()=>assert.equal(resolveSession([rows[0]],{client_name:client.client_name},'chat').id,undefined));
+test('naam en plaats zonder contact of klus erven geen oud nummer',()=>assert.equal(resolveSession([rows[0]],{client_name:client.client_name,city:client.city},'chat').id,undefined));
+test('ontbrekende naam stopt ook bij een zichtbaar telefoonnummer',()=>assert.throws(()=>resolveSession(rows,{phone:client.phone},'chat'),/Klantnaam/));
 const event = {id:'calendar-id',description:`Klant: ${client.client_name}\nTelefoon: ${client.phone}\nWerk: ${client.job_title}`};
 test('bestaande agenda-afspraak wordt herkend bij opnieuw insturen',()=>assert.equal(existingCalendarEvent([event],client,'3'),'calendar-id'));
 test('andere klus in agenda wordt niet gewijzigd',()=>assert.equal(existingCalendarEvent([event],{...client,job_title:'Dak'},'3'),null));

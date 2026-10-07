@@ -1245,8 +1245,11 @@ export default function OffertesPage() {
     };
 
     void loadQuoteProfits();
+    const onCostsUpdated = () => void loadQuoteProfits();
+    window.addEventListener('calvora:costs-updated', onCostsUpdated);
     return () => {
       cancelled = true;
+      window.removeEventListener('calvora:costs-updated', onCostsUpdated);
     };
   }, [quotes, user]);
 

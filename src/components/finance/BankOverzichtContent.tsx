@@ -52,6 +52,7 @@ import {
 } from '@/lib/project-costs';
 import type { WinstMetricsResponse } from '@/lib/winst-types';
 import { formatOfferteNummerLabel } from '@/lib/quote-number';
+import { refreshBankData } from '@/lib/refresh-bank-data';
 
 type ApiSyncResponse = {
   ok: boolean;
@@ -294,6 +295,8 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
+  const [hasBankData, setHasBankData] = useState(false);
+  const hasBankDataRef = useRef(false);
   const [bankRefreshPending, setBankRefreshPending] = useState(true);
   const [bankRefreshError, setBankRefreshError] = useState<string | null>(null);
   const [syncingProvider, setSyncingProvider] = useState<'bunq' | 'enablebanking' | null>(null);
@@ -369,6 +372,8 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
       });
       setAccounts(combinedAccounts);
       setTransactions(combinedTransactions);
+      hasBankDataRef.current = true;
+      setHasBankData(true);
       if (!silent) {
         setCurrentPage(1);
       }
@@ -450,11 +455,17 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
 
       try {
         const token = await user.getIdToken();
-        await requestKnabSync(user.uid, token, force);
-        await Promise.all([
-          fetchFromSupabase(false),
-          fetchFinanceData(),
-        ]);
+        await refreshBankData({
+          readInitial: hasBankDataRef.current ? undefined : () => Promise.allSettled([
+            fetchFromSupabase(false),
+            fetchFinanceData(),
+          ]),
+          synchronize: () => requestKnabSync(user.uid, token, force),
+          readUpdated: () => Promise.all([
+            fetchFromSupabase(true),
+            fetchFinanceData(),
+          ]),
+        });
       } catch (refreshError) {
         const message = refreshError instanceof Error ? refreshError.message : 'Knab kon niet worden bijgewerkt.';
         setBankRefreshError(message);
@@ -843,19 +854,18 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
     await exportSpendingAnalysisPdf(`Uitgavenanalyse-${new Date().toISOString().slice(0, 10)}.pdf`, analysisReport);
   }, [analysisReport]);
 
-  if (isUserLoading || loading || bankRefreshPending) {
+  if (isUserLoading || loading || (!hasBankData && bankRefreshPending)) {
     return (
       <div className={embedded ? 'flex min-h-[320px] items-center justify-center' : 'min-h-screen bg-background flex items-center justify-center'}>
         <div className="flex max-w-md flex-col items-center gap-3 px-6 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="font-medium">Knab wordt bijgewerkt</p>
-          <p className="text-sm text-muted-foreground">Saldo, transacties en kostentotalen verschijnen zodra de actuele bankgegevens volledig zijn geladen.</p>
+          <p className="font-medium">Bankgegevens laden...</p>
         </div>
       </div>
     );
   }
 
-  if (bankRefreshError) {
+  if (bankRefreshError && !hasBankData) {
     return (
       <>
         <div className={embedded ? 'flex min-h-[320px] items-center justify-center' : 'min-h-screen bg-background flex items-center justify-center'}>
@@ -888,6 +898,16 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
 
       <main className={embedded ? 'w-full' : 'flex flex-col items-center p-4 md:px-6 md:pt-6'}>
         <div className="w-full max-w-7xl space-y-5">
+          {bankRefreshPending || bankRefreshError ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3 text-sm" role="status">
+              {bankRefreshPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleAlert className="h-4 w-4 text-destructive" />}
+              <span>{bankRefreshPending ? 'Knab wordt bijgewerkt.' : `Bijwerken mislukt. ${bankRefreshError}`}</span>
+              <span className="text-muted-foreground">Getoond: laatste synchronisatie {formatDate(knabConnection?.lastSyncedAt)}.</span>
+              {bankRefreshError && !bankRefreshPending ? (
+                <Button variant="outline" size="sm" onClick={() => void refreshKnabData(true)}>Opnieuw proberen</Button>
+              ) : null}
+            </div>
+          ) : null}
           <Tabs
             value={activeTabId}
             onValueChange={(id) => {

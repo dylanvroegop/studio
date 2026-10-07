@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 
+import { initFirebaseAdmin } from '@/firebase/admin';
 import { noStoreHeaders, resolveBankIdentity } from '@/lib/bank-api-auth';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { syncEnableBankingConnection } from '@/lib/enable-banking/sync';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { reconcileInvoiceBankPaymentsAfterSync, type InvoiceBankSyncResult } from '@/lib/invoice-bank-payments';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,7 +46,18 @@ export async function POST(request: Request) {
         { status: 409, headers: noStoreHeaders() },
       );
     }
-    return NextResponse.json({ ok: true, ...result }, { headers: noStoreHeaders() });
+    let invoiceMatching: InvoiceBankSyncResult;
+    try {
+      invoiceMatching = await reconcileInvoiceBankPaymentsAfterSync({
+        firestore: initFirebaseAdmin().firestore, uid: identity.firebaseUid, bankUserId: identity.bankUserId,
+      });
+    } catch (error) {
+      // Een factuurconflict mag een geslaagde bankimport niet ongedaan verklaren.
+      invoiceMatching = { applied: 0, remaining: 0, warnings: [
+        error instanceof Error ? error.message : 'Bank bijgewerkt; factuurbetalingen konden niet worden gekoppeld.',
+      ] };
+    }
+    return NextResponse.json({ ok: true, ...result, invoiceMatching }, { headers: noStoreHeaders() });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Synchroniseren met Knab is mislukt.';
     return NextResponse.json({ ok: false, error: message }, { status: message === 'Unauthorized' ? 401 : 500, headers: noStoreHeaders() });

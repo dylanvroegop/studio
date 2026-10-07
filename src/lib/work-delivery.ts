@@ -103,7 +103,9 @@ export const DEFAULT_WORK_DELIVERY_SCOPE: WorkDeliveryScope = {
 };
 
 const WASTE_PATTERN = /afval|puin|sloopafval|restmateriaal\s+afvoeren|container|bouwafvalzakken|afvoeren/i;
-const ELECTRICAL_PATTERN = /elektra|elektrisch|kabel|stopcontact|schakelaar|meterkast|wandcontactdoos|groepenkast/i;
+// Een meterkast kan ook alleen timmerwerk betreffen (ombouw, deuren, planken).
+// Het woord zelf is geen elektrawerk; herken de elektrische onderdelen expliciet.
+const ELECTRICAL_PATTERN = /elektra|elektrisch|kabel|stopcontact|schakelaar|wandcontactdoos|groepenkast/i;
 // "Schilderklaar" describes the finish level of filled seams; it is not
 // painting work. Keep it out of the painting exclusion pattern.
 const PAINTING_PATTERN = /schilderwerk|schilderen|schildert|schilderde|sauswerk|sausen|aflak(?:ken)?|verven|verf/i;

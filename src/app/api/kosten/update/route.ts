@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { costQuoteId } from '@/lib/cost-import-routing';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
   archiveIdsFromReceiptFiles,
@@ -341,7 +342,7 @@ export async function POST(request: Request) {
     const routedLineItems = lineItems.map((item) => ({
       ...item,
       category: normalizeProjectCostCategory(item.category || category),
-      offerte_id: safeString(item.offerte_id) || offerteId,
+      offerte_id: costQuoteId(normalizeProjectCostCategory(item.category || category), safeString(item.offerte_id) || offerteId),
     }));
     const groupedEntries = new Map<string, {
       category: ReturnType<typeof normalizeProjectCostCategory>;
@@ -468,11 +469,11 @@ export async function POST(request: Request) {
     }
 
     const updatePayload: Record<string, unknown> = {
-      offerte_id: offerteId,
+      offerte_id: costQuoteId(category, offerteId),
       category,
       supplier_name: supplierName,
       description,
-      line_items: lineItems,
+      line_items: routedLineItems,
       amount_excl_btw: amountExcl,
       btw_percentage: btwPercentage,
       btw_amount: btwAmount,

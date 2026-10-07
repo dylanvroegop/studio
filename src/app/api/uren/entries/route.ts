@@ -76,11 +76,20 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get('limit') || 200)));
+    const workDate = url.searchParams.get('workDate');
+    const quoteId = url.searchParams.get('quoteId')?.trim();
+    if (workDate !== null && !isValidDateOnly(workDate)) {
+      return NextResponse.json({ ok: false, message: 'workDate is ongeldig' }, { status: 400 });
+    }
 
-    const { data, error } = await supabaseAdmin
+    let entriesQuery = supabaseAdmin
       .from('time_entries')
       .select('*')
-      .eq('user_id', uid)
+      .eq('user_id', uid);
+    if (workDate) entriesQuery = entriesQuery.eq('work_date', workDate);
+    if (quoteId) entriesQuery = entriesQuery.eq('quote_id', quoteId);
+
+    const { data, error } = await entriesQuery
       .order('created_at', { ascending: false })
       .limit(limit);
 

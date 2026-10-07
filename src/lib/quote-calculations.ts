@@ -143,6 +143,7 @@ export type QuoteSettings = {
     btwTarief: number; // 21
     uurTariefExclBtw: number; // 50
     btwMode?: "normaal" | "materiaal_only";
+    arbeidZonderBtw?: boolean;
     arbeidBtwLaagUren?: number;
     arbeidBtwLaagTarief?: number;
     schattingUren?: boolean;
@@ -1556,10 +1557,11 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
     const arbeidLaagBtwTotaal = roundCurrency(arbeidLaagBtwUren * uurTariefExclBtw);
     const arbeidHoogBtwTotaal = roundCurrency(Math.max(0, arbeidSubtotalExclBtw - arbeidLaagBtwTotaal));
     const btwMode = quoteSettings?.btwMode === "materiaal_only" ? "materiaal_only" : "normaal";
+    const arbeidZonderBtw = quoteSettings?.arbeidZonderBtw === true || btwMode === "materiaal_only";
     const btwHoogGrondslag = btwMode === "materiaal_only"
         ? materiaalSubtotalExclBtw
-        : roundCurrency(materiaalSubtotalExclBtw + transportExclBtw + winstMargeExclBtw + arbeidHoogBtwTotaal);
-    const btwLaagGrondslag = btwMode === "materiaal_only" ? 0 : arbeidLaagBtwTotaal;
+        : roundCurrency(materiaalSubtotalExclBtw + transportExclBtw + winstMargeExclBtw + (arbeidZonderBtw ? 0 : arbeidHoogBtwTotaal));
+    const btwLaagGrondslag = arbeidZonderBtw ? 0 : arbeidLaagBtwTotaal;
     const btwHoog = roundCurrency((btwTarief / 100) * btwHoogGrondslag);
     const btwLaag = roundCurrency((arbeidLaagBtwTarief / 100) * btwLaagGrondslag);
     const btwBedrag = roundCurrency(btwHoog + btwLaag);
@@ -1577,8 +1579,8 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
         btwMode === "materiaal_only"
             ? 0
             : (
-                ((btwTarief / 100) * roundCurrency(arbeidHoogBtwTotaal + winstMargeExclBtw))
-                + ((arbeidLaagBtwTarief / 100) * arbeidLaagBtwTotaal)
+                ((btwTarief / 100) * roundCurrency((arbeidZonderBtw ? 0 : arbeidHoogBtwTotaal) + winstMargeExclBtw))
+                + ((arbeidLaagBtwTarief / 100) * btwLaagGrondslag)
             )
     );
     const winstNaBtwArbeidEnMarge = roundCurrency(winstProjectieWinstInclBtw - btwArbeidEnMarge);
@@ -1595,8 +1597,8 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
         arbeidLaagBtwUren,
         arbeidHoogBtwTotaal,
         arbeidLaagBtwTotaal,
-        arbeidHoogBtwTarief: btwTarief,
-        arbeidLaagBtwTarief,
+        arbeidHoogBtwTarief: arbeidZonderBtw ? 0 : btwTarief,
+        arbeidLaagBtwTarief: arbeidZonderBtw ? 0 : arbeidLaagBtwTarief,
         transportTotaal: transportExclBtw,
         transportPerDag: transportPerDagRounded,
         transportAantalDagen,

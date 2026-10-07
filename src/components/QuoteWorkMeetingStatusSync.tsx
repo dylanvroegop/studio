@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 
 import { useFirestore, useUser } from '@/firebase';
+import { findQuoteIdsForMeeting, type WorkMeetingQuote } from '@/lib/quote-work-meeting';
 
 const MAX_TIMEOUT_MS = 2_147_000_000;
 
@@ -22,14 +23,6 @@ function toDate(value: unknown): Date | null {
   return null;
 }
 
-function normalizeName(value: string): string {
-  return value
-    .replace(/^\d{1,2}:\d{2}\s+/, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
 function getQuoteClientName(data: Record<string, unknown>): string {
   const info = data.klantinformatie;
   if (!info || typeof info !== 'object' || Array.isArray(info)) return '';
@@ -37,22 +30,6 @@ function getQuoteClientName(data: Record<string, unknown>): string {
   const company = String(client.bedrijfsnaam || '').trim();
   if (company) return company;
   return `${String(client.voornaam || '').trim()} ${String(client.achternaam || '').trim()}`.trim();
-}
-
-function findQuoteIdForMeeting(
-  clientName: string,
-  quotes: Array<{ id: string; clientName: string; archived: boolean; status: string }>,
-): string | null {
-  const normalizedMeetingName = normalizeName(clientName);
-  if (!normalizedMeetingName) return null;
-
-  const activeQuotes = quotes.filter((quote) => !quote.archived && quote.status === 'werkbespreking');
-  const exactMatches = activeQuotes.filter((quote) => normalizeName(quote.clientName) === normalizedMeetingName);
-  if (exactMatches.length === 1) return exactMatches[0].id;
-
-  const firstName = normalizedMeetingName.split(' ')[0];
-  const firstNameMatches = activeQuotes.filter((quote) => normalizeName(quote.clientName).split(' ')[0] === firstName);
-  return firstNameMatches.length === 1 ? firstNameMatches[0].id : null;
 }
 
 export function QuoteWorkMeetingStatusSync(): null {
@@ -69,13 +46,14 @@ export function QuoteWorkMeetingStatusSync(): null {
       clientName: string;
       startDate: Date;
     }> = [];
-    let quoteRows: Array<{ id: string; clientName: string; archived: boolean; status: string }> = [];
+    let quoteRows: WorkMeetingQuote[] = [];
     let synchronizationInProgress = false;
     let synchronizationQueued = false;
 
     const planningQuery = query(
       collection(firestore, 'planning_entries'),
       where('userId', '==', user.uid),
+      where('planningType', '==', 'werkbespreking'),
     );
 
     const synchronize = async (): Promise<void> => {
@@ -89,11 +67,10 @@ export function QuoteWorkMeetingStatusSync(): null {
       if (timer) clearTimeout(timer);
 
       const meetings = planningRows
-        .map((entry) => ({
-          quoteId: entry.quoteId || findQuoteIdForMeeting(entry.clientName, quoteRows) || '',
+        .flatMap((entry) => findQuoteIdsForMeeting(entry, quoteRows).map((quoteId) => ({
+          quoteId,
           startDate: entry.startDate,
-        }))
-        .filter((entry): entry is { quoteId: string; startDate: Date } => !!entry.quoteId)
+        })))
         .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
 
       try {
@@ -106,7 +83,8 @@ export function QuoteWorkMeetingStatusSync(): null {
           await runTransaction(firestore, async (transaction) => {
             const ref = doc(firestore, 'quotes', quoteId);
             const quote = await transaction.get(ref);
-            if (!quote.exists() || quote.data()?.status !== 'werkbespreking') return;
+            if (!quote.exists() || quote.data()?.status !== 'werkbespreking'
+              || quote.data()?.archived === true || quote.data()?.userId !== user.uid) return;
             transaction.update(ref, { status: 'concept', updatedAt: serverTimestamp() });
           });
         }));
@@ -127,7 +105,7 @@ export function QuoteWorkMeetingStatusSync(): null {
     const unsubscribePlanning = onSnapshot(planningQuery, (snapshot) => {
       planningRows = snapshot.docs
         .map((entry) => entry.data())
-        .filter((entry) => entry.planningType === 'werkbespreking' && entry.status !== 'cancelled')
+        .filter((entry) => entry.planningType === 'werkbespreking' && entry.status !== 'cancelled' && entry.status !== 'pending')
         .map((entry) => ({
           quoteId: String(entry.quoteId || ''),
           clientName: String(entry.cache?.clientName || entry.cache?.projectTitle || ''),
@@ -144,8 +122,10 @@ export function QuoteWorkMeetingStatusSync(): null {
       (snapshot) => {
         quoteRows = snapshot.docs.map((quote) => {
           const data = quote.data() as Record<string, unknown>;
+          const client = data.klantinformatie as Record<string, unknown> | undefined;
           return {
             id: quote.id,
+            clientId: String(data.clientId || client?.clientId || ''),
             clientName: getQuoteClientName(data),
             archived: data.archived === true,
             status: String(data.status || ''),

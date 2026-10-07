@@ -2,6 +2,8 @@ import { jsPDF } from 'jspdf';
 import { calculateQuoteTotals } from './quote-calculations';
 import type { DataJson } from './quote-calculations';
 import type { InvoiceType } from './types';
+import { loadPdfImage } from './pdf-image-cache';
+import { invoiceShareFilename } from './invoice-sharing';
 
 export interface PDFInvoiceData {
   invoiceType: InvoiceType;
@@ -81,14 +83,6 @@ export type FinancialAdjustmentRow = {
   label: string;
   value: number;
 };
-
-async function urlToBase64(url: string): Promise<string> {
-  const response = await fetch(`/api/logo-to-base64?url=${encodeURIComponent(url)}`);
-  if (!response.ok) throw new Error('Kon logo niet ophalen via API');
-  const json = await response.json();
-  if (!json?.dataUrl) throw new Error('Geen dataUrl ontvangen voor logo');
-  return json.dataUrl as string;
-}
 
 function getImageFormatFromDataUrl(dataUrl: string): 'PNG' | 'JPEG' | 'WEBP' {
   const match = dataUrl.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,/i);
@@ -473,8 +467,8 @@ function getInvoiceBreakdown(snapshot: DataJson | null | undefined, laborHoursPe
     laborLowVatHours: Math.round(laborLowVatHours * 100) / 100,
     laborHighVatAmount: Math.round(Math.max(0, laborHighVatAmount) * 100) / 100,
     laborLowVatAmount: Math.round(Math.max(0, laborLowVatAmount) * 100) / 100,
-    laborHighVatRate: laborHighVatRate !== null && laborHighVatRate > 0 ? Math.round(laborHighVatRate * 100) / 100 : null,
-    laborLowVatRate: laborLowVatRate !== null && laborLowVatRate > 0 ? Math.round(laborLowVatRate * 100) / 100 : null,
+    laborHighVatRate: laborHighVatRate !== null && laborHighVatRate >= 0 ? Math.round(laborHighVatRate * 100) / 100 : null,
+    laborLowVatRate: laborLowVatRate !== null && laborLowVatRate >= 0 ? Math.round(laborLowVatRate * 100) / 100 : null,
     transport: roundedTransport,
     transportCalculation,
     margin: roundedMargin,
@@ -506,7 +500,7 @@ export function buildInvoiceCostTable(data: Pick<PDFInvoiceData, 'calculationSna
     if (breakdown.labor > 0) {
       const showHourlyRate = data.showHourlyRateOnInvoice === true && breakdown.hours > 0 && breakdown.hourlyRate !== null;
       const hourlyRate = breakdown.hourlyRate ?? 0;
-      const hasLaborVatSplit = breakdown.laborLowVatHours > 0 && breakdown.laborLowVatAmount > 0;
+      const hasLaborVatSplit = breakdown.laborLowVatHours > 0 && breakdown.laborLowVatAmount > 0 && breakdown.laborLowVatRate !== 0;
       if (hasLaborVatSplit) {
         rows.push({
           label: `Arbeid ${formatDecimal(breakdown.laborHighVatRate ?? breakdown.btwPercentage ?? 21, 2)}%`,
@@ -582,6 +576,11 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
     unit: 'mm',
     format: 'a4',
   });
+  doc.setProperties({
+    title: invoiceShareFilename(data.invoiceNumberLabel, data.klant.naam).replace(/\.pdf$/, ''),
+    author: data.bedrijf.naam,
+    subject: data.invoiceType === 'voorschot' ? 'Voorschotfactuur' : 'Eindfactuur',
+  });
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
@@ -590,7 +589,7 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   // Logo (optional)
   if (data.logoUrl) {
     try {
-      const dataUrl = await urlToBase64(data.logoUrl);
+      const dataUrl = await loadPdfImage(data.logoUrl);
       const fmt = getImageFormatFromDataUrl(dataUrl);
       const scale = typeof data.logoScale === 'number' && Number.isFinite(data.logoScale) ? data.logoScale : 1.0;
       const logoW = 32 * scale;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { QuoteSearchInput } from '@/components/quote/QuoteSearchInput';
 import {
   Select,
   SelectContent,
@@ -33,6 +34,7 @@ import {
   type ProjectCostLineItem,
   type ProjectCostReceiptFile,
 } from '@/lib/project-costs';
+import { costImportHasTools, costQuoteId } from '@/lib/cost-import-routing';
 import { invoiceImpliesAccepted } from '@/lib/quote-status';
 import type { InvoiceStatus } from '@/lib/types';
 
@@ -42,11 +44,15 @@ type PendingCostImport = {
   description?: string;
   line_items?: ProjectCostLineItem[];
   amount_excl_btw?: number;
+  amount_incl_btw?: number;
+  existing_cost_id?: string;
   btw_percentage?: number;
   manual_amount_override?: boolean;
   date?: string;
   offerte_id?: string | null;
+  offerte_reference?: string;
   suggested_category?: ProjectCostCategory;
+  category?: ProjectCostCategory;
   receipt_url?: string;
   receipt_files?: ProjectCostReceiptFile[];
 };
@@ -67,6 +73,8 @@ type PendingCostForm = {
 type QuoteOption = {
   id: string;
   label: string;
+  number: string;
+  searchText: string;
 };
 
 function safeNumber(value: unknown): number {
@@ -133,7 +141,7 @@ function hasLineItemContent(item: ProjectCostLineItem): boolean {
 
 function createForm(pending: PendingCostImport): PendingCostForm {
   return {
-    category: normalizeProjectCostCategory(pending.suggested_category || 'materiaal'),
+    category: normalizeProjectCostCategory(pending.suggested_category || pending.category || 'materiaal'),
     supplierName: safeString(pending.supplier_name),
     description: safeString(pending.description),
     offerteId: safeString(pending.offerte_id),
@@ -180,6 +188,10 @@ export function PendingCostImportPrompt() {
   const { toast } = useToast();
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const openRef = useRef(false);
+  const deferredIds = useRef(new Set<string>());
+  const resolvedReferenceId = useRef<string | null>(null);
+  const [pendingReload, setPendingReload] = useState(0);
   const [pending, setPending] = useState<PendingCostImport | null>(null);
   const [quotes, setQuotes] = useState<QuoteOption[]>([]);
   const [open, setOpen] = useState(false);
@@ -192,6 +204,7 @@ export function PendingCostImportPrompt() {
     let cancelled = false;
 
     const loadPending = async () => {
+      if (openRef.current) return;
       try {
         const token = await user.getIdToken();
         const response = await fetch('/api/kosten/pending', {
@@ -202,16 +215,18 @@ export function PendingCostImportPrompt() {
           ok?: boolean;
           data?: Array<PendingCostImport & { id?: unknown }>;
         } | null;
-        const next = payload?.ok && Array.isArray(payload.data) ? payload.data[0] : null;
-        if (!cancelled && next && safeString(next.id)) {
+        const next = payload?.ok && Array.isArray(payload.data)
+          ? payload.data.find((item) => !deferredIds.current.has(safeString(item.id))) : null;
+        if (!cancelled && !openRef.current && next && safeString(next.id)) {
           const normalizedPending = { ...next, id: safeString(next.id) };
           const normalizedLineItems = Array.isArray(next.line_items)
-            ? next.line_items.map(normalizeLineItem).filter(hasLineItemContent)
+            ? next.line_items.map((item) => normalizeLineItem({ ...item, category: item.category || next.suggested_category || next.category })).filter(hasLineItemContent)
             : [];
           const nextForm = createForm(normalizedPending);
           if (normalizedLineItems.length === 0 && nextForm.amountExcl !== 0) {
             nextForm.manualOverride = true;
           }
+          openRef.current = true;
           setPending(normalizedPending);
           setForm(nextForm);
           setLineItems(normalizedLineItems);
@@ -223,13 +238,18 @@ export function PendingCostImportPrompt() {
     };
 
     void loadPending();
+    const timer = window.setInterval(() => void loadPending(), 30000);
+    const onFocus = () => void loadPending();
+    window.addEventListener('focus', onFocus);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
     };
-  }, [isUserLoading, pathname, user]);
+  }, [isUserLoading, pathname, user, pendingReload]);
 
   useEffect(() => {
-    if (!user || !firestore || pathname === '/kosten') return;
+    if (!open || !user || !firestore || pathname === '/kosten') return;
     let cancelled = false;
 
     const loadQuotes = async () => {
@@ -257,7 +277,14 @@ export function PendingCostImportPrompt() {
             const raw = docSnap.data() as Record<string, unknown>;
             if (raw.archived === true || raw.isCalculationTest === true) return null;
             if (raw.status !== 'geaccepteerd' && !acceptedQuoteIdsFromInvoices.has(docSnap.id)) return null;
-            return { id: docSnap.id, label: getQuoteLabel(raw) };
+            const label = getQuoteLabel(raw);
+            const client = (raw.klantinformatie || {}) as Record<string, unknown>;
+            return {
+              id: docSnap.id,
+              label,
+              number: String(raw.offerteNummer || ''),
+              searchText: [label, client.voornaam, client.achternaam, client.bedrijfsnaam, raw.klantNaam].map(safeString).join(' '),
+            };
           })
           .filter((quote): quote is QuoteOption => quote !== null)
           .sort((left, right) => left.label.localeCompare(right.label, 'nl'));
@@ -271,11 +298,22 @@ export function PendingCostImportPrompt() {
     return () => {
       cancelled = true;
     };
-  }, [firestore, pathname, user]);
+  }, [firestore, open, pathname, user]);
+
+  useEffect(() => {
+    if (!pending || quotes.length === 0 || resolvedReferenceId.current === pending.id) return;
+    resolvedReferenceId.current = pending.id;
+    const reference = safeString(pending.offerte_reference).match(/(?:^|\D)(\d{5,8})(?:\D|$)/)?.[1];
+    const matches = quotes.filter((quote) => quote.number === reference);
+    if (matches.length === 1) {
+      setForm((current) => current && !current.offerteId ? { ...current, offerteId: matches[0].id } : current);
+    }
+  }, [pending, quotes]);
 
   useEffect(() => {
     const handleOpenCostDialog = (event: Event) => {
       const detail = (event as CustomEvent<{ offerteId?: unknown }>).detail;
+      openRef.current = true;
       setPending(null);
       setForm(createManualForm(safeString(detail?.offerteId)));
       setLineItems([]);
@@ -295,7 +333,15 @@ export function PendingCostImportPrompt() {
     [normalizedLineItems]
   );
   const amountExcl = form?.manualOverride ? roundEuro(form.amountExcl) : lineItemsTotal;
-  const amountIncl = roundEuro(amountExcl * (1 + (form?.btwPercentage || 0) / 100));
+  const amountIncl = pending?.amount_incl_btw !== undefined
+    && roundEuro(safeNumber(pending.amount_excl_btw)) === amountExcl
+    && safeNumber(pending.btw_percentage) === form?.btwPercentage
+    ? roundEuro(pending.amount_incl_btw)
+    : roundEuro(amountExcl * (1 + (form?.btwPercentage || 0) / 100));
+  const hasTools = costImportHasTools({ line_items: normalizedLineItems, category: form?.category });
+  const toolsExcl = normalizedLineItems.length === 0 && form?.category === 'gereedschap'
+    ? amountExcl
+    : roundEuro(normalizedLineItems.filter((item) => item.category === 'gereedschap').reduce((sum, item) => sum + item.total_price, 0));
   const btwAmount = roundEuro(amountIncl - amountExcl);
 
   const updateLineItem = (index: number, patch: Partial<ProjectCostLineItem>) => {
@@ -305,6 +351,7 @@ export function PendingCostImportPrompt() {
       if (Object.prototype.hasOwnProperty.call(patch, 'quantity')
         || Object.prototype.hasOwnProperty.call(patch, 'unit_price')) {
         next.total_price = roundEuro(safeNumber(next.quantity) * safeNumber(next.unit_price));
+        delete next.total_incl_btw;
       }
       return next;
     }));
@@ -352,8 +399,10 @@ export function PendingCostImportPrompt() {
       return;
     }
     setOpen(false);
-    void dismissPending();
+    openRef.current = false;
+    if (pending) deferredIds.current.add(pending.id);
     setPending(null);
+    setPendingReload((value) => value + 1);
   };
 
   const handleSave = async () => {
@@ -371,19 +420,20 @@ export function PendingCostImportPrompt() {
     try {
       const token = await user.getIdToken();
       const normalizedReceiptUrl = safeString(form.receiptUrl) || null;
-      const response = await fetch('/api/kosten/create', {
+      const response = await fetch(pending?.existing_cost_id ? '/api/kosten/update' : '/api/kosten/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          ...(pending ? { pending_import_id: pending.id } : {}),
+          ...(pending?.existing_cost_id ? { id: pending.existing_cost_id } : pending ? { pending_import_id: pending.id } : {}),
           offerte_id: form.offerteId || null,
-          category: form.category,
+          category: normalizedLineItems.length > 0 && normalizedLineItems.every((item) => item.category === normalizedLineItems[0].category)
+            ? normalizedLineItems[0].category : form.category,
           supplier_name: form.supplierName,
           description: form.description || form.supplierName,
-          line_items: normalizedLineItems,
+          line_items: normalizedLineItems.map((item) => ({ ...item, offerte_id: costQuoteId(item.category || form.category, item.offerte_id || form.offerteId || null) })),
           amount_excl_btw: amountExcl,
           amount_incl_btw: amountIncl,
           btw_amount: btwAmount,
@@ -398,8 +448,12 @@ export function PendingCostImportPrompt() {
       const payload = await response.json().catch(() => null) as { ok?: boolean; message?: string } | null;
       if (!response.ok || !payload?.ok) throw new Error(payload?.message || `HTTP ${response.status}`);
 
+      if (pending?.existing_cost_id) await dismissPending();
+      openRef.current = false;
       setOpen(false);
       setPending(null);
+      setPendingReload((value) => value + 1);
+      window.dispatchEvent(new Event('calvora:costs-updated'));
       toast({
         title: 'Kost opgeslagen',
         description: `${form.supplierName} is toegevoegd.`,
@@ -422,9 +476,9 @@ export function PendingCostImportPrompt() {
       <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-4xl">
         <div className="flex max-h-[90vh] flex-col">
           <DialogHeader className="px-6 pb-2 pt-6">
-            <DialogTitle>Nieuwe kost</DialogTitle>
+            <DialogTitle>{hasTools ? 'Gereedschap controleren' : 'Nieuwe kost'}</DialogTitle>
             <DialogDescription>
-              Controleer de herkende gegevens en sla de kost op. Je blijft op de huidige pagina.
+              {hasTools ? 'Gereedschap wordt als algemene bedrijfskosten opgeslagen. Alleen de overige regels worden aan de gekozen offerte gekoppeld.' : 'Controleer de herkende gegevens en sla de kost op.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -487,20 +541,16 @@ export function PendingCostImportPrompt() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Koppel aan offerte</Label>
-                  <Select
-                    value={form.offerteId || 'none'}
+                  <Label htmlFor="pending-cost-quote">{hasTools ? 'Offerte voor materiaal' : 'Koppel aan offerte'}</Label>
+                  <QuoteSearchInput
+                    id="pending-cost-quote"
+                    quotes={quotes}
+                    value={form.offerteId}
                     onValueChange={(value) => setForm((previous) => previous ? {
                       ...previous,
-                      offerteId: value === 'none' ? '' : value,
+                      offerteId: value,
                     } : previous)}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Niet gekoppeld" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Niet gekoppeld</SelectItem>
-                      {quotes.map((quote) => <SelectItem key={quote.id} value={quote.id}>{quote.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
 
                 <div className="space-y-3">
@@ -518,6 +568,18 @@ export function PendingCostImportPrompt() {
                           onChange={(event) => updateLineItem(index, { description: event.target.value })}
                           placeholder="Omschrijving"
                         />
+                        <div className="flex items-center gap-3">
+                          <Select value={item.category || 'materiaal'} onValueChange={(value) => updateLineItem(index, { category: normalizeProjectCostCategory(value), offerte_id: null })}>
+                            <SelectTrigger aria-label={`Categorie regel ${index + 1}`} className="w-44"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {['materiaal', 'gereedschap', 'autokosten', 'boetes', 'schulden', 'afval', 'brandstof', 'eigen_verbruik', 'hotel', 'telefoon', 'leadkosten', 'overig'].map((category) => (
+                                <SelectItem key={category} value={category}>{category === 'eigen_verbruik' ? 'Eigen verbruik' : category.charAt(0).toUpperCase() + category.slice(1)}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <span className="text-xs text-muted-foreground">{item.category === 'gereedschap' ? 'Algemene kosten · niet op offerte' : 'Op gekozen offerte'}</span>
+                          <span className="ml-auto whitespace-nowrap text-sm">{formatCurrency(item.total_price)} excl.</span>
+                        </div>
                         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                           <div className="space-y-1">
                             <p className="text-[11px] text-muted-foreground">Aantal</p>
@@ -569,6 +631,7 @@ export function PendingCostImportPrompt() {
                   </div>
                 ) : null}
 
+                {hasTools && <p className="text-sm">Gereedschap algemeen: <strong>{formatCurrency(toolsExcl)} excl. btw</strong> · Overige kosten: <strong>{formatCurrency(roundEuro(amountExcl - toolsExcl))} excl. btw</strong></p>}
                 <div className="grid grid-cols-1 gap-3 rounded-lg border border-border/70 bg-background/40 p-4 md:grid-cols-4">
                   <div><p className="text-xs text-muted-foreground">Excl. BTW</p><p className="mt-1 text-sm font-semibold">€ {amountExcl.toFixed(2).replace('.', ',')}</p></div>
                   <div><p className="text-xs text-muted-foreground">BTW</p><p className="mt-1 text-sm font-semibold">€ {btwAmount.toFixed(2).replace('.', ',')}</p></div>
@@ -580,7 +643,7 @@ export function PendingCostImportPrompt() {
           </div>
 
           <DialogFooter className="border-t border-border/70 px-6 py-4">
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={saving}>Annuleren</Button>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={saving}>{pending ? 'Later' : 'Annuleren'}</Button>
             <Button type="button" onClick={() => void handleSave()} disabled={saving}>Opslaan</Button>
           </DialogFooter>
         </div>

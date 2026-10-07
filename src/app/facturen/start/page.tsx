@@ -3,246 +3,112 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, query, Timestamp, where } from 'firebase/firestore';
-import { ArrowLeft, FileText, Loader2, Plus, ReceiptText, Search } from 'lucide-react';
-
+import { Loader2, RefreshCw, Search } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useFirestore, useUser } from '@/firebase';
-import { cn } from '@/lib/utils';
+import { useUser } from '@/firebase';
 import { formatOfferteNummerLabel } from '@/lib/quote-number';
+import type { InvoiceStartRow } from '@/lib/invoice-start';
 
-type QuoteRow = {
-  id: string;
-  titel?: string;
-  title?: string;
-  amount?: number;
-  totaalbedrag?: number;
-  offerteNummer?: number;
-  offerteVersie?: number;
-  archived?: boolean;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
-  klantinformatie?: {
-    voornaam?: string;
-    achternaam?: string;
-    bedrijfsnaam?: string;
-  };
-};
-
-function parseDate(value: any): Date | null {
-  if (!value) return null;
-  if (value instanceof Date) return value;
-  if (value instanceof Timestamp) return value.toDate();
-  if (typeof value === 'object' && typeof value.seconds === 'number') {
-    return new Date(value.seconds * 1000);
-  }
-  return null;
-}
-
-function formatCurrency(amount?: number): string {
-  const n = typeof amount === 'number' && Number.isFinite(amount) ? amount : 0;
-  return new Intl.NumberFormat('nl-NL', {
-    style: 'currency',
-    currency: 'EUR',
-  }).format(n);
-}
-
-function getClientName(q: QuoteRow): string {
-  const bedrijfsnaam = (q.klantinformatie?.bedrijfsnaam || '').trim();
-  if (bedrijfsnaam) return bedrijfsnaam;
-  const persoon = `${q.klantinformatie?.voornaam || ''} ${q.klantinformatie?.achternaam || ''}`.trim();
-  return persoon || 'Onbekende klant';
-}
+const currency = (amount: number): string => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(amount);
 
 export default function StartFactuurPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
-
+  const [rows, setRows] = useState<InvoiceStartRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [quotes, setQuotes] = useState<QuoteRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [search, setSearch] = useState('');
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
-    if (!isUserLoading && !user) router.push('/login');
+    if (!isUserLoading && !user) router.replace('/login?next=%2Ffacturen%2Fstart');
   }, [user, isUserLoading, router]);
 
   useEffect(() => {
-    if (!user || !firestore) return;
-    let cancelled = false;
-
-    (async () => {
-      setLoading(true);
+    if (!user) return;
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+    const startedAt = performance.now();
+    void (async () => {
       try {
-        const ref = collection(firestore, 'quotes');
-        const q = query(ref, where('userId', '==', user.uid));
-        const snap = await getDocs(q);
-        const list = snap.docs
-          .map((d) => ({ id: d.id, ...(d.data() as any) } as QuoteRow))
-          .filter((quote) => !quote.archived && (quote as any).isCalculationTest !== true);
-
-        list.sort((a, b) => {
-          const aT = parseDate(a.updatedAt)?.getTime() ?? parseDate(a.createdAt)?.getTime() ?? 0;
-          const bT = parseDate(b.updatedAt)?.getTime() ?? parseDate(b.createdAt)?.getTime() ?? 0;
-          return bT - aT;
+        const token = await user.getIdToken();
+        const response = await fetch('/api/facturen/start', {
+          headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal,
         });
-
-        if (!cancelled) setQuotes(list);
-      } catch (error) {
-        console.error('Fout bij ophalen offertes voor factuur-start:', error);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || 'Facturen konden niet worden geladen.');
+        if (!controller.signal.aborted) {
+          setRows(result.rows);
+          performance.measure('factureren-lijst-laden', { start: startedAt, end: performance.now() });
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Laden mislukt.');
+      } finally { if (!controller.signal.aborted) setLoading(false); }
     })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [firestore, user]);
+    return () => controller.abort();
+  }, [user, attempt]);
 
   const filtered = useMemo(() => {
-    const s = search.trim().toLowerCase();
-    if (!s) return quotes.slice(0, 40);
-    return quotes
-      .filter((q) => {
-        const client = getClientName(q).toLowerCase();
-        const nr = typeof q.offerteNummer === 'number' ? String(q.offerteNummer) : '';
-        const title = (q.titel || q.title || '').toLowerCase();
-        return client.includes(s) || nr.includes(s) || title.includes(s);
-      })
-      .slice(0, 40);
-  }, [quotes, search]);
-
-  if (isUserLoading || loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="animate-spin text-primary w-8 h-8" />
-      </div>
-    );
-  }
+    const term = search.trim().toLocaleLowerCase('nl-NL');
+    return rows.filter((row) => term
+      ? `${row.client} ${row.title} ${row.quoteNumber ?? ''}`.toLocaleLowerCase('nl-NL').includes(term)
+      : showAll || row.ready);
+  }, [rows, search, showAll]);
 
   return (
-    <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
+    <div className="app-shell min-h-screen bg-background">
       <AppNavigation />
-      <header className="border-b border-border px-6 py-4 bg-background/40 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <ReceiptText className="h-5 w-5 text-emerald-400" />
-            <h1 className="text-xl font-bold text-foreground">Nieuwe factuur</h1>
-            <span className="text-xs text-muted-foreground border border-border rounded-md px-2 py-1">Facturen</span>
-          </div>
+      <header className="border-b border-border py-3 pl-16 pr-4">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+          <h1 className="text-lg font-semibold">Factureren</h1>
+          <Button asChild variant="outline" size="sm"><Link href="/facturen">Alle facturen</Link></Button>
         </div>
       </header>
-
-      <main className="mx-auto max-w-7xl p-4 pb-10 sm:p-6">
-        <div className="w-full max-w-3xl space-y-6">
-          <div className="flex items-center justify-between gap-3">
-            <Button asChild variant="outline" className="gap-2">
-              <Link href="/facturen">
-                <ArrowLeft className="h-4 w-4" />
-                Terug
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="gap-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25"
-              onClick={() => router.push('/offertes/nieuw')}
-            >
-              <Plus className="h-4 w-4" />
-              Eerst nieuwe offerte starten
-            </Button>
-          </div>
-
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-emerald-400" />
-                Kies een offerte voor facturatie
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Zoek op klant, offertenummer of titel..."
-                  className="pl-9"
-                />
-              </div>
-
-              {filtered.length === 0 ? (
-                <div className="rounded-lg border border-border/60 bg-card/40 p-4 text-sm text-muted-foreground">
-                  Geen offertes gevonden.
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-                  {filtered.map((q) => {
-                    const total =
-                      typeof q.amount === 'number'
-                        ? q.amount
-                        : typeof q.totaalbedrag === 'number'
-                          ? q.totaalbedrag
-                          : 0;
-                    const disabled = total <= 0;
-                    const quoteLabel = typeof q.offerteNummer === 'number' ? `Offerte #${formatOfferteNummerLabel(q.offerteNummer, q.offerteVersie)}` : 'Offerte';
-                    return (
-                      <div
-                        key={q.id}
-                        className={cn(
-                          'group relative flex items-center justify-between gap-4 rounded-xl border border-l-4 border-l-emerald-500/70 border-white/5 bg-card/40 px-5 py-4',
-                          'hover:bg-card/60 hover:border-white/10 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 backdrop-blur-md'
-                        )}
-                      >
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-bold text-zinc-100 truncate text-base group-hover:text-white transition-colors">
-                              {getClientName(q)}
-                            </span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-white/5 bg-white/5 text-zinc-400 shrink-0">
-                              {quoteLabel}
-                            </span>
-                          </div>
-                          <div className="text-sm text-zinc-500 truncate">
-                            {(q.titel || q.title || '—').toString()}
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="text-muted-foreground">Totaal:</span>
-                            <span className="font-semibold text-emerald-300">{formatCurrency(total)}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-9 border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-100"
-                            disabled={disabled}
-                            onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=voorschot`)}
-                          >
-                            Voorschot
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="success"
-                            className="h-9"
-                            disabled={disabled}
-                            onClick={() => router.push(`/facturen/nieuw?quoteId=${encodeURIComponent(q.id)}&type=eind`)}
-                          >
-                            Eindfactuur
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+      <main className="mx-auto max-w-3xl space-y-4 p-4 pb-12">
+        <div className="relative">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input aria-label="Zoek klant of klus" placeholder="Zoek klant, klus of offertenummer" value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" />
         </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex gap-1">
+            <Button size="sm" variant={!showAll ? 'default' : 'outline'} onClick={() => setShowAll(false)}>Te factureren</Button>
+            <Button size="sm" variant={showAll ? 'default' : 'outline'} onClick={() => setShowAll(true)}>Alle klussen</Button>
+          </div>
+          <Button variant="ghost" size="icon" aria-label="Facturatielijst vernieuwen" disabled={loading} onClick={() => setAttempt((value) => value + 1)}><RefreshCw className="h-4 w-4" /></Button>
+        </div>
+        {error && <div role="alert" className="rounded border border-destructive/40 p-3 text-sm">{error}<Button variant="link" onClick={() => setAttempt((value) => value + 1)}>Opnieuw laden</Button></div>}
+        {loading || isUserLoading ? (
+          <div role="status" className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Factuurgegevens laden…</div>
+        ) : filtered.length === 0 ? (
+          <p className="py-4 text-sm text-muted-foreground">{search ? 'Geen klussen gevonden.' : 'Geen klussen klaar voor facturatie. Zoek een klant of kies Alle klussen.'}</p>
+        ) : (
+          <div className="divide-y divide-border rounded-md border border-border">
+            {filtered.map((row) => (
+              <div key={row.id} className="space-y-2 p-3 sm:p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{row.client}</p>
+                    <p className="text-sm text-muted-foreground">{row.title}{row.quoteNumber !== null ? ` · #${formatOfferteNummerLabel(row.quoteNumber, row.quoteVersion ?? undefined)}` : ''}</p>
+                  </div>
+                  {row.total !== null && <span className="shrink-0 text-sm tabular-nums">{currency(row.total)}</span>}
+                </div>
+                {row.issuedAdvance > 0 && <p className="text-xs text-muted-foreground">Voorschot gefactureerd {currency(row.issuedAdvance)} · ontvangen {currency(row.receivedAdvance)}</p>}
+                {row.note && <p className="text-sm text-muted-foreground">{row.note}</p>}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button asChild size="sm"><Link href={row.href}>{row.action}{row.amount !== null ? ` · ${currency(row.amount)}` : ''}</Link></Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer">Snel openen op iPhone</summary>
+          <p className="mt-2">Voeg deze pagina in Safari via Delen → Zet op beginscherm toe als ‘Factureren’.</p>
+        </details>
       </main>
     </div>
   );

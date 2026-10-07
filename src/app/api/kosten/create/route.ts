@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import type { DocumentReference } from 'firebase-admin/firestore';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { costImportHasTools, costQuoteId } from '@/lib/cost-import-routing';
+import { queuePendingCostImport } from '@/lib/pending-cost-imports';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { fetchLaborCostsByQuoteId } from '@/lib/labor-costs';
 import {
@@ -554,6 +556,11 @@ export async function POST(request: Request) {
       };
     }
 
+    if (!token && costImportHasTools(input)) {
+      const queued = await queuePendingCostImport(uid, input);
+      return NextResponse.json({ ok: true, pending: true, ...queued });
+    }
+
     const supplierName = safeString(input.supplier_name);
     if (!supplierName) {
       return NextResponse.json({ ok: false, message: 'Leverancier is verplicht.' }, { status: 400 });
@@ -590,7 +597,7 @@ export async function POST(request: Request) {
     const routedLineItems = lineItems.map((item) => {
       const lineCategory = normalizeProjectCostCategory(item.category || category);
       const lineOfferteIdRaw = safeString(item.offerte_id || null);
-      const lineOfferteId = lineOfferteIdRaw || offerteId;
+      const lineOfferteId = costQuoteId(lineCategory, lineOfferteIdRaw || offerteId);
       return {
         ...item,
         category: lineCategory,
@@ -704,7 +711,7 @@ export async function POST(request: Request) {
     if (groupedEntries.size === 0) {
       groupedEntries.set(`${category}__${offerteId || 'none'}`, {
         category,
-        offerteId,
+        offerteId: costQuoteId(category, offerteId),
         lineItems: [],
       });
     }

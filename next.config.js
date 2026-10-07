@@ -19,6 +19,11 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        pathname: '/v0/b/studio-6011690104-60fbf.firebasestorage.app/o/users%2F*%2Fquotes%2F*%2Ffotos%2F*',
+      },
+      {
+        protocol: 'https',
         hostname: 'placehold.co',
         pathname: '/**',
       },

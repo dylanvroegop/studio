@@ -104,7 +104,7 @@ export function getAppointmentSuggestions(
     const normalizedClientCity = normalizeCity(clientCity);
     const configuredWorkDays = (options?.workDays || DEFAULT_WORK_DAYS)
         .map(Number)
-        .filter((day) => Number.isFinite(day) && day >= 1 && day <= 7);
+        .filter((day) => Number.isInteger(day) && day >= 1 && day <= 7);
     const workDays = configuredWorkDays.length > 0 ? configuredWorkDays : DEFAULT_WORK_DAYS;
     const now = options?.now || new Date();
     const candidates = Array.from({ length: 4 }, (_, index) => {
@@ -129,12 +129,22 @@ export function getAppointmentSuggestions(
     };
 
     const freeCandidates = candidates.filter(({ dateKey }) => isSlotFree(dateKey));
-    const selectedDates = [
-        ...freeCandidates.filter(({ dateKey }) => hasSameCityWork(dateKey)),
-        ...freeCandidates.filter(({ dateKey }) => !hasSameCityWork(dateKey)),
-    ].slice(0, 2);
+    let selectedDate = freeCandidates.find(({ dateKey }) => hasSameCityWork(dateKey)) || freeCandidates[0];
 
-    return selectedDates.map((selectedDate) => {
+    // Behoud de voorkeur voor werk in dezelfde plaats in de eerste vier dagen.
+    // Zijn die vol, zoek dan door tot de eerstvolgende vrije werkdag. De laatste
+    // bekende afspraak plus een week dekt ook een week met slechts één werkdag.
+    const lastBusyEnd = entries.reduce((latest, entry) => Math.max(latest, entry.endDate.getTime()), now.getTime());
+    const searchDays = Math.max(7, Math.ceil((lastBusyEnd - now.getTime()) / (24 * 60 * 60 * 1000)) + 7);
+    for (let offset = 5; !selectedDate && offset <= searchDays; offset += 1) {
+        const dateKey = addDaysToDateKey(now, offset);
+        const candidateDate = getDateAtAmsterdamTime(dateKey, '12:00');
+        if (workDays.includes(getIsoDay(candidateDate)) && isSlotFree(dateKey)) {
+            selectedDate = { dateKey, candidateDate };
+        }
+    }
+
+    return (selectedDate ? [selectedDate] : []).map((selectedDate) => {
         const startDate = getDateAtAmsterdamTime(selectedDate.dateKey, DEFAULT_APPOINTMENT_TIME);
         const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
 
@@ -145,7 +155,7 @@ export function getAppointmentSuggestions(
             endDate,
             reason: hasSameCityWork(selectedDate.dateKey)
                 ? `Je werkt die dag al in ${clientCity}.`
-                : 'Vrije plek om 19:00 binnen 1–4 dagen.',
+                : 'Vrije plek om 19:00.',
         };
     });
 }

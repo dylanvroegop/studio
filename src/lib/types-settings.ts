@@ -121,6 +121,7 @@ export interface UserSettings {
     factuurNummerStart: number;
     standaardBetaaltermijnDagen: number;
     standaardFactuurTekst: string;
+    whatsappInvoiceMessage?: string;
     factuurPdfDefaults?: {
         paymentTermDays?: number;
         showLogo?: boolean;

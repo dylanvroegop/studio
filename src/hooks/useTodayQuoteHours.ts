@@ -29,14 +29,17 @@ export function useTodayQuoteHours(
 
   const loadHours = useCallback(async () => {
     const currentUser = userRef.current;
-    if (!currentUser) {
+    if (!currentUser || !quoteIdsKey) {
       setHoursByQuoteId({});
       return;
     }
 
     try {
+      const today = getLocalDateKey();
+      const query = new URLSearchParams({ limit: '1000', workDate: today });
+      if (!quoteIdsKey.includes('|')) query.set('quoteId', quoteIdsKey);
       const token = await currentUser.getIdToken();
-      const response = await fetch('/api/uren/entries?limit=1000', {
+      const response = await fetch(`/api/uren/entries?${query}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
       });
@@ -44,7 +47,6 @@ export function useTodayQuoteHours(
       if (!response.ok || !payload?.ok || !Array.isArray(payload.data)) return;
 
       const quoteIds = new Set(quoteIdsKey ? quoteIdsKey.split('|') : []);
-      const today = getLocalDateKey();
       const next: Record<string, TodayQuoteHours> = {};
 
       payload.data.forEach((raw) => {
@@ -76,7 +78,7 @@ export function useTodayQuoteHours(
       window.clearInterval(intervalId);
       window.removeEventListener('focus', loadHours);
     };
-  }, [loadHours]);
+  }, [loadHours, user?.uid]);
 
   return hoursByQuoteId;
 }

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useQuoteData } from '@/hooks/useQuoteData';
 import { normalizeDataJson, calculateQuoteTotals, QuoteSettings, QuoteTotals } from '@/lib/quote-calculations';
 import { ClientInfoCard } from '@/components/quote/ClientInfoCard';
+import { getScopeCosts } from '@/lib/quote-scope-costs';
 import { CostSummaryCard } from '@/components/quote/CostSummaryCard';
 import { WorkDescriptionCard } from '@/components/quote/WorkDescriptionCard';
 import { QuoteSelector } from './QuoteSelector';
@@ -223,6 +224,8 @@ export default function ClientViewPage() {
                                     totals={totals}
                                     settings={settings}
                                     totalUren={normalized?.totaal_uren || 0}
+                                    scopeCosts={getScopeCosts({ groot: normalized?.grootmaterialen || [], verbruik: normalized?.verbruiksartikelen || [] })}
+                                    missingScopeCosts={{ afval: false, steiger: false }}
                                     onUpdateHourlyRate={() => { }}
                                     onUpdateTotalHours={() => { }}
                                 />

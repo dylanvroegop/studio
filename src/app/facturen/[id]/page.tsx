@@ -16,8 +16,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { getIdTokenResult } from 'firebase/auth';
-import { CheckCircle2, Download, Euro, Loader2, Mail, MessageCircle, ReceiptText, Settings, StickyNote } from 'lucide-react';
+import { CheckCircle2, Download, Euro, Loader2, Mail, Share2, ReceiptText, Settings, StickyNote } from 'lucide-react';
 import { AppNavigation } from '@/components/AppNavigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,9 +39,13 @@ import type { UserSettings } from '@/lib/types-settings';
 import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge';
 import { PDFPreviewInvoice } from '@/components/invoice/PDFPreviewInvoice';
 import type { PDFInvoiceData } from '@/lib/generate-invoice-pdf';
-import { generateInvoicePDF } from '@/lib/generate-invoice-pdf';
+import { getInvoicePdfBlob } from '@/lib/invoice-pdf-client';
 import { SendInvoiceModal } from '@/components/invoice/SendInvoiceModal';
-import { SendQuoteWhatsAppModal } from '@/components/quote/SendQuoteWhatsAppModal';
+import { ShareInvoiceDialog } from '@/components/invoice/ShareInvoiceDialog';
+import { InvoiceBankPayments } from '@/components/invoice/InvoiceBankPayments';
+import { downloadInvoiceFile, invoiceShareFilename } from '@/lib/invoice-sharing';
+import { saveInvoiceAmountOverride } from '@/lib/invoice-amount-override';
+import { hasCompleteInvoiceSourceSnapshot, hasFrozenInvoiceSnapshot } from '@/lib/invoice-detail-snapshot';
 import { toast } from '@/hooks/use-toast';
 import {
   invoiceImpliesAccepted,
@@ -259,10 +262,12 @@ export default function FactuurDetailPage() {
   const [quoteFullDescription, setQuoteFullDescription] = useState<string>('');
   const [quoteCalculationSnapshot, setQuoteCalculationSnapshot] = useState<DataJson | null>(null);
   const [quoteDocData, setQuoteDocData] = useState<any | null>(null);
+  const [settingsLoadedFor, setSettingsLoadedFor] = useState<string | null>(null);
+  const [quoteLoadedFor, setQuoteLoadedFor] = useState<string | null>(null);
+  const [calculationLoadedFor, setCalculationLoadedFor] = useState<string | null>(null);
 
   const [sendOpen, setSendOpen] = useState(false);
   const [whatsAppOpen, setWhatsAppOpen] = useState(false);
-  const [hasDeveloperWhatsAppAccess, setHasDeveloperWhatsAppAccess] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [specOriginalTotal, setSpecOriginalTotal] = useState<string>('');
   const [specVoorschotAftrek, setSpecVoorschotAftrek] = useState<string>('');
@@ -290,6 +295,10 @@ export default function FactuurDetailPage() {
 
   const pdfSettingsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedPdfSettingsRef = useRef<string>('');
+
+  useEffect(() => {
+    if (new URL(window.location.href).searchParams.get('share') === '1') setActiveTab('overzicht');
+  }, [invoiceId]);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -344,40 +353,23 @@ export default function FactuurDetailPage() {
   }, [user, firestore, invoiceId]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    if (!user) {
-      setHasDeveloperWhatsAppAccess(false);
-      setWhatsAppOpen(false);
-      return;
-    }
-
-    const resolveDeveloperAccess = async () => {
-      try {
-        const token = await getIdTokenResult(user, false);
-        const allowed = token.claims.dev === true || token.claims.admin === true;
-        if (cancelled) return;
-        setHasDeveloperWhatsAppAccess(allowed);
-        if (!allowed) setWhatsAppOpen(false);
-      } catch {
-        if (cancelled) return;
-        setHasDeveloperWhatsAppAccess(false);
-        setWhatsAppOpen(false);
-      }
-    };
-
-    void resolveDeveloperAccess();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
-
-  useEffect(() => {
     if (!firestore || !invoice?.quoteId) {
       setQuoteClientNumbers({ kvk: '', btw: '' });
       setQuoteOfferteNummer(null);
       setQuoteFullDescription('');
       setQuoteDocData(null);
+      return;
+    }
+
+    // De factuur bewaart de gecontroleerde calculatie; opnieuw de actuele offerte
+    // ophalen vertraagt delen en kan een historische factuur onbedoeld veranderen.
+    if (hasCompleteInvoiceSourceSnapshot(invoice)) {
+      setQuoteClientNumbers({ kvk: '', btw: '' });
+      const quoteNumber = Number(invoice.sourceQuote?.offerteNummer);
+      setQuoteOfferteNummer(Number.isFinite(quoteNumber) ? quoteNumber : null);
+      setQuoteFullDescription(resolveInvoiceDescriptionFallback(invoice, invoice.calculationSnapshot ?? null));
+      setQuoteDocData(null);
+      setQuoteLoadedFor(invoice.id);
       return;
     }
 
@@ -398,17 +390,18 @@ export default function FactuurDetailPage() {
         let kvk = getString(klantInfo.kvkNummer || klantInfo.kvk);
         let btw = getString(klantInfo.btwNummer || klantInfo.btw).toUpperCase();
 
-        if (!kvk && !btw) {
+        const klanttype = getString(klantInfo.klanttype || invoice.sourceQuote?.klantSnapshot?.klanttype).toLowerCase();
+        if ((!kvk || !btw) && klanttype !== 'particulier') {
           const clientId = getString(klantInfo.clientId);
           if (clientId) {
             const clientSnap = await getDoc(doc(firestore, 'clients', clientId));
             const client = clientSnap.exists() ? (clientSnap.data() as any) : {};
-            kvk = getString(client.kvkNummer || client.kvk);
-            btw = getString(client.btwNummer || client.btw).toUpperCase();
+            kvk = kvk || getString(client.kvkNummer || client.kvk);
+            btw = btw || getString(client.btwNummer || client.btw).toUpperCase();
           }
         }
 
-        if (!kvk && !btw && user) {
+        if ((!kvk || !btw) && user && klanttype !== 'particulier') {
           const email = getString(klantInfo.emailadres || klantInfo['e-mailadres'] || klantInfo.email).toLowerCase();
           if (email) {
             const clientQuery = query(
@@ -418,8 +411,8 @@ export default function FactuurDetailPage() {
             );
             const clientSnap = await getDocs(clientQuery);
             const client = clientSnap.docs[0]?.data() as any;
-            kvk = getString(client?.kvkNummer || client?.kvk);
-            btw = getString(client?.btwNummer || client?.btw).toUpperCase();
+            kvk = kvk || getString(client?.kvkNummer || client?.kvk);
+            btw = btw || getString(client?.btwNummer || client?.btw).toUpperCase();
           }
         }
 
@@ -436,6 +429,8 @@ export default function FactuurDetailPage() {
           setQuoteFullDescription('');
           setQuoteDocData(null);
         }
+      } finally {
+        if (!cancelled) setQuoteLoadedFor(invoice.id);
       }
     };
 
@@ -443,7 +438,7 @@ export default function FactuurDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [firestore, invoice?.quoteId, user]);
+  }, [firestore, invoice?.id, invoice?.quoteId, invoice?.calculationSnapshot, invoice?.sourceQuote, user]);
 
   useEffect(() => {
     if (!user || !invoice?.quoteId) {
@@ -451,7 +446,14 @@ export default function FactuurDetailPage() {
       return;
     }
 
+    if (hasFrozenInvoiceSnapshot(invoice)) {
+      setQuoteCalculationSnapshot(invoice.calculationSnapshot ?? null);
+      setCalculationLoadedFor(invoice.id);
+      return;
+    }
+
     let cancelled = false;
+    const controller = new AbortController();
     const fetchCalculationSnapshot = async () => {
       try {
         const token = await user.getIdToken();
@@ -461,44 +463,58 @@ export default function FactuurDetailPage() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ quoteIds: [invoice.quoteId] }),
+          body: JSON.stringify({ quoteId: invoice.quoteId, latestOnly: true, preferCompletedFallback: true }),
+          signal: controller.signal,
         });
 
         if (!response.ok) throw new Error('Kon calculatiegegevens niet ophalen');
         const payload = await response.json();
-        const rows = Array.isArray(payload?.rows) ? payload.rows : [];
-        const row = rows.find((item: any) => item?.quoteid === invoice.quoteId) || rows[0];
-        const snapshot = row?.data_json || null;
+        const snapshot = payload?.row?.data_json || null;
         if (!cancelled) setQuoteCalculationSnapshot(snapshot as DataJson | null);
       } catch (err) {
-        console.error('Fout bij laden calculatiegegevens factuur:', err);
+        if (!cancelled) console.error('Fout bij laden calculatiegegevens factuur:', err);
         if (!cancelled) setQuoteCalculationSnapshot(null);
+      } finally {
+        if (!cancelled) setCalculationLoadedFor(invoice.id);
       }
     };
 
     void fetchCalculationSnapshot();
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, [invoice?.quoteId, user]);
+  }, [invoice?.id, invoice?.quoteId, invoice?.calculationSnapshot, user]);
 
   useEffect(() => {
     if (!user || !firestore) return;
+    let cancelled = false;
     const fetchSettings = async () => {
       try {
-        const userRef = doc(firestore, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
+        const [userResult, businessResult] = await Promise.allSettled([
+          getDoc(doc(firestore, 'users', user.uid)),
+          getDoc(doc(firestore, 'businesses', user.uid)),
+        ]);
+        if (cancelled) return;
+        if (userResult.status === 'rejected') throw userResult.reason;
+        const userSnap = userResult.value;
         const s = userSnap.exists() ? (userSnap.data() as any)?.settings : null;
-        if (s) setSettings(s as UserSettings);
+        setSettings(s as UserSettings | null);
 
-        const businessRef = doc(firestore, 'businesses', user.uid);
-        const businessSnap = await getDoc(businessRef);
-        if (businessSnap.exists()) setBusinessData(businessSnap.data());
+        if (businessResult.status === 'fulfilled') {
+          setBusinessData(businessResult.value.exists() ? businessResult.value.data() : null);
+        } else {
+          console.warn('Fout bij laden bedrijfsgegevens:', businessResult.reason);
+          setBusinessData(null);
+        }
       } catch (e) {
         console.error('Fout bij laden instellingen/bedrijf:', e);
+      } finally {
+        if (!cancelled) setSettingsLoadedFor(user.uid);
       }
     };
-    fetchSettings();
+    void fetchSettings();
+    return () => { cancelled = true; };
   }, [user, firestore]);
 
   useEffect(() => {
@@ -512,6 +528,8 @@ export default function FactuurDetailPage() {
   const dueDate = useMemo(() => naarDate(invoice?.dueDate), [invoice?.dueDate]);
   const invoiceType: 'voorschot' | 'eind' = invoice?.invoiceType === 'voorschot' ? 'voorschot' : 'eind';
   const isVoorschotInvoice = invoiceType === 'voorschot';
+  const pdfSourcesReady = settingsLoadedFor === user?.uid
+    && (!invoice?.quoteId || (quoteLoadedFor === invoice.id && calculationLoadedFor === invoice.id));
 
   useEffect(() => {
     if (!invoice) return;
@@ -529,7 +547,7 @@ export default function FactuurDetailPage() {
   }, [invoice?.id]);
 
   useEffect(() => {
-    if (!invoice || pdfSettingsInitialized) return;
+    if (!invoice || !pdfSourcesReady || pdfSettingsInitialized) return;
 
     const fallbackIssueDate = issueDate || new Date();
     const fallbackDueDate = isVoorschotInvoice
@@ -583,6 +601,7 @@ export default function FactuurDetailPage() {
     setPdfSettingsInitialized(true);
   }, [
     invoice,
+    pdfSourcesReady,
     pdfSettingsInitialized,
     issueDate,
     dueDate,
@@ -679,15 +698,14 @@ export default function FactuurDetailPage() {
   ]);
 
   const pdfData: PDFInvoiceData | null = useMemo(() => {
-    if (!invoice || !settings) return null;
+    if (!invoice || !settings || !pdfSourcesReady || !pdfSettingsInitialized) return null;
 
     const bedrijfNaam = settings.bedrijfsnaam || businessData?.bedrijfsnaam || '';
     const klant = invoice.sourceQuote?.klantSnapshot;
     if (!bedrijfNaam || !klant) return null;
-    const effectiveCalculationSnapshot = mergeCalculationSnapshotWithQuote(
-      quoteCalculationSnapshot ?? invoice.calculationSnapshot,
-      quoteDocData,
-    );
+    const effectiveCalculationSnapshot = hasFrozenInvoiceSnapshot(invoice)
+      ? invoice.calculationSnapshot ?? null
+      : mergeCalculationSnapshotWithQuote(quoteCalculationSnapshot ?? invoice.calculationSnapshot, quoteDocData);
     const snapshotKvk = getString((klant as any).kvkNummer || (klant as any).kvk);
     const snapshotBtw = getString((klant as any).btwNummer || (klant as any).btw).toUpperCase();
     const calculationKlantInfo = (effectiveCalculationSnapshot as any)?.klantinformatie || {};
@@ -765,31 +783,35 @@ export default function FactuurDetailPage() {
       showHourlyRateOnInvoice: invoicePdfSettings?.showHourlyRateOnInvoice === true,
       invoiceNotes: typeof invoice.notes === 'string' ? invoice.notes : '',
       standaardFactuurTekst: (invoicePdfSettings?.customPaymentText || settings.standaardFactuurTekst || '').trim(),
-      laborHoursPerDay: settings.planningSettings?.defaultWorkdayHours,
+      laborHoursPerDay: hasFrozenInvoiceSnapshot(invoice)
+        ? Number((invoice.calculationSnapshot as Record<string, unknown>)?.urenPerDag) || 8
+        : settings.planningSettings?.defaultWorkdayHours,
       calculationSnapshot: effectiveCalculationSnapshot ?? null,
     };
-  }, [invoice, settings, businessData, invoiceType, isVoorschotInvoice, effectiveIssueDate, effectiveDueDate, effectivePaymentTermDays, invoicePdfSettings, quoteClientNumbers, quoteOfferteNummer, quoteCalculationSnapshot, quoteDocData]);
+  }, [invoice, settings, pdfSourcesReady, pdfSettingsInitialized, businessData, invoiceType, isVoorschotInvoice, effectiveIssueDate, effectiveDueDate, effectivePaymentTermDays, invoicePdfSettings, quoteClientNumbers, quoteOfferteNummer, quoteCalculationSnapshot, quoteDocData]);
+
+  useEffect(() => {
+    if (!invoice || !pdfData) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('share') !== '1') return;
+    setWhatsAppOpen(true);
+    url.searchParams.delete('share');
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+  }, [invoice, pdfData, router]);
 
   const handleDownloadPdf = async () => {
     if (!pdfData) return;
     setIsDownloading(true);
     try {
-      const blob = await generateInvoicePDF(pdfData);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Factuur-${pdfData.invoiceNumberLabel}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const blob = await getInvoicePdfBlob(pdfData);
+      downloadInvoiceFile(new File([blob], invoiceShareFilename(pdfData.invoiceNumberLabel, pdfData.klant.naam), { type: 'application/pdf' }));
     } finally {
       setIsDownloading(false);
     }
   };
 
-  const handleMarkSent = async () => {
-    if (!firestore || !invoiceId) return;
+  const handleMarkSent = async (): Promise<boolean> => {
+    if (!firestore || !invoiceId) return false;
     try {
       await runTransaction(firestore, async (tx) => {
         const invRef = doc(firestore, 'invoices', invoiceId);
@@ -808,9 +830,11 @@ export default function FactuurDetailPage() {
       });
 
       toast({ title: 'Bijgewerkt', description: 'Factuur is gemarkeerd als verzonden.' });
+      return true;
     } catch (e) {
       console.error(e);
       toast({ title: 'Fout', description: 'Kon status niet bijwerken.', variant: 'destructive' });
+      return false;
     }
   };
 
@@ -1000,7 +1024,7 @@ export default function FactuurDetailPage() {
             </div>
           </div>
 
-          <div className="flex gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             {invoiceType === 'voorschot' && (
               <Button
                 type="button"
@@ -1020,21 +1044,17 @@ export default function FactuurDetailPage() {
               disabled={!pdfData}
             >
               <Mail className="h-4 w-4" />
-              Versturen
+              E-mail
             </Button>
-            {hasDeveloperWhatsAppAccess && (
-              <Button
-                type="button"
-                variant="success"
-                className="flex h-10 w-10 shrink-0 items-center justify-center p-0"
-                onClick={() => setWhatsAppOpen(true)}
-                disabled={!pdfData}
-                aria-label="WhatsApp"
-                title="WhatsApp"
-              >
-                <MessageCircle className="h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="success"
+              className="flex-1 sm:flex-none gap-2"
+              onClick={() => setWhatsAppOpen(true)}
+              disabled={!pdfData}
+            >
+              <Share2 className="h-4 w-4" /> Delen
+            </Button>
             <Button
               type="button"
               variant="success"
@@ -1405,28 +1425,13 @@ export default function FactuurDetailPage() {
 
                         setOverrideSaving(true);
                         try {
-                          const invRef = doc(firestore!, 'invoices', invoiceId);
-                          const existingVoorschot = invoice.financialAdjustments?.voorschotFactuur ?? null;
-                          await updateDoc(invRef, {
-                            totalsSnapshot: {
-                              ...invoice.totalsSnapshot,
-                              totaalInclBtw: finalTotal,
-                            },
-                            paymentSummary: {
-                              ...(invoice.paymentSummary || {}),
-                              openAmount: Math.max(0, finalTotal - (invoice.paymentSummary?.paidAmount ?? 0)),
-                            },
-                            financialAdjustments: {
-                              ...(invoice.financialAdjustments || {}),
-                              originalTotalInclBtw: originalTotal,
-                              voorschotAftrekInclBtw: voorschotAftrek,
-                              voorschotFactuur: existingVoorschot
-                                ? { ...existingVoorschot, paidAmount: voorschotPaidInfo }
-                                : { invoiceId: '', invoiceNumberLabel: '', totaalInclBtw: voorschotAftrek, paidAmount: voorschotPaidInfo },
-                              handmatigEindbedrag: false,
-                              opmerking: overrideReason || '',
-                            },
-                            updatedAt: serverTimestamp(),
+                          if (!firestore || !user) throw new Error('Log opnieuw in.');
+                          await saveInvoiceAmountOverride(firestore, invoiceId, user.uid, {
+                            originalTotalInclBtw: originalTotal,
+                            voorschotAftrekInclBtw: voorschotAftrek,
+                            voorschotPaidAmount: voorschotPaidInfo,
+                            finalTotalInclBtw: finalTotal,
+                            reason: overrideReason || '',
                           });
                           toast({ title: 'Opgeslagen', description: 'Factuurbedragen zijn aangepast.' });
                         } catch (e) {
@@ -1473,6 +1478,7 @@ export default function FactuurDetailPage() {
             </TabsContent>
 
             <TabsContent value="betalingen" className="space-y-4">
+              <InvoiceBankPayments invoiceId={invoiceId} refreshKey={`${invoice.status}:${invoice.paymentSummary?.paidAmount ?? 0}:${invoice.totalsSnapshot?.totaalInclBtw ?? 0}`} />
               <Card>
                 <CardHeader>
                   <CardTitle>Betaling toevoegen</CardTitle>
@@ -1590,19 +1596,16 @@ export default function FactuurDetailPage() {
         onDownloadPDF={handleDownloadPdf}
       />
 
-      <SendQuoteWhatsAppModal
-        isOpen={whatsAppOpen}
+      <ShareInvoiceDialog
+        open={whatsAppOpen}
         onClose={() => setWhatsAppOpen(false)}
-        klantInfo={{
-          voornaam: invoice.sourceQuote?.klantSnapshot?.naam?.split(/\s+/)[0] || '',
-          achternaam: '',
-          telefoonnummer: invoice.sourceQuote?.klantSnapshot?.telefoon || '',
-        } as any}
-        clientName={invoice.sourceQuote?.klantSnapshot?.naam || 'klant'}
-        storageKey="whatsapp_invoice_message_preset_v1"
-        successDescription="De factuur-PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur."
-        onDownloadOfficialPdf={handleDownloadPdf}
-        onMarkAsSent={handleMarkSent}
+        invoiceId={invoiceId}
+        pdfData={pdfData}
+        accountTemplate={settings?.whatsappInvoiceMessage}
+        accountReady={settingsLoadedFor === user?.uid && Boolean(settings)}
+        onTemplateSaved={(template) => setSettings((previous) => previous ? { ...previous, whatsappInvoiceMessage: template } : previous)}
+        canMarkSent={invoice.status === 'concept'}
+        onMarkSent={handleMarkSent}
       />
     </div>
   );

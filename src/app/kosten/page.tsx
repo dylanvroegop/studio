@@ -1,7 +1,8 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import {
   Camera,
   CalendarDays,
@@ -25,8 +26,6 @@ import {
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
-import { KostenPdfTab } from '@/components/kosten/KostenPdfTab';
-import { BankOverzichtContent } from '@/components/finance/BankOverzichtContent';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -73,6 +72,12 @@ import {
 import { invoiceImpliesAccepted } from '@/lib/quote-status';
 import type { InvoiceStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { deduplicateRequest } from '@/lib/deduplicate-request';
+
+const KostenPdfTab = dynamic(() => import('@/components/kosten/KostenPdfTab').then((module) => module.KostenPdfTab));
+const BankOverzichtContent = dynamic(() => import('@/components/finance/BankOverzichtContent').then((module) => module.BankOverzichtContent), {
+  loading: () => <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>,
+});
 
 type CostFilterMode = 'alle' | ProjectCostCategory;
 type EntryMode = 'manual' | 'upload';
@@ -355,6 +360,23 @@ function createDefaultFormState(): KostenFormState {
   };
 }
 
+function calculateFormTotals(form: KostenFormState, lineItems: ProjectCostLineItem[]): {
+  amountExcl: number;
+  amountIncl: number;
+  btwAmount: number;
+  lineItemsTotal: number;
+} {
+  const lineItemsTotal = roundEuro(lineItems.reduce((sum, item) => sum + item.total_price, 0));
+  const hasLineSpecificBtw = lineItems.some((item) => item.total_incl_btw !== undefined || item.btw_percentage !== undefined);
+  const amountExcl = form.manualOverride ? roundEuro(form.amountExcl) : lineItemsTotal;
+  const amountIncl = form.manualOverride || !hasLineSpecificBtw
+    ? roundEuro(amountExcl * (1 + form.btwPercentage / 100))
+    : roundEuro(lineItems.reduce((sum, item) => (
+      sum + (item.total_incl_btw ?? roundEuro(item.total_price * (1 + (item.btw_percentage ?? form.btwPercentage) / 100)))
+    ), 0));
+  return { amountExcl, amountIncl, btwAmount: roundEuro(amountIncl - amountExcl), lineItemsTotal };
+}
+
 function createEmptyLineItem(): ProjectCostLineItem {
   return {
     description: '',
@@ -534,13 +556,14 @@ function KostenPageContent() {
   const quickPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const pageReceiptDragDepthRef = useRef(0);
   const pendingHydratedRef = useRef<string | null>(null);
-  const costDataLoadedRef = useRef(false);
+  const costReadVersionRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [costReloadVersion, setCostReloadVersion] = useState(0);
   const [costs, setCosts] = useState<ProjectCostRow[]>([]);
   const [quotes, setQuotes] = useState<QuoteOption[]>([]);
+  const [quotesError, setQuotesError] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CostFilterMode>('alle');
@@ -555,6 +578,7 @@ function KostenPageContent() {
   const [deletingCostId, setDeletingCostId] = useState<string | null>(null);
   const [dismissingPendingImport, setDismissingPendingImport] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const receiptImportInFlightRef = useRef(false);
   const [dragActive, setDragActive] = useState(false);
   const [pageReceiptDragActive, setPageReceiptDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -602,7 +626,7 @@ function KostenPageContent() {
     }
   }, [initialOfferteIdFromUrl, shouldOpenCreateFromUrl, quotes]);
 
-  const loadQuotes = useCallback(async (): Promise<QuoteOption[]> => {
+  const loadQuotes = useMemo(() => deduplicateRequest(async (): Promise<QuoteOption[]> => {
     if (!user || !firestore) return [];
     const [snapshot, invoicesSnapshot] = await Promise.all([
       getDocs(query(collection(firestore, 'quotes'), where('userId', '==', user.uid))),
@@ -666,9 +690,9 @@ function KostenPageContent() {
       }));
 
     return data;
-  }, [firestore, user]);
+  }), [firestore, user]);
 
-  const loadCosts = useCallback(async (): Promise<ProjectCostRow[]> => {
+  const loadCosts = useMemo(() => deduplicateRequest(async (): Promise<ProjectCostRow[]> => {
     if (!user) return [];
     const token = await user.getIdToken();
     const response = await fetch('/api/kosten/list', {
@@ -698,52 +722,58 @@ function KostenPageContent() {
         const right = new Date(b.date || b.created_at).getTime();
           return right - left;
         });
-  }, [user]);
+  }), [user]);
+
+  const refreshCostsAfterChange = async (): Promise<void> => {
+    const version = ++costReadVersionRef.current;
+    try {
+      const data = await loadCosts(true);
+      if (version !== costReadVersionRef.current) return;
+      setCosts(data);
+      setError(null);
+    } finally {
+      if (version === costReadVersionRef.current) setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
-    const needsCostWorkspace = viewMode === 'kosten' || shouldOpenCreateFromUrl || Boolean(initialPendingImportId);
     let cancelled = false;
-
-    const load = async (blocking: boolean) => {
-      if (blocking) {
-        setLoading(true);
-        setError(null);
-      }
+    const load = async () => {
+      const version = costReadVersionRef.current;
+      setLoading(true);
+      setError(null);
       try {
-        const [quotesData, costsData] = await Promise.all([loadQuotes(), loadCosts()]);
-        if (cancelled) return;
-        setQuotes(quotesData);
+        const costsData = await loadCosts();
+        if (cancelled || version !== costReadVersionRef.current) return;
         setCosts(costsData);
-        costDataLoadedRef.current = true;
       } catch (loadError) {
-        if (cancelled || !blocking) return;
+        if (cancelled || version !== costReadVersionRef.current) return;
         const message = loadError instanceof Error ? loadError.message : 'Kon kosten niet laden.';
         setError(message);
       } finally {
-        if (!cancelled && blocking) setLoading(false);
+        if (!cancelled && version === costReadVersionRef.current) setLoading(false);
       }
     };
-
-    // The quick-add tab must become usable without waiting for costs or quotes.
-    // Those datasets are still warmed in the background for the other tabs.
-    if (!needsCostWorkspace) {
-      setLoading(false);
-      if (firestore && !costDataLoadedRef.current) void load(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    if (!firestore) return () => {
-      cancelled = true;
-    };
-
-    void load(true);
+    // Switching tabs must not cancel/restart these reads. Quote labels load
+    // independently so Firestore cannot delay the authoritative cost ledger.
+    void load();
     return () => {
       cancelled = true;
     };
-  }, [costReloadVersion, initialPendingImportId, loadCosts, loadQuotes, shouldOpenCreateFromUrl, user, firestore, viewMode]);
+  }, [costReloadVersion, loadCosts, user]);
+
+  useEffect(() => {
+    if (!user || !firestore) return;
+    let cancelled = false;
+    setQuotesError(null);
+    void loadQuotes().then((data) => {
+      if (!cancelled) setQuotes(data);
+    }).catch((loadError: unknown) => {
+      if (!cancelled) setQuotesError(loadError instanceof Error ? loadError.message : 'Kon offertes niet laden.');
+    });
+    return () => { cancelled = true; };
+  }, [costReloadVersion, firestore, loadQuotes, user]);
 
   useEffect(() => {
     if (!user || !initialPendingImportId || pendingHydratedRef.current === initialPendingImportId) return;
@@ -966,28 +996,7 @@ function KostenPageContent() {
     [lineItems]
   );
 
-  const lineItemsTotal = useMemo(
-    () => roundEuro(normalizedLineItems.reduce((sum, item) => sum + item.total_price, 0)),
-    [normalizedLineItems]
-  );
-
-  const hasManualLineInclBtw = normalizedLineItems.some((item) => item.total_incl_btw !== undefined);
-  const lineItemsTotalIncl = useMemo(
-    () => roundEuro(normalizedLineItems.reduce((sum, item) => {
-      const lineBtwPercentage = item.btw_percentage ?? form.btwPercentage;
-      const calculatedIncl = roundEuro(item.total_price * (1 + lineBtwPercentage / 100));
-      return sum + (item.total_incl_btw ?? calculatedIncl);
-    }, 0)),
-    [form.btwPercentage, normalizedLineItems]
-  );
-
-  const hasLineSpecificBtw = normalizedLineItems.some((item) => item.btw_percentage !== undefined);
-
-  const amountExcl = form.manualOverride ? roundEuro(form.amountExcl) : lineItemsTotal;
-  const amountIncl = form.manualOverride || (!hasManualLineInclBtw && !hasLineSpecificBtw)
-    ? roundEuro(amountExcl * (1 + form.btwPercentage / 100))
-    : lineItemsTotalIncl;
-  const btwAmount = roundEuro(amountIncl - amountExcl);
+  const { amountIncl, btwAmount, lineItemsTotal } = calculateFormTotals(form, normalizedLineItems);
   const isEditingCost = Boolean(editingCostId);
 
   const resetForm = () => {
@@ -1042,6 +1051,7 @@ function KostenPageContent() {
   };
 
   const openCreateDialog = () => {
+    if (receiptImportInFlightRef.current || saving) return;
     resetForm();
     setCreateOpen(true);
   };
@@ -1138,23 +1148,28 @@ function KostenPageContent() {
     }));
   };
 
-  const handleSave = async () => {
-    if (!user) return;
-    if (!safeString(form.supplierName)) {
+  const handleSave = async (photo?: { form: KostenFormState; lineItems: ProjectCostLineItem[] }): Promise<boolean> => {
+    const saveForm = photo?.form ?? form;
+    const saveLineItems = photo?.lineItems ?? normalizedLineItems;
+    const saveIsEditing = !photo && isEditingCost;
+    const savePendingImportId = photo ? null : pendingImportId;
+    const totals = calculateFormTotals(saveForm, saveLineItems);
+    if (!user) return false;
+    if (!safeString(saveForm.supplierName)) {
       toast({
         title: 'Leverancier ontbreekt',
         description: 'Vul een leverancier in voordat je opslaat.',
         variant: 'destructive',
       });
-      return;
+      return false;
     }
 
-    const payloadLineItems = normalizedLineItems.filter(
+    const payloadLineItems = saveLineItems.filter(
       (item) => item.description || item.total_price !== 0
     );
-    const normalizedReceiptUrl = safeString(form.receiptUrl) || null;
-    const payloadReceiptFiles = Array.isArray(form.receiptFiles) && form.receiptFiles.length > 0
-      ? form.receiptFiles
+    const normalizedReceiptUrl = safeString(saveForm.receiptUrl) || null;
+    const payloadReceiptFiles = Array.isArray(saveForm.receiptFiles) && saveForm.receiptFiles.length > 0
+      ? saveForm.receiptFiles
       : (normalizedReceiptUrl
         ? [{
           url: normalizedReceiptUrl,
@@ -1169,26 +1184,26 @@ function KostenPageContent() {
     setSaving(true);
     try {
       const token = await user.getIdToken();
-      const response = await fetch(isEditingCost ? '/api/kosten/update' : '/api/kosten/create', {
+      const response = await fetch(saveIsEditing ? '/api/kosten/update' : '/api/kosten/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          id: editingCostId,
-          pending_import_id: pendingImportId || undefined,
-          offerte_id: form.offerteId || null,
-          category: form.category,
-          supplier_name: form.supplierName,
-          description: form.description || form.supplierName,
+          id: photo ? null : editingCostId,
+          pending_import_id: savePendingImportId || undefined,
+          offerte_id: saveForm.offerteId || null,
+          category: saveForm.category,
+          supplier_name: saveForm.supplierName,
+          description: saveForm.description || saveForm.supplierName,
           line_items: payloadLineItems,
-          amount_excl_btw: amountExcl,
-          amount_incl_btw: amountIncl,
-          btw_amount: btwAmount,
-          manual_amount_override: form.manualOverride,
-          btw_percentage: form.btwPercentage,
-          date: form.date,
+          amount_excl_btw: totals.amountExcl,
+          amount_incl_btw: totals.amountIncl,
+          btw_amount: totals.btwAmount,
+          manual_amount_override: saveForm.manualOverride,
+          btw_percentage: saveForm.btwPercentage,
+          date: saveForm.date,
           receipt_url: normalizedReceiptUrl,
           receipt_files: payloadReceiptFiles,
           status: 'confirmed',
@@ -1205,19 +1220,23 @@ function KostenPageContent() {
         throw new Error(payload?.message || `HTTP ${response.status}`);
       }
 
-      const refreshedCosts = await loadCosts();
-      setCosts(refreshedCosts);
-
       toast({
-        title: isEditingCost ? 'Kost bijgewerkt' : 'Kost opgeslagen',
-        description: isEditingCost
-          ? `${safeString(form.supplierName)} is bijgewerkt.`
-          : `${safeString(form.supplierName)} is toegevoegd.`,
+        title: saveIsEditing ? 'Kost bijgewerkt' : 'Kost opgeslagen',
+        description: saveIsEditing
+          ? `${safeString(saveForm.supplierName)} is bijgewerkt.`
+          : `${safeString(saveForm.supplierName)} is toegevoegd.`,
       });
 
-      if (pendingImportId) skipNextPendingDismissRef.current = true;
+      if (savePendingImportId) skipNextPendingDismissRef.current = true;
       setCreateOpen(false);
       resetForm();
+      // Een mislukte lijstverversing betekent niet dat de kost opnieuw moet worden opgeslagen.
+      try {
+        await refreshCostsAfterChange();
+      } catch {
+        setCostReloadVersion((value) => value + 1);
+      }
+      return true;
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : 'Kon kost niet opslaan.';
       toast({
@@ -1225,14 +1244,16 @@ function KostenPageContent() {
         description: message,
         variant: 'destructive',
       });
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const handleExtract = async (fileOverride?: File | null) => {
+  const handleExtract = async (fileOverride?: File | null, autoSave = false) => {
     const fileToExtract = fileOverride ?? selectedFile;
-    if (!user || !fileToExtract || extracting) return;
+    if (!user || !fileToExtract || receiptImportInFlightRef.current) return;
+    receiptImportInFlightRef.current = true;
     setExtracting(true);
 
     try {
@@ -1314,26 +1335,39 @@ function KostenPageContent() {
       );
       const shouldEnableManualOverride =
         extracted.manual_amount_override === true
+        || (autoSave && extractedLineItemsRebalanced.length === 0 && extractedAmountExcl !== 0)
         || (
           extractedAmountExcl !== 0
           && extractedLineItemsTotalAfterRebalance !== 0
           && Math.abs(extractedAmountExcl - extractedLineItemsTotalAfterRebalance) > 0.05
         );
       setLineItems(extractedLineItemsRebalanced);
-      setForm((prev) => ({
-        ...prev,
-        category: normalizeProjectCostCategory(extracted.suggested_category || prev.category),
-        supplierName: safeString(extracted.supplier_name) || prev.supplierName,
-        description: safeString(extracted.description) || prev.description,
-        offerteId: matchedOfferteId || prev.offerteId,
-        date: safeString(extracted.date) || prev.date,
-        btwPercentage: safeNumber(extracted.btw_percentage) || prev.btwPercentage,
+      const baseForm = autoSave ? createDefaultFormState() : form;
+      const extractedForm: KostenFormState = {
+        ...baseForm,
+        category: normalizeProjectCostCategory(extracted.suggested_category || baseForm.category),
+        supplierName: safeString(extracted.supplier_name) || baseForm.supplierName,
+        description: safeString(extracted.description) || baseForm.description,
+        offerteId: matchedOfferteId || baseForm.offerteId,
+        date: safeString(extracted.date) || baseForm.date,
+        btwPercentage: extracted.btw_percentage != null ? safeNumber(extracted.btw_percentage) : baseForm.btwPercentage,
         amountExcl: extractedAmountExcl,
         manualOverride: shouldEnableManualOverride,
-        receiptUrl: safeString(extracted.receipt_url) || prev.receiptUrl,
-        receiptFiles: Array.isArray(extracted.receipt_files) ? extracted.receipt_files : prev.receiptFiles,
-      }));
+        receiptUrl: safeString(extracted.receipt_url) || baseForm.receiptUrl,
+        receiptFiles: Array.isArray(extracted.receipt_files) ? extracted.receipt_files : baseForm.receiptFiles,
+      };
+      setForm(extractedForm);
       setEntryMode('manual');
+
+      if (autoSave) {
+        if (!extracted.extraction_warning) {
+          const saved = await handleSave({ form: extractedForm, lineItems: extractedLineItemsRebalanced });
+          if (saved) return;
+          setCreateOpen(true);
+          return;
+        }
+        setCreateOpen(true);
+      }
 
       toast(extracted.extraction_warning
         ? {
@@ -1345,6 +1379,7 @@ function KostenPageContent() {
           description: 'Het origineel is veilig bewaard. Controleer de gegevens en sla daarna de kost op.',
         });
     } catch (extractError) {
+      if (autoSave) setCreateOpen(true);
       const message = extractError instanceof Error ? extractError.message : 'Kon bon niet uitlezen.';
       toast({
         title: 'Extractie mislukt',
@@ -1353,10 +1388,12 @@ function KostenPageContent() {
       });
     } finally {
       setExtracting(false);
+      receiptImportInFlightRef.current = false;
     }
   };
 
-  const openReceiptFromPage = (file: File) => {
+  const openReceiptFromPage = (file: File, autoSave = false) => {
+    if (receiptImportInFlightRef.current || saving) return;
     const isSupportedReceipt = file.type.startsWith('image/')
       || file.type === 'application/pdf'
       || /\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(file.name);
@@ -1373,14 +1410,14 @@ function KostenPageContent() {
     resetForm();
     setEntryMode('upload');
     setSelectedFile(file);
-    setCreateOpen(true);
-    void handleExtract(file);
+    setCreateOpen(!autoSave);
+    void handleExtract(file, autoSave);
   };
 
   const handleQuickPhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
     event.currentTarget.value = '';
-    if (file) openReceiptFromPage(file);
+    if (file) openReceiptFromPage(file, true);
   };
 
   const handleOpenCost = (cost: ProjectCostRow) => {
@@ -1464,8 +1501,7 @@ function KostenPageContent() {
         throw new Error(payload?.message || `HTTP ${response.status}`);
       }
 
-      const refreshedCosts = await loadCosts();
-      setCosts(refreshedCosts);
+      await refreshCostsAfterChange();
       setSelectedBankCost(null);
       toast({
         title: 'Categorie opgeslagen',
@@ -1504,8 +1540,7 @@ function KostenPageContent() {
         throw new Error(payload?.message || `HTTP ${response.status}`);
       }
 
-      const refreshedCosts = await loadCosts();
-      setCosts(refreshedCosts);
+      await refreshCostsAfterChange();
       setSelectedBankCost(null);
       toast({
         title: bankOfferteDraft ? 'Klant gekoppeld' : 'Klantkoppeling verwijderd',
@@ -1557,8 +1592,7 @@ function KostenPageContent() {
         throw new Error(payload?.message || `HTTP ${response.status}`);
       }
 
-      const refreshedCosts = await loadCosts();
-      setCosts(refreshedCosts);
+      await refreshCostsAfterChange();
       setCostPendingDelete((prev) => (prev?.id === cost.id ? null : prev));
       if (editingCostId === cost.id) {
         setCreateOpen(false);
@@ -1582,7 +1616,7 @@ function KostenPageContent() {
     }
   };
 
-  if (isUserLoading || !user || (loading && viewMode !== QUICK_ADD_TAB_ID)) {
+  if (isUserLoading || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="animate-spin text-primary w-8 h-8" />
@@ -1687,14 +1721,16 @@ function KostenPageContent() {
                     variant="outline"
                     className="h-40 w-full flex-col gap-3 rounded-2xl border-emerald-500/50 text-2xl text-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-100"
                     onClick={() => quickPhotoInputRef.current?.click()}
+                    disabled={extracting || saving}
                   >
-                    <Camera className="h-10 w-10" />
-                    Foto maken
+                    {extracting || saving ? <Loader2 className="h-10 w-10 animate-spin" /> : <Camera className="h-10 w-10" />}
+                    {saving ? 'Foto importeren...' : extracting ? 'Foto uitlezen...' : 'Foto maken'}
                   </Button>
                   <Button
                     type="button"
                     className="h-40 w-full flex-col gap-3 rounded-2xl text-2xl"
                     onClick={openCreateDialog}
+                    disabled={extracting || saving}
                   >
                     <Plus className="h-10 w-10" />
                     Nieuwe kost
@@ -1704,7 +1740,20 @@ function KostenPageContent() {
             </Card>
           ) : null}
 
-          {viewMode === 'kosten' && error ? (
+          {(viewMode === 'kosten' || viewMode === 'pdfs') && loading ? (
+            <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground" role="status">
+              <Loader2 className="h-5 w-5 animate-spin" /> Kosten laden...
+            </div>
+          ) : null}
+
+          {quotesError && (viewMode === 'kosten' || viewMode === 'pdfs' || createOpen) ? (
+            <div className="flex items-center justify-between gap-3 text-sm text-destructive">
+              <span>Offertelabels konden niet worden geladen. {quotesError}</span>
+              <Button variant="outline" onClick={() => setCostReloadVersion((value) => value + 1)}>Opnieuw proberen</Button>
+            </div>
+          ) : null}
+
+          {(viewMode === 'kosten' || viewMode === 'pdfs') && error ? (
             <Card className="border-red-500/30">
               <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
                 <CircleAlert className="h-8 w-8 text-red-300" />
@@ -1716,7 +1765,6 @@ function KostenPageContent() {
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    costDataLoadedRef.current = false;
                     setCostReloadVersion((value) => value + 1);
                   }}
                 >
@@ -1727,7 +1775,7 @@ function KostenPageContent() {
           ) : null}
 
           {viewMode === 'kosten' || createOpen ? (
-          <Card className={cn((viewMode !== 'kosten' || Boolean(error)) && 'hidden')}>
+          <Card className={cn((viewMode !== 'kosten' || Boolean(error) || loading) && 'hidden')}>
             <CardContent className="space-y-4 pt-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="relative flex-1">
@@ -1745,9 +1793,10 @@ function KostenPageContent() {
                   variant="outline"
                   className="h-10 shrink-0 gap-2 border-emerald-500/40 px-4 text-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-100"
                   onClick={() => quickPhotoInputRef.current?.click()}
+                  disabled={extracting || saving}
                 >
-                  <Camera className="h-4 w-4" />
-                  Foto maken
+                  {extracting || saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  {saving ? 'Foto importeren...' : extracting ? 'Foto uitlezen...' : 'Foto maken'}
                 </Button>
 
                 <Dialog
@@ -1762,6 +1811,7 @@ function KostenPageContent() {
                       type="button"
                       className="h-10 shrink-0 gap-2 px-4 hidden sm:inline-flex"
                       onClick={openCreateDialog}
+                      disabled={extracting || saving}
                     >
                       <Plus className="h-4 w-4" />
                       Nieuwe kost
@@ -2336,7 +2386,7 @@ function KostenPageContent() {
 
           {activeFinanceTab ? (
             <BankOverzichtContent embedded requestedTabId={activeFinanceTab} />
-          ) : viewMode === 'pdfs' ? (
+          ) : loading || error ? null : viewMode === 'pdfs' ? (
             <KostenPdfTab costs={costs} quoteById={quoteById} onOpenCost={handleOpenCost} />
           ) : viewMode !== 'kosten' ? null : error ? null : filteredCosts.length === 0 ? (
             <Card>
@@ -2350,6 +2400,7 @@ function KostenPageContent() {
                   variant="outline"
                   className="mt-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200 dark:hover:text-emerald-100"
                   onClick={openCreateDialog}
+                  disabled={extracting || saving}
                 >
                   Nieuwe kost
                 </Button>
@@ -2741,6 +2792,7 @@ function KostenPageContent() {
           type="button"
           className="h-12 gap-2 rounded-full px-4 shadow-lg shadow-emerald-900/30"
           onClick={openCreateDialog}
+          disabled={extracting || saving}
         >
           <Plus className="h-4 w-4" />
           Nieuwe kost

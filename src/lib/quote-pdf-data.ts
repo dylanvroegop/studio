@@ -229,6 +229,7 @@ export function resolveQuoteCalculationSettings(normalized: any, quote: any): Qu
     return {
         btwTarief: quoteInst?.btwTarief ?? rawInst?.btwTarief ?? 21,
         btwMode: quoteInst?.btwMode ?? rawInst?.btwMode ?? 'normaal',
+        arbeidZonderBtw: quoteInst?.arbeidZonderBtw ?? rawInst?.arbeidZonderBtw ?? false,
         arbeidBtwLaagUren: quoteInst?.arbeidBtwLaagUren ?? rawInst?.arbeidBtwLaagUren ?? 0,
         arbeidBtwLaagTarief: quoteInst?.arbeidBtwLaagTarief ?? rawInst?.arbeidBtwLaagTarief ?? 9,
         uurTariefExclBtw: quoteInst?.uurTariefExclBtw ?? quoteInst?.uurTarief ?? rawInst?.uurTariefExclBtw ?? rawInst?.uurTarief ?? 50,

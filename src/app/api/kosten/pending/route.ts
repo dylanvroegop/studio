@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { mapPendingImport, pendingFingerprint, queuePendingCostImport } from '@/lib/pending-cost-imports';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
-}
-
-function safeNumber(value: unknown): number {
-  const numeric = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(numeric) ? Math.round(numeric * 100) / 100 : 0;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -35,86 +31,6 @@ function resolveAutomationUid(request: Request, input: Record<string, unknown>):
   if (!expectedSecret || !providedSecret || providedSecret !== expectedSecret) return null;
 
   return safeString(input.user_id) || safeString(request.headers.get('x-offertehulp-user-id')) || null;
-}
-
-function serializeTimestamp(value: unknown): string {
-  if (value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
-    return value.toDate().toISOString();
-  }
-  const raw = safeString(value);
-  return raw || new Date().toISOString();
-}
-
-function mapPendingImport(id: string, raw: Record<string, unknown>): Record<string, unknown> {
-  const payload = asRecord(raw.payload) || {};
-  return {
-    id,
-    ...payload,
-    status: safeString(raw.status) || 'pending',
-    created_at: serializeTimestamp(raw.createdAt),
-    updated_at: serializeTimestamp(raw.updatedAt || raw.createdAt),
-  };
-}
-
-function normalizeFingerprintText(value: unknown): string {
-  return safeString(value)
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function receiptFilename(payload: Record<string, unknown>): string {
-  const files = Array.isArray(payload.receipt_files) ? payload.receipt_files : [];
-  const firstFile = asRecord(files[0]);
-  const explicitFilename = normalizeFingerprintText(firstFile?.filename);
-  if (explicitFilename) return explicitFilename;
-
-  const receiptUrl = normalizeFingerprintText(payload.receipt_url);
-  const basename = receiptUrl.split('/').pop() || '';
-  return basename.replace(/^\d+-/, '');
-}
-
-function createPendingFingerprint(payload: Record<string, unknown>): string {
-  const sourceIdentity = [
-    payload.source_message_id,
-    payload.source_mailbox,
-    payload.source_attachment_filename,
-  ].map(normalizeFingerprintText).filter(Boolean);
-
-  if (sourceIdentity.length > 0) {
-    return `source:${sourceIdentity.join('|')}`;
-  }
-
-  const lineItems = Array.isArray(payload.line_items)
-    ? payload.line_items.map((item) => {
-      const row = asRecord(item) || {};
-      return [
-        safeNumber(row.quantity),
-        normalizeFingerprintText(row.unit),
-        safeNumber(row.unit_price),
-        safeNumber(row.total_price),
-        safeNumber(row.total_incl_btw),
-      ].join(':');
-    }).sort().join('|')
-    : '';
-
-  return [
-    'content',
-    normalizeFingerprintText(payload.supplier_name),
-    normalizeFingerprintText(payload.date),
-    safeNumber(payload.amount_excl_btw),
-    safeNumber(payload.amount_incl_btw),
-    receiptFilename(payload),
-    lineItems,
-  ].join('|');
-}
-
-function pendingFingerprint(raw: Record<string, unknown>): string {
-  const stored = safeString(raw.pendingFingerprint);
-  if (stored) return stored;
-  return createPendingFingerprint(asRecord(raw.payload) || {});
 }
 
 export async function GET(request: Request) {
@@ -193,48 +109,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { firestore } = initFirebaseAdmin();
-    const incomingFingerprint = createPendingFingerprint(payload);
-    const existingSnapshot = await firestore
-      .collection('pending_cost_imports')
-      .where('userId', '==', uid)
-      .get();
-    const existingDuplicate = existingSnapshot.docs.find((doc) => {
-      const raw = doc.data() as Record<string, unknown>;
-      return pendingFingerprint(raw) === incomingFingerprint;
-    });
+    const result = await queuePendingCostImport(uid, payload);
+    return NextResponse.json({ ok: true, ...result }, { headers: noStoreHeaders() });
 
-    if (existingDuplicate) {
-      const raw = existingDuplicate.data() as Record<string, unknown>;
-      return NextResponse.json({
-        ok: true,
-        deduplicated: true,
-        id: existingDuplicate.id,
-        data: mapPendingImport(existingDuplicate.id, raw),
-      }, { headers: noStoreHeaders() });
-    }
-
-    const pendingRef = firestore.collection('pending_cost_imports').doc();
-    const now = new Date();
-    const storedPayload = { ...payload };
-    delete storedPayload.user_id;
-
-    await pendingRef.set({
-      userId: uid,
-      status: 'pending',
-      pendingFingerprint: incomingFingerprint,
-      payload: {
-        ...storedPayload,
-        offerte_id: safeString(payload.offerte_id) || null,
-      },
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    return NextResponse.json(
-      { ok: true, id: pendingRef.id, data: mapPendingImport(pendingRef.id, { payload, status: 'pending', createdAt: now, updatedAt: now }) },
-      { headers: noStoreHeaders() }
-    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Kon factuur in de wachtrij te zetten.';
     return NextResponse.json({ ok: false, message }, { status: 500, headers: noStoreHeaders() });

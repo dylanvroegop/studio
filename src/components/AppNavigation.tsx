@@ -33,6 +33,13 @@ function clampNavigationWidth(width: number): number {
 
 const BASE_NAV_ITEMS: NavigationItem[] = [
     {
+        href: '/facturen/start',
+        label: 'Factureren',
+        icon: ReceiptText,
+        iconColorClass: 'text-emerald-400',
+        iconColorClassActive: 'text-emerald-300',
+    },
+    {
         href: '/offertes',
         label: 'Offertes',
         icon: FileText,
@@ -105,6 +112,8 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
 ];
 
 function isActivePath(pathname: string, href: string): boolean {
+    if (href === '/facturen/start') return pathname === '/facturen/start' || pathname === '/facturen/nieuw';
+    if (href === '/facturen') return pathname.startsWith('/facturen') && pathname !== '/facturen/start' && pathname !== '/facturen/nieuw';
     if (href === '/dashboard') return pathname === '/dashboard';
     if (href === '/offertes/nieuw') return pathname === '/offertes/nieuw';
     if (href === '/offertes') return pathname.startsWith('/offertes') && !pathname.startsWith('/offertes/nieuw');

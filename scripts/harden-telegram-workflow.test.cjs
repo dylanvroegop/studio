@@ -7,17 +7,38 @@ test('opgeslagen klant zonder voorstel geeft een bruikbaar bericht, nooit null',
   for (const value of [null, undefined, '', '  ', 'null', ' NULL ', 'undefined', false, 0, {}]) {
     const data = { ...saved, telegram_message: value };
     assert.equal(successfulImport(data), true);
-    assert.match(importMessage(data), /Klant en offerte zijn opgeslagen/);
-    assert.match(importMessage(data), /geen afspraakvoorstel/);
+    assert.match(importMessage(data), /Welke dag en tijd zouden u goed uitkomen/);
+    assert.doesNotMatch(importMessage(data), /geen afspraakvoorstel|geen afspraak gemaakt|Controleer de planning/);
   }
 });
 test('bestaande afspraak wordt niet beschreven als ontbrekend voorstel', () => {
   assert.match(importMessage({ ...saved, appointment_status: 'scheduled' }), /bevestigde werkbespreking/);
-  assert.match(importMessage({ ...saved, appointment_status: 'pending' }), /afspraakvoorstel in Calvora/);
+  assert.match(importMessage({ ...saved, appointment_status: 'pending' }), /Welke dag en tijd/);
 });
-test('bruikbare voorsteltekst blijft intact', () => {
-  const text = 'Beste klant,\n\nKomt vrijdag om 19:00 gelegen?';
-  assert.equal(importMessage({ ...saved, telegram_message: text }), text);
+test('handmatig verwijderd voorstel wordt niet opnieuw aangeboden', () => {
+  const text = importMessage({ ...saved, appointment_status: 'cancelled', appointment_date: '2026-10-09', appointment_time: '19:00' });
+  assert.match(text, /handmatig verwijderd uit Google Agenda/);
+  assert.doesNotMatch(text, /19:00|Ik kan op/);
+});
+test('voorstel over twee weken krijgt één datum en een vraag om een alternatief', () => {
+  const text = importMessage({ ...saved, appointment_status: 'pending', appointment_date: '2026-10-20', appointment_time: '19:00' }, { client_name: 'Erdal Test' });
+  assert.match(text, /^Beste Erdal,/);
+  assert.match(text, /dinsdag 20 oktober om 19:00/);
+  assert.match(text, /Mocht dit moment niet uitkomen, welke dag en tijd zouden u beter uitkomen/);
+  assert.doesNotMatch(text, /twee momenten|1\.|2\./);
+});
+test('oude gecachete tekst met twee opties wordt opnieuw gemaakt met eerste afspraak', () => {
+  const text = importMessage({ ...saved, appointment_status: 'pending', appointment_date: '2026-10-09', appointment_time: '19:00', telegram_message: 'Beste Erdal,\n\nIk kan op één van deze twee momenten:\n1. vrijdag 9 oktober om 19:00\n2. zaterdag 10 oktober om 19:00' });
+  assert.match(text, /^Beste Erdal,/);
+  assert.match(text, /vrijdag 9 oktober om 19:00/);
+  assert.doesNotMatch(text, /twee momenten|zaterdag|1\.|2\./);
+});
+test('ontbrekende of ongeldige afspraak krijgt klantbericht zonder verzonnen datum', () => {
+  for (const date of [null, '2026-02-30', 'ongeldig']) {
+    const text = importMessage({ ...saved, appointment_date: date, appointment_time: '19:00' });
+    assert.match(text, /Welke dag en tijd zouden u goed uitkomen/);
+    assert.doesNotMatch(text, /19:00|geen afspraak/);
+  }
 });
 test('mislukte of onvolledige import gaat nooit door als succes', () => {
   for (const data of [{}, { success: 'true' }, { ...saved, success: false }, { ...saved, client_id: null }, { ...saved, project_id: 'null' }]) {

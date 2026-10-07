@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PDFInvoiceData } from '@/lib/generate-invoice-pdf';
-import { generateInvoicePDF } from '@/lib/generate-invoice-pdf';
+import { getInvoicePdfBlob } from '@/lib/invoice-pdf-client';
 import { FileText } from 'lucide-react';
 
 interface PDFPreviewInvoiceProps {
@@ -27,7 +27,7 @@ export function PDFPreviewInvoice({ pdfData }: PDFPreviewInvoiceProps) {
     inFlightSignatureRef.current = signature;
 
     try {
-      const blob = await generateInvoicePDF(data);
+      const blob = await getInvoicePdfBlob(data);
       const url = URL.createObjectURL(blob);
 
       if (generationId !== generationIdRef.current) {
@@ -43,12 +43,14 @@ export function PDFPreviewInvoice({ pdfData }: PDFPreviewInvoiceProps) {
       setPreviewUrl(url);
       lastCompletedSignatureRef.current = signature;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fout bij genereren PDF');
+      if (generationId === generationIdRef.current) {
+        setError(err instanceof Error ? err.message : 'Fout bij genereren PDF');
+      }
     } finally {
       if (inFlightSignatureRef.current === signature) {
         inFlightSignatureRef.current = null;
       }
-      setLoading(false);
+      if (generationId === generationIdRef.current) setLoading(false);
     }
   }, []);
 
@@ -62,6 +64,9 @@ export function PDFPreviewInvoice({ pdfData }: PDFPreviewInvoiceProps) {
 
   useEffect(() => {
     return () => {
+      generationIdRef.current += 1;
+      inFlightSignatureRef.current = null;
+      lastCompletedSignatureRef.current = null;
       if (latestObjectUrlRef.current) {
         URL.revokeObjectURL(latestObjectUrlRef.current);
         latestObjectUrlRef.current = null;
@@ -73,10 +78,7 @@ export function PDFPreviewInvoice({ pdfData }: PDFPreviewInvoiceProps) {
     return (
       <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-12 text-center">
         <FileText size={48} className="mx-auto text-zinc-600 mb-4" />
-        <h3 className="text-lg font-medium text-zinc-300 mb-2">Geen PDF preview</h3>
-        <p className="text-zinc-500">
-          Maak eerst een factuur om een PDF te kunnen genereren.
-        </p>
+        <p className="text-zinc-400">Factuurgegevens laden...</p>
       </div>
     );
   }

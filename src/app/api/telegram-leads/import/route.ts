@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'crypto';
 
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { NextResponse } from 'next/server';
@@ -6,11 +6,29 @@ import { z } from 'zod';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
 import {
+  assertSameTelegramClient,
+  selectTelegramClient,
+  storedClientIdentity,
+  TelegramIdentityConflict,
+} from '@/lib/telegram-client-identity';
+import {
   getAppointmentSuggestions,
   getCityFromAddress,
   type AppointmentPlanningEntry,
   type AppointmentSuggestion,
 } from '@/lib/appointment-suggestions';
+import { getCalendarClient } from '@/lib/integrations/google-calendar';
+import {
+  findTelegramCalendarEvent,
+  loadTelegramCalendarWindow,
+  readTelegramCalendarEvent,
+  syncTelegramAppointmentCalendar,
+  telegramCalendarEventId,
+  telegramCalendarConfirmed,
+  telegramCalendarPlanningEntry,
+  TelegramCalendarConflict,
+  TelegramCalendarDeleted,
+} from '@/lib/telegram-appointment-calendar';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,13 +74,15 @@ interface ImportResult {
   client_id: string;
   project_id: string;
   appointment_id: string | null;
-  appointment_status: 'none' | 'pending' | 'scheduled';
+  appointment_status: 'none' | 'pending' | 'scheduled' | 'cancelled';
   appointment_date: string | null;
   appointment_time: string | null;
   suggested_appointment_date: string | null;
   suggested_appointment_time: string | null;
   suggested_appointment_options: Array<Pick<AppointmentSuggestion, 'date' | 'time'>>;
   telegram_message: string | null;
+  calendar_synced?: boolean;
+  google_calendar_event_id?: string | null;
 }
 
 interface ExistingImportResult extends Partial<ImportResult> {
@@ -87,17 +107,6 @@ function resolveAutomationUid(request: Request): string | null {
     || process.env.CALVORA_USER_ID?.trim()
     || null
   );
-}
-
-function normalizePhone(value: string | null | undefined): string {
-  const digits = value?.replace(/\D+/g, '') || '';
-  if (digits.startsWith('0031')) return `0${digits.slice(4)}`;
-  if (digits.startsWith('31')) return `0${digits.slice(2)}`;
-  return digits;
-}
-
-function normalizeText(value: unknown): string {
-  return typeof value === 'string' ? value.trim().toLocaleLowerCase('nl-NL') : '';
 }
 
 function splitName(name: string | null | undefined): { firstName: string | null; lastName: string | null } {
@@ -210,6 +219,55 @@ function firestoreDate(value: unknown): Date | null {
   return null;
 }
 
+class CalendarWindowRequired extends Error {
+  constructor(public end: Date) { super('Verder zoeken in Google Calendar.'); }
+}
+
+class CalendarSyncInProgress extends Error {
+  constructor() { super('De afspraak wordt nog met Google Calendar gesynchroniseerd. Probeer opnieuw.'); }
+}
+
+class CalendarNoAvailability extends Error {
+  constructor() { super('Binnen een jaar is geen vrij voorstel beschikbaar. Kies handmatig een ander tijdstip.'); }
+}
+
+function planningEntry(data: Record<string, unknown>): AppointmentPlanningEntry | null {
+  if (data.status === 'cancelled' || data.calendarSyncState === 'cancelled') return null;
+  const startDate = firestoreDate(data.startDate);
+  if (!startDate) return null;
+  const rawEnd = firestoreDate(data.endDate);
+  const scheduledHours = Number(data.scheduledHours);
+  const endDate = rawEnd && rawEnd > startDate ? rawEnd
+    : new Date(startDate.getTime() + (scheduledHours > 0 && Number.isFinite(scheduledHours) ? scheduledHours : 1) * 3_600_000);
+  const cache = data.cache && typeof data.cache === 'object' ? data.cache as Record<string, unknown> : {};
+  return { startDate, endDate, city: getCityFromAddress(cache.projectAddress) };
+}
+
+function planningFingerprint(data: Record<string, unknown>): string {
+  return JSON.stringify([data.googleCalendarEventId, data.calendarSyncRevision, data.calendarSyncState, data.status,
+    firestoreDate(data.startDate)?.getTime(), firestoreDate(data.endDate)?.getTime(), firestoreDate(data.updatedAt)?.getTime()]);
+}
+
+function resultFromAppointment(result: ImportResult, data: Record<string, unknown>, client: ImportInput['client']): ImportResult {
+  if (data.status === 'cancelled' || data.calendarSyncState === 'cancelled') return {
+    ...result, appointment_status: 'cancelled', calendar_synced: true,
+    suggested_appointment_date: null, suggested_appointment_time: null, suggested_appointment_options: [], telegram_message: null,
+  };
+  const range = planningEntry(data);
+  if (!range) throw new Error('De opgeslagen afspraak mist een geldige datum.');
+  const parts = amsterdamDateParts(range.startDate);
+  const date = formatDateOnly(parts.year, parts.month, parts.day);
+  const time = new Intl.DateTimeFormat('en-GB', { timeZone: AMSTERDAM_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(range.startDate);
+  const pending = data.status !== 'scheduled' && data.status !== 'confirmed';
+  const suggestion = { date, time };
+  return {
+    ...result, appointment_status: pending ? 'pending' : 'scheduled', appointment_date: date, appointment_time: time,
+    suggested_appointment_date: pending ? date : null, suggested_appointment_time: pending ? time : null,
+    suggested_appointment_options: pending ? [suggestion] : [], telegram_message: pending ? buildTelegramMessage(client, suggestion) : null,
+    calendar_synced: false, google_calendar_event_id: typeof data.googleCalendarEventId === 'string' ? data.googleCalendarEventId : null,
+  };
+}
+
 function clientDisplayName(client: ImportInput['client']): string {
   return splitName(client.client_name).firstName || 'klant';
 }
@@ -225,19 +283,14 @@ function formatDutchAppointmentDate(dateOnly: string): string {
   }).format(date);
 }
 
-function buildTelegramMessage(client: ImportInput['client'], suggestions: AppointmentSuggestion[]): string {
-  const options = suggestions
-    .map((suggestion, index) => `${index + 1}. ${formatDutchAppointmentDate(suggestion.date)} om ${suggestion.time}`)
-    .join('\n');
-
+function buildTelegramMessage(client: ImportInput['client'], suggestion: Pick<AppointmentSuggestion, 'date' | 'time'>): string {
   return `Beste ${clientDisplayName(client)},
 
 Bedankt voor uw bericht.
 
-Ik kan op één van deze twee momenten langskomen voor een werkbespreking:
-${options}
+Ik kan op ${formatDutchAppointmentDate(suggestion.date)} om ${suggestion.time} langskomen voor een werkbespreking.
 
-Komt één van deze momenten gelegen? Laat gerust weten welke datum het beste uitkomt.
+Komt dit moment u gelegen? Mocht dit moment niet uitkomen, welke dag en tijd zouden u beter uitkomen?
 
 Dan bespreek ik de werkzaamheden met u en maak ik daarna kosteloos een offerte voor u op.
 
@@ -279,28 +332,7 @@ export async function POST(request: Request) {
 
     const clientInput = input.client;
     const requestedAppointmentStatus = clientInput.appointment_status || input.appointment_status || null;
-    const normalizedPhone = normalizePhone(clientInput.phone);
-    const normalizedEmail = normalizeText(clientInput.email);
-    const normalizedName = normalizeText(clientInput.client_name);
-    const normalizedCity = normalizeText(clientInput.city);
-
-    const clientsSnapshot = await firestore.collection('clients').where('userId', '==', uid).get();
-    const clients = clientsSnapshot.docs.map((document) => ({ ref: document.ref, data: document.data() }));
-    const matchedClient =
-      (normalizedPhone
-        ? clients.find(({ data }) => normalizePhone(data.telefoonnummer) === normalizedPhone)
-        : undefined)
-      || (normalizedEmail
-        ? clients.find(({ data }) => normalizeText(data.emailadres) === normalizedEmail)
-        : undefined)
-      || (normalizedName && normalizedCity
-        ? clients.find(({ data }) => {
-          const fullName = normalizeText([data.voornaam, data.achternaam].filter(Boolean).join(' '));
-          return fullName === normalizedName && normalizeText(data.plaats) === normalizedCity;
-        })
-        : undefined);
-
-    const initialClientRef = matchedClient?.ref || firestore.collection('clients').doc();
+    const newClientRef = firestore.collection('clients').doc();
     const newProjectRef = firestore.collection('quotes').doc();
     const newAppointmentRef = firestore.collection('planning_entries').doc();
     const { firstName, lastName } = splitName(clientInput.client_name);
@@ -326,47 +358,135 @@ export async function POST(request: Request) {
     const planningSettings = userData.settings?.planningSettings || userData.instellingen?.planningSettings || {};
     const counterRef = firestore.collection('counters').doc(`quoteNumber_${uid}`);
 
-    const planningSnapshot = appointmentStart
-      ? null
-      : await firestore.collection('planning_entries').where('userId', '==', uid).get();
-    const planningEntries: AppointmentPlanningEntry[] = (planningSnapshot?.docs || []).flatMap((planningDoc) => {
-      const planningData = planningDoc.data() as Record<string, unknown>;
-      if (planningData.status === 'cancelled') return [];
-
-      const startDate = firestoreDate(planningData.startDate);
-      if (!startDate) return [];
-
-      const rawEndDate = firestoreDate(planningData.endDate);
-      const scheduledHours = Number(planningData.scheduledHours);
-      const endDate = rawEndDate && rawEndDate > startDate
-        ? rawEndDate
-        : new Date(startDate.getTime() + (Number.isFinite(scheduledHours) && scheduledHours > 0 ? scheduledHours : 1) * 60 * 60 * 1000);
-      const cache = planningData.cache && typeof planningData.cache === 'object'
-        ? planningData.cache as Record<string, unknown>
-        : {};
-
-      return [{
-        startDate,
-        endDate,
-        city: getCityFromAddress(cache.projectAddress),
-      }];
+    const integration = userData.integrations?.googleCalendar;
+    if (!integration?.connected || !integration.refreshToken) {
+      return NextResponse.json({ success: false, code: 'CALENDAR_NOT_CONNECTED', message: 'Koppel Google Calendar voordat een afspraak wordt voorgesteld.' }, { status: 503 });
+    }
+    const { calendar } = await getCalendarClient({
+      refreshToken: integration.refreshToken, accessToken: integration.accessToken || undefined, expiryDate: integration.expiryDate || undefined,
     });
-    const suggestions = appointmentStart
-      ? []
-      : getAppointmentSuggestions(clientInput.city || '', planningEntries, {
-        workDays: Array.isArray(planningSettings.workDays) ? planningSettings.workDays : undefined,
+    const lockRef = firestore.collection('telegram_appointment_locks').doc(uid);
+    const planningQuery = firestore.collection('planning_entries').where('userId', '==', uid);
+    const observedPlanning = await planningQuery.get();
+    const calendarReconciliations = new Map<string, { fingerprint: string; patch: Record<string, unknown> }>();
+    const reconcileLinkedEvent = async (document: (typeof observedPlanning.docs)[number]) => {
+      const data = document.data();
+      const historicalConfirmed = (data.status === 'scheduled' || data.status === 'confirmed')
+        && (planningEntry(data)?.endDate.getTime() || Infinity) < Date.now() && data.leadKey !== input.lead_key;
+      if (data.status === 'cancelled' || !(data.source === SOURCE || data.leadKey)
+        || historicalConfirmed
+        || !data.googleCalendarEventId
+        || (firestoreDate(data.calendarSyncLeaseUntil)?.getTime() || 0) > Date.now()) return;
+      const event = await readTelegramCalendarEvent(calendar, data.googleCalendarEventId);
+      if (!event) calendarReconciliations.set(document.id, { fingerprint: planningFingerprint(data), patch: {
+        status: 'cancelled', appointmentState: 'cancelled', calendarSyncState: 'cancelled', cancelledInGoogle: true, cancelledBy: 'google_calendar',
+      } });
+      else if (!data.calendarSyncState || data.calendarSyncState === 'synced') {
+        const range = telegramCalendarPlanningEntry({ ...event, transparency: 'opaque' });
+        const confirmed = telegramCalendarConfirmed(event);
+        if (range && (range.startDate.getTime() !== firestoreDate(data.startDate)?.getTime()
+          || range.endDate.getTime() !== firestoreDate(data.endDate)?.getTime() || (confirmed && data.status !== 'scheduled'))) {
+          calendarReconciliations.set(document.id, { fingerprint: planningFingerprint(data), patch: {
+            startDate: Timestamp.fromDate(range.startDate), endDate: Timestamp.fromDate(range.endDate),
+            ...(confirmed ? { status: 'scheduled', appointmentState: 'scheduled' } : {}),
+          } });
+        }
+      }
+    };
+    for (let index = 0; index < observedPlanning.docs.length; index += 8) {
+      await Promise.all(observedPlanning.docs.slice(index, index + 8).map(reconcileLinkedEvent));
+    }
+    const calendarWindowStart = new Date(Math.min(Date.now(), appointmentStart?.getTime() || Infinity) - 86_400_000);
+    let calendarWindowEnd = new Date(Math.max(Date.now() + 32 * 86_400_000, (appointmentStart?.getTime() || 0) + 86_400_000));
+    const maxSuggestionWindowEnd = new Date(Date.now() + 366 * 86_400_000);
+    let calendarEvents = await loadTelegramCalendarWindow(calendar, calendarWindowStart, calendarWindowEnd);
+    const matchingCalendarEvent = await findTelegramCalendarEvent(calendar, input.lead_key);
+    let result: ImportResult;
+    for (;;) {
+      try {
+        result = await firestore.runTransaction(async (transaction): Promise<ImportResult> => {
+      const lockSnapshot = await transaction.get(lockRef);
+      const planningSnapshot = await transaction.get(planningQuery);
+      const importSnapshot = await transaction.get(firestore.collection('telegram_lead_imports').where('userId', '==', uid));
+      const reconciliations = planningSnapshot.docs.flatMap(document => {
+        const data = document.data();
+        const reconciliation = calendarReconciliations.get(document.id);
+        return reconciliation && reconciliation.fingerprint === planningFingerprint(data)
+          && (firestoreDate(data.calendarSyncLeaseUntil)?.getTime() || 0) <= Date.now()
+          ? [{ document, patch: reconciliation.patch, data: { ...data, ...reconciliation.patch } }] : [];
       });
-    const suggestion = suggestions[0] || null;
-
-    const result = await firestore.runTransaction(async (transaction): Promise<ImportResult> => {
-      let transactionClientRef = initialClientRef;
+      const cancelledGoogleIds = new Set<string>([
+        ...reconciliations.filter(value => value.patch.status === 'cancelled').map(value => String(value.document.data().googleCalendarEventId || '')),
+        ...planningSnapshot.docs.filter(document => document.data().cancelledInGoogle === true)
+          .map(document => String(document.data().googleCalendarEventId || '')),
+      ].filter(Boolean));
+      // Oude Google-imports kunnen nog een tweede lokale rij voor hetzelfde
+      // event hebben. Een bevestigde Google-verwijdering maakt ook die vrij.
+      for (const document of planningSnapshot.docs) {
+        const data = document.data();
+        if (!cancelledGoogleIds.has(data.googleCalendarEventId) || data.status === 'cancelled'
+          || reconciliations.some(value => value.document.id === document.id)
+          || (firestoreDate(data.calendarSyncLeaseUntil)?.getTime() || 0) > Date.now()) continue;
+        const patch = { status: 'cancelled', appointmentState: 'cancelled', calendarSyncState: 'cancelled', cancelledInGoogle: true, cancelledBy: 'google_calendar' };
+        reconciliations.push({ document, patch, data: { ...data, ...patch } });
+      }
+      const reconciledData = new Map(reconciliations.map(value => [value.document.id, value.data]));
+      const cancelledIds = new Set(reconciliations.filter(value => value.patch.status === 'cancelled').map(value => value.document.id));
+      const commitAllocation = () => {
+        transaction.set(lockRef, { version: Number(lockSnapshot.data()?.version || 0) + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        for (const value of reconciliations) transaction.set(value.document.ref, {
+          ...value.patch, updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      };
+      const getBusyEntries = (ownEntryId: string, ownEventId?: string | null): AppointmentPlanningEntry[] => {
+      const planningIds = new Set(planningSnapshot.docs.map(document => document.id));
+      const planningEntries: AppointmentPlanningEntry[] = planningSnapshot.docs.flatMap(document => {
+        if (document.id === ownEntryId || cancelledIds.has(document.id)) return [];
+        const data = reconciledData.get(document.id) || document.data();
+        if (ownEventId && data.googleCalendarEventId === ownEventId) return [];
+        const entry = planningEntry(data);
+        return entry ? [entry] : [];
+      });
+      // Ook reeds verstuurde voorstellen waarvan de oude refresh de planningrij
+      // verwijderde blijven gereserveerd tot expliciete bevestiging/verwijdering.
+      for (const document of importSnapshot.docs) {
+        const data = document.data();
+        if (document.id === importRef.id || data.appointment_status !== 'pending' || planningIds.has(data.appointment_id)
+          || data.calendarSyncState === 'cancelled' || data.cancelledInGoogle) continue;
+        const date = data.appointment_date || data.suggested_appointment_date;
+        const time = data.appointment_time || data.suggested_appointment_time;
+        const startDate = date && time ? amsterdamDateTime(date, time) : null;
+        if (startDate) planningEntries.push({ startDate, endDate: new Date(startDate.getTime() + 3_600_000), city: '' });
+      }
+      for (const event of calendarEvents) {
+        const entry = telegramCalendarPlanningEntry(event);
+        if (entry && entry.googleEventId !== ownEventId && entry.googleEventId !== telegramCalendarEventId(ownEntryId)) planningEntries.push(entry);
+      }
+        return planningEntries;
+      };
+      // Lees en valideer binnen dezelfde transactie als de writes: ook een
+      // gelijktijdige import mag geen eerder gecontroleerde identiteit wijzigen.
+      const clientsSnapshot = await transaction.get(firestore.collection('clients').where('userId', '==', uid));
+      const clients = clientsSnapshot.docs.map(document => ({
+        ref: document.ref, data: document.data(), identity: storedClientIdentity(document.data()),
+      }));
+      const matchedClient = selectTelegramClient(clients, clientInput);
+      let transactionClientRef = matchedClient?.ref || newClientRef;
       let transactionProjectRef = newProjectRef;
       let transactionAppointmentRef = newAppointmentRef;
       let reuseProject = false;
+      let reuseAppointment = false;
+      let refreshProposalOnly = false;
+      let legacyAppointment: { date: string; time: string; startDate: Date; status: 'pending' | 'scheduled'; googleEventId: string | null } | null = null;
 
       const duplicate = await transaction.get(importRef);
       if (duplicate.exists) {
         const data = duplicate.data() as ExistingImportResult;
+        const existingClient = clients.find(client => client.ref.id === data.client_id);
+        if (!existingClient || (matchedClient && matchedClient.ref.id !== data.client_id)) {
+          throw new TelegramIdentityConflict();
+        }
+        assertSameTelegramClient(clientInput, existingClient.identity);
         const duplicateProjectRef = typeof data.project_id === 'string' && data.project_id
           ? firestore.collection('quotes').doc(data.project_id)
           : null;
@@ -382,43 +502,145 @@ export async function POST(request: Request) {
         );
         const duplicateProject = duplicateProjectRef ? duplicateSnapshots.shift() : null;
         const duplicateAppointment = duplicateAppointmentRef ? duplicateSnapshots.shift() : null;
+        if (duplicateProject?.exists) {
+          const projectData = duplicateProject.data()!;
+          if (projectData.userId !== uid || projectData.clientId !== data.client_id) throw new TelegramIdentityConflict();
+          assertSameTelegramClient(clientInput, storedClientIdentity(projectData.klantinformatie || {}));
+          assertSameTelegramClient(existingClient.identity, storedClientIdentity(projectData.klantinformatie || {}));
+        }
         const projectIsReusable = duplicateProject?.exists
           && duplicateProject.data()?.userId === uid
           && duplicateProject.data()?.archived !== true;
-        const appointmentIsReusable = !appointmentStart || (
+        const appointmentIsReusable = (
           duplicateAppointment?.exists
           && duplicateAppointment.data()?.userId === uid
           && duplicateAppointment.data()?.quoteId === data.project_id
         );
+        if (duplicateAppointment?.exists && !appointmentIsReusable) throw new TelegramIdentityConflict();
+        let existingAppointmentData = appointmentIsReusable ? reconciledData.get(duplicateAppointmentRef!.id) || duplicateAppointment?.data() : null;
+        let adoptedAppointmentPatch: Record<string, unknown> | null = null;
+        if (existingAppointmentData && !existingAppointmentData.googleCalendarEventId && matchingCalendarEvent?.id && !appointmentStart) {
+          const range = telegramCalendarPlanningEntry({ ...matchingCalendarEvent, transparency: 'opaque' });
+          if (!range) throw new Error('De bestaande Google-afspraak mist een geldige datum.');
+          const isConfirmed = telegramCalendarConfirmed(matchingCalendarEvent) || existingAppointmentData.status === 'scheduled';
+          adoptedAppointmentPatch = {
+            googleCalendarEventId: matchingCalendarEvent.id, calendarSyncState: 'pending',
+            startDate: Timestamp.fromDate(range.startDate), endDate: Timestamp.fromDate(range.endDate),
+            status: isConfirmed ? 'scheduled' : 'pending', appointmentState: isConfirmed ? 'scheduled' : 'pending',
+          };
+          existingAppointmentData = { ...existingAppointmentData, ...adoptedAppointmentPatch };
+        }
+        const existingAppointmentStart = firestoreDate(existingAppointmentData?.startDate);
+        const existingAppointmentStatus = cancelledIds.has(duplicateAppointmentRef?.id || '') ? 'cancelled' : existingAppointmentData?.status || data.appointment_status;
+        if (data.appointment_status === 'cancelled' || existingAppointmentStatus === 'cancelled' || existingAppointmentData?.calendarSyncState === 'cancelled') {
+          commitAllocation();
+          const cancelled: ImportResult = {
+            client_id: data.client_id, project_id: data.project_id, appointment_id: data.appointment_id || null,
+            appointment_status: 'cancelled', appointment_date: data.appointment_date || null, appointment_time: data.appointment_time || null,
+            suggested_appointment_date: null, suggested_appointment_time: null, suggested_appointment_options: [], telegram_message: null,
+            calendar_synced: true, google_calendar_event_id: existingAppointmentData?.googleCalendarEventId || data.google_calendar_event_id || null,
+          };
+          transaction.set(importRef, { ...cancelled, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          return cancelled;
+        }
+        if ((firestoreDate(existingAppointmentData?.calendarSyncLeaseUntil)?.getTime() || 0) > Date.now()) throw new CalendarSyncInProgress();
+        const existingAppointmentIsConfirmed = existingAppointmentStatus === 'scheduled' || existingAppointmentStatus === 'confirmed';
+        const existingIsPending = existingAppointmentStatus === 'pending' && existingAppointmentStart;
 
-        if (projectIsReusable && !appointmentStart) {
-          return {
+        if (projectIsReusable && !appointmentStart && appointmentIsReusable && (existingAppointmentIsConfirmed || existingIsPending)) {
+          const existingDateParts = existingAppointmentStart ? amsterdamDateParts(existingAppointmentStart) : null;
+          const existingDate = existingDateParts
+            ? formatDateOnly(existingDateParts.year, existingDateParts.month, existingDateParts.day)
+            : data.appointment_date || data.suggested_appointment_date || null;
+          const existingTime = existingAppointmentStart
+            ? new Intl.DateTimeFormat('en-GB', { timeZone: AMSTERDAM_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(existingAppointmentStart)
+            : data.appointment_time || data.suggested_appointment_time || null;
+          const existingSuggestion = !existingAppointmentIsConfirmed && existingDate && existingTime
+            ? { date: existingDate, time: existingTime }
+            : null;
+          const reused: ImportResult = {
             client_id: data.client_id,
             project_id: data.project_id,
             appointment_id: data.appointment_id || null,
-            appointment_status: data.appointment_status || (data.appointment_id ? 'pending' : 'none'),
-            appointment_date: data.appointment_date || data.suggested_appointment_date || null,
-            appointment_time: data.appointment_time || data.suggested_appointment_time || null,
-            suggested_appointment_date: data.suggested_appointment_date || null,
-            suggested_appointment_time: data.suggested_appointment_time || null,
-            suggested_appointment_options: data.suggested_appointment_options || [],
-            telegram_message: data.telegram_message || null,
+            appointment_status: existingAppointmentIsConfirmed ? 'scheduled' : 'pending',
+            appointment_date: existingDate,
+            appointment_time: existingTime,
+            suggested_appointment_date: existingSuggestion?.date || null,
+            suggested_appointment_time: existingSuggestion?.time || null,
+            suggested_appointment_options: existingSuggestion ? [existingSuggestion] : [],
+            telegram_message: existingSuggestion ? buildTelegramMessage(clientInput, existingSuggestion) : null,
+            calendar_synced: existingAppointmentData?.calendarSyncState === 'synced' && Boolean(existingAppointmentData?.googleCalendarEventId),
+            google_calendar_event_id: existingAppointmentData?.googleCalendarEventId || matchingCalendarEvent?.id || null,
           };
+          if (!reused.calendar_synced && existingIsPending) {
+            const range = planningEntry(existingAppointmentData!);
+            if (range && getBusyEntries(duplicateAppointmentRef!.id, reused.google_calendar_event_id)
+              .some(entry => entry.startDate < range.endDate && entry.endDate > range.startDate)) throw new TelegramCalendarConflict();
+          }
+          // Oude twee-datumteksten worden bij herhaling vervangen, terwijl de
+          // bestaande afspraak en offerte behouden blijven.
+          const cachedResponseChanged = Object.entries(reused).some(([key, value]) =>
+            JSON.stringify(data[key as keyof ImportResult]) !== JSON.stringify(value));
+          const cachedOptionsChanged = JSON.stringify(existingAppointmentData?.cache?.suggestedAppointmentOptions)
+            !== JSON.stringify(reused.suggested_appointment_options);
+          if (existingSuggestion && (cachedResponseChanged || cachedOptionsChanged)) {
+            transaction.set(importRef, { ...reused, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+            if (appointmentIsReusable && duplicateAppointmentRef) {
+              transaction.set(duplicateAppointmentRef, { cache: { suggestedAppointmentOptions: reused.suggested_appointment_options } }, { merge: true });
+            }
+          }
+          if (adoptedAppointmentPatch && duplicateAppointmentRef) {
+            transaction.set(duplicateAppointmentRef, adoptedAppointmentPatch, { merge: true });
+          }
+          if (reconciliations.length) commitAllocation();
+          return reused;
         }
 
-        // De eerste import maakt cliënt en offerte zonder afspraak.
-        // Een latere Telegram-reply vult dezelfde offerte aan in plaats van
-        // een tweede offerte voor dezelfde lead te maken.
+        // Een ontbrekend/verlopen voorstel of latere Telegram-reply vult
+        // dezelfde offerte aan in plaats van een tweede offerte te maken.
         if (projectIsReusable && duplicateProjectRef) {
           transactionProjectRef = duplicateProjectRef;
           reuseProject = true;
+          refreshProposalOnly = !appointmentStart;
           if (typeof data.client_id === 'string' && data.client_id) {
             transactionClientRef = firestore.collection('clients').doc(data.client_id);
           }
-          if (appointmentStart && appointmentIsReusable && duplicateAppointmentRef) {
+          if (appointmentIsReusable && existingAppointmentStatus !== 'cancelled' && duplicateAppointmentRef) {
             transactionAppointmentRef = duplicateAppointmentRef;
+            reuseAppointment = true;
+          }
+          if (!appointmentIsReusable && (data.appointment_status === 'pending' || data.appointment_status === 'scheduled' || matchingCalendarEvent)) {
+            const googleRange = matchingCalendarEvent && !appointmentStart ? telegramCalendarPlanningEntry({ ...matchingCalendarEvent, transparency: 'opaque' }) : null;
+            const googleParts = googleRange ? amsterdamDateParts(googleRange.startDate) : null;
+            const date = googleParts ? formatDateOnly(googleParts.year, googleParts.month, googleParts.day) : data.appointment_date || data.suggested_appointment_date;
+            const time = googleRange
+              ? new Intl.DateTimeFormat('en-GB', { timeZone: AMSTERDAM_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(googleRange.startDate)
+              : data.appointment_time || data.suggested_appointment_time;
+            const startDate = date && time ? amsterdamDateTime(date, time) : null;
+            if (date && time && startDate) {
+              legacyAppointment = { date, time, startDate,
+                status: data.appointment_status === 'scheduled' || (matchingCalendarEvent && telegramCalendarConfirmed(matchingCalendarEvent)) ? 'scheduled' : 'pending',
+                googleEventId: data.google_calendar_event_id || matchingCalendarEvent?.id || null };
+              if (duplicateAppointmentRef) transactionAppointmentRef = duplicateAppointmentRef;
+            }
           }
         }
+      }
+
+      const ownEventId = reuseAppointment
+        ? planningSnapshot.docs.find(document => document.id === transactionAppointmentRef.id)?.data().googleCalendarEventId || matchingCalendarEvent?.id
+        : legacyAppointment?.googleEventId || matchingCalendarEvent?.id;
+      const planningEntries = getBusyEntries(transactionAppointmentRef.id, ownEventId);
+      const suggestions = appointmentStart || legacyAppointment ? [] : getAppointmentSuggestions(clientInput.city || '', planningEntries, {
+        workDays: Array.isArray(planningSettings.workDays) ? planningSettings.workDays : undefined,
+      });
+      const suggestion = suggestions[0] || null;
+      const selectedStart = appointmentStart || legacyAppointment?.startDate || suggestion?.startDate;
+      if (!selectedStart) throw new TelegramCalendarConflict();
+      const selectedEnd = new Date(selectedStart.getTime() + 3_600_000);
+      if (selectedEnd > calendarWindowEnd) throw new CalendarWindowRequired(new Date(selectedEnd.getTime() + 30 * 86_400_000));
+      if ((appointmentStart || legacyAppointment) && planningEntries.some(entry => entry.startDate < selectedEnd && entry.endDate > selectedStart)) {
+        throw new TelegramCalendarConflict();
       }
 
       const counterSnapshot = reuseProject ? null : await transaction.get(counterRef);
@@ -431,6 +653,7 @@ export async function POST(request: Request) {
         source: SOURCE,
         updatedAt: FieldValue.serverTimestamp(),
       };
+      commitAllocation();
       if (firstName) clientPatch.voornaam = firstName;
       if (lastName) clientPatch.achternaam = lastName;
       if (clientInput.email) clientPatch.emailadres = clientInput.email;
@@ -439,15 +662,17 @@ export async function POST(request: Request) {
       if (houseNumber) clientPatch.huisnummer = houseNumber;
       if (clientInput.city) clientPatch.plaats = clientInput.city;
 
-      transaction.set(transactionClientRef, {
-        ...clientPatch,
-        ...(!matchedClient && !reuseProject ? {
-          bedrijfsnaam: null,
-          postcode: null,
-          klanttype: 'Particulier',
-          createdAt: FieldValue.serverTimestamp(),
-        } : {}),
-      }, { merge: true });
+      if (!refreshProposalOnly) {
+        transaction.set(transactionClientRef, {
+          ...clientPatch,
+          ...(!matchedClient && !reuseProject ? {
+            bedrijfsnaam: null,
+            postcode: null,
+            klanttype: 'Particulier',
+            createdAt: FieldValue.serverTimestamp(),
+          } : {}),
+        }, { merge: true });
+      }
 
       const quotePatch = {
         userId: uid,
@@ -491,7 +716,7 @@ export async function POST(request: Request) {
           winstMarge: userSettings.standaardWinstMarge ?? { mode: 'percentage', percentage: 10 },
         },
       };
-      transaction.set(transactionProjectRef, quotePatch, { merge: reuseProject });
+      if (!refreshProposalOnly) transaction.set(transactionProjectRef, quotePatch, { merge: reuseProject });
 
       if (!reuseProject) {
         transaction.set(counterRef, {
@@ -509,21 +734,23 @@ export async function POST(request: Request) {
       let suggestedAppointmentTime: string | null = null;
       let suggestedAppointmentOptions: ImportResult['suggested_appointment_options'] = [];
       let telegramMessage: string | null = null;
-      const plannedAppointment = appointmentStart || suggestion?.startDate || null;
+      const plannedAppointment = selectedStart;
 
       if (plannedAppointment) {
-        const isPendingSuggestion = !appointmentStart || requestedAppointmentStatus === 'pending';
+        const isPendingSuggestion = appointmentStart
+          ? requestedAppointmentStatus !== 'confirmed'
+          : legacyAppointment?.status !== 'scheduled';
         appointmentId = transactionAppointmentRef.id;
         appointmentStatus = isPendingSuggestion ? 'pending' : 'scheduled';
-        appointmentDate = appointmentDateOnly || suggestion?.date || null;
-        appointmentTime = clientInput.appointment_time || suggestion?.time || null;
-        suggestedAppointmentDate = isPendingSuggestion ? suggestion?.date || null : null;
-        suggestedAppointmentTime = isPendingSuggestion ? suggestion?.time || null : null;
-        suggestedAppointmentOptions = isPendingSuggestion
-          ? suggestions.map(({ date, time }) => ({ date, time }))
+        appointmentDate = appointmentDateOnly || legacyAppointment?.date || suggestion?.date || null;
+        appointmentTime = appointmentStart ? clientInput.appointment_time || null : legacyAppointment?.time || suggestion?.time || null;
+        suggestedAppointmentDate = isPendingSuggestion ? appointmentDate : null;
+        suggestedAppointmentTime = isPendingSuggestion ? appointmentTime : null;
+        suggestedAppointmentOptions = isPendingSuggestion && appointmentDate && appointmentTime
+          ? [{ date: appointmentDate, time: appointmentTime }]
           : [];
-        telegramMessage = isPendingSuggestion && suggestions.length > 0
-          ? buildTelegramMessage(clientInput, suggestions)
+        telegramMessage = suggestedAppointmentOptions[0]
+          ? buildTelegramMessage(clientInput, suggestedAppointmentOptions[0])
           : null;
         const appointmentEnd = new Date(plannedAppointment.getTime() + 60 * 60 * 1000);
         transaction.set(transactionAppointmentRef, {
@@ -543,6 +770,9 @@ export async function POST(request: Request) {
             : '',
           appointmentState: appointmentStatus,
           suggestedBy: isPendingSuggestion ? 'telegram_auto_message' : null,
+          calendarSyncState: 'pending',
+          calendarSyncRevision: randomUUID(),
+          ...(ownEventId ? { googleCalendarEventId: ownEventId } : {}),
           cache: {
             clientName: clientInput.client_name || '',
             projectTitle: `Werkbespreking · ${jobTitle}`,
@@ -552,9 +782,9 @@ export async function POST(request: Request) {
             totalQuoteEarnings: 0,
             suggestedAppointmentOptions,
           },
-          createdAt: FieldValue.serverTimestamp(),
+          ...(!reuseAppointment ? { createdAt: FieldValue.serverTimestamp() } : {}),
           updatedAt: FieldValue.serverTimestamp(),
-        });
+        }, { merge: reuseAppointment });
       }
 
       const imported: ImportResult = {
@@ -568,6 +798,8 @@ export async function POST(request: Request) {
         suggested_appointment_time: suggestedAppointmentTime,
         suggested_appointment_options: suggestedAppointmentOptions,
         telegram_message: telegramMessage,
+        calendar_synced: false,
+        google_calendar_event_id: ownEventId || null,
       };
       transaction.set(importRef, {
         ...imported,
@@ -578,7 +810,79 @@ export async function POST(request: Request) {
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: reuseProject });
       return imported;
-    });
+        });
+        break;
+      } catch (error) {
+        if (!(error instanceof CalendarWindowRequired)) throw error;
+        if (!appointmentStart && calendarWindowEnd >= maxSuggestionWindowEnd) throw new CalendarNoAvailability();
+        calendarWindowEnd = !appointmentStart && error.end > maxSuggestionWindowEnd ? maxSuggestionWindowEnd : error.end;
+        calendarEvents = await loadTelegramCalendarWindow(calendar, calendarWindowStart, calendarWindowEnd);
+      }
+    }
+
+    if (result.appointment_id && result.appointment_status !== 'cancelled' && !result.calendar_synced) {
+      const entryRef = firestore.collection('planning_entries').doc(result.appointment_id);
+      const leaseToken = randomUUID();
+      const entryData = await firestore.runTransaction(async transaction => {
+        const snapshot = await transaction.get(entryRef);
+        const data = snapshot.data();
+        if (!snapshot.exists || data?.userId !== uid || data.quoteId !== result.project_id) throw new TelegramIdentityConflict();
+        if (data.status === 'cancelled' || data.calendarSyncState === 'cancelled') {
+          result = resultFromAppointment(result, data, clientInput);
+          transaction.set(importRef, { ...result, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          return data;
+        }
+        if ((firestoreDate(data.calendarSyncLeaseUntil)?.getTime() || 0) > Date.now()) throw new CalendarSyncInProgress();
+        transaction.set(entryRef, {
+          calendarSyncLeaseToken: leaseToken, calendarSyncLeaseUntil: Timestamp.fromDate(new Date(Date.now() + 120_000)),
+          calendarSyncState: 'pending', updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        return data;
+      });
+      if (entryData.status !== 'cancelled' && entryData.calendarSyncState !== 'cancelled') try {
+        result = resultFromAppointment(result, entryData, clientInput);
+        const range = planningEntry(entryData);
+        if (!range) throw new Error('De opgeslagen afspraak mist een geldige datum.');
+        const eventId = await syncTelegramAppointmentCalendar(calendar, {
+          entryId: entryRef.id, quoteId: result.project_id, leadKey: input.lead_key,
+          status: entryData.status === 'scheduled' || entryData.status === 'confirmed' ? 'scheduled' : 'pending', ...range,
+          clientName: entryData.cache?.clientName || clientInput.client_name || '',
+          projectTitle: entryData.cache?.projectTitle || jobTitle,
+          projectAddress: entryData.cache?.projectAddress || '', phone: clientInput.phone || '',
+          googleCalendarEventId: entryData.googleCalendarEventId || null,
+          googleCalendarColorId: entryData.googleCalendarColorId || null,
+        });
+        result = { ...result, calendar_synced: true, google_calendar_event_id: eventId };
+        await firestore.runTransaction(async transaction => {
+          const current = await transaction.get(entryRef);
+          if (current.data()?.calendarSyncLeaseToken !== leaseToken
+            || current.data()?.calendarSyncRevision !== entryData.calendarSyncRevision) throw new CalendarSyncInProgress();
+          transaction.set(entryRef, {
+            googleCalendarEventId: eventId, calendarSyncState: 'synced', calendarSyncError: null,
+            calendarSyncLeaseToken: null, calendarSyncLeaseUntil: null, updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          transaction.set(importRef, { ...result, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        });
+      } catch (error) {
+        const deleted = error instanceof TelegramCalendarDeleted;
+        await firestore.runTransaction(async transaction => {
+          const [entrySnapshot, lockSnapshot] = await transaction.getAll(entryRef, lockRef);
+          if (entrySnapshot.data()?.calendarSyncLeaseToken !== leaseToken) return;
+          transaction.set(entryRef, {
+            calendarSyncState: deleted ? 'cancelled' : 'failed',
+            ...(deleted ? { status: 'cancelled', appointmentState: 'cancelled', cancelledInGoogle: true } : {}),
+            calendarSyncError: error instanceof Error ? error.message : String(error),
+            calendarSyncLeaseToken: null, calendarSyncLeaseUntil: null, updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          if (deleted) {
+            transaction.set(lockRef, { version: Number(lockSnapshot.data()?.version || 0) + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+            result = { ...result, appointment_status: 'cancelled', calendar_synced: true, telegram_message: null, suggested_appointment_options: [], suggested_appointment_date: null, suggested_appointment_time: null };
+            transaction.set(importRef, { ...result, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          }
+        });
+        if (!deleted) throw error;
+      }
+    }
 
     console.info('[telegram-leads/import] imported', {
       leadKey: input.lead_key,
@@ -588,13 +892,19 @@ export async function POST(request: Request) {
     });
     return response(result);
   } catch (error) {
+    if (error instanceof TelegramIdentityConflict) {
+      return NextResponse.json({ success: false, code: 'CLIENT_IDENTITY_CONFLICT', message: error.message }, { status: 409 });
+    }
+    if (error instanceof TelegramCalendarConflict) return NextResponse.json({ success: false, code: 'APPOINTMENT_SLOT_CONFLICT', message: error.message }, { status: 409 });
+    if (error instanceof CalendarNoAvailability) return NextResponse.json({ success: false, code: 'APPOINTMENT_AVAILABILITY_UNAVAILABLE', message: error.message }, { status: 503 });
+    if (error instanceof CalendarSyncInProgress) return NextResponse.json({ success: false, code: 'CALENDAR_SYNC_IN_PROGRESS', message: error.message }, { status: 503 });
     console.error('[telegram-leads/import] failed', {
       leadKey: input.lead_key,
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(
-      { success: false, message: 'Telegram lead import failed' },
-      { status: 500 }
+      { success: false, code: 'CALENDAR_SYNC_FAILED', message: 'De afspraak kon nog niet met Google Calendar worden gesynchroniseerd. Probeer opnieuw.' },
+      { status: 503 }
     );
   }
 }
