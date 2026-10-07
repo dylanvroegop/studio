@@ -356,6 +356,11 @@ export async function POST(request: Request) {
     const userData = userSnapshot.data() || {};
     const userSettings = userData.instellingen || userData.settings || {};
     const planningSettings = userData.settings?.planningSettings || userData.instellingen?.planningSettings || {};
+    const configuredWorkDays = Array.isArray(planningSettings.workDays)
+      ? planningSettings.workDays.map(Number).filter((day: number) => Number.isInteger(day) && day >= 1 && day <= 7)
+      : [];
+    // Werkbesprekingen mogen ook op zondag, los van de werkdagen voor klussen.
+    const appointmentDays = [...(configuredWorkDays.length ? configuredWorkDays : [1, 2, 3, 4, 5]), 7];
     const counterRef = firestore.collection('counters').doc(`quoteNumber_${uid}`);
 
     const integration = userData.integrations?.googleCalendar;
@@ -632,7 +637,7 @@ export async function POST(request: Request) {
         : legacyAppointment?.googleEventId || matchingCalendarEvent?.id;
       const planningEntries = getBusyEntries(transactionAppointmentRef.id, ownEventId);
       const suggestions = appointmentStart || legacyAppointment ? [] : getAppointmentSuggestions(clientInput.city || '', planningEntries, {
-        workDays: Array.isArray(planningSettings.workDays) ? planningSettings.workDays : undefined,
+        workDays: appointmentDays,
       });
       const suggestion = suggestions[0] || null;
       const selectedStart = appointmentStart || legacyAppointment?.startDate || suggestion?.startDate;

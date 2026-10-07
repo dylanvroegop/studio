@@ -39,6 +39,44 @@ function assertSingleMessage(body) {
   assert.match(body.telegram_message, /Mocht dit moment niet uitkomen, welke dag en tijd zouden u beter uitkomen\?/);
   assert.doesNotMatch(body.telegram_message, /twee momenten|1\.|2\.|geen afspraak|geen afspraakvoorstel/i);
 }
+test('Telegram stelt zondag voor als maandag tot en met zaterdag bezet zijn', async () => {
+  const route = makeRoute({
+    workDays: [1, 2, 3, 4, 5, 6],
+    busy: [entry('2026-10-07T00:00Z', '2026-10-11T00:00Z')],
+  });
+  const result = await route.post();
+  assertSingleMessage(result.body);
+  assert.equal(result.body.appointment_date, '2026-10-11');
+  assert.match(result.body.telegram_message, /zondag 11 oktober/);
+  assert.equal(result.body.calendar_synced, true);
+  assert.deepEqual(route.rows.get('users/owner').settings.planningSettings.workDays, [1, 2, 3, 4, 5, 6]);
+});
+test('zondag wordt ook zonder ingestelde werkdagen meegenomen', async () => {
+  const route = makeRoute({ busy: [entry('2026-10-07T00:00Z', '2026-10-11T00:00Z')] });
+  const result = await route.post();
+  assertSingleMessage(result.body);
+  assert.equal(result.body.appointment_date, '2026-10-11');
+});
+test('lege of ongeldige werkdagen behouden de bestaande doordeweekse terugval', async () => {
+  for (const workDays of [[], [0, 8]]) {
+    const result = await makeRoute({ workDays }).post();
+    assertSingleMessage(result.body);
+    assert.equal(result.body.appointment_date, '2026-10-07');
+  }
+});
+test('een al gereserveerde zondag wordt overgeslagen', async () => {
+  const route = makeRoute({
+    workDays: [1, 2, 3, 4, 5, 6],
+    busy: [entry('2026-10-07T00:00Z', '2026-10-11T00:00Z')],
+    extraRows: [['planning_entries/sunday-pending', {
+      userId: 'owner', status: 'pending', appointmentState: 'pending',
+      ...entry('2026-10-11T17:00Z', '2026-10-11T18:00Z'),
+    }]],
+  });
+  const result = await route.post();
+  assertSingleMessage(result.body);
+  assert.equal(result.body.appointment_date, '2026-10-12');
+});
 test('API geeft bij volle eerste twee weken een klantbericht en één pending afspraak', async () => {
   const route = makeRoute({ busy: [entry('2026-10-07T00:00Z', '2026-10-21T00:00Z')] });
   const result = await route.post();
