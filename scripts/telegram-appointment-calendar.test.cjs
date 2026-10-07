@@ -30,6 +30,95 @@ test('verse Google Calendar-bezetting wordt gepagineerd gelezen en blokkeert een
   assert.equal(result.body.appointment_date, '2026-10-09');
   assert.ok(route.calendarCalls.some(call => call.action === 'list' && call.pageToken === '1'));
 });
+const workdayEvent = transparency => ({
+  id: 'workday', summary: 'Geplande klus', status: 'confirmed', transparency,
+  start: { date: '2026-10-07' }, end: { date: '2026-10-09' },
+});
+const workdayMirror = extra => ({
+  userId: 'owner', source: 'google', planningType: 'job', status: 'scheduled',
+  googleCalendarEventId: 'workday', isAllDay: true,
+  ...entry('2026-10-06T22:00:00Z', '2026-10-08T21:59:00Z'), ...extra,
+});
+test('een als vrij gemarkeerde klusdag blokkeert niet via de lokale Google-kopie', async () => {
+  const route = makeRoute({
+    googleEvents: [workdayEvent('transparent')],
+    extraRows: [['planning_entries/google_workday', workdayMirror()]],
+  });
+  const result = await route.post();
+  successful(result);
+  assert.equal(result.body.appointment_date, '2026-10-07');
+  assert.equal(result.body.appointment_time, '19:00');
+  assert.equal(route.rows.get('planning_entries/google_workday').status, 'scheduled');
+  assert.equal(route.events.get('workday').transparency, 'transparent');
+  assert.ok(route.writes.every(write => write.path !== 'planning_entries/google_workday'));
+});
+test('een vrije klusdag laat echte klantafspraken en PENDING-reserveringen staan', async () => {
+  for (const status of ['pending', 'scheduled']) {
+    const route = makeRoute({
+      googleEvents: [workdayEvent('transparent')],
+      extraRows: [
+        ['planning_entries/google_workday', workdayMirror()],
+        ['planning_entries/client-meeting', { userId: 'owner', planningType: 'werkbespreking', status,
+          ...entry('2026-10-07T17:00:00Z', '2026-10-07T18:00:00Z') }],
+      ],
+    });
+    const result = await route.post();
+    successful(result);
+    assert.equal(result.body.appointment_date, '2026-10-08');
+  }
+});
+test('een hele dag als bezet in Google blijft blokkeren, ook als de kopie job heet', async () => {
+  const route = makeRoute({
+    googleEvents: [workdayEvent('opaque')],
+    extraRows: [['planning_entries/google_workday', workdayMirror()]],
+  });
+  const result = await route.post();
+  successful(result);
+  assert.equal(result.body.appointment_date, '2026-10-09');
+});
+test('een getimede klus blokkeert alleen de werkuren', async () => {
+  for (const end of ['2026-10-07T16:30:00Z', '2026-10-07T18:00:00Z']) {
+    const route = makeRoute({
+      googleEvents: [{ id: 'workday', start: { dateTime: '2026-10-07T05:30:00Z' }, end: { dateTime: end } }],
+      extraRows: [['planning_entries/workday', workdayMirror({ source: 'calvora', isAllDay: false,
+        ...entry('2026-10-07T05:30:00Z', end) })]],
+    });
+    const result = await route.post();
+    successful(result);
+    assert.equal(result.body.appointment_date, end.includes('16:30') ? '2026-10-07' : '2026-10-08');
+  }
+});
+test('Google vrij zetten wist een bestaande PENDING-reservering niet', async () => {
+  const route = makeRoute();
+  const first = await route.post();
+  successful(first);
+  route.events.get(first.body.google_calendar_event_id).transparency = 'transparent';
+  const next = await route.post(other(1), 'lead-2');
+  successful(next);
+  assert.equal(next.body.appointment_date, '2026-10-08');
+  assert.equal(route.rows.get('planning_entries/' + first.body.appointment_id).status, 'pending');
+});
+test('lopende of mislukte sync blijft beschermd bij een vrije Google-kopie', async () => {
+  for (const protection of [
+    { calendarSyncState: 'pending' }, { calendarSyncState: 'failed' },
+    { calendarSyncLeaseUntil: new Date('2026-10-06T11:00:00Z') },
+    { status: 'pending' }, { appointmentState: 'pending' },
+  ]) {
+    const route = makeRoute({
+      googleEvents: [workdayEvent('transparent')],
+      extraRows: [['planning_entries/google_workday', workdayMirror(protection)]],
+    });
+    const result = await route.post();
+    successful(result);
+    assert.equal(result.body.appointment_date, '2026-10-09');
+  }
+});
+test('zonder verse Google-match wordt een lokale klusdag niet zomaar vrijgegeven', async () => {
+  const route = makeRoute({ extraRows: [['planning_entries/google_workday', workdayMirror()]] });
+  const result = await route.post();
+  successful(result);
+  assert.equal(result.body.appointment_date, '2026-10-09');
+});
 test('beschikbaarheid wordt ook na de eerste Google-window verder opgehaald', async () => {
   const route = makeRoute({ googleEvents: [{ id: 'long-holiday', start: { dateTime: '2026-10-06T00:00:00Z' }, end: { dateTime: '2026-12-01T00:00:00Z' } }] });
   const result = await route.post();

@@ -445,10 +445,19 @@ export async function POST(request: Request) {
       };
       const getBusyEntries = (ownEntryId: string, ownEventId?: string | null): AppointmentPlanningEntry[] => {
       const planningIds = new Set(planningSnapshot.docs.map(document => document.id));
+      const freshGoogleEvents = new Map(calendarEvents.map(event => [event.id, event]));
       const planningEntries: AppointmentPlanningEntry[] = planningSnapshot.docs.flatMap(document => {
         if (document.id === ownEntryId || cancelledIds.has(document.id)) return [];
         const data = reconciledData.get(document.id) || document.data();
         if (ownEventId && data.googleCalendarEventId === ownEventId) return [];
+        const googleEvent = freshGoogleEvents.get(data.googleCalendarEventId);
+        const protectedReservation = data.source === SOURCE || data.leadKey
+          || data.status === 'pending' || data.appointmentState === 'pending'
+          || data.calendarSyncState === 'pending' || data.calendarSyncState === 'failed'
+          || (firestoreDate(data.calendarSyncLeaseUntil)?.getTime() || 0) > Date.now();
+        // Een als 'vrij' gemarkeerde klusdag mag niet via de lokale kopie alsnog
+        // de hele dag blokkeren. Beloofde voorstellen blijven wel gereserveerd.
+        if (googleEvent?.transparency === 'transparent' && !protectedReservation) return [];
         const entry = planningEntry(data);
         return entry ? [entry] : [];
       });
