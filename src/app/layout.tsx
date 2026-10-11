@@ -1,3 +1,4 @@
+import { PushRegistration } from '@/components/PushRegistration';
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
@@ -11,6 +12,8 @@ import { PendingCostImportPrompt } from '@/components/PendingCostImportPrompt';
 
 export const metadata: Metadata = {
   title: 'Calvora',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, title: 'Calvora', statusBarStyle: 'default' },
   description: 'Maak snel en eenvoudig offertes voor timmerwerk.',
   icons: {
     icon: [
@@ -59,6 +62,7 @@ export default function RootLayout({
               <QuoteWorkMeetingStatusSync />
               <GoogleCalendarAutoRefresh />
               <PendingCostImportPrompt />
+              <PushRegistration />
               {children}
               <Toaster />
             </MeasurementUnitProvider>

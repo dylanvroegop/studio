@@ -1,5 +1,6 @@
 'use client';
 
+import { disableDevicePush } from '@/lib/push-client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -32,6 +33,7 @@ export default function TrialVerlopenPage() {
         credentials: 'include',
       }).catch(() => null);
       if (auth) {
+        await disableDevicePush(auth.currentUser);
         await signOut(auth);
       }
     } catch (error) {

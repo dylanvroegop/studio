@@ -1,3 +1,4 @@
+import { sendUserPush } from '@/lib/push-server';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 import { Timestamp } from 'firebase-admin/firestore';
@@ -101,6 +102,15 @@ export async function reportGoogleCalendarAlert(input: GoogleCalendarAlertInput)
         },
       },
     }, { merge: true });
+
+    // Zodra een telefoon is aangemeld gaat deze melding rechtstreeks naar Studio.
+    // Zonder bereikbaar pushapparaat blijft de bestaande webhook als terugval werken.
+    const push = await sendUserPush(input.decoded.uid, {
+      title: input.title.slice(0, 100), body: input.message.slice(0, 800),
+      url: '/instellingen?tab=planning',
+      eventId: `calendar:${input.code}:${Math.floor(now / ALERT_COOLDOWN_MS)}`,
+    }).catch(() => null);
+    if (push && push.accepted + push.skipped > 0) return;
 
     const webhookSecret = process.env.N8N_HEADER_SECRET?.trim() || null;
     const headers: Record<string, string> = {

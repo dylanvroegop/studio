@@ -29,6 +29,7 @@ import {
 } from '@/lib/types-settings';
 import { Employee, EMPLOYEE_COLORS } from '@/lib/types-planning';
 import { LogoUpload } from '@/components/settings/LogoUpload';
+import { PushNotificationSettings } from '@/components/settings/PushNotificationSettings';
 import { GoogleCalendarSettingsCard } from '@/components/settings/GoogleCalendarSettingsCard';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -67,7 +68,7 @@ function InstellingenPageContent() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationState | null>(null);
-    const [activeTab, setActiveTab] = useState('bedrijf');
+    const [activeTab, setActiveTab] = useState(['meldingen', 'planning'].includes(searchParams.get('tab') || '') ? searchParams.get('tab')! : 'bedrijf');
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
     const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
     const { mode: currentThemeMode, setMode: setThemeMode, isThemeReady } = useThemeMode();
@@ -615,6 +616,7 @@ function InstellingenPageContent() {
             <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                     <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto p-1 gap-1">
+                        <TabsTrigger value="meldingen" className="py-2.5"><BellRing className="mr-2 h-4 w-4" />Meldingen</TabsTrigger>
                         <TabsTrigger value="uiterlijk" className="py-2.5">
                             <Palette className="mr-2 h-4 w-4" />
                             Uiterlijk
@@ -649,6 +651,7 @@ function InstellingenPageContent() {
                         </TabsTrigger>
                     </TabsList>
 
+                    <TabsContent value="meldingen"><PushNotificationSettings /></TabsContent>
                     <TabsContent value="uiterlijk" className="space-y-4">
                         <Card>
                             <CardHeader>

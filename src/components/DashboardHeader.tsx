@@ -1,5 +1,6 @@
 'use client';
 
+import { disableDevicePush } from '@/lib/push-client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
@@ -316,6 +317,7 @@ export function DashboardHeader({
         method: 'DELETE',
         credentials: 'include',
       }).catch(() => null);
+      await disableDevicePush(auth.currentUser);
       await signOut(auth);
       toast({ title: 'Succes', description: 'U bent uitgelogd.' });
       router.push('/login');

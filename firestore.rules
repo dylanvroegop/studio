@@ -12,6 +12,11 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Pushsleutels, apparaatregistraties en verzendstatus zijn uitsluitend server-toegankelijk.
+    match /push_private/{document=**} { allow read, write: if false; }
+    match /push_subscriptions/{document=**} { allow read, write: if false; }
+    match /push_deliveries/{document=**} { allow read, write: if false; }
+
     // Klantgesprekken lopen volledig via eigenaar-gecontroleerde serverroutes.
     // Ook subcollecties, workerleases en tombstones blijven server-only.
     match /client_meetings/{meetingId}/{allPaths=**} {

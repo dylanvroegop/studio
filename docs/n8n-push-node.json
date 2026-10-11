@@ -1,0 +1,26 @@
+{
+  "name": "Calvora pushmelding",
+  "nodes": [{
+    "id": "studio-push-send",
+    "name": "Stuur Calvora-melding",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4.2,
+    "position": [0, 0],
+    "parameters": {
+      "method": "POST",
+      "url": "https://app.calvora.nl/api/push/send",
+      "authentication": "genericCredentialType",
+      "genericAuthType": "httpHeaderAuth",
+      "sendBody": true,
+      "specifyBody": "json",
+      "jsonBody": "={{ JSON.stringify({ title: $json.title, body: $json.body, url: $json.url || '/dashboard', eventId: $json.eventId }) }}",
+      "options": { "timeout": 60000 }
+    },
+    "retryOnFail": true,
+    "maxTries": 3,
+    "waitBetweenTries": 5000
+  }],
+  "connections": {},
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Europe/Amsterdam" }
+}
