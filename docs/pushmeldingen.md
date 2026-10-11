@@ -31,7 +31,7 @@ Voorbeeldbody:
 }
 ```
 
-`eventId` is een stabiele sleutel voor één melding. Gebruik bij herhaalde dagelijkse herinneringen de datum in Europe/Amsterdam. Hergebruik bij een retry precies dezelfde eventId. Limieten: titel 100, tekst 800, interne URL 1000 en eventId 200 tekens. Splits langere rapporten in afzonderlijke berichten met een volgnummer in eventId of link naar het rapport in Calvora. HTML-opmaak van Telegram hoort niet in deze platte tekst.
+`eventId` is een stabiele sleutel voor één melding. Gebruik bij herhaalde dagelijkse herinneringen de datum in Europe/Amsterdam. Hergebruik bij een retry precies dezelfde eventId. Limieten: titel 100, tekst 20000, interne URL 1000 en eventId 200 tekens. De volledige tekst wordt vóór verzending opgeslagen onder Meldingen; de push toont maximaal 260 tekens en opent het bericht. HTML-opmaak van Telegram hoort niet in deze platte tekst.
 
 Respons: `accepted` is aangenomen door de provider, `skipped` was eerder aangenomen, `expired` is verwijderd (404/410), `failed` is tijdelijk mislukt of nog onderweg en `devices` is het aantal geselecteerde apparaten. HTTP 409 betekent geen bruikbare ontvanger; 503 betekent een fout. Markeer de workflowmelding pas als verstuurd na HTTP 200 / `ok: true`. Een provider-timeout blijft onzeker; een retry heeft dezelfde notification-tag zodat de telefoon de melding kan vervangen. Dit is geen garantie op exact-eenmaal aflevering.
 
@@ -48,3 +48,20 @@ npm run build
 ```
 
 Publiceer de code op hetzelfde HTTPS-domein als de beginscherm-app. De nieuwe collecties vallen ook onder de bestaande default-deny-regels; de expliciete deny-regels documenteren deze grens. Er zijn geen publieke Firestore-rechten of extra omgevingsvariabelen nodig. Controleer op een echte iPhone: inschakelen, gesloten app, vergrendelscherm, tik naar offerte, uitloggen en daarna geen ontvangst. Schakel bestaande Telegram-verzending pas om nadat de testmelding op het bedoelde toestel is ontvangen.
+
+
+## Omzetting van bestaande meldingen (11 oktober 2026)
+
+De volgende actieve workflows zijn voorbereid voor appverzending:
+
+- Calvora Planning Lead Alert: dagelijkse melding en commando-bevestiging.
+- boodschappenlijst: tekst- en spraakbevestiging.
+- Telegram materiaallijst: tekst- en spraakbevestiging.
+- My workflow 3 (`error_calvora`): appfouten.
+- auto making client: afspraakbevestiging, voorstel, verwerkingsfout en herinnering na twee dagen.
+
+Invoertriggers, spraakdownloads, klantverwerking en afsprakenlogica blijven gelijk. De planningmelding vereist niet langer een Telegram-chat-ID. Bestaande pauze/hervat-commando's blijven bruikbaar via Telegram; de bevestiging komt in de app.
+
+De drie niet-gepubliceerde concepten (offerteherinnering, steigerherinnering en klusrapport) vallen buiten de actieve migratie. Hun publicatie en verzendbevestigingen moeten afzonderlijk worden aangesloten; een push-ID mag nooit als Telegram-message-ID worden opgeslagen.
+
+`scripts/migrate-app-notifications.cjs` transformeert uitsluitend de gecontroleerde workflow-IDs. Het script weigert onbekende interactieve Telegram-operaties. Gebruik een verse export; de exports bevatten bestaande secrets en horen niet in Git. Bewaar een rollback-export buiten de repository. n8n importeert nodes aanvullend: vervang de canvasinhoud vóór import en controleer dat er geen dubbele triggers zijn. Publiceer pas na een succesvolle deployment van de inbox en verzendroute.

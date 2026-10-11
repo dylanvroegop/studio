@@ -10,14 +10,14 @@ function harness() {
   const calls = [];
   const controls = { status: 201 };
   function ref(key) {
-    return { id: key.split('/').at(-1),
+    return { collection: name => ({ doc: id => ref(key + '/' + name + '/' + id) }), id: key.split('/').at(-1),
       get: async () => snapshot(key),
       set: async (data, opts) => rows.set(key, opts?.merge ? { ...rows.get(key), ...data } : data),
       delete: async () => rows.delete(key),
       key,
     };
   }
-  function snapshot(key) { return { id: key.split('/').at(-1), exists: rows.has(key), data: () => rows.get(key), ref: ref(key) }; }
+  function snapshot(key) { return { collection: name => ({ doc: id => ref(key + '/' + name + '/' + id) }), id: key.split('/').at(-1), exists: rows.has(key), data: () => rows.get(key), ref: ref(key) }; }
   const firestore = {
     collection: name => ({ doc: id => ref(name + '/' + id), where: (field, _, value) => ({ get: async () => ({ docs: [...rows.keys()].filter(key => key.startsWith(name + '/') && rows.get(key)[field] === value).map(snapshot) }) }) }),
     runTransaction: async fn => fn({ get: r => r.get(), set: (r, data) => r.set(data), create: (r, data) => r.set(data), delete: r => r.delete() }),
@@ -156,4 +156,26 @@ test('uitloggen schakelt provider uit, ook als serveropruiming tijdelijk mislukt
   });
   await module.exports.disableDevicePush({ getIdToken: async () => 'token' });
   assert.deepEqual(actions, ['unsubscribe', 'delete-server', 'remove-owner', 'changed']);
+});
+
+
+test('lange meldingen blijven volledig in de inbox en retries maken geen duplicaat', async () => {
+  const h = harness(); const api = h.load('src/lib/push-inbox.ts');
+  h.rows.set('push_subscriptions/a', { userId: 'owner', subscription });
+  const full = 'Volledig afspraakvoorstel. '.repeat(100);
+  const first = await api.deliverAppMessage('owner', { ...message, body: full });
+  const second = await api.deliverAppMessage('owner', { ...message, body: 'Een retry mag de tekst niet vervangen.' });
+  assert.equal(first.accepted, 1); assert.equal(second.skipped, 1);
+  const saved = [...h.rows.entries()].filter(([key]) => key.startsWith('push_inbox/'));
+  assert.equal(saved.length, 1); assert.equal(saved[0][1].body, full.trim());
+  assert.equal(h.calls[0].payload.url, '/meldingen?id=' + first.notificationId);
+  assert.ok(h.calls[0].payload.body.length <= 260);
+});
+
+test('inboxdetail is uitsluitend bereikbaar door de eigenaar', async () => {
+  const h = harness(); const api = h.load('src/lib/push-inbox.ts');
+  const saved = await api.deliverAppMessage('other', message);
+  const route = h.load('src/app/api/push/inbox/route.ts');
+  const response = await route.GET(new Request('https://app.calvora.nl/api/push/inbox?id=' + saved.notificationId, {headers:{authorization:'Bearer valid'}}));
+  assert.equal(response.status, 404);
 });

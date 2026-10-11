@@ -13,6 +13,7 @@ service cloud.firestore {
     }
 
     // Pushsleutels, apparaatregistraties en verzendstatus zijn uitsluitend server-toegankelijk.
+    match /push_inbox/{document=**} { allow read, write: if false; }
     match /push_private/{document=**} { allow read, write: if false; }
     match /push_subscriptions/{document=**} { allow read, write: if false; }
     match /push_deliveries/{document=**} { allow read, write: if false; }
