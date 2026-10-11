@@ -25,7 +25,7 @@ export function PushNotificationSettings(): JSX.Element {
     const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone;
     if (ios && !standalone) {
       setUnsupported(true);
-      setStatus('Open Calvora via het icoon op je beginscherm. Nog geen icoon? Open Calvora in Safari, tik op Delen en kies ‘Zet op beginscherm’.');
+      setStatus('Je gebruikt Calvora nu in Safari. Kies in Safari Delen → Zet op beginscherm. Staat ‘Open als webapp’ erbij? Zet die aan. Open daarna Calvora via het nieuwe icoon op je beginscherm en schakel hier meldingen in.');
       return;
     }
     if (!supportsPush()) {
@@ -87,7 +87,7 @@ export function PushNotificationSettings(): JSX.Element {
     setBusy(true);
     try {
       await pushRequest(user, 'test', 'POST', { endpoint: subscription.endpoint });
-      setStatus('Testmelding aangeboden aan je telefoon. Geen melding? Controleer Focus / Niet storen en je meldingsinstellingen.');
+      setStatus('Testmelding aangeboden aan dit apparaat. Test je op een computer? Dan gaat deze melding naar die computer, niet naar je telefoon. Geen melding? Controleer Focus / Niet storen en je meldingsinstellingen.');
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Testmelding mislukt.'); }
     finally { setBusy(false); }
   };
