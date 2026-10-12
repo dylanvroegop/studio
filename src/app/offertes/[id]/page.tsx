@@ -80,7 +80,7 @@ import { createMeerwerkbon } from '@/lib/meerwerkbon-actions';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn, parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
-import { buildAddressString, buildGoogleMapsDirectionsUrl, hasMinimalAddress } from '@/lib/maps';
+import { buildAddressString, buildGoogleMapsDirectionsUrl, openGoogleMapsDirections, hasMinimalAddress } from '@/lib/maps';
 import { reportOperationalError } from '@/lib/report-operational-error';
 import { deduplicateMeasurementRows } from '@/lib/work-description-note-coverage';
 import {
@@ -6977,7 +6977,7 @@ export default function QuotePage() {
                                 className="h-11 px-0"
                                 onClick={() => {
                                     if (routeMapsUrl) {
-                                        window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
+                                        openGoogleMapsDirections(routeMapsUrl);
                                     }
                                 }}
                                 disabled={!routeMapsUrl}
@@ -7042,7 +7042,7 @@ export default function QuotePage() {
                                         size="icon"
                                         className="h-9 w-9 shrink-0"
                                         onClick={() => {
-                                            window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
+                                            openGoogleMapsDirections(routeMapsUrl);
                                         }}
                                         aria-label="Route"
                                         title={`Route naar ${routeDestinationAddress}`}

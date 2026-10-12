@@ -29,7 +29,7 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { buildGoogleMapsDirectionsUrl, resolveQuoteProjectAddress } from '@/lib/maps';
+import { buildGoogleMapsDirectionsUrl, openGoogleMapsDirections, resolveQuoteProjectAddress } from '@/lib/maps';
 import { getPlanningQuoteMetrics } from '@/lib/planning-earnings';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
@@ -928,7 +928,7 @@ export function ScheduleModal({
                                         variant="outline"
                                         className="h-8 gap-2"
                                         onClick={() => {
-                                            window.location.assign(routeMapsUrl);
+                                            openGoogleMapsDirections(routeMapsUrl);
                                         }}
                                         title={routeDestinationAddress}
                                     >

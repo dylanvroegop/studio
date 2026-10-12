@@ -81,3 +81,20 @@ export function buildGoogleMapsDirectionsUrl(address: string): string {
   if (!cleaned) return '';
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(cleaned)}`;
 }
+
+/** Aanroepen vanuit de klik zelf, zodat iOS de overdracht naar Maps toestaat. */
+export function openGoogleMapsDirections(url: string): void {
+  if (!url || typeof window === 'undefined') return;
+
+  const isIOS = /iPad|iPhone|iPod/.test(window.navigator.userAgent)
+    || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+
+  if (isIOS) {
+    // Google Maps is op de iPhone van de gebruiker geïnstalleerd. Een app-link
+    // opent geen leeg Safari-venster en houdt de huidige app-pagina intact.
+    window.location.assign(url.replace(/^https:\/\//, 'comgooglemapsurl://'));
+    return;
+  }
+
+  window.open(url, '_blank', 'noopener,noreferrer');
+}

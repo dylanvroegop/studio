@@ -63,7 +63,7 @@ import { useFirestore, useUser } from '@/firebase';
 import { createEmptyQuote } from '@/lib/firestore-actions';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-status';
-import { buildGoogleMapsDirectionsUrl, resolveQuoteProjectAddress } from '@/lib/maps';
+import { buildGoogleMapsDirectionsUrl, openGoogleMapsDirections, resolveQuoteProjectAddress } from '@/lib/maps';
 import { useQuoteWorkedHours } from '@/hooks/useQuoteWorkedHours';
 import { formatHoursCompact } from '@/lib/quote-time-summary';
 import type { QuoteWithAddress } from '@/lib/tracking-analysis';
@@ -2156,7 +2156,7 @@ export default function OffertesPage() {
                               e.stopPropagation();
                               e.preventDefault();
                               if (routeMapsUrl) {
-                                window.open(routeMapsUrl, '_blank', 'noopener,noreferrer');
+                                openGoogleMapsDirections(routeMapsUrl);
                               }
                             }}
                           >
