@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { QuoteShareActions } from './QuoteShareActions';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatCurrency } from '@/lib/quote-calculations';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ interface SendQuoteWhatsAppModalProps {
   language?: 'nl' | 'en';
   onTranslateMessage?: (source: string) => Promise<string>;
   successDescription?: string;
+  onPrepareFiles?: (selectedIds: string[]) => Promise<File[]>;
   onDownloadOfficialPdf?: (selectedIds?: string[]) => Promise<void> | void;
   onMarkAsSent?: (selectedIds?: string[]) => Promise<void> | void;
 }
@@ -81,6 +83,7 @@ export function SendQuoteWhatsAppModal({
   language = 'nl',
   onTranslateMessage,
   successDescription = 'De officiële PDF is gedownload. Voeg deze handmatig toe in WhatsApp en verstuur.',
+  onPrepareFiles,
   onDownloadOfficialPdf,
   onMarkAsSent,
   quoteSelection,
@@ -268,11 +271,13 @@ export function SendQuoteWhatsAppModal({
               {quoteSelection.error && <p role="alert" className="text-xs text-red-400">{quoteSelection.error}</p>}
             </fieldset>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="whatsapp-phone" className="text-zinc-400">WhatsApp-nummer</Label>
               <Input
                 id="whatsapp-phone"
+                type="tel"
+                autoComplete="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Bijv. +31 6 12345678"
@@ -343,12 +348,24 @@ export function SendQuoteWhatsAppModal({
               <Button type="button" variant="outline" size="sm" onClick={() => setRetryTranslation((value) => value + 1)}>Opnieuw proberen</Button>
             </div>}
             <p className="text-xs text-zinc-500">
-              Dit bericht wordt automatisch opgeslagen. Gebruik {FIRST_NAME_TOKEN} voor de voornaam. {multipleQuotes ? 'Pak de ZIP uit en voeg de PDF’s toe in WhatsApp.' : 'De PDF voeg je handmatig toe in WhatsApp.'}
+              Dit bericht wordt automatisch opgeslagen. Gebruik {FIRST_NAME_TOKEN} voor de voornaam. {!onPrepareFiles && (multipleQuotes ? 'Pak de ZIP uit en voeg de PDF’s toe in WhatsApp.' : 'De PDF voeg je handmatig toe in WhatsApp.')}
             </p>
           </div>
         </div>
 
-        <DialogFooter>
+        {onPrepareFiles ? (
+          <QuoteShareActions
+            open={isOpen}
+            selectedIds={selectedQuoteIds || []}
+            blocked={selectionBlocked || isPreparingMessage || Boolean(messageError)}
+            message={stripDocumentLinksFromMessage(message).replaceAll(FIRST_NAME_TOKEN, manualFirstName.trim() || (language === 'en' ? 'customer' : 'klant'))}
+            phone={phone}
+            prepareFiles={onPrepareFiles}
+            markSent={onMarkAsSent}
+            onClose={onClose}
+            onBusyChange={setIsOpening}
+          />
+        ) : <DialogFooter>
           <Button
             type="button"
             variant="success"
@@ -362,7 +379,7 @@ export function SendQuoteWhatsAppModal({
               <span className="text-[10px] opacity-80 font-normal">{multipleQuotes ? 'Download PDF’s als ZIP + open WhatsApp' : 'Download officiële PDF + open WhatsApp (handmatig bijvoegen)'}</span>
             </div>
           </Button>
-        </DialogFooter>
+        </DialogFooter>}
       </DialogContent>
     </Dialog>
   );

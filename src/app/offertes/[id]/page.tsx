@@ -58,7 +58,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useUser, useFirestore } from '@/firebase';
 import { arrayUnion, collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
-import { getIdTokenResult } from 'firebase/auth';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useParams, useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
@@ -1328,7 +1327,6 @@ export default function QuotePage() {
     const [isPaymentRequestOpen, setIsPaymentRequestOpen] = useState(false);
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
     const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
-    const [hasDeveloperWhatsAppAccess, setHasDeveloperWhatsAppAccess] = useState(false);
     const [isPlanningTypeDialogOpen, setIsPlanningTypeDialogOpen] = useState(false);
     const [voorschotIngeschakeld, setVoorschotIngeschakeld] = useState(true);
     const [voorschotPercentage, setVoorschotPercentage] = useState<number>(50);
@@ -1391,36 +1389,7 @@ export default function QuotePage() {
         };
     }, []);
 
-    useEffect(() => {
-        let cancelled = false;
 
-        if (!user) {
-            setHasDeveloperWhatsAppAccess(false);
-            setIsWhatsAppModalOpen(false);
-            return;
-        }
-
-        const resolveDeveloperAccess = async () => {
-            try {
-                const token = await getIdTokenResult(user, false);
-                const allowed = token.claims.dev === true || token.claims.admin === true;
-                if (cancelled) return;
-                setHasDeveloperWhatsAppAccess(allowed);
-                if (!allowed) {
-                    setIsWhatsAppModalOpen(false);
-                }
-            } catch {
-                if (cancelled) return;
-                setHasDeveloperWhatsAppAccess(false);
-                setIsWhatsAppModalOpen(false);
-            }
-        };
-
-        void resolveDeveloperAccess();
-        return () => {
-            cancelled = true;
-        };
-    }, [user]);
 
 
     const [userProfile, setUserProfile] = useState<any>(null);
@@ -5465,7 +5434,7 @@ export default function QuotePage() {
         }
     };
 
-    const handleDownloadSelectedQuotes = async (selectedIds: string[] = [id]): Promise<void> => {
+    const prepareSelectedQuoteFiles = async (selectedIds: string[] = [id]): Promise<File[]> => {
         if (!quote || !user || !firestore || selectedIds.length === 0) throw new Error('Selecteer minimaal één offerte.');
         const token = await user.getIdToken();
         const files: Array<{ fileName: string; blob: Blob }> = [];
@@ -5477,7 +5446,12 @@ export default function QuotePage() {
             const blob = quoteId === id ? await getOfficialQuotePdf(data) : await generateQuotePDF(data);
             files.push({ fileName: getQuotePdfFileName(data.klant.naam, data.offerteNummer), blob });
         }
-        // Eerst alle PDF's gereed; bij een fout niets gedeeltelijk downloaden of als verzonden markeren.
+        return files.map((file) => new File([file.blob], file.fileName, { type: 'application/pdf' }));
+    };
+
+    const handleDownloadSelectedQuotes = async (selectedIds: string[] = [id]): Promise<void> => {
+        const prepared = await prepareSelectedQuoteFiles(selectedIds);
+        const files = prepared.map((file) => ({ fileName: file.name, blob: file }));
         const download = await prepareQuotePdfDownload(files, `Offertes-${sanitizeFileNamePart(klantInfo?.bedrijfsnaam || `${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`) || 'selectie'}.zip`);
         downloadBlobWithName(download.blob, download.fileName);
     };
@@ -6853,7 +6827,7 @@ export default function QuotePage() {
                                     <Settings className="mr-2 h-4 w-4" />
                                     PDF instellingen
                                 </DropdownMenuItem>
-                                {hasDeveloperWhatsAppAccess && (
+                                {user && (
                                     <DropdownMenuItem onClick={() => setIsWhatsAppModalOpen(true)}>
                                         <MessageCircle className="mr-2 h-4 w-4" />
                                         WhatsApp
@@ -6938,6 +6912,9 @@ export default function QuotePage() {
                     </div>
                     {!loading && (
                         <div className="grid w-full grid-cols-6 gap-2 sm:hidden">
+                            <Button variant="success" className="col-span-6 h-11 gap-2" onClick={() => setIsWhatsAppModalOpen(true)}>
+                                <MessageCircle className="h-4 w-4" /> Offerte delen via WhatsApp
+                            </Button>
                             <Button
                                 variant="outline"
                                 className="h-11 px-0"
@@ -7107,7 +7084,7 @@ export default function QuotePage() {
                                         <Download size={18} />
                                     )}
                                 </Button>
-                                {hasDeveloperWhatsAppAccess && (
+                                {user && (
                                     <Button
                                         variant="success"
                                         className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
@@ -9754,6 +9731,7 @@ export default function QuotePage() {
                 klantInfo={klantInfo}
                 clientName={`${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`.trim() || (klantInfo?.bedrijfsnaam || 'klant')}
                 quoteSelection={whatsAppQuoteSelection}
+                onPrepareFiles={prepareSelectedQuoteFiles}
                 onDownloadOfficialPdf={handleDownloadSelectedQuotes}
                 onMarkAsSent={handleMarkSelectedQuotesAsSent}
             />
