@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuoteSendSelection } from '@/hooks/useQuoteSendSelection';
-import { prepareQuotePdfDownload } from '@/lib/quote-pdf-download';
 import { loadQuotePdfData } from '@/lib/load-quote-pdf-data';
 import { markQuoteSelectionAsSent } from '@/lib/quote-send-status';
 import { useQuoteData } from '@/hooks/useQuoteData';
@@ -67,7 +66,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import Link from "next/link";
 import { SendQuoteModal, type QuoteAttachmentOptions } from '@/components/quote/SendQuoteModal';
-import { SendQuoteWhatsAppModal } from '@/components/quote/SendQuoteWhatsAppModal';
+import { ShareQuoteDialog } from '@/components/quote/ShareQuoteDialog';
 import { MaterialListExportDialog } from '@/components/quote/MaterialListExportDialog';
 import { MaterialPresentationTab } from '@/components/quote/MaterialPresentationTab';
 import { WorkDescriptionWorkspace } from '@/components/quote/work-description/WorkDescriptionWorkspace';
@@ -5449,13 +5448,6 @@ export default function QuotePage() {
         return files.map((file) => new File([file.blob], file.fileName, { type: 'application/pdf' }));
     };
 
-    const handleDownloadSelectedQuotes = async (selectedIds: string[] = [id]): Promise<void> => {
-        const prepared = await prepareSelectedQuoteFiles(selectedIds);
-        const files = prepared.map((file) => ({ fileName: file.name, blob: file }));
-        const download = await prepareQuotePdfDownload(files, `Offertes-${sanitizeFileNamePart(klantInfo?.bedrijfsnaam || `${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`) || 'selectie'}.zip`);
-        downloadBlobWithName(download.blob, download.fileName);
-    };
-
     const handleMarkSelectedQuotesAsSent = async (selectedIds: string[] = [id]): Promise<void> => {
         if (!firestore || !user || !quote || selectedIds.length === 0) throw new Error('Selecteer minimaal één offerte.');
         await markQuoteSelectionAsSent({ firestore, userId: user.uid, currentQuote: quote, selectedIds, currentTotal: effectiveQuoteTotalInclBtw });
@@ -9723,17 +9715,24 @@ export default function QuotePage() {
                 korteBeschrijving={workDescriptionStructured.summary || normalizedData?.korteBeschrijving}
             />
 
-            <SendQuoteWhatsAppModal
-                isOpen={isWhatsAppModalOpen}
+            <ShareQuoteDialog
+                open={isWhatsAppModalOpen}
                 language={quote?.pdfLanguage || 'nl'}
-                onTranslateMessage={translateWhatsAppMessage}
+                translate={translateWhatsAppMessage}
                 onClose={() => setIsWhatsAppModalOpen(false)}
-                klantInfo={klantInfo}
-                clientName={`${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`.trim() || (klantInfo?.bedrijfsnaam || 'klant')}
+                clientName={klantInfo?.bedrijfsnaam || `${klantInfo?.voornaam || ''} ${klantInfo?.achternaam || ''}`.trim() || 'klant'}
+                firstName={klantInfo?.voornaam || ''}
+                phone={klantInfo?.telefoonnummer || ''}
+                companyName={userProfile?.settings?.bedrijfsnaam || userProfile?.bedrijfsnaam || userProfile?.companyName || businessData?.bedrijfsnaam || ''}
+                accountReady={Boolean(userProfile)}
+                accountTemplate={quote?.pdfLanguage === 'en' ? userProfile?.settings?.whatsappQuoteMessageEn : userProfile?.settings?.whatsappQuoteMessage}
+                onTemplateSaved={(template) => setUserProfile((previous: any) => previous ? {
+                    ...previous,
+                    settings: { ...previous.settings, [quote?.pdfLanguage === 'en' ? 'whatsappQuoteMessageEn' : 'whatsappQuoteMessage']: template },
+                } : previous)}
                 quoteSelection={whatsAppQuoteSelection}
-                onPrepareFiles={prepareSelectedQuoteFiles}
-                onDownloadOfficialPdf={handleDownloadSelectedQuotes}
-                onMarkAsSent={handleMarkSelectedQuotesAsSent}
+                prepareFiles={prepareSelectedQuoteFiles}
+                markSent={handleMarkSelectedQuotesAsSent}
             />
 
             {activeCategory && (
