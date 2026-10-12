@@ -6,6 +6,7 @@ import {
   flattenStructuredWorkDescription,
   sanitizeWorkDescriptionStructured,
   toStructuredWorkDescription,
+  type WorkDescriptionJob,
   type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
 import {
@@ -1616,11 +1617,12 @@ function buildPromptFromBody(body: RequestBody): string {
     'Combineer alle eigenschappen die bij dezelfde klus horen in dezelfde klanttekst. Een verhoogde vloer en de gekozen vloerplaat zijn bijvoorbeeld eigenschappen van dezelfde vloerklus en worden geen dubbele vloerregels.',
     'Gebruik de specifieke klussoort als onderwerp. Maak van boeiboorden, plafonds, wanden, vloeren, kozijnen en ander timmerwerk ieder een passende beschrijving; gebruik geen algemene vloertekst voor een andere klussoort.',
     'Verzin geen werkzaamheden, afwerkingsniveau, elektrawerk, sloopwerk of afvalafvoer.',
+    'De aan/uit-keuzes hieronder bepalen wat inbegrepen is en gaan voor op tegenstrijdige notities. Beschrijf alleen inbegrepen werkzaamheden. Schrijf geen zinnen over wat niet inbegrepen is; de app toont uitsluitingen apart. Gebruik afzonderlijke zinnen voor verschillende werkzaamheden.',
     'Beschrijf geen methode tenzij deze expliciet is aangeleverd.',
     'Gebruik niet de woorden eerst, vervolgens, daarna, stap 1 of stap 2.',
     'Neem alleen scope over die expliciet blijkt uit notities, maatvoering of calculatiedata.',
     'Expliciete aantallen, aantallen per woning/object en eindtotalen uit notities zijn essentiële feiten en mogen nooit worden verkort of impliciet geformuleerd.',
-    'Gebruik materials altijd als lege array. Maak geen aparte materialen/productenlijst.',
+    'Maak geen aparte materialen/productenlijst.',
     'Verwerk alleen klant-relevante productkeuzes in de klanttekst wanneer ze belangrijk zijn voor vertrouwen of afspraak, zoals Keralit, Trespa/HPL, Rockpanel, EPDM, underlayment of type/kleur gevelbekleding.',
     'Noem geen verbruiksartikelen of hulpmaterialen zoals lijm, kit, cleaner, ontvetter, schroeven, handschoenen, folie, tape, band of schuurpapier.',
     'Negeer administratieve regels met de naam "Extra kosten".',
@@ -1628,7 +1630,7 @@ function buildPromptFromBody(body: RequestBody): string {
     noteJobs.length > 0
       ? 'Bij NOTITIEKLUSSEN: herhaal geen individuele maatvoeringsregels uit dimensions in de klanttekst; die staan al onder Maatvoering en mogen niet dubbel worden beschreven.'
       : '',
-    'Plaats bij onduidelijkheid een veilige uitsluiting onder excluded of laat het onderdeel weg.',
+    'Laat onderdelen zonder expliciete afspraak weg.',
     'Formuleer commercieel en bescherm tegen scope creep en onbetaald meerwerk.',
     noteJobs.length > 0
       ? 'Maak per NOTITIEKLUS één eigen professionele klanttekst die alleen de scope van die specifieke notitieklus beschrijft.'
@@ -1735,6 +1737,60 @@ async function recoverMissingJobTexts(
   return results;
 }
 
+class EmptyGeneratedWorkDescriptionError extends Error {}
+
+async function finalizeGeneratedJobs(
+  apiKey: string,
+  body: RequestBody,
+  sources: MissingJobTextSource[],
+  texts: string[],
+  mode: 'note' | 'source',
+): Promise<WorkDescriptionJob[]> {
+  const controls = sanitizeWorkDescriptionStructured(body.structuredInput);
+  const jobs: WorkDescriptionJob[] = [];
+  for (const [index, source] of sources.entries()) {
+    const existing = controls.jobs[index] || toStructuredWorkDescription({ title: source.title }).jobs[0];
+    const normalize = (text: string): WorkDescriptionJob => {
+      const scope = sanitizeWorkDeliveryScope({
+        ...existing,
+        // De schakelaars op de pagina gelden voor alle gegenereerde klussen,
+        // ook wanneer opgeslagen klussen nog oudere instellingen bevatten.
+        afvalAfvoeren: controls.afvalAfvoeren,
+        schilderwerkInbegrepen: controls.schilderwerkInbegrepen,
+        plamuurwerkInbegrepen: controls.plamuurwerkInbegrepen,
+        steigerInbegrepen: controls.steigerInbegrepen,
+        sloopwerkInbegrepen: controls.sloopwerkInbegrepen,
+        nadenVullenInbegrepen: controls.nadenVullenInbegrepen,
+        nadenVullenAfwerkingsniveau: controls.nadenVullenAfwerkingsniveau,
+        schroefgatenPlamurenInbegrepen: controls.schroefgatenPlamurenInbegrepen,
+        electricalScope: controls.electricalScope,
+        finishLevel: controls.finishLevel,
+        customFinishDescription: controls.customFinishDescription,
+        title: source.title,
+        summary: text,
+        work_scope: text ? [text] : [],
+        dimensions: source.dimensions || existing?.dimensions || [],
+      });
+      return { ...existing, ...scope, context: scope.summary, sections: existing?.sections || { voorbereiding: [], uitvoering: [], afwerking: [] } };
+    };
+    let job = normalize(safeString(texts[index]));
+    if (!job.summary.trim() || job.work_scope.length === 0) {
+      // Controleer ná filtering. Een niet-leeg AI-antwoord kan alsnog volledig
+      // wegvallen; herstel uitsluitend deze klus met dezelfde brongegevens.
+      const retry = await callOpenAiWorkDescription(apiKey, [
+        buildMissingJobPrompt(body, source, mode),
+        'Het vorige antwoord bevatte geen bruikbare inbegrepen werkzaamheden na controle van de aan/uit-keuzes. Schrijf opnieuw een concrete omschrijving van de toegestane werkzaamheden uit deze klus. Laat uitgeschakelde onderdelen helemaal weg, ook als uitsluiting. Gebruik geen tekst van andere klussen.',
+      ].join('\n\n'));
+      job = normalize(retry.rawOutput);
+    }
+    if (!job.summary.trim() || job.work_scope.length === 0) {
+      throw new EmptyGeneratedWorkDescriptionError(`Geen bruikbare werkbeschrijving voor "${source.title || 'deze klus'}" na opnieuw genereren. Controleer of de klusnotities passen bij de ingeschakelde werkzaamheden. Er is niets opgeslagen.`);
+    }
+    jobs.push(job);
+  }
+  return jobs;
+}
+
 export async function POST(request: Request) {
   try {
     const token = extractBearerToken(request.headers.get('authorization'));
@@ -1792,35 +1848,7 @@ export async function POST(request: Request) {
         Array(noteJobs.length).fill(''),
         'note',
       );
-      const jobs = noteJobs.map((noteJob, index) => {
-        const text = safeString(jobTexts[index]);
-        const existingJob = existingStructuredInput.jobs[index]
-          || toStructuredWorkDescription({ title: noteJob.title }).jobs[0];
-        return {
-          ...existingJob,
-          // The switches are edited at the Werk & Levering root, but the
-          // customer text is stored per job. Apply the root choices to every
-          // note job before safety filtering the generated text.
-          afvalAfvoeren: existingStructuredInput.afvalAfvoeren,
-          schilderwerkInbegrepen: existingStructuredInput.schilderwerkInbegrepen,
-          stucwerkInbegrepen: existingStructuredInput.stucwerkInbegrepen,
-          plamuurwerkInbegrepen: existingStructuredInput.plamuurwerkInbegrepen,
-          kitwerkInbegrepen: existingStructuredInput.kitwerkInbegrepen,
-          steigerInbegrepen: existingStructuredInput.steigerInbegrepen,
-          sloopwerkInbegrepen: existingStructuredInput.sloopwerkInbegrepen,
-          nadenVullenInbegrepen: existingStructuredInput.nadenVullenInbegrepen,
-          nadenVullenAfwerkingsniveau: existingStructuredInput.nadenVullenAfwerkingsniveau,
-          schroefgatenPlamurenInbegrepen: existingStructuredInput.schroefgatenPlamurenInbegrepen,
-          electricalScope: existingStructuredInput.electricalScope,
-          finishLevel: existingStructuredInput.finishLevel,
-          customFinishDescription: existingStructuredInput.customFinishDescription,
-          title: noteJob.title,
-          context: text,
-          summary: text,
-          work_scope: text ? [text] : [],
-          dimensions: noteJob.dimensions,
-        };
-      });
+      const jobs = await finalizeGeneratedJobs(apiKey, bodyWithContext, noteJobs, jobTexts, 'note');
       const firstText = jobs.find((job) => safeString(job.summary))?.summary || '';
       const structured = toStructuredWorkDescription({
         werkbeschrijving_structured: {
@@ -1876,20 +1904,7 @@ export async function POST(request: Request) {
         splitRawOutputByJobTitles(aiResult.rawOutput, structuredJobs),
         'source',
       );
-      const jobs = structuredJobs.map((sourceJob, index) => {
-        const existingJob = existingStructuredInput.jobs[index] || existingStructuredInput;
-        const text = safeString(jobTexts[index]) || fallbackJobDescription(sourceJob);
-        return {
-          ...existingJob,
-          title: safeString(sourceJob.title) || existingJob.title || `Klus ${index + 1}`,
-          context: text,
-          summary: text,
-          work_scope: [text],
-          dimensions: Array.isArray(sourceJob.dimensions) && sourceJob.dimensions.length > 0
-            ? sourceJob.dimensions
-            : existingJob.dimensions,
-        };
-      });
+      const jobs = await finalizeGeneratedJobs(apiKey, bodyWithContext, structuredJobs, jobTexts, 'source');
       const firstText = jobs[0]?.summary || aiResult.rawOutput;
       const structured = toStructuredWorkDescription({
         werkbeschrijving_structured: {
@@ -1909,22 +1924,29 @@ export async function POST(request: Request) {
       });
     }
 
+    const jobs = await finalizeGeneratedJobs(apiKey, bodyWithContext, [{
+      title: safeString(bodyWithContext.title) || 'Werkzaamheden',
+      description: safeString(bodyWithContext.context),
+      notes: safeString(bodyWithContext.notesContext),
+    }], [aiResult.rawOutput], 'source');
     const structured = toStructuredWorkDescription({
       werkbeschrijving_structured: {
         ...existingStructuredInput,
         title: safeString(bodyWithContext.title),
-        summary: aiResult.rawOutput,
-        work_scope: [aiResult.rawOutput],
+        summary: jobs[0].summary,
+        work_scope: jobs[0].work_scope,
+        jobs,
+        activeJobIndex: 0,
       },
     });
     return NextResponse.json({
-      werkbeschrijving: [aiResult.rawOutput],
+      werkbeschrijving: flattenStructuredWorkDescription(structured),
       werkbeschrijvingStructured: structured,
       noteCoverageWarnings: [],
       rawAiOutput: aiResult.rawOutput,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Werkbeschrijving genereren mislukt';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: error instanceof EmptyGeneratedWorkDescriptionError ? 502 : 500 });
   }
 }

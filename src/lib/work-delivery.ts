@@ -455,6 +455,17 @@ export function completeWorkDeliveryScope(
   return enforceWorkDeliverySafety({ ...scope, title, summary });
 }
 
+function removeDisallowedSentences(value: string, pattern: RegExp): string {
+  if (!pattern.test(value)) return value;
+  // AI levert een hele alinea als één regel. Wis alleen de betreffende zin,
+  // nooit ook het timmerwerk omdat een latere zin bijvoorbeeld elektra uitsluit.
+  // Splits niet op decimale punten in maatvoering.
+  return value.split(/(?<=[.!?])\s+|\r?\n/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence && !pattern.test(sentence))
+    .join(' ');
+}
+
 export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliveryScope {
   const scope: WorkDeliveryScope = {
     ...input,
@@ -473,11 +484,18 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
   const customerKeys: Array<keyof Pick<WorkDeliveryScope, 'work_scope' | 'materials' | 'dimensions' | 'included' | 'excluded'>> = [
     'work_scope', 'materials', 'dimensions', 'included', 'excluded',
   ];
+  const removeDisallowedText = (pattern: RegExp): void => {
+    customerKeys.forEach((key) => {
+      scope[key] = key === 'work_scope'
+        ? scope[key].map((line) => removeDisallowedSentences(line, pattern)).filter(Boolean)
+        : scope[key].filter((line) => !pattern.test(line));
+    });
+    scope.summary = removeDisallowedSentences(scope.summary, pattern);
+    if (pattern.test(scope.title)) scope.title = '';
+  };
 
   if (!scope.afvalAfvoeren) {
-    customerKeys.forEach((key) => { scope[key] = scope[key].filter((line) => !WASTE_PATTERN.test(line)); });
-    if (WASTE_PATTERN.test(scope.summary)) scope.summary = '';
-    if (WASTE_PATTERN.test(scope.title)) scope.title = '';
+    removeDisallowedText(WASTE_PATTERN);
     scope.excluded = unique([...scope.excluded, WASTE_EXCLUDED_TEXT]);
   } else {
     scope.included = scope.included.filter((line) => !WASTE_PATTERN.test(line));
@@ -486,9 +504,7 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
   }
 
   if (!scope.electricalScope.enabled) {
-    customerKeys.forEach((key) => { scope[key] = scope[key].filter((line) => !ELECTRICAL_PATTERN.test(line)); });
-    if (ELECTRICAL_PATTERN.test(scope.summary)) scope.summary = '';
-    if (ELECTRICAL_PATTERN.test(scope.title)) scope.title = '';
+    removeDisallowedText(ELECTRICAL_PATTERN);
     scope.excluded = unique([...scope.excluded, ELECTRICAL_EXCLUDED_TEXT]);
   } else {
     scope.materials = scope.materials.filter((line) => !ELECTRICAL_PATTERN.test(line));
@@ -518,11 +534,7 @@ export function enforceWorkDeliverySafety(input: WorkDeliveryScope): WorkDeliver
     ].filter(Boolean);
     if (disallowedFinishSources.length > 0) {
       const disallowedFinishPattern = new RegExp(disallowedFinishSources.join('|'), 'i');
-      customerKeys.forEach((key) => {
-        scope[key] = scope[key].filter((line) => !disallowedFinishPattern.test(line));
-      });
-      if (disallowedFinishPattern.test(scope.summary)) scope.summary = '';
-      if (disallowedFinishPattern.test(scope.title)) scope.title = '';
+      removeDisallowedText(disallowedFinishPattern);
     }
 
     scope.excluded = scope.excluded.filter((line) => !finishPattern.test(line));

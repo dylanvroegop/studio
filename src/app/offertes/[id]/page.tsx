@@ -6191,6 +6191,7 @@ export default function QuotePage() {
                 sloopwerkInbegrepen: workDescriptionStructured.sloopwerkInbegrepen,
                 nadenVullenInbegrepen: workDescriptionStructured.nadenVullenInbegrepen,
                 nadenVullenAfwerkingsniveau: workDescriptionStructured.nadenVullenAfwerkingsniveau,
+                schroefgatenPlamurenInbegrepen: workDescriptionStructured.schroefgatenPlamurenInbegrepen,
                 electricalScope: workDescriptionStructured.electricalScope,
                 finishLevel: workDescriptionStructured.finishLevel,
                 customFinishDescription: workDescriptionStructured.customFinishDescription,
