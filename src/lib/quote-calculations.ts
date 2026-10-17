@@ -1464,7 +1464,8 @@ export function calculateQuoteTotals(dataJson: any, quoteSettings: QuoteSettings
         toNumber(transportBerekening?.distanceKm, undefined as any) ||
         toNumber(extrasFromRoot?.transport?.afstandKm, 0);
 
-    const transportDistanceKmOneWay = toNumber(transportBerekening?.distanceKm, 0);
+    const transportDistanceKmOneWay = toNumber(transportBerekening?.distanceKm, 0)
+        || toNumber(transportBerekening?.roundTripDistanceKm, 0) / 2;
     const durationText = typeof transportBerekening?.durationText === "string" ? transportBerekening.durationText : "";
     const oneWayMinutes = parseDurationToMinutes(durationText);
     const roundTripMinutes = oneWayMinutes * 2;

@@ -29,6 +29,7 @@ type AiAction = 'full' | 'uitvoering-only' | 'improve';
 type RowKey = 'work_scope' | 'materials' | 'dimensions' | 'included' | 'excluded' | 'internal_notes';
 
 interface WorkDescriptionWorkspaceProps {
+  jointFinishingError?: string;
   value: WorkDescriptionStructured;
   mode: Mode;
   onModeChange: (mode: Mode) => void;
@@ -388,6 +389,7 @@ export function LegacyWorkDescriptionWorkspace({
 }
 
 export function WorkDescriptionWorkspace({
+  jointFinishingError,
   value,
   mode,
   onModeChange,
@@ -574,6 +576,7 @@ export function WorkDescriptionWorkspace({
               <ul className="list-disc space-y-1 pl-5">{validation.errors.map((error) => <li key={error}>{error}</li>)}</ul>
             </div>
           ) : null}
+          {jointFinishingError && <p role="alert" className="rounded border border-red-500/50 bg-red-500/5 p-3 text-sm text-red-500">{jointFinishingError}</p>}
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {([
               ['afvalAfvoeren', 'Afval afvoeren'], ['schilderwerkInbegrepen', 'Schilderwerk'],
@@ -593,7 +596,7 @@ export function WorkDescriptionWorkspace({
               />
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 p-2.5">
-              <Label>Naden vullen – Schilderklaar</Label>
+              <Label className={jointFinishingError ? 'text-red-500' : undefined}>Naden vullen – Schilderklaar</Label>
               <Switch
                 checked={cleanedValue.nadenVullenInbegrepen === true && cleanedValue.nadenVullenAfwerkingsniveau === 'schilderklaar'}
                 onCheckedChange={(checked) => setNadenVullenLevel('schilderklaar', checked)}

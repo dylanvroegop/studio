@@ -364,7 +364,7 @@ export async function POST(request: Request) {
 
     const userSnapshot = await firestore.collection('users').doc(uid).get();
     const userData = userSnapshot.data() || {};
-    const userSettings = userData.instellingen || userData.settings || {};
+    const userSettings = { ...(userData.instellingen || {}), ...(userData.settings || {}) };
     const planningSettings = userData.settings?.planningSettings || userData.instellingen?.planningSettings || {};
     const configuredWorkDays = Array.isArray(planningSettings.workDays)
       ? planningSettings.workDays.map(Number).filter((day: number) => Number.isInteger(day) && day >= 1 && day <= 7)

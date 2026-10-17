@@ -35,18 +35,18 @@ export function buildEmptyQuoteDefaults(data: Record<string, unknown> = {}): Emp
 
     const legacySettings = record(data.settings);
     const nieuweInstellingen = record(data.instellingen);
-    // Prefer explicit `instellingen`, fallback to legacy `settings`
-    settings = { ...settings, ...legacySettings, ...nieuweInstellingen };
+    // De instellingenpagina schrijft naar `settings`; `instellingen` is legacy.
+    settings = { ...settings, ...nieuweInstellingen, ...legacySettings };
 
     // Keep the quote default in sync with both the current settings field
     // and legacy hourly-rate field names used by older user documents.
     const hourlyRateCandidates = [
-        nieuweInstellingen?.standaardUurtarief,
-        nieuweInstellingen?.standaardUurTarief,
-        nieuweInstellingen?.uurTariefExclBtw,
         legacySettings?.standaardUurtarief,
         legacySettings?.standaardUurTarief,
         legacySettings?.uurTariefExclBtw,
+        nieuweInstellingen?.standaardUurtarief,
+        nieuweInstellingen?.standaardUurTarief,
+        nieuweInstellingen?.uurTariefExclBtw,
         legacySettings?.uurTarief,
     ];
     const configuredHourlyRate = hourlyRateCandidates

@@ -1,7 +1,5 @@
-'use client';
-
-import QuoteCalculationTab from '@/components/quote/QuoteCalculationTab';
+import QuoteWorkspace from '@/components/quote/QuoteWorkspace';
 
 export default function OverzichtPage() {
-  return <QuoteCalculationTab />;
+    return <QuoteWorkspace initialTab="calculatie" />;
 }

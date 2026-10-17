@@ -7,12 +7,13 @@ import type { ScopeCostKey } from '@/lib/quote-scope-costs';
 import { Switch } from '@/components/ui/switch';
 
 interface CostSummaryCardProps {
+    jointFinishingError?: string;
     totals: CalculationResult | null;
     settings: QuoteSettings | null;
     totalUren: number;
     urenPerDag?: number;
     scopeCosts: Record<ScopeCostKey | 'groot' | 'verbruik', number>;
-    missingScopeCosts: Record<ScopeCostKey, boolean>;
+    missingScopeCosts: Pick<Record<ScopeCostKey, boolean>, 'afval' | 'steiger'>;
     onUpdateHourlyRate?: (rate: number) => void;
     onUpdateTotalHours?: (hours: number) => void | Promise<void>;
     onUpdateLowVatLaborHours?: (hours: number) => void;
@@ -55,6 +56,7 @@ type AdditiveAmountField =
 export function CostSummaryCard({
     totals,
     settings,
+    jointFinishingError,
     totalUren,
     urenPerDag = 8,
     scopeCosts,
@@ -648,6 +650,11 @@ export function CostSummaryCard({
                 <Euro size={14} />
                 KOSTENOVERZICHT
             </h3>
+            {distanceError && !isCalculatingDistance && (
+                <div role="alert" className="mb-3 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                    <strong>Transport controleren.</strong> {distanceError}
+                </div>
+            )}
             <div className={`${styles.columnHeader} mb-2 justify-end px-2.5`}>
                 <div className={`${amountGridClass} text-[11px] uppercase tracking-wide text-muted-foreground`}>
                     <span>Excl. btw</span>
@@ -668,7 +675,7 @@ export function CostSummaryCard({
                         )}
                     </div>
                     <div className={`${styles.costRow} text-sm`}>
-                        <span className="text-muted-foreground">Verbruiksartikelen</span>
+                        <span className="text-muted-foreground">Klein materiaal (schatting)</span>
                         {renderEditableAmount(
                             'verbruik',
                             verbruiksartikelenExclScopeKosten,
@@ -678,12 +685,22 @@ export function CostSummaryCard({
                     {(['afval', 'steiger'] as const).map((key) => (
                         <div key={key} data-scope-cost={key} className={`${styles.costRow} text-sm ${missingScopeCosts[key] ? 'rounded border border-red-500/50 bg-red-500/5 p-1.5 [&_button]:text-red-400' : ''}`}>
                             <span className={missingScopeCosts[key] ? 'text-red-400' : 'text-muted-foreground'}>
-                                {key === 'afval' ? 'Afvalkosten' : 'Steigerkosten'}
+                                {key === 'afval' ? 'Afvalkosten' : 'Steigerkosten (€ 150/week)'}
                                 {missingScopeCosts[key] && <span className="block text-xs">Aan bij Beschrijving; vul een bedrag in.</span>}
                             </span>
                             {renderEditableAmount(key, scopeCosts[key], calculateInclAmount(scopeCosts[key], true))}
                         </div>
                     ))}
+                    <div data-scope-cost="naden" className={`${styles.costRow} text-sm ${jointFinishingError ? 'text-red-500' : ''}`}>
+                        <span>Stucwerk kosten
+                            {jointFinishingError && <span role="alert" className="block text-xs text-red-500">{jointFinishingError}</span>}
+                        </span>
+                        <div className={styles.amountGrid}>
+                            <span className={styles.amountCell}><span className={styles.mobileLabel}>Excl. btw</span>{jointFinishingError ? 'n.b.' : formatCurrency(scopeCosts.naden)}</span>
+                            <span className={styles.amountCell}><span className={styles.mobileLabel}>Incl. btw</span>{jointFinishingError ? 'n.b.' : formatCurrency(calculateInclAmount(scopeCosts.naden, true))}</span>
+                            <span aria-hidden="true" /><span aria-hidden="true" />
+                        </div>
+                    </div>
                     <div className={`${styles.costRow} border-t border-border pt-1.5 text-sm`}>
                         <span className="text-muted-foreground">Subtotaal materialen</span>
                         {renderEditableAmount(
@@ -857,7 +874,7 @@ export function CostSummaryCard({
                                 <span className="mt-1 block text-xs" role="status">Afstand berekenen...</span>
                             ) : distanceError ? (
                                 <span className="mt-1 block text-xs text-destructive" role="alert">
-                                    Afstand berekenen mislukt. {distanceError}
+                                    {distanceError}
                                     {onRetryDistance ? (
                                         <button type="button" onClick={onRetryDistance} className="ml-2 underline">
                                             Opnieuw proberen

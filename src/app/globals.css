@@ -337,3 +337,51 @@ html[data-theme='light'] .hover\:bg-black\/20:hover {
     /* ✅ helpt ook buiten firefox */
   }
 }
+
+/* De klus scrolt binnen de offerte; kop en offert tabs blijven bereikbaar. */
+.quote-workspace-with-job {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.quote-workspace-with-job > header {
+  flex-shrink: 0;
+}
+
+.quote-workspace-with-job > main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  padding-bottom: 0;
+}
+
+.quote-workspace-with-job > main > [data-orientation='horizontal'] {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.quote-workspace-with-job [role='tablist'] {
+  flex-shrink: 0;
+}
+
+.quote-workspace-with-job > main > [data-orientation='horizontal'] > [role='tabpanel'] {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.quote-job-editor > main {
+  min-height: 0;
+}
+
+.quote-job-editor > .fixed.bottom-0,
+.quote-job-editor > main > .fixed.bottom-0 {
+  position: sticky;
+}
