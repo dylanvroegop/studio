@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import { Workbook, SpreadsheetFile } from '@oai/artifact-tool';
 
+const excelDate = value => Math.floor(new Date(value).getTime()/86400000)+25569;
 const out = new URL('.', import.meta.url).pathname;
 const wb = Workbook.create();
 const names = ['Dashboard','Bank Transactions','Business Overview','Business Revenue','Business Expenses','Project Profitability','Private Overview','Private Expenses','Recurring Expenses','Dutch Taxes','Van Purchase','Van Conversion','Financial Goals','Financial Freedom','Work & Travel Planning','Cash Flow Forecast','Net Worth','Monthly Reports','Financial Insights','Settings & Assumptions','Data Quality & Reconciliation'];
@@ -29,7 +30,7 @@ for(const name of names){const sh=sheets[name];sh.showGridLines=false;sh.getRang
 // Eén expliciet controlepaneel. Lege waarden zijn ontbrekende invoer.
 title('Settings & Assumptions','Instellingen en aannames','Blauw = bewerkbaar. “n.b.” = niet beschikbaar. Bevestig volledigheid pas na controle van de bronadministratie.');
 const inputs=[
- ['Peildatum',new Date('2026-10-07T00:00:00Z'),'Datum van het rapport'],
+ ['Peildatum',excelDate('2026-10-07T00:00:00Z'),'Datum van het rapport'],
  ['Belastingjaar',2026,'Tarieven hieronder gelden uitsluitend voor 2026, vóór AOW'],
  ['Scenario',2,'1 Conservatief / 2 Basis / 3 Optimistisch'],
  ['Bankgegevens gecontroleerd',0,'1 alleen bij complete rekeningen, EUR, bekende saldi en afstemming'],
@@ -58,7 +59,7 @@ const inputs=[
  ['Stijging uitgaven drempel',0.25,'Vergelijkbare volledige maanden'],
  ['Bankdata verouderd na dagen',3,'Bewerkbare signaleringsdrempel'],
  ['Netto winst per extra werkdag',null,'Formule uit omzet, kosten en reservering'],
- ['Forecast startmaand',new Date('2026-11-01T00:00:00Z'),'Start met een volledige toekomstige maand'],
+ ['Forecast startmaand',excelDate('2026-11-01T00:00:00Z'),'Start met een volledige toekomstige maand'],
  ['Overige fiscale winstcorrecties',null,'Jaarbedrag; positief verhoogt winst'],
  ['Jaarafschrijving',null,'Niet tevens als kosten boeken'],
  ['Bevestigde jaarwinstverwachting',null,'Exclusief btw, vóór afschrijving en fiscale correcties'],
@@ -86,10 +87,10 @@ for(const r of [9,10,11,12,40,41,42,48])sheets['Settings & Assumptions'].getRang
 note('Settings & Assumptions',51,'Import: gebruik de ZIP-export uit Studio. De import bewaart correcties op stabiele transactie-ID en laat controlevelden uit totdat je opnieuw afstemt.');
 note('Settings & Assumptions',53,'Classificeer per rekening expliciet private/business. Verschillende koppelingen van dezelfde IBAN tellen slechts één keer mee in Accounts.');
 // Rekeningbron met echte openings- en eindsaldi, geen afgeleid historisch banksaldo.
-table('Settings & Assumptions','Accounts',['id','name','type','currency','closing','closing_date','opening','opening_date','coverage','last_sync','include','balance_type','valid'],Array.from({length:12},()=>Array(13).fill(null)),57);
-for(let r=58;r<=69;r++)formula('Settings & Assumptions',`M${r}`,`IF(A${r}="",0,IF(AND(K${r}=1,OR(C${r}="business",C${r}="private"),D${r}="EUR",COUNT(E${r}:H${r})=4,I${r}=1,ISNUMBER(J${r}),F${r}>=H${r},ABS(E${r}-G${r}-SUMIFS(Transactions[amount],Transactions[include_in_totals],1,Transactions[account_id],A${r},Transactions[booking_date],">"&H${r},Transactions[booking_date],"<="&F${r},Transactions[duplicate_status],""))<=0.01),1,0))`);
-for(const cl of ['E','G'])sheets['Settings & Assumptions'].getRange(`${cl}58:${cl}69`).setNumberFormat(money);
-for(const cl of ['F','H','J'])sheets['Settings & Assumptions'].getRange(`${cl}58:${cl}69`).setNumberFormat('dd-mm-yyyy');
+table('Settings & Assumptions','Accounts',['id','name','type','currency','closing','closing_date','opening','opening_date','coverage','last_sync','include','balance_type','valid'],Array.from({length:15},()=>Array(13).fill(null)),57);
+for(let r=58;r<=72;r++)formula('Settings & Assumptions',`M${r}`,`IF(A${r}="",0,IF(AND(K${r}=1,OR(C${r}="business",C${r}="private"),D${r}="EUR",COUNT(E${r}:H${r})=4,I${r}=1,ISNUMBER(J${r}),F${r}>=H${r},ABS(E${r}-G${r}-SUMIFS(Transactions[amount],Transactions[include_in_totals],1,Transactions[account_id],A${r},Transactions[booking_date],">"&H${r},Transactions[booking_date],"<="&F${r},Transactions[duplicate_status],""))<=0.01),1,0))`);
+for(const cl of ['E','G'])sheets['Settings & Assumptions'].getRange(`${cl}58:${cl}72`).setNumberFormat(money);
+for(const cl of ['F','H','J'])sheets['Settings & Assumptions'].getRange(`${cl}58:${cl}72`).setNumberFormat('dd-mm-yyyy');
 table('Settings & Assumptions','Rules',['counterparty','category','classification','recurring','subcategory'],[['Bouwmaat','Materialen','business','unknown',''],['Albert Heijn','Boodschappen','private','unknown',''],['Lidl','Boodschappen','private','unknown','']],73);
 note('Settings & Assumptions',79,'Regels: exacte tegenpartij, alleen toegepast op nieuwe transacties bij import. Correcties in Bank Transactions blijven bij volgende import behouden.');
 
@@ -119,7 +120,7 @@ sheets['Business Expenses'].getRange('F6:I90').setNumberFormat(money);sheets['Bu
 
 title('Monthly Reports','Maandrapporten','Alleen complete bronperioden tonen cijfers. Winst is factuuromzet minus geboekte kosten; cashflow volgt bankmutaties.');
 const mh=['Maand','Omzet excl. btw','Kosten excl. btw','Operationele winst','Privé-uitgaven','Netto bankmutaties','Marge','Beginsaldo','Eindsaldo','Nettovermogen','Werkdagen','Uren','Omzet / dag','Omzet / uur','Maandlabel'];
-table('Monthly Reports','Months',mh,Array.from({length:24},(_,i)=>[new Date(Date.UTC(2025,10+i,1)),...Array(14).fill(null)]));
+table('Monthly Reports','Months',mh,Array.from({length:24},(_,i)=>[excelDate(Date.UTC(2025,10+i,1)),...Array(14).fill(null)]));
 for(let r=6;r<=29;r++){
  const bounds=(t,d)=>`,${t}[${d}],">="&A${r},${t}[${d}],"<"&MIN(EDATE(A${r},1),${S}$B$6+1)`;
  formula('Monthly Reports',`B${r}`,`IF(OR(${R}<>1,A${r}>${S}$B$6),"n.b.",SUMIFS(Invoices[amount_excl]${bounds('Invoices','date')},Invoices[status],"<>concept",Invoices[status],"<>geannuleerd"))`);
@@ -228,7 +229,7 @@ pairs('Dutch Taxes',[
  ['Totale belastingverplichting',`=IF(OR(COUNT(E16:E17)<2,NOT(ISNUMBER(${S}$B$47))),"n.b.",SUM(E16:E17)+${S}$B$47)`],
  ['Tekort belastingpot',`=IF(OR(NOT(ISNUMBER(E18)),NOT(ISNUMBER(${S}$B$27))),"n.b.",MAX(0,E18-${S}$B$27))`],
 ]);
-table('Dutch Taxes','VAT',['Kwartaal','Omzet 21%','Omzet 9%','Omzet 0%','Omzet verlegd','Btw saldo','Btw betaald','Resterend'],Array.from({length:4},(_,i)=>[new Date(Date.UTC(2026,i*3,1)),...Array(7).fill(null)]),25);
+table('Dutch Taxes','VAT',['Kwartaal','Omzet 21%','Omzet 9%','Omzet 0%','Omzet verlegd','Btw saldo','Btw betaald','Resterend'],Array.from({length:4},(_,i)=>[excelDate(Date.UTC(2026,i*3,1)),...Array(7).fill(null)]),25);
 for(let r=26;r<=29;r++){
  for(const [cl,vat] of [['B','21%'],['C','9%'],['D','0%'],['E','reverse']])formula('Dutch Taxes',`${cl}${r}`,`IF(${R}<>1,"n.b.",SUMIFS(Invoices[amount_excl],Invoices[date],">="&A${r},Invoices[date],"<"&EDATE(A${r},3),Invoices[vat_treatment],"${vat}",Invoices[status],"<>concept",Invoices[status],"<>geannuleerd"))`);
  formula('Dutch Taxes',`F${r}`,`IF(OR(${R}<>1,${E}<>1),"n.b.",SUMIFS(Invoices[vat],Invoices[date],">="&A${r},Invoices[date],"<"&EDATE(A${r},3),Invoices[status],"<>concept",Invoices[status],"<>geannuleerd")-SUMIFS(Expenses[vat_deductible],Expenses[date],">="&A${r},Expenses[date],"<"&EDATE(A${r},3)))`);
@@ -341,8 +342,8 @@ pairs('Cash Flow Forecast',[['Cash na 12 maanden','=M17'],['Cash na 24 maanden',
 note('Cash Flow Forecast',50,'Vergelijk scenario’s met de centrale selector in Instellingen. Alle 12-, 24- en 36-maandsuitkomsten en de grafiek rekenen live opnieuw. Geen fictieve kansen of statische scenario-uitkomsten.');
 
 title('Data Quality & Reconciliation','Datakwaliteit en afstemming','Controleblad. Geen groen resultaat zonder bevestigde brondekking en onafhankelijke bankstanden.');
-table('Data Quality & Reconciliation','Reconciliation',['Rekening-ID','Naam','Openingssaldo','Openingsdatum','Eindsaldo','Einddatum','Mutaties','Verwacht saldo','Verschil','Dekking','Controle'],Array.from({length:12},()=>Array(11).fill(null)));
-for(let r=6;r<=17;r++){
+table('Data Quality & Reconciliation','Reconciliation',['Rekening-ID','Naam','Openingssaldo','Openingsdatum','Eindsaldo','Einddatum','Mutaties','Verwacht saldo','Verschil','Dekking','Controle'],Array.from({length:15},()=>Array(11).fill(null)));
+for(let r=6;r<=20;r++){
  const a=r+52;
  for(const [cl,src] of [['A','A'],['B','B'],['C','G'],['D','H'],['E','E'],['F','F'],['J','I']])formula('Data Quality & Reconciliation',`${cl}${r}`,['A','B'].includes(src)?`IF(${S}${src}${a}="","",${S}${src}${a})`:`IF(ISNUMBER(${S}${src}${a}),${S}${src}${a},"")`);
  formula('Data Quality & Reconciliation',`G${r}`,`IF(OR(A${r}="",NOT(ISNUMBER(D${r})),NOT(ISNUMBER(F${r}))),"n.b.",SUMIFS(Transactions[amount],Transactions[include_in_totals],1,Transactions[account_id],A${r},Transactions[booking_date],">"&D${r},Transactions[booking_date],"<="&F${r},Transactions[duplicate_status],""))`);
@@ -350,8 +351,8 @@ for(let r=6;r<=17;r++){
  formula('Data Quality & Reconciliation',`I${r}`,`IF(COUNT(E${r},H${r})<2,"n.b.",H${r}-E${r})`);
  formula('Data Quality & Reconciliation',`K${r}`,`IF(A${r}="","",IF(OR(J${r}<>1,NOT(ISNUMBER(I${r}))),"Onvolledig",IF(ABS(I${r})>0.01,"Verschil","Afgestemd")))`);
 }
-sheets['Data Quality & Reconciliation'].getRange('I6:I17').setNumberFormat('0.00');
-note('Data Quality & Reconciliation',20,'Openingssaldo = geboekt saldo aan het einde van openingsdatum. Mutaties tellen vanaf de volgende dag t/m einddatum. Valuta per rekening moet gelijk zijn.');
+sheets['Data Quality & Reconciliation'].getRange('I6:I20').setNumberFormat('0.00');
+note('Data Quality & Reconciliation',21,'Openingssaldo = geboekt saldo aan het einde van openingsdatum. Mutaties tellen vanaf de volgende dag t/m einddatum. Valuta per rekening moet gelijk zijn.');
 pairs('Data Quality & Reconciliation',[
  ['Onbekende classificatie','=COUNTIFS(Transactions[classification],"unknown")'],['Dubbele importregels','=COUNTIFS(Transactions[duplicate_status],"duplicate")'],['Conflicterende importregels','=COUNTIFS(Transactions[duplicate_status],"conflict")'],
  ['Reserve versus banksaldo',`=IF(COUNT('Net Worth'!E6,'Net Worth'!E14)<2,"n.b.",'Net Worth'!E6-'Net Worth'!E14)`],

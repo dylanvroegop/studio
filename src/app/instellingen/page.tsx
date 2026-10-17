@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useUser, useFirestore } from '@/firebase';
@@ -651,7 +652,12 @@ function InstellingenPageContent() {
                         </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="meldingen"><PushNotificationSettings /></TabsContent>
+                    <TabsContent value="meldingen" className="space-y-4">
+                        <Button asChild variant="outline">
+                            <Link href="/meldingen"><BellRing className="mr-2 h-4 w-4" />Meldingen bekijken</Link>
+                        </Button>
+                        <PushNotificationSettings />
+                    </TabsContent>
                     <TabsContent value="uiterlijk" className="space-y-4">
                         <Card>
                             <CardHeader>

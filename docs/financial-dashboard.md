@@ -4,11 +4,11 @@ De zelfstandige Excel-werkmap staat in `outputs/financial-dashboard/Financieel-d
 
 ## Eerste ingebruikname
 
-1. Open Studio, synchroniseer Knab en bunq en klik bij Banktransacties op **Financiële export**. De knop is onderdeel van de lokale codewijziging en is pas op productie beschikbaar na deployment.
+1. Open Studio, synchroniseer Knab en bunq en klik bij Finance → Overzicht op **Financiële export**. De knop is onderdeel van de lokale codewijziging en is pas op productie beschikbaar na deployment.
 2. Pak de ZIP uit. Bewaar deze als origineel: `snapshot.json` bevat oorspronkelijke transacties; de CSV-bestanden kunnen ook in Excel via Gegevens → Van tekst/CSV of Power Query worden geladen. Excel krijgt geen bankcredentials.
 3. Sluit de werkmap in Excel. Importeer de snapshot met onderstaande opdracht. Een backup van de werkmap en een kopie van de snapshot blijven bewaard.
 4. Vul in **Settings & Assumptions** bij Accounts per rekening type, openingssaldo en datum in. Het openingssaldo is het geboekte saldo aan het eind van die datum. Controleer het geselecteerde geboekte eindsaldo. De importer vult alleen bekende geboekte saldosoorten in; anders kies je het juiste saldo uit `balances.csv`.
-5. Zet `include` alleen op 1 voor rekeningen die meetellen. Dubbele koppelingen van dezelfde fysieke rekening mogen niet beide meetellen. Zet `coverage` alleen op 1 wanneer de transacties tussen begin en einde volledig zijn. Controleer het verschil in **Data Quality & Reconciliation**. Meer dan twaalf bronrekeningen blokkeert import expliciet totdat de rekeningtabel en controles zijn uitgebreid.
+5. Zet `include` alleen op 1 voor rekeningen die meetellen. Dubbele koppelingen van dezelfde fysieke rekening mogen niet beide meetellen. Zet `coverage` alleen op 1 wanneer de transacties tussen begin en einde volledig zijn. Controleer het verschil in **Data Quality & Reconciliation**. Meer dan vijftien bronrekeningen blokkeert import expliciet totdat de rekeningtabel en controles zijn uitgebreid.
 6. Vul onbekende transactieclassificaties, factuurbedragen exclusief btw, btw-behandeling, aftrekbare voorbelasting, betaalstatus en investeringsclassificatie aan. Studio bewaart niet voor iedere factuur een apart netto- en btw-bedrag. Deze worden nooit met een aangenomen 21%-tarief ingevuld.
 7. Bevestig vervolgens de vier broncontroles. Formulecontroles houden bank-, factuur- en kostencijfers alsnog tegen bij onvolledige essentiële velden. Vul nul expliciet in voor afwezige schulden, activa, betaalde belasting en reserves. Leeg betekent onbekend.
 
@@ -46,6 +46,14 @@ De vereenvoudigde Zvw-berekening gaat niet uit van een al elders benutte bijdrag
 
 ## Controle en resterende verificatie
 
-Gerichte tests dekken gebruikersafbakening, paginering boven 500 transacties, CSV-formule-injectie, ontbrekende bedragen, interne overboekingen, duplicaten en behoud van correcties. De werkmap heeft formulecontroles en gerenderde controles per tabblad. De verificatiescript test ontbrekende gegevens, netto dagopbrengst, de drie prognosescenario’s en een aankoop in een latere maand. Native Microsoft Excel en een geauthenticeerde export van de echte rekeninggegevens moeten nog in de gebruikersomgeving worden doorlopen. Er is niets gedeployed.
+Gerichte tests dekken gebruikersafbakening, paginering boven 500 transacties, CSV-formule-injectie, ontbrekende bedragen, interne overboekingen, duplicaten en behoud van correcties. De werkmap heeft formulecontroles en gerenderde controles per tabblad. De verificatiescript test ontbrekende gegevens, netto dagopbrengst, de drie prognosescenario’s en een aankoop in een latere maand. Native Microsoft Excel is nog niet gecontroleerd. Een geauthenticeerde export en import in Google Sheets zijn op 7 oktober 2026 uitgevoerd; zie hieronder. De aanvullende zichtbaarheid van de exportknop is lokaal gewijzigd en niet vanuit deze taak gedeployed.
 
 Handmatige bronnen blijven nodig voor projecturen, niet-contante waarderingen, volledig bevestigde abonnementen, fiscale keuzes en openingsstanden. De werkmap doet geen claims over doelkansen: er is geen onderbouwd statistisch kansmodel.
+
+## Uitgevoerde import op 7 oktober 2026
+
+Via de Chrome-extensie is bunq gesynchroniseerd en de lokale Calvora-export gedownload. De bestaande privé-Google Sheet is gevuld met 3.622 bankregels, 91 facturen en 288 kostenregels. Na import zijn alle 21 tabbladen, de aantallen en datumvelden opnieuw uit Google Sheets geëxporteerd en gecontroleerd: geen formulefouten. Datums worden als numerieke Excel-datums geschreven, omdat Google Sheets de eerdere ISO-datumcellen leeg importeerde.
+
+De persoonlijke werkmap, snapshot en importback-up staan buiten deze repository, in `/Users/dylanvroegop/Documents/Financieel-dashboard/`. De werkmap in `outputs/financial-dashboard/` blijft een leeg sjabloon.
+
+De broncontroles zijn nog niet bevestigd: Knab meldt een verlopen sessie, er zijn meerdere historische koppelingen van dezelfde rekeningen, openingssaldi en volledige dekking zijn niet bevestigd, en de 91 factuurregels bevatten geen aparte netto-/btw-bedragen. De import signaleert 282 mogelijke dubbele bankregels; deze zijn niet stil verwijderd. Rekeningselectie en brondekking moeten worden gecontroleerd voordat totalen vrijgegeven worden. De grafieken krijgen pas numerieke waarden wanneer hun vereiste invoer compleet is.

@@ -16,6 +16,35 @@ export function GoogleCalendarAutoRefresh(): null {
   const startedRef = useRef(false);
 
   useEffect(() => {
+    if (!user) return;
+    let running = false;
+    let disposed = false;
+    const completeVisits = async (): Promise<void> => {
+      if (running || disposed || document.visibilityState !== 'visible') return;
+      running = true;
+      try {
+        const token = await user.getIdToken();
+        if (disposed) return;
+        const response = await fetch('/api/planning/complete-visits', {
+          method: 'POST', headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) console.debug('GPS-bezoekcontrole mislukt:', response.status);
+      } catch (error) {
+        console.debug('GPS-bezoekcontrole mislukt:', error);
+      } finally { running = false; }
+    };
+    void completeVisits();
+    const timer = window.setInterval(() => void completeVisits(), 120_000);
+    const onVisible = () => void completeVisits();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [user]);
+
+  useEffect(() => {
     if (!user || startedRef.current) return;
     startedRef.current = true;
 

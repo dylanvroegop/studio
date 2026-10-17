@@ -1,0 +1,245 @@
+{
+  "new": 198,
+  "updates": 122,
+  "excluded": 154,
+  "categories": {
+    "Plaatmateriaal": 11,
+    "Bevestiging": 38,
+    "Lijm, kit en PUR": 19,
+    "Hout": 18,
+    "Hang- en sluitwerk": 7,
+    "Leidingwerk": 15,
+    "Deuren en kozijnen": 8,
+    "Schildermateriaal": 2,
+    "Gipsplaten": 4,
+    "Dakbedekking": 5,
+    "Folie en tape": 11,
+    "Aftimmering": 15,
+    "Elektra": 20,
+    "Gipsafwerking": 10,
+    "Gevelbekleding": 6,
+    "Isolatie": 2,
+    "Bescherming en afdekken": 6,
+    "Tuin": 1
+  },
+  "job_types": {
+    "hsb-tussenwand": 18,
+    "plafond-houten-framework": 19,
+    "golfplaat-dak": 3,
+    "epdm-dakbedekking": 17,
+    "vliering-maken": 8,
+    "hsb-voorzetwand": 33,
+    "hellend-dak": 3,
+    "binnen-kozijn-hout": 1,
+    "HBS-buiten-wand": 1,
+    "binnendeur-afhangen": 4,
+    "boeiboorden-trespa": 7,
+    "boeiboorden-keralit": 5,
+    "gevelbekleding-keralit": 6,
+    "Schuifdeuren": 1,
+    "massief-houten-vloer": 4,
+    "laminaat-pvc": 3,
+    "koof": 1,
+    "gevelbekleding-trespa-hpl": 2,
+    "boeiboorden-hout": 2,
+    "onbekend": 2
+  }
+}
+0 Plaatmateriaal Underlayment 16.11 stuk UNDERLAYMENT 18MM 122X61CM
+1 Plaatmateriaal Underlayment 28.09 stuk UNDERLAYMENT 18MM 244X122CM
+2 Bevestiging Bouten 4.94 verpakking Houtdraadbout GAMMA M08x140 verzinkt (4 st)
+3 Bevestiging Schroeven 3.96 verpakking Zelftappend plaatschroef 5,5x32 CK verzinkt (20 st)
+4 Bevestiging Pluggen 3.55 verpakking Gipsplug SP Toggler (6 st)
+5 Lijm, kit en PUR EPDM lijm en kit 9.84 stuk Blauwschild EPDM elastische lijmkit zwart 290 ml
+6 Lijm, kit en PUR EPDM lijm en kit 12.95 stuk EPDM contactlijm spuitbus 750 ml
+7 Lijm, kit en PUR High tack 7.28 stuk Bouwmaat High Tack Wit 290ml
+8 Hout SLS 7.18 stuk Vuren SLS 38x89x3600mm FSC Mix 70%
+9 Plaatmateriaal OSB 7.59 stuk OSB-3 Constructieplaat 2440x600x9mm FSC Mix 70%
+10 Plaatmateriaal Multiplex 33.05 stuk MULTIPLEX INTERIEUR 12MM 244X122CM
+11 Hang- en sluitwerk Scharnieren 2.47 stuk KRUISHENG 150MM VERZINKT
+12 Hang- en sluitwerk Grepen en knoppen 2.64 stuk KNOP JULIETTE 40MM KUNSTSTOF WIT
+13 Leidingwerk Slangklemmen 8.04 verpakking Riko Slangklem 12-22 mm - 4 stuks
+14 Deuren en kozijnen Kozijnonderdelen 86.65 stuk Svedex Match Do Stijlenset Links Alpine Wit Muurdikte 70mm (Deurhoogte 201,5)
+15 Bevestiging Gipsplaatschroeven 33.75 verpakking Grabber Band-Snelbouwschroef Gefosfateerd Staal 3,9x35mm Grove draad PH2 1000st
+16 Schildermateriaal Lak 9.15 stuk Spraytone Spuitlak Zijdeglans RAL 9005 Zwart 400ML
+17 Deuren en kozijnen Binnendeuren 108.37 stuk Svedex Boarddeur SL1 Opdek Links Alpine Wit 83x201,5cm FSC Mix 70%
+18 Gipsplaten RK 6.35 stuk Siniat Gipsplaat RK 300x60cm 9,5mm
+19 Deuren en kozijnen Kozijnonderdelen 21.76 stuk Svedex Match Do Dorpelset Alpine Wit 70mm 83cm
+20 Leidingwerk Knelkoppelingen 16.52 verpakking VSH Knel knie 12x12 mm (2 stuk)
+21 Leidingwerk Knelkoppelingen 13.45 verpakking BONFIX Knel knie 15x15 mm (2 stuks)
+22 Leidingwerk Knelkoppelingen 15.16 verpakking VSH Knel sok 12x12 mm (2 stuk)
+23 Leidingwerk Knelkoppelingen 10.28 verpakking VSH Knel eindkap 12 mm (2 stuk)
+24 Leidingwerk Knelkoppelingen 6.8 verpakking BONFIX Knel sok 15x15 mm (2 stuks)
+25 Dakbedekking EPDM 56.12 stuk Structaseal EPDM Dakbedekking 1,0mm 1,40x3,00m 4,2m2
+26 Lijm, kit en PUR EPDM lijm en kit 25.1 stuk Structaseal Spuit-Contactlijm EPDM 750ml
+27 Bevestiging Schroeven 8.18 verpakking SPAX Universele Schroef Verzinkt VK 4x40mm Voldraad T-STAR Plus T20 200st
+28 Bevestiging Schroeven 23.78 verpakking SPAX Universele Schroef Verzinkt VK 6x120mm Deeldraad T-STAR Plus T30 100st
+29 Bevestiging Schroeven 12.34 verpakking SPAX Universele Schroef Verzinkt VK 5x80mm Deeldraad T-STAR Plus T20 100st
+30 Plaatmateriaal Underlayment 28.59 stuk Elliottis Underlayment TG2 2440x1220x18mm FSC Mix 70%
+31 Bevestiging Uitvulplaatjes 5.34 verpakking Bouwmaat Uitvulplaat Wit 1mm 96st
+32 Bevestiging Uitvulplaatjes 5.01 verpakking Bouwmaat Uitvulplaat Rood 5mm 48st
+33 Bevestiging Uitvulplaatjes 4.56 verpakking Bouwmaat Uitvulplaat Blauw 4mm 48st
+34 Bevestiging Uitvulplaatjes 3.78 verpakking Bouwmaat Uitvulplaat Zwart 3mm 48st
+35 Bevestiging Nagels en nieten 38.2 verpakking DeWALT Spijker DNPT28R63Z 2.8x63mm 2200st
+36 Lijm, kit en PUR PUR 6.98 stuk Bouwmaat Handschuim 750ml
+37 Folie en tape Aluminiumtape 7.77 stuk Kip Isolatietape Aluminium 48mm x 25m
+38 Bevestiging Pluggen 9.77 verpakking fischer Duopower Universele plug 8x65mm 50st
+39 Bevestiging Schroeven 63.17 verpakking Woodies Ultimate Universele Schroef Verzinkt VK 6x200mm Deeldraad T30 100st
+40 Lijm, kit en PUR PUR 8.45 stuk Illbruck Perfect Foam FM350 880ML
+41 Leidingwerk Koperbuis 19.6 stuk KME Buis Roodkoper 12x3000mm
+42 Aftimmering Koplatten en lijsten 3.99 stuk Afdeklijst MDF Folie Zelfklevend Wit 4x30x2600mm 70% PEFC
+43 Leidingwerk Koperbuis 8.95 stuk KME Buis Roodkoper 15x1000mm
+44 Leidingwerk Koperbuis 7.18 stuk KME Buis Roodkoper 12x1000mm
+45 Leidingwerk Koperbuis 24.49 stuk KME Buis Roodkoper 15x3000mm
+46 Bevestiging Schroeven 33.91 doos SPAX Universele Schroef Verzinkt VK 4x40mm Voldraad T-STAR Plus T20 1000st
+47 Lijm, kit en PUR Acrylaatkit 2.88 stuk Zwaluw Acrylaatkit Acryl-W Wit 310ML
+48 Hout Vuren geschaafd 4.45 stuk Vuren Geschaafd C24 44x69x2700mm FSC Mix 70%
+49 Plaatmateriaal OSB 8.9 stuk OSB-3 Constructieplaat 2440x610x9mm FSC Mix 70%
+50 Hout Vuren geschaafd 3.96 stuk Vuren Geschaafd C24 44x69x2400mm FSC Mix 70%
+51 Elektra Buizen en bevestiging 2.12 verpakking JSL Buisclip Installatiebuis Transparant 16-19mm 20st
+52 Elektra Klemmen en dozen 2.95 verpakking Q-Link Kroonstrip Groot 6-Polig 6mm2 4st
+53 Folie en tape Tapes 0.59 stuk Isolatieband Zwart 15mm 4,5m
+54 Folie en tape Tapes 0.59 stuk Isolatieband Wit 15mm 4,5m
+55 Folie en tape Tapes 0.59 stuk Isolatieband Bruin 15mm 4,5m
+56 Elektra Klemmen en dozen 2.8 stuk Attema Inbouwdoos Holle Wand HW50 Grijs U Ø5/8
+57 Elektra Buizen en bevestiging 1.76 verpakking Pipelife Sok PVC Slagvast Crème Ø5/8 10st
+58 Elektra Klemmen en dozen 1.43 stuk Attema Lasdoos Top-T-Doos Crème 2 x Rechts 2 x Links Ø5/8
+59 Elektra Klemmen en dozen 1.85 stuk Attema Lasdoos Einddoos Crème Ø3/4
+60 Folie en tape Tapes 0.59 stuk Isolatieband Geel/Groen 15mm 4,5m
+61 Elektra Klemmen en dozen 1.49 stuk Attema Inbouwdoos Grijs Klemvast U40 Ø5/8
+62 Elektra Klemmen en dozen 1.24 stuk Attema Lasdoos Universeel Crème 16mm
+63 Elektra Klemmen en dozen 1.49 stuk Attema Lasdoos Kruisdoos Crème Ø5/8
+64 Elektra Klemmen en dozen 1.67 stuk Attema Inbouwdoos Grijs Klemvast U50 Ø5/8
+65 Elektra Klemmen en dozen 17.95 verpakking Wago Lasklem 5-gaats 4 mm hersluitbaar 25st
+66 Lijm, kit en PUR Compressband 8.98 stuk Zwaluw Compressband Antraciet 15mm Voeg 2-4mm 10m
+67 Lijm, kit en PUR Compressband 7.25 stuk Zwaluw Compressband Antraciet 10mm Voeg 3-7mm 8m
+68 Folie en tape Tapes 0.59 stuk Isolatieband Blauw 15mm 4,5m
+69 Folie en tape Dampremmende folie 89.79 stuk Pandser Top Clima XS dampvariabele folie warme zijde 1.50 x 25m wit
+70 Folie en tape Tapes 18.97 stuk Pandser Multitop spinvlies tape 60mm x 25m zwart
+71 Elektra Verlichting 10.33 stuk Roxana Led Downlight Downlight 6W CCT3 Wit
+72 Gipsafwerking Hoekprofielen 1.98 stuk Ripstaal Hoekprofiel 1030 Plus Aluzink Stucdikte 1-3mm 260cm
+73 Deuren en kozijnen Binnendeuren 404.38 stuk Lundia binnendeur Lumen En 1C03 blank glas zwart gegrondverfd opdek rechts 83 x 201,5 cm incl. deurbeslag Tord
+74 Lijm, kit en PUR PUR 13.99 stuk PU-schuim 500ml brandvertragend
+75 Gevelbekleding Keralit profielen 40.06 stuk Keralit Dakrandmontageprofiel Monumentengroen Classic 10x6000mm (Artikelnr. 0000710369)
+76 Gevelbekleding Keralit profielen 21.99 stuk Keralit Eindprofiel Basis Aluminium 4000mm (Artikelnr. 0000492015)
+77 Bevestiging Gevelschroeven 21.39 verpakking Keralit gevelschroef RVS A2 CK 30mm voldraad T20 200 stuks (Artikelnr. 0000494466)
+78 Gevelbekleding Keralit profielen 9.45 stuk Keralit Hoekstuk Uitwendig Monumentengroen Classic 350mm (Artikelnr. 0000710505)
+79 Bevestiging Schroeven 7.39 verpakking SPAX Universele Schroef Verzinkt VK 4x30mm Voldraad T-STAR Plus T20 200st
+80 Isolatie PIR 7.22 stuk IKO Enertherm Isolatie ALU PIR 30mm Rd1,35 (1200x600mm, 0,72m2)
+81 Bevestiging Schroeven 12.34 verpakking SPAX Universele Schroef Verzinkt VK 5x80mm (Voldraad T-STAR Plus T20 100st)
+82 Bevestiging Schroeven 5.46 verpakking SPAX Universele Schroef Verzinkt VK 3,5x30mm (Voldraad T-STAR Plus T20 200st)
+83 Hout Vuren geschaafd 5.08 stuk Vuren Geschaafd 27x69x2700mm FSC Mix 70%
+84 Gevelbekleding Keralit profielen 59.19 stuk Keralit Rechthoekprofiel Uitwendig Kunststof Classic Nerf Donkergroen 4000mm
+85 Bescherming en afdekken Afdekmateriaal 6.43 stuk Afdekvlies Grijs 3,5m
+86 Gipsafwerking Vulmiddel en finish 5.89 stuk Knauf Voegmiddel JointFiller Plus Lichtgrijs 5kg
+87 Aftimmering Plinten 3.64 stuk Plint MDF Wit Gegrond 9x45x2440mm FSC Mix 70%
+88 Gipsafwerking Voegband 2.28 stuk Bouwmaat Gaasband Wit 48mm x 25m
+89 Bescherming en afdekken Afvalzakken 6.77 verpakking Bouwmaat Puinzakken LDPE Transparant 50x80cm 10st
+90 Hang- en sluitwerk Scharnieren 18.17 verpakking INBOORPAUMELLE GAMMA75MM ZWART 2ST
+91 Bescherming en afdekken Afdekmateriaal 6.85 stuk Bouwmaat Afdekzeil ca. 3x4 meter oranje 90 gr/m²
+92 Bescherming en afdekken Afvalzakken 6.1 verpakking Afvalzak LDPE blauw 90x110 cm 20 stuks
+93 Bescherming en afdekken Afvalzakken 3.85 verpakking KONVOX Puinzakken geweven 65 x 100 cm set à 4 st
+94 Gipsafwerking Vulmiddel en finish 30.86 stuk Knauf Voeg- en Finishpasta Fill & Finish Light Crème 20kg
+95 Gipsafwerking Voorstrijk 23.69 stuk Knauf Stuc-Primer Geel Zuigende Ondergrond 5kg
+96 Lijm, kit en PUR Compressband 6.98 stuk Zwaluw Compressband Antraciet 10mm Voeg 1,5-2,5mm 12,5m
+97 Folie en tape Bouwfolie 13.11 stuk Bouwfolie PE Type 100 Transparant Blauw 2x50m
+98 Hout Rachels 1.57 stuk Vuren Ruw 10x50x2700mm FSC Mix 70%
+99 Aftimmering Koplatten en lijsten 10.72 stuk Afdeklijst Grenen Wit Gegrond 8x41x2700mm FSC Mix 70%
+100 Aftimmering Kunststof profielen 5.17 stuk Hoekprofiel Kunststof Wit 30x30x2600mm
+101 Schildermateriaal Reiniger 4.98 stuk Bouwmaat Verfontvetter En Reiniger Kant En Klaar 1L
+102 Leidingwerk Knelkoppelingen 7.24 verpakking BONFIX Knel eindkap 12 mm 2 stuks
+103 Hout Vuren geschaafd 4.54 stuk Vuren geschaafd 44x69mm 270cm
+104 Hout Vuren geschaafd 23.96 stuk Vuren geschaafd 69x69mm 300cm
+105 Hout Tuinhout 4.95 stuk Tuinbalk grenen 4,4x6,8x240 (GESCH)
+106 Plaatmateriaal Multiplex 13.63 stuk Timmerplaat multip 3mm 244x122cm
+107 Elektra Buizen en bevestiging 74.28 stuk Q-Link Installatiebuis Flexibel 5 8 BEDR 3x2.5 1.5 25m
+108 Bevestiging Uitvulplaatjes 9.98 verpakking Bouwmaat Uitvulplaat Groen 10mm 48st
+109 Bevestiging Uitvulplaatjes 7.15 verpakking Bouwmaat Uitvulplaat Grijs 7mm 48st
+110 Plaatmateriaal MDF 29.09 stuk MDF Plaat Wit Gegrond 2440x1220x9mm 70% PEFC
+111 Hout Vuren geschaafd 15.61 stuk Vuren Geschaafd C24 69x94x2700mm FSC Mix 70%
+112 Aftimmering Kunststof profielen 4.07 stuk Hoekprofiel Kunststof Wit 25x25x2600mm
+113 Aftimmering Kunststof profielen 6.23 stuk Hoekprofiel Kunststof Zelfklevend Wit 25x25x2600mm
+114 Gipsplaten RK 5.18 stuk Knauf Gipsplaat A RK 260x60cm 9,5mm
+115 Gipsafwerking Vulmiddel en finish 13.73 stuk Knauf Pleister Finishpasta Wit 5kg
+116 Elektra Schakelmateriaal 12.74 stuk Berker Contactdoos Opbouw 2-Voudig Randaarde Polarwit 1st
+117 Elektra Buizen en bevestiging 4.04 verpakking JSL Klembeugel Installatiebuis Grijs 16mm 20st
+118 Folie en tape Tapes 4.82 stuk Kip 362 Stuclopertape Removable Wit 50mm x 30m
+119 Bescherming en afdekken Afdekmateriaal 29.43 stuk Perfect Cover Afdekvlies Zelfklevend Standaard 0,65x25m
+120 Gipsplaten AK4 14.25 stuk Knauf Gipsplaat Horizonboard A 4xAK 260x60cm 12,5mm
+121 Hout Rachels 1.65 stuk Vuren Ruw 22x50x2400mm FSC Mix 70%
+122 Aftimmering Koplatten en lijsten 4.13 stuk Koplat Recht MDF Gegrond 12x45x2700mm FSC Mix 70%
+123 Gipsafwerking Voegband 5.25 stuk Bouwmaat Gaasband Wit 48mm x 90m
+124 Elektra Kabel en snoer 18.86 stuk Q-Link Huishoudsnoer VMVL Wit 2x1,0mm2 25m
+125 Elektra Verlichting 12.42 stuk Nordlux Inbouwspot Leonis Wit Rond 4,5W IP65
+126 Bevestiging Schroeven 17.58 verpakking SPAX Universele Schroef RVS A2 VK 4x40mm Deeldraad T-STAR Plus T20 200st
+127 Bevestiging Pluggen 8.73 verpakking Bouwmaat Nagelplug Nylon/Verzinkt 8x100mm 25st
+128 Bevestiging Pluggen 8.05 verpakking Bouwmaat Nagelplug Nylon/Verzinkt 6x60mm 50st
+129 Elektra Verlichting 30.13 verpakking Nordlux Inbouwspot Leonis Wit Rond 4,5W IP65 3st
+130 Bevestiging Pluggen 17.19 verpakking Toggler SPM Gipsplaatplug Plaatdikte 9,5-15mm 40st
+131 Aftimmering Koplatten en lijsten 10.55 stuk Schaaflat Grenen Wit Gegrond 12x44x2700mm FSC Mix 70%
+132 Aftimmering Glaslatten 4.33 stuk Glaslat Grenen Wit Gegrond 9x16x2700mm FSC Mix 70%
+133 Hang- en sluitwerk Deurdrangers 20.04 stuk AXA deurdranger 7505 compact basic met schaararm sluitkracht 2 zwart
+134 Aftimmering Kunststof profielen 7.02 stuk Hoekprofiel kunststof 30x30mm wit 260cm
+135 Deuren en kozijnen Kozijnonderdelen 89.9 stuk Svedex Match Do stijlenset rechts Alpine wit, muurdikte 70mm (deurhoogte 231,5cm)
+136 Gipsafwerking Hoekprofielen 2.17 stuk Slimgrip hoekprofiel SG1030 verzinkt staal stucdikte 1-3mm 260cm
+137 Deuren en kozijnen Binnendeuren 112.2 stuk Svedex SL1 opdek links Alpine wit 83x231,5 (FSC Mix)
+138 Gipsafwerking Vulmiddel en finish 12.38 stuk Siniat Fill & Finish Pro 5kg
+139 Deuren en kozijnen Kozijnonderdelen 89.9 stuk Svedex Match Do stijlenset links Alpine wit, muurdikte 70mm (deurhoogte 231,5cm)
+140 Hang- en sluitwerk Grepen en knoppen 2.47 stuk Knop Juliette 32mm kunststof zwart
+141 Deuren en kozijnen Kozijnonderdelen 21.69 stuk Svedex Match Do Dorpelset Alpine Wit 70mm 93cm
+142 Dakbedekking Daktrim 14.88 stuk Roval Daktrim Buitenhoek Standaard Aluminium 60x45mm 50x50cm
+143 Dakbedekking Daktrim 19.79 stuk Roval Daktrim Standaard Aluminium 60x45mm 2,5m
+144 Lijm, kit en PUR High tack 8.9 stuk Zwaluw High Tack Zwart 290ML
+145 Lijm, kit en PUR EPDM lijm en kit 15.93 stuk Structaseal Afdichtingskit en Hechtlijm MS Polymer EPDM 290ml
+146 Lijm, kit en PUR Kitafwerking 7.88 stuk Zwaluw Mixed Finisher Spray 500ml
+147 Aftimmering Plinten 15.33 stuk 0105 — Kraal plint MDF v313, 18 x 120 mm, lengte 2440 mm
+148 Hout Vuren geschaafd 5.94 stuk Vuren Geschaafd C24 44x69x3600mm FSC Mix 70%
+149 Hout Hardhout 15.87 stuk Angelim Vermelho geschaafd | 4,5x6,8cm | 3.00m
+150 Aftimmering Kunststof profielen 12.65 stuk hoekprofiel geperforeerd 50x30x2mm wit
+151 Dakbedekking Loodvervanger 122.24 stuk Ubbink Ubiflex Loodvervanger Finio Zwart 30cm x 5m
+152 Gipsplaten Stucplaten 2.62 stuk Knauf Stucplaat P RK 200x40cm 9,5mm
+153 Gevelbekleding Keralit sponningdelen 75.31 stuk Keralit Sponningdeel Kunststof Classic Nerf Staalblauw 143x6000mm
+154 Gevelbekleding Keralit profielen 59.19 stuk Keralit Rechthoekprofiel Uitwendig Kunststof Classic Nerf Staalblauw 4000mm
+155 Bevestiging Bouten 5.69 verpakking Houtdraadbout GAMMA M8x40 verzinkt 10st
+156 Lijm, kit en PUR PUR 12.72 stuk Isolatieschuim spray Genius 700ml
+157 Aftimmering Plinten 9.91 stuk Plint model recht 120x14mm 240cm wit
+158 Lijm, kit en PUR Compressband 11.98 stuk Zwaluw Compressband Antraciet 20mm Voeg 7-12mm 4,3m
+159 Plaatmateriaal Multiplex 53.3 stuk Populieren Multiplexplaat Wit Gegrond 2500x1220x9mm FSC Mix 70%
+160 Bevestiging Schroeven 13.35 verpakking SPAX Universele Schroef Verzinkt VK 4,5x80mm Deeldraad T-STAR Plus T20 100st
+161 Hout Rachels 2.09 stuk Vuren Ruw 10x50x3600mm FSC Mix 70% (artikelnr. 0000858316)
+162 Bevestiging Gevelschroeven 46.87 verpakking unipanel schroef 4x50 100st incl.dopjes wit
+163 Bevestiging Schroeven 11.44 verpakking SPAX Universele Schroef Verzinkt VK 4x50mm Voldraad T-STAR Plus T20 200st
+164 Hout Rachels 2.49 stuk Vuren Ruw 22x50x3600mm FSC Mix 70%
+165 Plaatmateriaal Multiplex 85.35 stuk Populieren Multiplexplaat Wit Gegrond 2500x1220x18mm FSC Mix 70%
+166 Elektra Kabel en snoer 22.55 stuk Q-Link Huishoudsnoer VMVL Wit 3x1,0mm2 25m
+167 Bevestiging Nagels en nieten 3.89 verpakking Stanley Nieten 1-TRA205T Type A 8 mm 1000st
+168 Leidingwerk Knelkoppelingen 7.39 stuk Knel sok recht 15x15mm messing
+169 Aftimmering Koplatten en lijsten 6.65 stuk Hoeklat MDF Folie Zelfklevend Wit 28x28x2600mm 70% PEFC
+170 Hout Vuren geschaafd 11.07 stuk Vuren geschaafd 38x89mm 300cm
+171 Hout Vuren geschaafd 11.23 stuk Vuren geschaafd 38x89mm 330cm
+172 Hang- en sluitwerk Deurdrangers 17.64 stuk AXA deurdranger 7505 compact basic met schaararm sluitkracht 2 zwart (artikelnr. AX750502561)
+173 Hout Vuren geschaafd 23.49 stuk Vuren Geschaafd C24 69x169x3000mm FSC Mix 70%
+174 Lijm, kit en PUR Houtlijm 12.71 stuk Griffon Wood Max Power D4 380gr
+175 Tuin Vlonderplanken 23.76 stuk Vlonderplank composiet 2,1 x 14 cm teak bruin (5 mtr) grove ribbel en vlak
+176 Gipsafwerking Voegband 3.15 stuk Wapeningsband zelfklevend 45 meter
+177 Lijm, kit en PUR PUR 7.49 stuk PU schuim 500ml Soudal
+178 Bevestiging Pluggen 25.32 verpakking fischer Nagelplug N 8x120mm 50st
+179 Bevestiging Pluggen 14.03 verpakking fischer Nagelplug N 8x80mm 50st
+180 Bevestiging Schroeven 10.47 verpakking SPAX Universele Schroef Verzinkt VK 5x70mm T20 100st
+181 Leidingwerk Knelkoppelingen 7.92 verpakking BONFIX Knel eindkap 15 mm 2 stuks
+182 Elektra Buizen en bevestiging 7.69 stuk Pipelife Elektrabuis flexibel 5/8 20m
+183 Bevestiging Pluggen 3.97 verpakking Spijkerplug nylon GAMMA 8x80mm (8 st)
+184 Bevestiging Pluggen 4.7 verpakking Spijkerplug nylon GAMMA 8x100mm (8 st)
+185 Bevestiging Schroeven 3.88 verpakking SPAX Universele Schroef Verzinkt VK 3,5x16mm Voldraad T-STAR Plus T20 200st
+186 Bevestiging Schroeven 3.81 verpakking SPAX Universele Schroef Verzinkt VK 3x16mm Voldraad T-STAR Plus T10 200st
+187 Hang- en sluitwerk Grepen en knoppen 4.67 stuk Impresso Stripgreep Aluminium 110mm
+188 Leidingwerk PVC afvoer 0.53 stuk Kap PVC wanddikte 3,2 mm Ø 32 mm voor spie-eind KOMO-keur
+189 Leidingwerk PVC afvoer 0.45 stuk Sok PVC 2x lijmmof wanddikte 3,2 mm Ø 32 mm KOMO-keur
+190 Lijm, kit en PUR PVC lijm 10.41 stuk Griffon PVC-lijm T-88 250 ml
+191 Bevestiging Schroeven 5.54 verpakking SPAX Universele Schroef Verzinkt VK 3x30mm Voldraad T-STAR Plus T10 200st
+192 Aftimmering Plinten 9.45 stuk Plint MDF Gegrond Blok 12x94x2440mm FSC Mix 70%
+193 Hout Vuren geschaafd 2.12 stuk Vuren Geschaafd 18x44x2400mm FSC Mix 70%
+194 Dakbedekking EPDM 104.95 stuk Structaseal EPDM strook Zelfklevend 1,3 mm 0,20x20m
+195 Folie en tape Tapes 4.4 stuk Bouwmaat Schilderstape Fineline Lila 24mm x 50m
+196 Isolatie PIR 19.23 stuk IKO Enertherm Isolatie ALU F4 PIR 100mm Rd4,5 Sponning 1200x600mm 0,72m2
+197 Plaatmateriaal Underlayment 22.32 stuk Radiata Underlayment TG4 2440x590x18mm FSC Mix 70%

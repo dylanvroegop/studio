@@ -32,6 +32,9 @@ function importMessage(data, client = {}) {
   if (data.success !== true || !valid(data.client_id) || !valid(data.project_id)) {
     return 'De klantimport is niet bevestigd. Controleer de uitvoering in n8n voordat je opnieuw importeert.';
   }
+  if (data.appointment_status === 'completed') {
+    return 'Deze werkbespreking is afgerond na het GPS-bezoek. De oorspronkelijke agenda-afspraak is verwijderd.';
+  }
   if (data.appointment_status === 'cancelled') {
     return 'Het eerdere voorstel is handmatig verwijderd uit Google Agenda. Het tijdslot is weer vrij.';
   }
@@ -53,12 +56,16 @@ function importMessage(data, client = {}) {
   }
   const cachedName = valid(data.telegram_message)
     ? data.telegram_message.match(/^Beste ([^\n,]+),/)?.[1] : null;
-  const name = valid(client.client_name) ? client.client_name.trim().split(/\s+/)[0] : cachedName || 'klant';
+  const name = (valid(client.client_name) ? client.client_name : cachedName || '').trim().split(/\s+/)[0];
+  // Houd deze controle gelijk aan clientSalutation in de import-API.
+  const usableName = /^\p{L}[\p{L}\p{M}'’\-]*\p{L}$/u.test(name)
+    && !/^(null|undefined|onbekend|klant|dhr|de|den|der|van|von|mevr|meneer|mevrouw|heer)$/i.test(name);
+  const salutation = usableName ? 'Beste ' + name + ',' : 'Goedendag,';
   const proposal = 'Ik kan op ' + new Intl.DateTimeFormat('nl-NL', {
       weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Amsterdam',
     }).format(parsedDate) + ' om ' + time + ' langskomen voor een werkbespreking.\n\nKomt dit moment u gelegen? Mocht dit moment niet uitkomen, welke dag en tijd zouden u beter uitkomen?';
-  return 'Beste ' + name + ',\n\nBedankt voor uw bericht.\n\n' + proposal
-    + '\n\nDan bespreek ik de werkzaamheden met u en maak ik daarna kosteloos een offerte voor u op.\n\nMvg,\nDylan\n\nVroegop timmerwerken';
+  return salutation + '\n\nBedankt voor uw aanvraag.\n\n' + proposal
+    + '\n\nDan bespreek ik de werkzaamheden met u en maak ik daarna kosteloos een offerte voor u op.\n\nMvg,\nDylan\n\nVroegoptimmerwerken.nl';
 }
 
 function expression(fn) {

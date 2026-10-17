@@ -139,6 +139,7 @@ function makeRoute({ duplicate, appointment, busy = [], workDays, clients = { cl
     },
   } };
   const route = loadTs('src/app/api/telegram-leads/import/route.ts', {
+    '@/lib/appointment-visit-completion': { completeVisitedAppointments: async () => ({ completed: 0, checked: 0 }) },
     '@/firebase/admin': { initFirebaseAdmin: () => ({ firestore, auth: { getUser: async () => ({}) } }) },
     '@/lib/telegram-client-identity': identity,
     '@/lib/appointment-suggestions': appointmentSuggestions,

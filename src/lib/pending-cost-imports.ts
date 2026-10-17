@@ -1,6 +1,8 @@
+import { classifyPurchaseLines } from '@/lib/purchase-product-category-server';
+import { enrichPurchaseFromGps } from '@/lib/gps-purchase-link-server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { costImportHasTools } from '@/lib/cost-import-routing';
-import { normalizeProjectCostCategory } from '@/lib/project-costs';
+import { normalizeProjectCostCategory, normalizeProjectCostLineItems } from '@/lib/project-costs';
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -102,7 +104,13 @@ export async function queuePendingCostImport(uid: string, payload: Record<string
   data: Record<string, unknown>;
 }> {
     const { firestore } = initFirebaseAdmin();
-    payload = { ...payload };
+    const classified = await classifyPurchaseLines(uid, normalizeProjectCostLineItems(payload.line_items));
+    payload = { ...payload, line_items: classified.lines };
+    if (classified.uncertain.length) {
+      payload.extraction_warning = [safeString(payload.extraction_warning), `Controleer productcategorie: ${classified.uncertain.join('; ')}`].filter(Boolean).join(' ');
+      payload.category_review_required = true;
+    }
+    payload = { ...await enrichPurchaseFromGps(uid, payload) };
     if (costImportHasTools(payload)) {
       payload.review_reason = 'gereedschap';
       payload.line_items = (Array.isArray(payload.line_items) ? payload.line_items : []).map((line) => {

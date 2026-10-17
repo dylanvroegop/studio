@@ -1,7 +1,9 @@
+import { classifyPurchaseLines, rememberCategoryCorrections } from '@/lib/purchase-product-category-server';
 import { NextResponse } from 'next/server';
 import type { DocumentReference } from 'firebase-admin/firestore';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { enrichPurchaseFromGps, purchaseGpsEvidence } from '@/lib/gps-purchase-link-server';
 import { costImportHasTools, costQuoteId } from '@/lib/cost-import-routing';
 import { queuePendingCostImport } from '@/lib/pending-cost-imports';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
@@ -60,6 +62,11 @@ function safeString(value: unknown): string {
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
+}
+
+function gpsEvidenceForLine(input: Record<string, unknown>, quoteId: string | null, description: string, storedLines: ReturnType<typeof normalizeProjectCostLineItems>): Record<string, unknown> {
+  const evidence = purchaseGpsEvidence(input) || storedLines.find(line => line.description === description && line.offerte_id === quoteId)?.gps_link_evidence;
+  return evidence && evidence.quoteId === quoteId ? { gps_link_evidence: evidence } : {};
 }
 
 function normalizeCreateInput(body: Record<string, unknown>): Record<string, unknown> {
@@ -524,6 +531,7 @@ export async function POST(request: Request) {
     const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
     if (trialBlockedResponse) return trialBlockedResponse;
 
+    let storedGpsLines: ReturnType<typeof normalizeProjectCostLineItems> = [];
     const pendingImportId = safeString(input.pending_import_id);
     let pendingImportRef: FirebaseFirestore.DocumentReference | null = null;
     if (pendingImportId) {
@@ -549,12 +557,26 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, message: 'De gegevens van de openstaande factuur zijn ongeldig.' }, { status: 400 });
       }
 
+      storedGpsLines = normalizeProjectCostLineItems(pendingPayload.line_items);
       input = {
         ...pendingPayload,
         ...input,
         user_id: uid,
       };
     }
+
+    if (!token) {
+      const classified = await classifyPurchaseLines(uid, normalizeProjectCostLineItems(input.line_items));
+      input = { ...input, line_items: classified.lines };
+      if (classified.uncertain.length || input.extraction_warning || input.category_review_required === true) {
+        const queued = await queuePendingCostImport(uid, { ...input, review_reason: 'productcategorie',
+          extraction_warning: input.extraction_warning || `Controleer: ${classified.uncertain.join('; ')}` });
+        return NextResponse.json({ ok: true, pending: true, ...queued });
+      }
+    }
+
+    // Bestaande handmatige/bronreferenties gaan altijd voor GPS.
+    input = await enrichPurchaseFromGps(uid, input);
 
     if (!token && costImportHasTools(input)) {
       const queued = await queuePendingCostImport(uid, input);
@@ -602,6 +624,7 @@ export async function POST(request: Request) {
         ...item,
         category: lineCategory,
         offerte_id: lineOfferteId,
+        ...gpsEvidenceForLine(input, lineOfferteId, item.description, storedGpsLines),
       };
     });
 
@@ -894,6 +917,14 @@ export async function POST(request: Request) {
         });
       } catch (syncError) {
         console.warn('[kosten/create] Kon bonnetjes sync niet uitvoeren:', syncError);
+      }
+    }
+
+    if (pendingImportRef && token) {
+      try {
+        await rememberCategoryCorrections(uid, storedGpsLines, lineItems);
+      } catch (learningError) {
+        console.warn('[kosten/create] Kon categoriecorrectie niet onthouden:', learningError);
       }
     }
 

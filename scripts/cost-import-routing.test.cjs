@@ -46,6 +46,8 @@ test('wachtrij bewaart factuurbedragen en vindt offerte, zonder gereedschap eraa
   };
   const { queuePendingCostImport } = loadSource('src/lib/pending-cost-imports.ts', {
     '@/firebase/admin': { initFirebaseAdmin: () => ({ firestore }) },
+    '@/lib/purchase-product-category-server': { classifyPurchaseLines: async (_uid, lines) => ({ lines, uncertain: [] }) },
+    '@/lib/gps-purchase-link-server': { enrichPurchaseFromGps: async (_uid, payload) => payload },
     '@/lib/cost-import-routing': routing,
     '@/lib/project-costs': costs,
   });

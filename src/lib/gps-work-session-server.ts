@@ -822,3 +822,25 @@ export async function refreshGpsWorkSessionCandidates(
 export function sessionTimeEntryId(uid: string, sessionId: string): string {
   return deterministicUuid(`gps-work-time-entry:${uid}:${sessionId}`);
 }
+
+/** Leest bewijs voor aankopen; wijzigt geen uren, planning of GPS-sessies. */
+export async function loadGpsPurchaseContext(firestore: FirebaseFirestore.Firestore, uid: string, workDate: string) {
+  if (!process.env.CALVORA_USER_ID?.trim() || uid !== process.env.CALVORA_USER_ID.trim()) throw new Error('Geen GPS-apparaat voor deze gebruiker.');
+  const sites = await quoteSites(firestore, uid);
+  const points = await dayPoints(workDate);
+  const suppliers = await supplierVisitsForDay(points, sites);
+  // Aanvullende filialen voor aankopen. Verander hiermee geen historische urenberekening.
+  // Adressen: bouwmaat.nl/pages/klantenservice; geocode ROOFTOP gecontroleerd 2026-10-11.
+  const purchaseBranches = [
+    { name: 'Bouwmaat Alkmaar', address: 'Ivoorstraat 19, 1812 RE Alkmaar', latitude: 52.6103609, longitude: 4.7527825 },
+    { name: 'Bouwmaat Alphen aan den Rijn', address: 'Van Foreestlaan 1, Alphen aan den Rijn', latitude: 52.13572, longitude: 4.6481487 },
+    { name: 'Bouwmaat Amsterdam Amstel XL', address: 'Joan Muyskenweg 28, 1114 AN Amsterdam', latitude: 52.3277329, longitude: 4.9169434 },
+  ];
+  for (const stop of detectStableStops(points)) {
+    if (sites.some(site => distanceMeters(stop.point, site) <= 180)) continue;
+    const matches = purchaseBranches.filter(branch => distanceMeters(stop.point, branch) <= 180);
+    if (matches.length !== 1 || suppliers.some(visit => visit.startAt === stop.startAt)) continue;
+    suppliers.push({ ...matches[0], startAt: stop.startAt, endAt: stop.endAt, minutes: stop.minutes });
+  }
+  return { sites, points, suppliers };
+}

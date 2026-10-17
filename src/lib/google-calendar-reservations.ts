@@ -24,7 +24,7 @@ export function isTelegramReservation(entry: ReservationEntry): boolean {
 export function reservationRefreshIsProtected(entry: ReservationEntry, refreshStartedAt: Date): boolean {
   const leaseUntil = reservationDate(entry.calendarSyncLeaseUntil);
   const changedAt = reservationDate(entry.updatedAt);
-  return entry.calendarSyncState === 'pending' || entry.calendarSyncState === 'failed'
+  return entry.status === 'completed' || entry.calendarSyncState === 'completed' || entry.calendarSyncState === 'pending' || entry.calendarSyncState === 'failed'
     || Boolean(leaseUntil && leaseUntil > new Date())
     || Boolean(changedAt && changedAt > refreshStartedAt);
 }

@@ -766,7 +766,6 @@ export default function OffertesPage() {
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
   const [hoofdtitelsByQuoteId, setHoofdtitelsByQuoteId] = useState<Record<string, string>>({});
   const [planningEntriesByQuoteId, setPlanningEntriesByQuoteId] = useState<Record<string, PlanningListEntry[]>>({});
-  const [isInitialHoofdtitelSyncDone, setIsInitialHoofdtitelSyncDone] = useState(false);
   const [invoices, setInvoices] = useState<InvoiceSyncRow[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('alle');
@@ -794,7 +793,6 @@ export default function OffertesPage() {
   const isSyncingTotalsRef = useRef(false);
   const isSyncingHoofdtitelsRef = useRef(false);
   const fetchedHoofdtitelIdsRef = useRef<Set<string>>(new Set());
-  const didCompleteInitialHoofdtitelSyncRef = useRef(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -1303,10 +1301,6 @@ export default function OffertesPage() {
       .map((q) => q.id);
 
     if (quoteIdsToCheck.length === 0) {
-      if (!didCompleteInitialHoofdtitelSyncRef.current) {
-        didCompleteInitialHoofdtitelSyncRef.current = true;
-        setIsInitialHoofdtitelSyncDone(true);
-      }
       return;
     }
 
@@ -1353,10 +1347,6 @@ export default function OffertesPage() {
         }
       } finally {
         isSyncingHoofdtitelsRef.current = false;
-        if (!cancelled && !didCompleteInitialHoofdtitelSyncRef.current) {
-          didCompleteInitialHoofdtitelSyncRef.current = true;
-          setIsInitialHoofdtitelSyncDone(true);
-        }
       }
     };
 
@@ -1366,15 +1356,6 @@ export default function OffertesPage() {
       cancelled = true;
     };
   }, [quotes, user, hoofdtitelsByQuoteId]);
-
-  useEffect(() => {
-    if (loading) return;
-    if (didCompleteInitialHoofdtitelSyncRef.current) return;
-    if (!user || quotes.length === 0) {
-      didCompleteInitialHoofdtitelSyncRef.current = true;
-      setIsInitialHoofdtitelSyncDone(true);
-    }
-  }, [loading, quotes.length, user]);
 
   const yearOptions = useMemo(() => {
     const years = new Set<number>();
@@ -1679,17 +1660,9 @@ export default function OffertesPage() {
   }
 
   const LoadingListPanel = () => (
-    <div className="flex flex-col items-center justify-center py-14 gap-5">
-      <div className="relative">
-        <Loader2 className="h-10 w-10 animate-spin text-amber-400/90" />
-        <div className="absolute inset-0 blur-xl bg-amber-500/20 rounded-full animate-pulse" />
-      </div>
-      <div className="flex flex-col items-center gap-1">
-        <div className="text-amber-300 font-medium tracking-wide">OFFERTES LADEN</div>
-        <div className="text-muted-foreground text-sm animate-pulse">
-          Even geduld afrubelen...
-        </div>
-      </div>
+    <div role="status" className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin" />
+      Offertes laden…
     </div>
   );
 
@@ -2019,7 +1992,7 @@ export default function OffertesPage() {
             </CardContent>
           </Card>
 
-          {loading || !isInitialHoofdtitelSyncDone ? (
+          {loading ? (
             <Card>
               <CardContent className="p-6">
                 <LoadingListPanel />

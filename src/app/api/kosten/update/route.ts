@@ -1,3 +1,4 @@
+import { rememberCategoryCorrections } from '@/lib/purchase-product-category-server';
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
@@ -266,7 +267,7 @@ export async function POST(request: Request) {
 
     const existing = await supabaseAdmin
       .from('project_costs')
-      .select('id,user_id,offerte_id,payment_type,payment_status,due_date,supplier_invoice_number,reconciliation_group_id,source_email,source_filename')
+      .select('id,user_id,offerte_id,line_items,payment_type,payment_status,due_date,supplier_invoice_number,reconciliation_group_id,source_email,source_filename')
       .eq('id', costId)
       .maybeSingle();
 
@@ -462,6 +463,9 @@ export async function POST(request: Request) {
         }
       }
 
+      await rememberCategoryCorrections(uid, normalizeProjectCostLineItems(existing.data.line_items), lineItems)
+        .catch(error => console.warn('[kosten/update] Productcorrectie kon niet worden onthouden:', error));
+
       return NextResponse.json({
         ok: true,
         data: mapProjectCostRow(primaryRow[0]),
@@ -537,6 +541,9 @@ export async function POST(request: Request) {
         console.warn('[kosten/update] Kon bonnetjes sync niet uitvoeren:', syncError);
       }
     }
+
+    await rememberCategoryCorrections(uid, normalizeProjectCostLineItems(existing.data.line_items), normalizeProjectCostLineItems(updated.data.line_items))
+      .catch(error => console.warn('[kosten/update] Productcorrectie kon niet worden onthouden:', error));
 
     return NextResponse.json({
       ok: true,

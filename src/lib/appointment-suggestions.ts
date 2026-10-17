@@ -99,7 +99,7 @@ function getDateAtAmsterdamTime(dateKey: string, time: string): Date {
 export function getAppointmentSuggestions(
     clientCity: string,
     entries: AppointmentPlanningEntry[],
-    options?: { workDays?: number[]; now?: Date },
+    options?: { workDays?: number[]; now?: Date; allowToday?: boolean },
 ): AppointmentSuggestion[] {
     const normalizedClientCity = normalizeCity(clientCity);
     const configuredWorkDays = (options?.workDays || DEFAULT_WORK_DAYS)
@@ -117,7 +117,7 @@ export function getAppointmentSuggestions(
         const start = getDateAtAmsterdamTime(dateKey, DEFAULT_APPOINTMENT_TIME);
         const end = new Date(start.getTime() + 60 * 60 * 1000);
 
-        return entries.every((entry) => entry.endDate <= start || entry.startDate >= end);
+        return start > now && entries.every((entry) => entry.endDate <= start || entry.startDate >= end);
     };
 
     const hasSameCityWork = (dateKey: string) => {
@@ -129,7 +129,10 @@ export function getAppointmentSuggestions(
     };
 
     const freeCandidates = candidates.filter(({ dateKey }) => isSlotFree(dateKey));
-    let selectedDate = freeCandidates.find(({ dateKey }) => hasSameCityWork(dateKey)) || freeCandidates[0];
+    const todayKey = getLocalDateKey(now);
+    const releasedToday = options?.allowToday && workDays.includes(getIsoDay(now)) && isSlotFree(todayKey)
+        ? { dateKey: todayKey, candidateDate: getDateAtAmsterdamTime(todayKey, '12:00') } : null;
+    let selectedDate = releasedToday || freeCandidates.find(({ dateKey }) => hasSameCityWork(dateKey)) || freeCandidates[0];
 
     // Behoud de voorkeur voor werk in dezelfde plaats in de eerste vier dagen.
     // Zijn die vol, zoek dan door tot de eerstvolgende vrije werkdag. De laatste

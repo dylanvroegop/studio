@@ -127,6 +127,8 @@ type QuoteOption = {
 };
 
 type KostenFormState = {
+  deliveryAddress?: { label?: string; street?: string; house_number?: string; postcode?: string; city?: string } | null;
+  paymentType?: string;
   category: ProjectCostCategory;
   supplierName: string;
   description: string;
@@ -402,7 +404,7 @@ function normalizeLineItem(item: ProjectCostLineItem): ProjectCostLineItem {
     quantity,
     unit: safeString(item.unit) || 'st',
     unit_price: roundEuro(unitPrice),
-    total_price: explicitTotal !== 0 ? explicitTotal : roundEuro(quantity * unitPrice),
+    total_price: item.total_price != null && Number.isFinite(Number(item.total_price)) ? explicitTotal : roundEuro(quantity * unitPrice),
     ...(explicitTotalIncl !== 0 ? { total_incl_btw: explicitTotalIncl } : {}),
     ...(hasExplicitBtwPercentage ? { btw_percentage: roundEuro(safeNumber(item.btw_percentage)) } : {}),
     category,
@@ -822,6 +824,7 @@ function KostenPageContent() {
         const extractedLineItemsRebalanced = (
           extractedAmountExcl !== 0
           && extractedLineItemsTotal !== 0
+          && !pending.extraction_warning
           && Math.abs(extractedAmountExcl - extractedLineItemsTotal) > 0.01
         )
           ? rebalanceLineItemsToAmount(extractedLineItems, extractedAmountExcl)
@@ -1196,6 +1199,8 @@ function KostenPageContent() {
           offerte_id: saveForm.offerteId || null,
           category: saveForm.category,
           supplier_name: saveForm.supplierName,
+          delivery_address: saveForm.deliveryAddress,
+          payment_type: saveForm.paymentType,
           description: saveForm.description || saveForm.supplierName,
           line_items: payloadLineItems,
           amount_excl_btw: totals.amountExcl,
@@ -1279,6 +1284,8 @@ function KostenPageContent() {
         message?: string;
         data?: {
           supplier_name?: string;
+          delivery_address?: KostenFormState['deliveryAddress'];
+          payment_type?: string;
           description?: string;
           line_items?: ProjectCostLineItem[];
           amount_excl_btw?: number;
@@ -1326,6 +1333,7 @@ function KostenPageContent() {
       const extractedLineItemsRebalanced = (
         extractedAmountExcl !== 0
         && extractedLineItemsTotal !== 0
+        && !extracted.extraction_warning
         && Math.abs(extractedAmountExcl - extractedLineItemsTotal) > 0.01
       )
         ? rebalanceLineItemsToAmount(extractedLineItems, extractedAmountExcl)
@@ -1345,6 +1353,8 @@ function KostenPageContent() {
       const baseForm = autoSave ? createDefaultFormState() : form;
       const extractedForm: KostenFormState = {
         ...baseForm,
+        deliveryAddress: extracted.delivery_address,
+        paymentType: extracted.payment_type,
         category: normalizeProjectCostCategory(extracted.suggested_category || baseForm.category),
         supplierName: safeString(extracted.supplier_name) || baseForm.supplierName,
         description: safeString(extracted.description) || baseForm.description,
@@ -1372,7 +1382,7 @@ function KostenPageContent() {
       toast(extracted.extraction_warning
         ? {
           title: 'Bon opgeslagen',
-          description: 'De foto is veilig bewaard. Vul de gegevens handmatig in en sla de kost daarna op.',
+          description: extracted.extraction_warning,
         }
         : {
           title: preparedFile.type.startsWith('image/') ? 'Foto opgeslagen en herkend' : 'Bestand opgeslagen en herkend',
@@ -2715,7 +2725,14 @@ function KostenPageContent() {
                   <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
                     {selectedBankCost.line_items.map((item, index) => (
                       <div key={`${item.description}-${index}`} className="flex items-start justify-between gap-4 px-3 py-2 text-sm">
-                        <span className="min-w-0 break-words">{item.description || 'Kostenregel'}</span>
+                        <span className="min-w-0 break-words">
+                          {item.description || 'Kostenregel'}
+                          {item.gps_link_evidence && item.gps_link_evidence.quoteId === item.offerte_id ? (
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              {item.gps_link_evidence.method === 'delivery_address' ? 'Afleveradres' : 'GPS-koppeling'}: {item.gps_link_evidence.clientAddress} · {item.gps_link_evidence.supplierName} · {item.gps_link_evidence.workDate}
+                            </span>
+                          ) : null}
+                        </span>
                         <span className="shrink-0 tabular-nums">{formatCurrency(item.total_incl_btw ?? item.total_price)}</span>
                       </div>
                     ))}

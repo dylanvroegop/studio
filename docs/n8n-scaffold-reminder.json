@@ -1,0 +1,285 @@
+{
+  "name": "Steiger reserveren - 14 dagen voor start",
+  "nodes": [
+    {
+      "id": "65d7a223-3eb7-4022-a0ca-a5c0ce9326f4",
+      "name": "Dagelijks 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "11105a53-5510-4f53-a7a7-80808f01ad1b",
+      "name": "Haal steigerherinneringen op",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://app.calvora.nl/api/offertes/scaffold-reminder",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "position": [
+        240,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "c02354cf-62f6-425b-96a3-1ddb04ad3d0b",
+      "name": "Controleer herinneringen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "function reminderItems(data) {\n  if (data?.ok !== true || data.version !== 1 || !Array.isArray(data.reminders) || !Array.isArray(data.uncertain)) {\n    throw new Error('Geen geldige steigerherinneringen ontvangen.');\n  }\n  if (data.uncertain.length) throw new Error('Eerdere Telegram-verzending onzeker. Controleer scaffoldReminders voordat je opnieuw verstuurt.');\n  return data.reminders.map(item => ({ json: { quoteId: item.quoteId, startDay: item.startDay } }));\n}\nreturn reminderItems($input.first().json);"
+      },
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "id": "50f7c7e5-7f98-42fc-b7a9-d64dbfdc4451",
+      "name": "Eén herinnering tegelijk",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "id": "66ecba59-e07e-4e7a-95f7-f8267e594046",
+      "name": "Reserveer herinnering",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.calvora.nl/api/offertes/scaffold-reminder",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: \"claim\", quoteId: $json.quoteId, startDay: $json.startDay }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "position": [
+        960,
+        0
+      ],
+      "retryOnFail": false,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "9b860019-99f2-4818-af7c-7b5ce14f8199",
+      "name": "Nog niet verstuurd",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5c1ccfda-9082-4a53-969f-ddcff1fa7399",
+              "leftValue": "={{ $json.claimed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "id": "8a50adcf-8162-4362-9938-e55fdf4b77ad",
+      "name": "Stuur steigerherinnering",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "VUL_JE_TELEGRAM_CHAT_ID_IN",
+        "text": "={{ $json.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "position": [
+        1440,
+        0
+      ],
+      "retryOnFail": false
+    },
+    {
+      "id": "5eb2005d-bb17-4011-96c7-369230f20af8",
+      "name": "Bevestig verzending",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.calvora.nl/api/offertes/scaffold-reminder",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: \"sent\", quoteId: $(\"Reserveer herinnering\").item.json.quoteId, startDay: $(\"Reserveer herinnering\").item.json.startDay, token: $(\"Reserveer herinnering\").item.json.token, messageId: $json.result?.message_id ?? $json.message_id }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "position": [
+        1680,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    }
+  ],
+  "connections": {
+    "Dagelijks 08:00": {
+      "main": [
+        [
+          {
+            "node": "Haal steigerherinneringen op",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Haal steigerherinneringen op": {
+      "main": [
+        [
+          {
+            "node": "Controleer herinneringen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Controleer herinneringen": {
+      "main": [
+        [
+          {
+            "node": "Eén herinnering tegelijk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eén herinnering tegelijk": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Reserveer herinnering",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reserveer herinnering": {
+      "main": [
+        [
+          {
+            "node": "Nog niet verstuurd",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nog niet verstuurd": {
+      "main": [
+        [
+          {
+            "node": "Stuur steigerherinnering",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Eén herinnering tegelijk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stuur steigerherinnering": {
+      "main": [
+        [
+          {
+            "node": "Bevestig verzending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bevestig verzending": {
+      "main": [
+        [
+          {
+            "node": "Eén herinnering tegelijk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Amsterdam"
+  },
+  "pinData": {}
+}

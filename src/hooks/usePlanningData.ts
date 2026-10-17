@@ -107,7 +107,8 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
                     ...doc.data()
                 })) as PlanningEntry[];
 
-                data = data.filter(entry => entry.status !== 'cancelled');
+                data = data.filter(entry => entry.status !== 'cancelled'
+                    && !(entry.planningType === 'werkbespreking' && entry.status === 'completed'));
 
                 if (options.startDate && options.endDate) {
                     const startTime = options.startDate.getTime();
@@ -301,7 +302,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
                 if (activeLease || ['pending', 'failed'].includes(current.calendarSyncState || '')) {
                     throw new Error('De Telegram-afspraak wordt nog met Google Calendar gesynchroniseerd. Ververs de planning en probeer opnieuw.');
                 }
-                if (current.status === 'cancelled' || current.calendarSyncState === 'cancelled') {
+                if (current.status === 'completed' || current.status === 'cancelled' || current.calendarSyncState === 'cancelled') {
                     throw new Error('Deze afspraak is verwijderd uit Google Calendar. Ververs de planning.');
                 }
                 // Gewoon opslaan bevestigt geen voorstel en mag een inmiddels

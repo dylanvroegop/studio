@@ -241,6 +241,7 @@ test('bevestigde private markering wint van pending en merge behoudt leadKey en 
 });
 
 for (const [label, extra] of [
+  ['afgerond GPS-bezoek', { status: 'completed', calendarSyncState: 'completed' }],
   ['pending met verlopen lease', { calendarSyncState: 'pending', calendarSyncLeaseUntil: timestamp('2026-10-05T10:00:00Z') }],
   ['mislukte synchronisatie', { calendarSyncState: 'failed' }],
   ['actieve lease', { calendarSyncLeaseUntil: timestamp('2026-10-06T10:05:00Z') }],

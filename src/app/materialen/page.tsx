@@ -9,6 +9,7 @@ import { useUser } from '@/firebase';
 
 import { cn, parsePriceToNumber } from '@/lib/utils';
 import { reportOperationalError } from '@/lib/report-operational-error';
+import { materialCategoryPath, matchesMaterialSearch, materialPriceSourceLabel, type PurchasePriceSource } from '@/lib/material-catalog-search';
 import { normalizeTaxonomyLabel } from '@/lib/material-taxonomy';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { AppNavigation } from '@/components/AppNavigation';
@@ -50,6 +51,7 @@ type Material = {
   eenheid: string | null;
   leverancier: string | null;
   gebruikerid: string;
+  ai_extra_data?: { purchase_research?: PurchasePriceSource };
   order_id?: number | null;
   lengte?: string | number | null;
   breedte?: string | number | null;
@@ -149,7 +151,7 @@ function PageSkeleton() {
   );
 }
 
-const EENHEDEN: string[] = ['p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'set'];
+const EENHEDEN: string[] = ['p/m1', 'p/m2', 'p/m3', 'stuk', 'doos', 'verpakking', 'set'];
 const MAAT_UNITS: string[] = ['mm', 'cm', 'm'];
 
 function stripMaatSuffix(naam: string): string {
@@ -334,7 +336,8 @@ export default function MaterialenPage() {
   const [search, setSearch] = useState<string>('');
   const [supplierFilter, setSupplierFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [isCompact, setIsCompact] = useState(false);
+  const [isCompact, setIsCompact] = useState(true);
+  const [subcategoryFilter, setSubcategoryFilter] = useState<string>('all');
   const [sortConfig, setSortConfig] = useState<{ key: keyof Material | 'prijsNumber'; direction: 'asc' | 'desc' } | null>(null);
 
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -363,6 +366,7 @@ export default function MaterialenPage() {
   const [customNaam, setCustomNaam] = useState<string>('');
   const [customEenheid, setCustomEenheid] = useState<string>(''); // leeg (focus!)
   const [customPrijs, setCustomPrijs] = useState<string>('');
+  const [customCategorie, setCustomCategorie] = useState<string>('');
   const [customSubsectie, setCustomSubsectie] = useState<string>('');
   const [customLeverancier, setCustomLeverancier] = useState<string>(''); // leeg
 
@@ -598,7 +602,7 @@ export default function MaterialenPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, supplierFilter, categoryFilter]);
+  }, [search, supplierFilter, categoryFilter, subcategoryFilter]);
 
   const uniqueSuppliers = useMemo(() => {
     const arr = materials
@@ -607,73 +611,16 @@ export default function MaterialenPage() {
     return [...new Set(arr)].sort((a, b) => a.localeCompare(b));
   }, [materials]);
 
-  const uniqueCategories = useMemo(() => {
-    const categoryOrder = [
-      "Vuren hout",
-      "Hardhout",
-      "Aftimmerhout & Plinten",
-      "Kozijnhout, Raamhout & Glaslatten",
-      "Houten Gevelbekleding",
-      "Boeidelen & Windveren",
-      "Gevelplaten & Buitenpanelen",
-      "Plaatmateriaal Exterieur",
-      "Plaatmateriaal Interieur",
-      "Constructieplaten",
-      "Fundering & Bekisting",
-      "Stenen, Lateien & Mortels",
-      "Metalstud Profielen & Systeemplafonds",
-      "Gipsplaten",
-      "Stucwerk",
-      "Gipsvezelplaten",
-      "Vloerelementen (Estrich)",
-      "Isolatie",
-      "Stuc, vul of finisher & Pleisterwerk",
-      "Egaline & Vloerafwerking",
-      "Wanddecoratie",
-      "Vensterbanken",
-      "Dakwerk & HWA",
-      "Dakramen & Koepels",
-      "Binnendeuren",
-      "Buitendeuren",
-      "Deurbeslag",
-      "Binnenkozijnen",
-      "Vlieringtrappen",
-      "Tuinhout, Schuttingen & Tuinpoorten",
-      "Overig"
-    ];
-
-    const arr = materials
-      .map((m) => (m.subsectie ?? '').trim())
-      .filter((v) => !!v);
-
-    const unique = [...new Set(arr)];
-
-    return unique.sort((a, b) => {
-      const indexA = categoryOrder.indexOf(a);
-      const indexB = categoryOrder.indexOf(b);
-
-      // If both are in the list, sort by index
-      if (indexA !== -1 && indexB !== -1) {
-        return indexA - indexB;
-      }
-
-      // If only A is in the list, it comes first
-      if (indexA !== -1) return -1;
-
-      // If only B is in the list, it comes first
-      if (indexB !== -1) return 1;
-
-      // If neither are in the list, sort alphabetically
-      return a.localeCompare(b);
-    });
-  }, [materials]);
+  const uniqueCategories = useMemo(() => [...new Set(materials.map(m => m.categorie).filter((v): v is string => Boolean(v)))].sort((a, b) => a.localeCompare(b, 'nl')), [materials]);
+  const uniqueSubcategories = useMemo(() => [...new Set(materials
+    .filter(m => categoryFilter === 'all' || m.categorie === categoryFilter)
+    .map(m => m.sub_categorie || m.subsectie).filter((v): v is string => Boolean(v)))].sort((a, b) => a.localeCompare(b, 'nl')), [materials, categoryFilter]);
 
   const filteredMaterials = useMemo(() => {
     let result = materials;
 
     if (search.trim()) {
-      const s = search.trim().toLowerCase();
-      result = result.filter((m) => (m.materiaalnaam ?? '').toLowerCase().includes(s));
+      result = result.filter((m) => matchesMaterialSearch(m, search));
     }
 
     if (supplierFilter !== 'all') {
@@ -681,7 +628,11 @@ export default function MaterialenPage() {
     }
 
     if (categoryFilter !== 'all') {
-      result = result.filter((m) => (m.subsectie ?? '') === categoryFilter);
+      result = result.filter((m) => (m.categorie ?? '') === categoryFilter);
+    }
+
+    if (subcategoryFilter !== 'all') {
+      result = result.filter(m => (m.sub_categorie || m.subsectie) === subcategoryFilter);
     }
 
     if (sortConfig) {
@@ -692,8 +643,8 @@ export default function MaterialenPage() {
           return sortConfig.direction === 'asc' ? aPrice - bPrice : bPrice - aPrice;
         }
 
-        const aValue = (a[sortConfig.key as keyof Material] ?? '').toString();
-        const bValue = (b[sortConfig.key as keyof Material] ?? '').toString();
+        const aValue = sortConfig.key === 'subsectie' ? materialCategoryPath(a) : (a[sortConfig.key as keyof Material] ?? '').toString();
+        const bValue = sortConfig.key === 'subsectie' ? materialCategoryPath(b) : (b[sortConfig.key as keyof Material] ?? '').toString();
 
         return sortConfig.direction === 'asc'
           ? aValue.localeCompare(bValue)
@@ -701,8 +652,9 @@ export default function MaterialenPage() {
       });
     }
 
+    if (!sortConfig) result = [...result].sort((a, b) => materialCategoryPath(a).localeCompare(materialCategoryPath(b), 'nl') || (a.materiaalnaam || '').localeCompare(b.materiaalnaam || '', 'nl', { numeric: true }));
     return result;
-  }, [materials, search, supplierFilter, categoryFilter, sortConfig]);
+  }, [materials, search, supplierFilter, categoryFilter, subcategoryFilter, sortConfig]);
 
   const totalPages = itemsPerPage === 'all'
     ? 1
@@ -720,6 +672,7 @@ export default function MaterialenPage() {
     setCustomNaam('');
     setCustomEenheid('');
     setCustomPrijs('');
+    setCustomCategorie('');
     setCustomSubsectie('');
     setCustomLeverancier('');
 
@@ -762,7 +715,8 @@ export default function MaterialenPage() {
     setCustomNaam(material.materiaalnaam || '');
     setCustomEenheid(material.eenheid || 'stuk');
     setCustomPrijs(parsePriceToNumber(material.prijs)?.toString() || '');
-    setCustomSubsectie(normalizeTaxonomyLabel(material.subsectie || material.sub_categorie || material.categorie));
+    setCustomCategorie(material.categorie || '');
+    setCustomSubsectie(material.sub_categorie || material.subsectie || '');
     setCustomLeverancier(material.leverancier || '');
     setMaatUnit(material.unit || 'mm');
     setMaatLengte(material.lengte?.toString() || '');
@@ -817,7 +771,7 @@ export default function MaterialenPage() {
   const previewNaam = useMemo(() => {
     const base = (customNaam || '').trim() || '...';
 
-    if (!maatVereist) return stripMaatSuffix(base);
+    if (!maatVereist) return base;
 
     const derde = customEenheid === 'p/m3' ? maatHoogte : maatDikte;
 
@@ -841,12 +795,8 @@ export default function MaterialenPage() {
         return;
       }
 
-      // Nieuw: Maak de naam netjes (Hoofdletter Per Woord)
-      const formattedName = naamRaw
-        .toLowerCase()
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
+      // Behoud productcodes en maten wanneer alleen de indeling wordt aangepast.
+      const formattedName = naamRaw;
 
       const prijsNumLocal = parsePriceToNumber(customPrijs);
       if (prijsNumLocal == null || prijsNumLocal < 0) {
@@ -884,7 +834,8 @@ export default function MaterialenPage() {
         }
       }
 
-      const categorie = normalizeTaxonomyLabel(customSubsectie);
+      const categorie = normalizeTaxonomyLabel(customCategorie);
+      const subcategorie = normalizeTaxonomyLabel(customSubsectie);
       const leverancier = customLeverancier.trim();
 
       setSavingCustom(true);
@@ -892,7 +843,7 @@ export default function MaterialenPage() {
 
       const payload: any = {
         // Gebruik hier de geformatteerde naam
-        materiaalnaam: stripMaatSuffix(formattedName),
+        materiaalnaam: isMaatEenheid(eenheid) ? stripMaatSuffix(formattedName) : formattedName,
         eenheid,
         // Canonical: prijs is excl. btw om ambiguiteit te voorkomen.
         prijs: prijsNumLocal,
@@ -908,7 +859,8 @@ export default function MaterialenPage() {
           payload.expected_unit = safetyExpectedUnit.trim();
         }
       }
-      if (categorie) payload.categorie = categorie;
+      payload.categorie = categorie || null;
+      payload.sub_categorie = subcategorie || null;
       if (leverancier) payload.leverancier = leverancier;
 
       if (isMaatEenheid(eenheid)) {
@@ -985,6 +937,7 @@ export default function MaterialenPage() {
     customNaam,
     customPrijs,
     customEenheid,
+    customCategorie,
     customSubsectie,
     customLeverancier,
     maatUnit,
@@ -1437,17 +1390,17 @@ export default function MaterialenPage() {
       <AppNavigation />
       <DashboardHeader user={user} title="Materialen & Prijzen" />
 
-      <main className="flex-1 space-y-6 p-4 pb-16 md:p-6 md:pb-10">
+      <main className="min-w-0 flex-1 space-y-6 p-4 pb-16 md:p-6 md:pb-10">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div className="space-y-2">
             <Input
-              placeholder="Zoek op materiaalnaam..."
-              className="w-full bg-card/50 md:w-[240px]"
+              placeholder="Zoek materiaal, maat of categorie…"
+              className="w-full bg-card/50 md:w-[360px]"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
 
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
               <Select value={supplierFilter} onValueChange={setSupplierFilter}>
                 <SelectTrigger className="w-full bg-card/50">
                   <SelectValue placeholder="Leverancier" />
@@ -1462,7 +1415,7 @@ export default function MaterialenPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <Select value={categoryFilter} onValueChange={(value) => { setCategoryFilter(value); setSubcategoryFilter('all'); }}>
                 <SelectTrigger className="w-full bg-card/50">
                   <SelectValue placeholder="Categorie" />
                 </SelectTrigger>
@@ -1473,6 +1426,15 @@ export default function MaterialenPage() {
                       {c}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={subcategoryFilter} onValueChange={setSubcategoryFilter}>
+                <SelectTrigger className="w-full bg-card/50" aria-label="Subcategorie">
+                  <SelectValue placeholder="Subcategorie" />
+                </SelectTrigger>
+                <SelectContent><SelectItem value="all">Alle subcategorieën</SelectItem>
+                  {uniqueSubcategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
 
@@ -1488,7 +1450,7 @@ export default function MaterialenPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             {recoverableImport && Array.isArray(recoverableImport.jobs) && recoverableImport.jobs.length > 0 ? (
               <Button
                 type="button"
@@ -1585,7 +1547,7 @@ export default function MaterialenPage() {
         <Card>
 
 
-          <CardContent>
+          <CardContent className="p-2 md:p-3">
             {isLoading ? (
               <div className="flex items-center justify-center py-10">
                 <Loader2 className="mr-2 h-6 w-6 animate-spin" />
@@ -1593,10 +1555,10 @@ export default function MaterialenPage() {
               </div>
             ) : (
               <div className="w-full overflow-x-auto">
-                <Table>
+                <Table className="table-fixed">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[160px] cursor-pointer hover:text-foreground" onClick={() => {
+                    <TableHead className="cursor-pointer hover:text-foreground" onClick={() => {
                       setSortConfig(current => ({
                         key: 'materiaalnaam',
                         direction: current?.key === 'materiaalnaam' && current.direction === 'asc' ? 'desc' : 'asc'
@@ -1607,7 +1569,7 @@ export default function MaterialenPage() {
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </TableHead>
-                    <TableHead className="w-[15%] min-w-[100px] text-right cursor-pointer hover:text-foreground" onClick={() => {
+                    <TableHead className="w-[120px] text-right cursor-pointer hover:text-foreground" onClick={() => {
                       setSortConfig(current => ({
                         key: 'prijsNumber',
                         direction: current?.key === 'prijsNumber' && current.direction === 'asc' ? 'desc' : 'asc'
@@ -1623,7 +1585,7 @@ export default function MaterialenPage() {
                         </span>
                       </div>
                     </TableHead>
-                    <TableHead className="hidden w-[10%] min-w-[80px] cursor-pointer hover:text-foreground md:table-cell" onClick={() => {
+                    <TableHead className="hidden w-[90px] cursor-pointer hover:text-foreground md:table-cell" onClick={() => {
                       setSortConfig(current => ({
                         key: 'eenheid',
                         direction: current?.key === 'eenheid' && current.direction === 'asc' ? 'desc' : 'asc'
@@ -1634,7 +1596,7 @@ export default function MaterialenPage() {
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </TableHead>
-                    <TableHead className="hidden w-[15%] min-w-[150px] cursor-pointer hover:text-foreground md:table-cell" onClick={() => {
+                    <TableHead className="hidden w-[155px] cursor-pointer hover:text-foreground md:table-cell" onClick={() => {
                       setSortConfig(current => ({
                         key: 'subsectie',
                         direction: current?.key === 'subsectie' && current.direction === 'asc' ? 'desc' : 'asc'
@@ -1645,7 +1607,7 @@ export default function MaterialenPage() {
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </TableHead>
-                    <TableHead className="hidden w-[15%] min-w-[150px] cursor-pointer hover:text-foreground md:table-cell" onClick={() => {
+                    <TableHead className="hidden w-[100px] cursor-pointer hover:text-foreground md:table-cell" onClick={() => {
                       setSortConfig(current => ({
                         key: 'leverancier',
                         direction: current?.key === 'leverancier' && current.direction === 'asc' ? 'desc' : 'asc'
@@ -1656,7 +1618,7 @@ export default function MaterialenPage() {
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </TableHead>
-                    <TableHead className="w-[50px] text-right">Acties</TableHead>
+                    <TableHead className="w-[78px] text-right">Acties</TableHead>
                   </TableRow>
                 </TableHeader>
 
@@ -1681,15 +1643,15 @@ export default function MaterialenPage() {
                         >
                           <TableCell className={cn(isCompact ? "py-1 font-medium" : "font-medium", "min-w-0")}>
                             <div className="min-w-0">
-                              <div className="truncate">{material.materiaalnaam ?? '—'}</div>
+                              <div className="line-clamp-2 break-words" title={material.materiaalnaam || undefined}>{material.materiaalnaam ?? '—'}</div>
                               <div className="mt-1 text-xs text-muted-foreground md:hidden">
-                                {[material.eenheid, material.subsectie, material.leverancier].filter(Boolean).join(' • ') || '—'}
+                                {[material.eenheid, materialCategoryPath(material), material.leverancier].filter(Boolean).join(' • ') || '—'}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className={isCompact ? "py-1 text-right" : "text-right"}>{formatEuro(prijsNumber)}</TableCell>
+                          <TableCell className={isCompact ? "py-1 text-right" : "text-right"}>{formatEuro(prijsNumber)}<div className="whitespace-nowrap text-[11px] font-normal text-muted-foreground" title="Historische inkoopprijs; controleer bij bestellen de actuele leveranciersprijs.">{materialPriceSourceLabel(material.ai_extra_data?.purchase_research, prijsNumber)}</div></TableCell>
                           <TableCell className={cn(isCompact ? "py-1" : "", "hidden md:table-cell")}>{material.eenheid ?? '—'}</TableCell>
-                          <TableCell className={cn(isCompact ? "py-1" : "", "hidden md:table-cell")}>{material.subsectie ?? '—'}</TableCell>
+                          <TableCell className={cn(isCompact ? "py-1" : "", "hidden md:table-cell")}>{materialCategoryPath(material) || '—'}</TableCell>
                           <TableCell className={cn(isCompact ? "py-1" : "", "hidden md:table-cell")}>{material.leverancier ?? '—'}</TableCell>
 
                           <TableCell className={isCompact ? "py-1 text-right" : "text-right"}>
@@ -1979,10 +1941,14 @@ export default function MaterialenPage() {
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
                       <div className="text-sm font-medium">Categorie (optioneel)</div>
+                      <Input value={customCategorie} onChange={(e) => setCustomCategorie(e.target.value)} placeholder="Bijv. Gipsplaten" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium">Subcategorie (optioneel)</div>
                       <Input
                         value={customSubsectie}
                         onChange={(e) => setCustomSubsectie(normalizeTaxonomyLabel(e.target.value))}
-                        placeholder="Bijv. Balkhout"
+                        placeholder="Bijv. AK2"
                       />
                     </div>
                     <div className="space-y-2">

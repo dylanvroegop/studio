@@ -132,7 +132,7 @@ export async function POST(request: Request) {
     if (entryData.userId !== decoded.uid) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (entryData.status === 'cancelled' || entryData.calendarSyncState === 'cancelled') {
+    if (entryData.status === 'completed' || entryData.status === 'cancelled' || entryData.calendarSyncState === 'cancelled') {
       return NextResponse.json({ error: 'Deze afspraak is verwijderd uit Google Calendar.', code: 'calendar_event_deleted' }, { status: 409 });
     }
     if (hasActiveCalendarLease(entryData) || (entryData.source === 'telegram_werkspot'
@@ -232,7 +232,7 @@ export async function POST(request: Request) {
         const [freshEntry, lock] = await transaction.getAll(entryRef, lockRef);
         const data = freshEntry.data() as StoredPlanningEntry | undefined;
         if (!freshEntry.exists || data?.userId !== decoded.uid || data.googleCalendarEventId !== calendarEventId
-          || data.status === 'cancelled' || data.calendarSyncState === 'cancelled'
+          || data.status === 'completed' || data.status === 'cancelled' || data.calendarSyncState === 'cancelled'
           || hasActiveCalendarLease(data) || ['pending', 'failed'].includes(data.calendarSyncState || '')) return null;
         transaction.set(entryRef, {
           calendarSyncRevision: revision,

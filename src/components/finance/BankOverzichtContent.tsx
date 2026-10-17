@@ -955,7 +955,16 @@ export function BankOverzichtContent({ embedded = false, requestedTabId }: BankO
                       Bank, facturen, geregistreerde kosten en cashflow voor je bedrijf. De bankcijfers worden automatisch bijgewerkt na synchronisatie.
                     </p>
                   </div>
-                  {financeDataLoading ? <Loader2 className="h-5 w-5 animate-spin text-emerald-300" /> : null}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <FinancialExportButton />
+                    <Button variant="outline" disabled={syncingProvider !== null} onClick={() => void handleSync('bunq')}>
+                      {syncingProvider === 'bunq' ? 'bunq synchroniseren...' : 'Synchroniseer bunq'}
+                    </Button>
+                    <Button variant="outline" disabled={connectingKnab || !knabInstitution} onClick={() => void handleConnectKnab()}>
+                      {connectingKnab ? 'Knab openen...' : 'Knab opnieuw koppelen'}
+                    </Button>
+                    {financeDataLoading ? <Loader2 className="h-5 w-5 animate-spin text-emerald-300" /> : null}
+                  </div>
                 </div>
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

@@ -1,3 +1,5 @@
+import type { GpsPurchaseEvidence } from './gps-purchase-link';
+
 export const PROJECT_COST_CATEGORIES = [
   'materiaal',
   'autokosten',
@@ -21,6 +23,7 @@ export type ProjectCostPaymentStatus = 'paid' | 'openstaand' | 'private' | 'unkn
 export type ProjectCostReconciliationStatus = 'matched' | 'partial' | 'unmatched' | 'not_applicable';
 
 export interface ProjectCostLineItem {
+  gps_link_evidence?: GpsPurchaseEvidence;
   description: string;
   quantity: number;
   unit: string;
@@ -164,18 +167,25 @@ export function normalizeProjectCostLineItem(input: unknown): ProjectCostLineIte
     && rawBtwPercentage !== null
     && String(rawBtwPercentage).trim() !== ''
     && Number.isFinite(Number(rawBtwPercentage));
-  const totalPrice = roundEuro(explicitTotal !== 0 ? explicitTotal : quantity * unitPrice);
+  const hasTotal = row.total_price !== null && row.total_price !== undefined && row.total_price !== '' && Number.isFinite(Number(row.total_price));
+  const totalPrice = roundEuro(hasTotal ? explicitTotal : quantity * unitPrice);
   const rawCategory = safeString(row.category);
   const category = rawCategory ? normalizeProjectCostCategory(rawCategory) : undefined;
   const offerteId = safeString(row.offerte_id ?? row.offerteId) || null;
 
+  const rawEvidence = row.gps_link_evidence as Record<string, unknown> | undefined;
+  const gpsEvidence = rawEvidence && ['gps_previous_client', 'gps_next_client', 'delivery_address'].includes(String(rawEvidence.method)) && rawEvidence.quoteId === offerteId
+    && ['quoteId', 'workDate', 'clientAddress', 'clientStartAt', 'clientEndAt', 'supplierName', 'supplierAddress', 'supplierStartAt', 'supplierEndAt']
+      .every(key => typeof rawEvidence[key] === 'string')
+    ? rawEvidence as unknown as GpsPurchaseEvidence : undefined;
   return {
+    ...(gpsEvidence ? { gps_link_evidence: gpsEvidence } : {}),
     description: safeString(row.description),
     quantity,
     unit: safeString(row.unit) || 'st',
     unit_price: roundEuro(unitPrice),
     total_price: totalPrice,
-    ...(explicitTotalIncl !== 0 ? { total_incl_btw: roundEuro(explicitTotalIncl) } : {}),
+    ...(row.total_incl_btw !== null && row.total_incl_btw !== undefined && row.total_incl_btw !== '' && Number.isFinite(Number(row.total_incl_btw)) ? { total_incl_btw: roundEuro(explicitTotalIncl) } : {}),
     ...(hasExplicitBtwPercentage ? { btw_percentage: roundEuro(Number(rawBtwPercentage)) } : {}),
     category,
     offerte_id: offerteId,

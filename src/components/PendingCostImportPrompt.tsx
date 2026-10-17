@@ -39,6 +39,7 @@ import { invoiceImpliesAccepted } from '@/lib/quote-status';
 import type { InvoiceStatus } from '@/lib/types';
 
 type PendingCostImport = {
+  extraction_warning?: string;
   id: string;
   supplier_name?: string;
   description?: string;
@@ -117,7 +118,7 @@ function normalizeLineItem(item: ProjectCostLineItem): ProjectCostLineItem {
     quantity,
     unit: safeString(item.unit) || 'st',
     unit_price: unitPrice,
-    total_price: explicitTotal !== 0 ? explicitTotal : roundEuro(quantity * unitPrice),
+    total_price: item.total_price != null && Number.isFinite(Number(item.total_price)) ? explicitTotal : roundEuro(quantity * unitPrice),
     ...(explicitTotalIncl !== 0 ? { total_incl_btw: explicitTotalIncl } : {}),
     ...(item.btw_percentage !== undefined
       ? { btw_percentage: roundEuro(safeNumber(item.btw_percentage)) }
@@ -481,6 +482,7 @@ export function PendingCostImportPrompt() {
               {hasTools ? 'Gereedschap wordt als algemene bedrijfskosten opgeslagen. Alleen de overige regels worden aan de gekozen offerte gekoppeld.' : 'Controleer de herkende gegevens en sla de kost op.'}
             </DialogDescription>
           </DialogHeader>
+          {pending?.extraction_warning && <p role="alert" className="mx-6 mb-3 rounded-md border border-amber-500 px-3 py-2 text-sm">{pending.extraction_warning}</p>}
 
           <div className="flex-1 overflow-y-auto px-6 pb-6">
             <Card className="border-border/70 bg-card/55">

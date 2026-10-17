@@ -6,6 +6,8 @@ import { Loader2, Pencil, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { doc, updateDoc } from 'firebase/firestore';
+import type { User } from 'firebase/auth';
+import Link from 'next/link';
 
 import { AppNavigation } from '@/components/AppNavigation';
 import { DashboardHeader } from '@/components/DashboardHeader';
@@ -366,14 +368,26 @@ function ProjectRow(props: {
   );
 }
 
-function PageSkeleton() {
+function PageSkeleton({ user, error, onRetry }: { user: User | null; error: string | null; onRetry: () => void }) {
   return (
-    <div className="flex min-h-screen flex-col">
-      <DashboardHeader user={null} title="Dashboard" />
-      <main className="flex flex-1 items-center justify-center p-6">
-        <div className="flex items-center gap-3 rounded-3xl border bg-card/50 p-8 text-muted-foreground shadow-sm backdrop-blur-xl">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          Laden...
+    <div className="app-shell min-h-screen bg-background">
+      <AppNavigation />
+      <DashboardHeader user={user} title="Dashboard" />
+      <main className="flex flex-col items-center gap-4 p-6 py-10">
+        {error ? (
+          <div role="alert" className="text-center text-sm">
+            <p>Dashboard laden mislukt.</p>
+            <p className="mt-1 text-muted-foreground">{error}</p>
+          </div>
+        ) : (
+          <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Dashboard laden…
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button asChild variant="outline"><Link href="/offertes">Naar offertes</Link></Button>
+          {error && <Button onClick={onRetry}>Opnieuw proberen</Button>}
         </div>
       </main>
     </div>
@@ -418,14 +432,18 @@ export default function WinstPage() {
   useEffect(() => {
     if (!user || !firestore) return;
     let cancelled = false;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20_000);
 
     const loadMetrics = async () => {
       setLoadingMetrics(true);
       setMetricsError(null);
       try {
         const token = await user.getIdToken();
+        if (cancelled) return;
         const response = await fetch('/api/winst/metrics', {
           method: 'POST',
+          signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
@@ -451,7 +469,9 @@ export default function WinstPage() {
 
         if (!cancelled) setMetrics(payload.data);
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Onbekende fout';
+        const message = controller.signal.aborted
+          ? 'Het laden duurt te lang. Probeer het opnieuw.'
+          : error instanceof Error ? error.message : 'Onbekende fout';
         if (!cancelled) {
           setMetricsError(message);
           setMetrics(null);
@@ -462,6 +482,7 @@ export default function WinstPage() {
           });
         }
       } finally {
+        window.clearTimeout(timeout);
         if (!cancelled) setLoadingMetrics(false);
       }
     };
@@ -470,6 +491,8 @@ export default function WinstPage() {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
+      controller.abort();
     };
   }, [firestore, metricsRefreshTick, periodRange, periodType, selectedClientIds, selectedJobTypes, selectedProjectIds, toast, user]);
 
@@ -914,7 +937,7 @@ export default function WinstPage() {
   }, [filteredProjects]);
 
   if (isUserLoading || !user || loadingMetrics || !metrics) {
-    return <PageSkeleton />;
+    return <PageSkeleton user={user} error={metricsError} onRetry={() => setMetricsRefreshTick((tick) => tick + 1)} />;
   }
 
   return (

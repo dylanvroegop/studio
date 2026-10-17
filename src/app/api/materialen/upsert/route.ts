@@ -766,6 +766,9 @@ export async function POST(req: Request) {
     };
     if (effectiveCategorie) payload.categorie = effectiveCategorie;
     if (subsectie) payload.subsectie = subsectie;
+    // Een expliciet leeg veld uit de editor wist alleen dat niveau.
+    if (incomingRowId && Object.prototype.hasOwnProperty.call(body, 'categorie') && !categorieInput) payload.categorie = null;
+    if (incomingRowId && Object.prototype.hasOwnProperty.call(body, 'sub_categorie') && !subsectieInput) payload.subsectie = null;
     if (leverancier) payload.leverancier = leverancier;
     if (lengte) payload.lengte = lengte;
     if (breedte) payload.breedte = breedte;

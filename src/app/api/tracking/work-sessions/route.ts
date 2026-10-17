@@ -1,3 +1,4 @@
+import { linkStoredGpsPurchases } from '@/lib/gps-purchase-link-server';
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
@@ -32,6 +33,15 @@ export async function GET(request: Request) {
     if (access instanceof NextResponse) return access;
     await prepareGpsWorkSessions(access.firestore, access.uid);
     const autoConfirmed = await autoConfirmUnambiguousGpsSessions(access.uid);
+    // Bon kan eerder binnenkomen dan de voltooide GPS-werkdag: probeer dan opnieuw.
+    let gpsPurchases = null;
+    if (autoConfirmed > 0) {
+      const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Amsterdam' }).format(new Date());
+      const from = new Date(`${today}T12:00:00Z`);
+      from.setUTCDate(from.getUTCDate() - 7);
+      gpsPurchases = await linkStoredGpsPurchases(access.uid, from.toISOString().slice(0, 10), today, false)
+        .catch(() => ({ error: 'GPS-aankopen konden nog niet worden gekoppeld.' }));
+    }
     const { data, error } = await supabaseAdmin
       .from('gps_work_sessions')
       .select('*')
@@ -42,7 +52,7 @@ export async function GET(request: Request) {
       .limit(30);
     if (error) throw new Error(error.message);
     const needsReview = (data || []).filter((session) => gpsCandidateIds(session as Record<string, unknown>).length > 1);
-    return NextResponse.json({ ok: true, data: needsReview, autoConfirmed });
+    return NextResponse.json({ ok: true, data: needsReview, autoConfirmed, gpsPurchases });
   } catch (error) {
     return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : 'GPS-werkdagen konden niet worden geladen.' }, { status: 500 });
   }
@@ -88,7 +98,9 @@ export async function POST(request: Request) {
       includeReturn,
       includeSupplier,
     });
-    return NextResponse.json({ ok: true, data: timeEntry });
+    const gpsPurchases = await linkStoredGpsPurchases(access.uid, String(session.work_date), String(session.work_date), false)
+      .catch(() => ({ error: 'GPS-aankopen konden nog niet worden gekoppeld.' }));
+    return NextResponse.json({ ok: true, data: timeEntry, gpsPurchases });
   } catch (error) {
     return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : 'GPS-werkdag kon niet worden opgeslagen.' }, { status: 500 });
   }

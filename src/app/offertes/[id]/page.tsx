@@ -1916,19 +1916,23 @@ export default function QuotePage() {
 
     useEffect(() => {
         if (!user || !id) return;
-        if (calculation || calculationLoading || isEnsuringManualQuoteData) return;
+        if (calculation || calculationLoading) return;
         if (latestCalculationStatus === 'pending' || latestCalculationStatus === 'processing') return;
         if (manualQuoteDataEnsureAttemptedRef.current) return;
 
         manualQuoteDataEnsureAttemptedRef.current = true;
         let cancelled = false;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
 
         const ensureManualQuoteData = async () => {
             setIsEnsuringManualQuoteData(true);
             try {
                 const token = await user.getIdToken();
+                if (cancelled) return;
                 const response = await fetch('/api/quotes/ensure-data-json', {
                     method: 'POST',
+                    signal: controller.signal,
                     headers: {
                         'Content-Type': 'application/json',
                         Authorization: `Bearer ${token}`,
@@ -1953,6 +1957,7 @@ export default function QuotePage() {
                     });
                 }
             } finally {
+                clearTimeout(timeout);
                 if (!cancelled) setIsEnsuringManualQuoteData(false);
             }
         };
@@ -1961,12 +1966,15 @@ export default function QuotePage() {
 
         return () => {
             cancelled = true;
+            clearTimeout(timeout);
+            controller.abort();
+            manualQuoteDataEnsureAttemptedRef.current = false;
+            setIsEnsuringManualQuoteData(false);
         };
     }, [
         calculation,
         calculationLoading,
         id,
-        isEnsuringManualQuoteData,
         latestCalculationStatus,
         refetchQuoteData,
         toast,
@@ -7910,8 +7918,8 @@ export default function QuotePage() {
 
                         {/* Overzicht Tab */}
                         <TabsContent value="overzicht" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            {loading || calculationLoading || isEnsuringManualQuoteData ? (
-                                <PageLoadingNotice label={isEnsuringManualQuoteData ? 'Handmatige offerte-editor voorbereiden...' : 'Offertegegevens laden...'} />
+                            {isEnsuringManualQuoteData && !calculation?.data_json ? null : (loading || calculationLoading) && !calculation?.data_json ? (
+                                <PageLoadingNotice label="Offertegegevens laden..." />
                             ) : !calculation?.data_json ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
                                     <Package size={40} className="mx-auto text-emerald-400/80 mb-4" />
@@ -8183,8 +8191,8 @@ export default function QuotePage() {
 
                         {/* Materialen Tab */}
                         <TabsContent value="materialen" className="mt-6 space-y-6 pb-44 sm:pb-32">
-                            {loading || calculationLoading || isEnsuringManualQuoteData ? (
-                                <PageLoadingNotice label={isEnsuringManualQuoteData ? 'Handmatige offerte-editor voorbereiden...' : 'Materialen laden...'} />
+                            {isEnsuringManualQuoteData && !calculation?.data_json ? null : (loading || calculationLoading) && !calculation?.data_json ? (
+                                <PageLoadingNotice label="Materialen laden..." />
                             ) : !calculation?.data_json ? (
                                 <div className="bg-card rounded-lg border border-border p-12 text-center">
                                     <Package size={40} className="mx-auto text-emerald-400/80 mb-4" />

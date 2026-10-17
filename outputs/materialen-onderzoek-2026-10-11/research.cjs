@@ -1,0 +1,8 @@
+require('dotenv').config({path:'.env.local',quiet:true});
+const fs=require('fs');const {createClient}=require('@supabase/supabase-js');const admin=require('firebase-admin');
+const uid='C29EkAPLJzQSQgv7nwm6Uwj6agv2';const dir=__dirname;
+const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);
+async function all(table,key){let rows=[];for(let i=0;;i+=1000){const r=await db.from(table).select('*').eq(key,uid).range(i,i+999);if(r.error)throw r.error;rows.push(...r.data);if(r.data.length<1000)return rows;}}
+(async()=>{const [costs,materials]=await Promise.all([all('project_costs','user_id'),all('main_material_list','gebruikerid')]);fs.writeFileSync(dir+'/sources.json',JSON.stringify({costs,materials},null,2));console.log(JSON.stringify({costs:costs.length,lines:costs.flatMap(c=>c.line_items||[]).length,active:materials.filter(m=>m.is_active).length,suppliers:[...new Set(costs.map(c=>c.supplier_name))],sample:costs.filter(c=>c.line_items?.length).slice(-3).map(c=>({supplier:c.supplier_name,date:c.date,lines:c.line_items.slice(0,3)}))},null,2));
+admin.initializeApp({credential:admin.credential.applicationDefault(),projectId:process.env.FIREBASE_PROJECT_ID||process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID||'studio-6011690104-60fbf'});const qs=await admin.firestore().collection('quotes').where('userId','==',uid).get();let quotes=[];for(const q of qs.docs){quotes.push({id:q.id,...q.data()});}fs.writeFileSync(dir+'/quotes.json',JSON.stringify(quotes,null,2));console.log('Quotes:',quotes.length);
+})().catch(e=>{console.error(e.message);process.exitCode=1});

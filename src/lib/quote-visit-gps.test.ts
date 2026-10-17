@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { findGpsVisitEvidence, type GpsVisitOptions, type GpsVisitPoint, type GpsVisitSite } from './quote-visit-gps';
+import { findCompletedGpsVisit, findGpsVisitEvidence, type GpsVisitOptions, type GpsVisitPoint, type GpsVisitSite } from './quote-visit-gps';
 
 const baseMs = Date.parse('2026-10-06T14:00:00Z');
 const site: GpsVisitSite = { latitude: 52, longitude: 5 };
@@ -104,4 +104,15 @@ test('uitsluitend het langste aaneengesloten segment wordt teruggegeven, geen lo
   assert.equal(evidence?.endedAt, '2026-10-06T14:18:00.000Z');
   assert.equal(evidence?.dwellMinutes, 11);
   assert.equal(evidence?.pointCount, 12);
+});
+
+test('afgerond bezoek vereist betrouwbaar vertrek, geen stilte of voorbijrit', () => {
+  const completed = [...dwell(), point(11, { latitude: 52.002 }), point(12, { latitude: 52.003 })];
+  assert.equal(findCompletedGpsVisit(completed, site, options)?.departedAt, point(12).fixTime);
+  for (const points of [dwell(), [...dwell(), point(11, { latitude: 52.002 })],
+    [...dwell(), point(14, { latitude: 52.002 }), point(15, { latitude: 52.003 })],
+    [...dwell(), point(11, { latitude: 52.002, accuracy: 80 }), point(12, { latitude: 52.003 })],
+    [...completed, point(11, { latitude: 52 })]]) {
+    assert.equal(findCompletedGpsVisit(points, site, options), null);
+  }
 });

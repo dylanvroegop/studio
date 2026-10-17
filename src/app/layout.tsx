@@ -1,3 +1,4 @@
+import { GpsHealthNotice } from '@/components/GpsHealthNotice';
 import { PushRegistration } from '@/components/PushRegistration';
 import type { Metadata } from 'next';
 import './globals.css';
@@ -63,6 +64,7 @@ export default function RootLayout({
               <GoogleCalendarAutoRefresh />
               <PendingCostImportPrompt />
               <PushRegistration />
+              <GpsHealthNotice />
               {children}
               <Toaster />
             </MeasurementUnitProvider>

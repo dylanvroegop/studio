@@ -14,7 +14,7 @@ function getTable(sheet,name){const t=wb.worksheets.getItem(sheet).tables.items.
 function records(sheet,name){const t=getTable(sheet,name),heads=t.getHeaderRowRange().values[0];return t.getDataRows().map(row=>Object.fromEntries(heads.map((h,i)=>[h,row[i]])));}
 function update(sheet,name,rows,dateFields=[]){
  const t=getTable(sheet,name),heads=t.getHeaderRowRange().values[0];const oldLength=t.getDataRows().length;
- const values=rows.length?rows.map(row=>heads.map(h=>{const v=row[h];if(v===null||v===undefined||v==='')return null;if(dateFields.includes(h)&&typeof v==='string'){const d=new Date(v);return Number.isNaN(d.getTime())?null:d;}return v;})):[heads.map(()=>null)];
+ const values=rows.length?rows.map(row=>heads.map(h=>{const v=row[h];if(v===null||v===undefined||v==='')return null;if(dateFields.includes(h)&&typeof v==='string'){const d=new Date(v);return Number.isNaN(d.getTime())?null:Math.floor(d.getTime()/86400000)+25569;}return v;})):[heads.map(()=>null)];
  if(values.length>oldLength)t.rows.add(null,Array.from({length:values.length-oldLength},()=>heads.map(()=>null)));
  const startRow=name==='Accounts'?57:5;
  const start=wb.worksheets.getItem(sheet).getRangeByIndexes(startRow,0,Math.max(oldLength,values.length),heads.length);
@@ -47,7 +47,7 @@ update('Business Expenses','Expenses',costs,['date','due_date']);
 for(let i=0;i<Math.max(costs.length,1);i++){const r=6+i;const sh=wb.worksheets.getItem('Business Expenses');sh.getRange(`N${r}`).formulas=[[`=IF(A${r}="","",IF(COUNT(H${r}:I${r})<2,"n.b.",MAX(0,H${r}-I${r})))`]];
  sh.getRange(`O${r}`).formulas=[[`=IF(A${r}="",0,IF(AND(ISNUMBER(B${r}),COUNT(F${r}:I${r})=4,OR(K${r}="yes",K${r}="no"),OR(L${r}="yes",L${r}="no"),M${r}<>"unknown",M${r}<>""),1,0))`]];}
 const oldAccounts=new Map(records('Settings & Assumptions','Accounts').filter(x=>x.id).map(x=>[x.id,x]));
-if(snapshot.accounts.length>12)throw new Error('Meer dan 12 bronrekeningen: vergroot eerst Accounts en het afstemmingsblad; import is niet opgeslagen.');
+if(snapshot.accounts.length>15)throw new Error('Meer dan 15 bronrekeningen: vergroot eerst Accounts en het afstemmingsblad; import is niet opgeslagen.');
 const accounts=snapshot.accounts.map(row=>{
  const old=oldAccounts.get(row.id);
  const balances=(snapshot.balances||[]).filter(b=>b.bank_account_id===row.id&&b.amount!==null);
@@ -58,10 +58,10 @@ const accounts=snapshot.accounts.map(row=>{
  include:old?.include??0,balance_type:booked?.balance_type||'Kies geboekt saldo uit balances.csv'};
 });
 update('Settings & Assumptions','Accounts',accounts,['closing_date','opening_date','last_sync']);
-for(let r=58;r<=69;r++)wb.worksheets.getItem('Settings & Assumptions').getRange(`M${r}`).formulas=[[`=IF(A${r}="",0,IF(AND(K${r}=1,OR(C${r}="business",C${r}="private"),D${r}="EUR",COUNT(E${r}:H${r})=4,I${r}=1,ISNUMBER(J${r}),F${r}>=H${r},ABS(E${r}-G${r}-SUMIFS(Transactions[amount],Transactions[account_id],A${r},Transactions[booking_date],">"&H${r},Transactions[booking_date],"<="&F${r},Transactions[duplicate_status],""))<=0.01),1,0))`]];
+for(let r=58;r<=72;r++)wb.worksheets.getItem('Settings & Assumptions').getRange(`M${r}`).formulas=[[`=IF(A${r}="",0,IF(AND(K${r}=1,OR(C${r}="business",C${r}="private"),D${r}="EUR",COUNT(E${r}:H${r})=4,I${r}=1,ISNUMBER(J${r}),F${r}>=H${r},ABS(E${r}-G${r}-SUMIFS(Transactions[amount],Transactions[account_id],A${r},Transactions[booking_date],">"&H${r},Transactions[booking_date],"<="&F${r},Transactions[duplicate_status],""))<=0.01),1,0))`]];
 const settings=wb.worksheets.getItem('Settings & Assumptions');
 settings.getRange('B9:B12').values=[[0],[0],[0],[0]];
-settings.getRange('B15').values=[[new Date(snapshot.exportedAt)]];
+settings.getRange('B15').values=[[new Date(snapshot.exportedAt).getTime()/86400000+25569]];
 wb.worksheets.getItem('Bank Transactions').getRange('A4:X4').merge();
 wb.worksheets.getItem('Bank Transactions').getRange('A4').values=[[`${merged.length} unieke transacties. ${possibleDuplicates.length} mogelijke dubbelen met afwijkend ID; controleer snapshot en omschrijvingen.`]];
 wb.recalculate();

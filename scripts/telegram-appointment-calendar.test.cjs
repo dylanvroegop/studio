@@ -180,7 +180,7 @@ test('bevestiging mag niet over een andere gereserveerde afspraak heen schrijven
   assert.equal(route.events.get(first.body.google_calendar_event_id).status, 'tentative');
   assert.equal(route.events.size, 2);
 });
-test('handmatige Google-verwijdering maakt het moment vrij en herhaling maakt de afspraak niet opnieuw', async () => {
+test('Google-verwijdering maakt het moment vrij; een nieuwe import plant opnieuw op dezelfde offerte', async () => {
   const route = makeRoute();
   const first = await route.post();
   route.events.get(first.body.google_calendar_event_id).status = 'cancelled';
@@ -189,17 +189,27 @@ test('handmatige Google-verwijdering maakt het moment vrij en herhaling maakt de
   assert.equal(next.body.appointment_date, first.body.appointment_date);
   const repeated = await route.post();
   assert.equal(repeated.status, 200);
-  assert.equal(repeated.body.appointment_status, 'cancelled');
-  assert.equal(repeated.body.telegram_message, null);
-  assert.equal(route.calendarCalls.filter(call => call.action === 'insert').length, 2);
+  successful(repeated);
+  assert.equal(repeated.body.appointment_status, 'pending');
+  assert.equal(repeated.body.client_id, first.body.client_id);
+  assert.equal(repeated.body.project_id, first.body.project_id);
+  assert.notEqual(repeated.body.appointment_id, first.body.appointment_id);
+  assert.notEqual(repeated.body.appointment_date, next.body.appointment_date);
+  assert.equal(route.rows.get('planning_entries/' + first.body.appointment_id).status, 'cancelled');
+  assert.equal(route.calendarCalls.filter(call => call.action === 'insert').length, 3);
+  const retry = await route.post();
+  assert.equal(retry.body.appointment_id, repeated.body.appointment_id);
+  assert.equal(route.calendarCalls.filter(call => call.action === 'insert').length, 3);
 });
 test('Google 404 op eerder gesynchroniseerd event geldt als verwijdering', async () => {
   const route = makeRoute();
   const first = await route.post();
   route.events.delete(first.body.google_calendar_event_id);
   const repeated = await route.post();
-  assert.equal(repeated.body.appointment_status, 'cancelled');
-  assert.equal(route.events.size, 0);
+  successful(repeated);
+  assert.equal(repeated.body.appointment_status, 'pending');
+  assert.notEqual(repeated.body.google_calendar_event_id, first.body.google_calendar_event_id);
+  assert.equal(route.events.size, 1);
 });
 test('Google 500 geldt nooit als verwijdering en veroorzaakt geen lokale vrijgave', async () => {
   const route = makeRoute();
@@ -380,4 +390,78 @@ test('verwijdering van gekoppeld legacy-event maakt ook de oude lokale Google-sp
   assert.equal(next.body.appointment_date, '2026-10-09');
   assert.equal(route.rows.get('planning_entries/google_old-event').status, 'cancelled');
   assert.equal(route.rows.get('planning_entries/appointment').status, 'cancelled');
+});
+
+
+test('screenshots vullen dezelfde klant, offerte en bevestigde afspraak aan zonder gegevens te wissen', async () => {
+  const route = makeRoute();
+  const first = await route.post({ ...client, job_title: 'Dakkapel repareren' });
+  const planned = await route.post({ ...client, appointment_date: '2026-10-12', appointment_time: '13:30', appointment_status: 'confirmed' });
+  successful(planned);
+  assert.equal(planned.body.project_id, first.body.project_id);
+  assert.equal(planned.body.appointment_id, first.body.appointment_id);
+  assert.equal(planned.body.appointment_status, 'scheduled');
+  const address = await route.post({ client_name: client.client_name, city: client.city, address: 'Teststraat 42' });
+  successful(address);
+  assert.equal(address.body.appointment_id, first.body.appointment_id);
+  assert.equal(address.body.appointment_date, '2026-10-12');
+  assert.equal(address.body.appointment_time, '13:30');
+  assert.equal(address.body.appointment_status, 'scheduled');
+  const savedClient = route.rows.get('clients/' + first.body.client_id);
+  assert.equal(savedClient.straat, 'Teststraat');
+  assert.equal(savedClient.huisnummer, '42');
+  assert.equal(savedClient.emailadres, client.email);
+  const quote = route.rows.get('quotes/' + first.body.project_id);
+  assert.equal(quote.titel, 'Dakkapel repareren');
+  assert.equal(quote.klantinformatie.telefoonnummer, client.phone);
+  assert.equal(quote.klantinformatie.projectadres.straat, 'Teststraat');
+  const event = route.events.get(first.body.google_calendar_event_id);
+  assert.equal(event.location, 'Teststraat 42, Almere');
+  assert.equal(event.status, 'confirmed');
+  assert.equal(route.events.size, 1);
+  const writes = route.writes.length;
+  await route.post({ client_name: client.client_name, city: client.city, address: 'Teststraat 42' });
+  assert.equal(route.writes.length, writes);
+});
+
+test('adres aanvullen behoudt een pending voorstel en synchroniseert het bestaande event', async () => {
+  const route = makeRoute();
+  const first = await route.post();
+  const result = await route.post({ ...client, address: 'Nieuweweg 7' });
+  successful(result);
+  assert.equal(result.body.appointment_date, first.body.appointment_date);
+  assert.equal(result.body.appointment_status, 'pending');
+  assert.equal(result.body.google_calendar_event_id, first.body.google_calendar_event_id);
+  assert.equal(route.events.get(result.body.google_calendar_event_id).location, 'Nieuweweg 7, Almere');
+});
+
+test('na verwijderen kan een screenshot expliciet opnieuw bevestigen; gelijktijdige herhaling maakt één afspraak', async () => {
+  const route = makeRoute();
+  const first = await route.post({ ...client, address: 'Teststraat 42' });
+  route.events.get(first.body.google_calendar_event_id).status = 'cancelled';
+  const incoming = { ...client, appointment_date: '2026-10-12', appointment_time: '13:30', appointment_status: 'confirmed' };
+  const results = await Promise.all([route.post(incoming), route.post(incoming)]);
+  const completed = results.filter(result => result.status === 200);
+  assert.ok(completed.length);
+  completed.forEach(successful);
+  const repeated = await route.post(incoming);
+  successful(repeated);
+  assert.equal(repeated.body.appointment_status, 'scheduled');
+  assert.equal(repeated.body.client_id, first.body.client_id);
+  assert.equal(repeated.body.project_id, first.body.project_id);
+  assert.notEqual(repeated.body.appointment_id, first.body.appointment_id);
+  assert.equal([...route.events.values()].filter(event => event.status !== 'cancelled').length, 1);
+  assert.equal(route.events.get(repeated.body.google_calendar_event_id).location, 'Teststraat 42, Almere');
+});
+
+
+test('adres-screenshot met dezelfde datum en pending extractie zet een bevestigde afspraak niet terug', async () => {
+  const route = makeRoute();
+  const first = await route.post({ ...client, appointment_date: '2026-10-12', appointment_time: '13:30', appointment_status: 'confirmed' });
+  const result = await route.post({ ...client, address: 'Teststraat 42', appointment_date: '2026-10-12', appointment_time: '13:30', appointment_status: 'pending' });
+  successful(result);
+  assert.equal(result.body.appointment_status, 'scheduled');
+  assert.equal(result.body.appointment_id, first.body.appointment_id);
+  assert.equal(route.events.get(first.body.google_calendar_event_id).status, 'confirmed');
+  assert.equal(route.events.get(first.body.google_calendar_event_id).location, 'Teststraat 42, Almere');
 });

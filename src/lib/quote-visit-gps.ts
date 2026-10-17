@@ -74,7 +74,7 @@ function deviceId(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 && value === value.trim() ? value : null;
 }
 
-function distanceMeters(point: GpsVisitPoint, site: GpsVisitSite): number {
+export function gpsVisitDistanceMeters(point: GpsVisitPoint, site: GpsVisitSite): number {
   const radians = Math.PI / 180;
   const latitudeDelta = (point.latitude! - site.latitude) * radians;
   const longitudeDelta = (point.longitude! - site.longitude) * radians;
@@ -132,7 +132,7 @@ export function findGpsVisitEvidence(
       continue;
     }
     const point = group[0];
-    const distanceM = validCoordinates(point.latitude, point.longitude) ? distanceMeters(point, site) : Infinity;
+    const distanceM = validCoordinates(point.latitude, point.longitude) ? gpsVisitDistanceMeters(point, site) : Infinity;
     const validPoint = point.valid === true
       && deviceId(point.deviceId) === expectedDeviceId
       && typeof point.accuracy === 'number' && Number.isFinite(point.accuracy)
@@ -169,4 +169,33 @@ export function findGpsVisitEvidence(
     maxAccuracyM: best.maxAccuracyM,
     maxDistanceM: best.maxDistanceM,
   } : null;
+}
+
+/** Verblijf alleen is geen afgerond bezoek: vereis daarna twee betrouwbare vertrekpunten. */
+export function findCompletedGpsVisit(
+  points: readonly GpsVisitPoint[], site: GpsVisitSite, options: GpsVisitOptions,
+): (GpsVisitEvidence & { departedAt: string }) | null {
+  const evidence = findGpsVisitEvidence(points, site, options);
+  if (!evidence) return null;
+  const end = Date.parse(evidence.endedAt);
+  const until = Math.min(Date.parse(options.to), (options.now || new Date()).getTime());
+  const after = points.filter(point => Date.parse(point.fixTime || '') > end)
+    .sort((a, b) => Date.parse(a.fixTime!) - Date.parse(b.fixTime!));
+  let firstDeparture: number | null = null;
+  let previous = end;
+  for (const point of after) {
+    const at = Date.parse(point.fixTime || '');
+    if (at > until || at - previous > GPS_VISIT_MAX_POINT_GAP_MINUTES * 60_000) return null;
+    if (point.valid !== true || deviceId(point.deviceId) !== deviceId(options.expectedDeviceId)
+      || !validCoordinates(point.latitude, point.longitude)
+      || typeof point.accuracy !== 'number' || !Number.isFinite(point.accuracy)
+      || point.accuracy <= 0 || point.accuracy > GPS_VISIT_MAX_ACCURACY_M
+      || gpsVisitDistanceMeters(point, site) - point.accuracy <= GPS_VISIT_RADIUS_M) return null;
+    // Conflicterende duplicaten mogen ook bij vertrek geen bewijs worden.
+    if (after.some(other => other.fixTime === point.fixTime && !sameFix(point, other))) return null;
+    firstDeparture ??= at;
+    if (at - firstDeparture >= 60_000) return { ...evidence, departedAt: new Date(at).toISOString() };
+    previous = at;
+  }
+  return null;
 }

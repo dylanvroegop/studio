@@ -2,6 +2,7 @@ export function normalizeTaxonomyLabel(value: unknown): string {
   if (typeof value !== 'string') return '';
   const normalized = value.trim().replace(/\s+/g, ' ');
   if (!normalized) return '';
+  if (/^(ak[24]|rk|osb|mdf|hpl|pir|sls|epdm|pvc)$/i.test(normalized)) return normalized.toUpperCase();
   return normalized.charAt(0).toLocaleUpperCase('nl-NL') + normalized.slice(1);
 }
 
