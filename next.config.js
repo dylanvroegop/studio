@@ -15,6 +15,17 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        // Oude telefooniconen doorsturen voordat Dashboard wordt gerenderd.
+        source: '/dashboard',
+        has: [{
+          type: 'header',
+          key: 'user-agent',
+          value: '.*(?:iPhone|iPod|Android.*Mobile|Windows Phone).*',
+        }],
+        destination: '/offertes',
+        permanent: false,
+      },
+      {
         source: '/register',
         destination: '/login',
         permanent: false,

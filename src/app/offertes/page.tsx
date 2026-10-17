@@ -1651,14 +1651,6 @@ export default function OffertesPage() {
     }
   }
 
-  if (isUserLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="animate-spin text-primary w-8 h-8" />
-      </div>
-    );
-  }
-
   const LoadingListPanel = () => (
     <div role="status" className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1992,7 +1984,7 @@ export default function OffertesPage() {
             </CardContent>
           </Card>
 
-          {loading ? (
+          {isUserLoading || loading ? (
             <Card>
               <CardContent className="p-6">
                 <LoadingListPanel />
