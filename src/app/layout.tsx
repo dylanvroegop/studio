@@ -1,4 +1,5 @@
 import { GpsHealthNotice } from '@/components/GpsHealthNotice';
+import { InstalledAppStartRedirect } from '@/components/InstalledAppStartRedirect';
 import { PushRegistration } from '@/components/PushRegistration';
 import type { Metadata } from 'next';
 import './globals.css';
@@ -56,6 +57,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body className="font-body antialiased">
+        <InstalledAppStartRedirect />
         <FirebaseClientProvider>
           <ThemeModeProvider>
             <MeasurementUnitProvider>

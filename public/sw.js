@@ -4,10 +4,10 @@ self.addEventListener('activate', event => event.waitUntil(self.clients.claim())
 
 function safeUrl(path) {
   try {
-    const url = new URL(path || '/dashboard', self.location.origin);
+    const url = new URL(path || '/offertes', self.location.origin);
     return url.origin === self.location.origin && ['http:', 'https:'].includes(url.protocol)
-      ? url.href : new URL('/dashboard', self.location.origin).href;
-  } catch { return new URL('/dashboard', self.location.origin).href; }
+      ? url.href : new URL('/offertes', self.location.origin).href;
+  } catch { return new URL('/offertes', self.location.origin).href; }
 }
 
 self.addEventListener('push', event => {
