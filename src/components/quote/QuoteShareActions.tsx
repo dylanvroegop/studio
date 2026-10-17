@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { invoiceWhatsAppUrl, downloadInvoiceFile } from '@/lib/invoice-sharing';
 import { prepareQuotePdfDownload } from '@/lib/quote-pdf-download';
+import { stripDocumentLinksFromMessage } from '@/lib/whatsapp-message-preset';
 
 interface QuoteShareActionsProps {
   open: boolean;
@@ -33,8 +34,15 @@ export function QuoteShareActions({ open, selectedIds, blocked, message, phone, 
   const [shareFailed, setShareFailed] = useState(false);
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   const busyRef = useRef(false);
   const files = prepared?.key === selectionKey ? prepared.files : null;
+
+  useEffect(() => {
+    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    setIsDesktop(!mobile);
+  }, []);
 
   useEffect(() => {
     setPrepared(null);
@@ -53,7 +61,10 @@ export function QuoteShareActions({ open, selectedIds, blocked, message, phone, 
 
   let canShare = false;
   try { canShare = Boolean(files?.length && typeof navigator !== 'undefined' && typeof navigator.share === 'function' && navigator.canShare?.({ files })); } catch { /* Download blijft beschikbaar. */ }
-  const whatsappUrl = invoiceWhatsAppUrl(phone, message);
+  const mobileWhatsAppUrl = invoiceWhatsAppUrl(phone, message);
+  const webParams = new URLSearchParams({ text: stripDocumentLinksFromMessage(message) });
+  if (mobileWhatsAppUrl) webParams.set('phone', new URL(mobileWhatsAppUrl).pathname.slice(1));
+  const whatsappUrl = isDesktop ? `https://web.whatsapp.com/send?${webParams.toString()}` : mobileWhatsAppUrl;
   const setWorking = (value: boolean): void => {
     busyRef.current = value;
     setBusy(value);
@@ -62,6 +73,13 @@ export function QuoteShareActions({ open, selectedIds, blocked, message, phone, 
 
   const share = (): void => {
     if (!files || blocked || busyRef.current) return;
+    if (isDesktop && whatsappUrl) {
+      // Open de webpagina direct vanuit de klik, vóór de asynchrone download.
+      window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+      setNotice('Voeg de gedownloade PDF toe in WhatsApp Web.' + (files.length > 1 ? ' Pak hiervoor eerst de ZIP uit.' : ''));
+      void download();
+      return;
+    }
     setWorking(true);
     setShareFailed(false);
     // De bestanden zijn al gereed: open de deelfunctie rechtstreeks vanuit de tik.
@@ -105,17 +123,17 @@ export function QuoteShareActions({ open, selectedIds, blocked, message, phone, 
     {error ? <div role="alert" className="space-y-2 text-sm text-destructive">
       <p>{error}</p><Button variant="outline" onClick={() => setRetry((value) => value + 1)}>Opnieuw proberen</Button>
     </div> : !files && !blocked ? <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> PDF voorbereiden...</p> : null}
-    {(canShare || !files) && <Button variant="success" className="min-h-11 w-full gap-2" disabled={!files || busy || blocked} onClick={share}><Share2 className="h-4 w-4" />Deel PDF en bericht</Button>}
-    {canShare && <p className="text-xs text-muted-foreground">Kies WhatsApp en de klant. Neemt WhatsApp de tekst niet over? Gebruik ‘Kopiëren’.</p>}
+    {(isDesktop || canShare || !files) && <Button variant="success" className="min-h-11 w-full gap-2" disabled={!files || busy || blocked} onClick={share}><Share2 className="h-4 w-4" />Deel PDF en bericht</Button>}
+    {isDesktop ? <p className="text-xs text-muted-foreground">Downloadt de PDF en opent WhatsApp Web met je bericht. Voeg de PDF daar zelf toe.{files && files.length > 1 ? ' Pak hiervoor eerst de ZIP uit.' : ''}</p> : canShare && <p className="text-xs text-muted-foreground">Kies WhatsApp en de klant. Neemt WhatsApp de tekst niet over? Gebruik ‘Kopiëren’.</p>}
     {!messageEditor && <Button variant="outline" className="min-h-11 w-full gap-2" disabled={busy || blocked || !message.trim()} onClick={() => {
       void navigator.clipboard.writeText(message).then(() => setNotice('Bericht gekopieerd.')).catch(() => setNotice('Kopiëren mislukt. Selecteer en kopieer het bericht hierboven.'));
     }}><Copy className="h-4 w-4" />Bericht kopiëren</Button>}
-    <details open={Boolean(files && (!canShare || shareFailed))} className="rounded-md border px-3 py-2">
+    <details open={Boolean(files && ((!isDesktop && !canShare) || shareFailed))} className="rounded-md border px-3 py-2">
       <summary className="cursor-pointer text-sm">Downloaden en WhatsApp openen</summary>
       <div className="space-y-3 pt-3">
         <Button variant="outline" className="min-h-11 w-full gap-2" disabled={!files || busy || blocked} onClick={() => void download()}><Download className="h-4 w-4" />{files && files.length > 1 ? 'Download PDF’s als ZIP' : 'Download PDF'}</Button>
         {onPhoneChange && <div className="space-y-1.5"><Label htmlFor="quote-share-phone">WhatsApp-nummer</Label><Input id="quote-share-phone" type="tel" autoComplete="tel" value={phone} onChange={(event) => onPhoneChange(event.target.value)} placeholder="+31 6 12345678" /></div>}
-        {whatsappUrl && <Button asChild variant="outline" className="min-h-11 w-full"><a href={whatsappUrl} target="_blank" rel="noopener noreferrer"><MessageCircle className="mr-2 h-4 w-4" />WhatsApp openen</a></Button>}
+        {whatsappUrl && <Button asChild variant="outline" className="min-h-11 w-full"><a href={whatsappUrl} target="_blank" rel="noopener noreferrer"><MessageCircle className="mr-2 h-4 w-4" />{isDesktop ? 'WhatsApp Web openen' : 'WhatsApp openen'}</a></Button>}
         <p className="text-xs text-muted-foreground">Voeg de gedownloade PDF zelf toe.{files && files.length > 1 ? ' Pak hiervoor eerst de ZIP uit.' : ''}</p>
       </div>
     </details>
