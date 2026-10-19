@@ -1,3 +1,4 @@
+import { isConfirmedCashCost } from '@/lib/finance-cost-visibility';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { inferProjectCostCategory, normalizeProjectCostCategory, roundEuro, type ProjectCostCategory, type ProjectCostRow } from '@/lib/project-costs';
 
@@ -220,13 +221,21 @@ export async function loadConnectedKnabTransactions(bankUserId: string): Promise
   const accountIds = (accountsResult.data || []).map((row) => String(row.id)).filter(Boolean);
   if (accountIds.length === 0) throw new Error('De actieve Knab-koppeling heeft nog geen rekening. Synchroniseer Knab eerst.');
 
-  const transactionsResult = await supabaseAdmin
-    .from('bank_transactions')
-    .select('id,amount,booking_date,counterparty_name,description,remittance_information,category,reconciliation_group_id,raw')
-    .in('bank_account_id', accountIds)
-    .order('booking_date', { ascending: false });
-  if (transactionsResult.error) throw new Error(`Knab-transacties konden niet worden geladen: ${transactionsResult.error.message}`);
-  return (transactionsResult.data || []).map((row) => ({
+  const transactionRows: Record<string, unknown>[] = [];
+  for (;;) {
+    const transactionsResult = await supabaseAdmin
+      .from('bank_transactions')
+      .select('id,amount,booking_date,counterparty_name,description,remittance_information,category,reconciliation_group_id,raw')
+      .in('bank_account_id', accountIds)
+      .order('booking_date', { ascending: false })
+      .order('id', { ascending: true })
+      .range(transactionRows.length, transactionRows.length + 499);
+    if (transactionsResult.error) throw new Error(`Knab-transacties konden niet worden geladen: ${transactionsResult.error.message}`);
+    const page = transactionsResult.data || [];
+    transactionRows.push(...page);
+    if (page.length < 500) break;
+  }
+  return transactionRows.map((row) => ({
     id: String(row.id),
     amount: Number(row.amount) || 0,
     booking_date: typeof row.booking_date === 'string' ? row.booking_date : null,
@@ -341,7 +350,7 @@ export function buildFinanceBankLedger(params: {
   // Normalize supplier/document/date metadata once, not for every possible
   // cost/payment pair. Matching order and authoritative payment links stay
   // unchanged, including mixed-category invoices and credit notes.
-  const preparedCosts = params.costs.map((cost): PreparedCost => ({
+  const preparedCosts = params.costs.filter((cost) => !isConfirmedCashCost(cost)).map((cost): PreparedCost => ({
     cost,
     amount: sourceAmount(cost),
     supplierTokens: tokens(cost.supplier_name),

@@ -4,7 +4,9 @@ import { parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { JOB_REGISTRY } from '@/lib/job-registry';
 import { getMaterialRule } from '@/lib/klus-regels-static';
-import { buildKeralitCutPlan, parseMaterialDimensionMm } from '@/lib/keralit-cut-plan';
+import { buildManualDataJson } from '@/lib/manual-quote-data';
+import { supabaseAdmin } from '@/lib/supabase-admin';
+import { prepareSimpleCalculation } from '@/lib/simple-material-calculation';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
   commitCalculationQuotaReservation,
@@ -445,10 +447,43 @@ export async function POST(req: Request) {
     quotaReservationId = reserveResult.reservationId || null;
     quotaReservationUid = uid;
 
+    // Leg invoer vast vóór n8n een lege run aanmaakt. Bij herberekenen blijft
+    // de actuele editor-data staan; nooit een snapshot terugschrijven na afloop.
+    const { data: editableCalculation, error: editableReadError } = await supabaseAdmin
+      .from('quotes_collection').select('id, data_json')
+      .eq('quoteid', quoteId).eq('gebruikerid', uid)
+      .not('data_json', 'is', null).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (editableReadError) throw editableReadError;
+    if (!editableCalculation) {
+      const { error: seedError } = await supabaseAdmin.from('quotes_collection').insert({
+        quoteid: quoteId,
+        gebruikerid: uid,
+        status: 'completed',
+        data_json: buildManualDataJson(quote),
+      });
+      if (seedError) throw seedError;
+    }
+
+    // Bewaar een losse, onveranderlijke materiaalstand vóór iedere herberekening.
+    // Editor-patches op calculatieregels kunnen deze historie niet overschrijven.
+    if (editableCalculation?.data_json) {
+      const previous = normalizeDataJson(editableCalculation.data_json);
+      await db.collection('quotes').doc(quoteId).collection('materialCalculationHistory').add({
+        savedAt: new Date().toISOString(),
+        sourceCalculationId: editableCalculation.id,
+        materialsJson: JSON.stringify({
+          grootmaterialen: previous.grootmaterialen || [],
+          verbruiksartikelen: previous.verbruiksartikelen || [],
+        }),
+      });
+    }
+
+    // Eén starttijd voor server en browser, vóór de webhook wordt verstuurd.
+    const calculationStartedAt = admin.firestore.Timestamp.now();
     // Set status to in_behandeling while n8n is processing
     await db.collection('quotes').doc(quoteId).update({
       status: 'in_behandeling',
-      calculationStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+      calculationStartedAt,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
@@ -1172,30 +1207,6 @@ export async function POST(req: Request) {
 
               const finalSectionKey = normalizedSectionKey || slotKey;
 
-              if (
-                jobSlug === 'boeiboorden-keralit'
-                && (finalSectionKey === 'keralit_panelen_voorkant' || finalSectionKey === 'keralit_panelen_onderkant')
-              ) {
-                const stockLengthMm = parseMaterialDimensionMm(enriched.material?.lengte);
-                const workingWidthMm = parseMaterialDimensionMm(
-                  enriched.material?.max_werkende_breedte_mm
-                  ?? enriched.material?.werkende_breedte_mm
-                  ?? enriched.material?.werkend
-                  ?? enriched.material?.breedte
-                );
-
-                if (stockLengthMm && workingWidthMm) {
-                  enriched.keralit_cut_plan = buildKeralitCutPlan({
-                    items: normalizedBasis,
-                    sectionKey: finalSectionKey,
-                    stockLengthMm,
-                    workingWidthMm,
-                  });
-                  enriched.configuredWastePercentageIgnored = enriched.wastePercentage ?? 0;
-                  enriched.wastePercentage = 0;
-                }
-              }
-
               const sectionRuleAttachment = resolveRuleAttachmentFromSupabase(jobSlug, finalSectionKey);
               enriched = attachRuleForSection(enriched, jobSlug, finalSectionKey);
               if (
@@ -1347,13 +1358,13 @@ export async function POST(req: Request) {
       ...quoteZonderKlantinformatie
     } = optimizedQuote || {};
     const bedrijf = await haalBedrijfsgegevensOp(db, optimizedQuote);
-    const payload = {
+    const payload = prepareSimpleCalculation({
       quoteId,
       uid,
       quote: quoteZonderKlantinformatie,
       klantinformatie,
       bedrijf,
-    };
+    });
 
     const webhookResult = await postN8n(payload, process.env.N8N_HEADER_SECRET, webhookTarget);
 
@@ -1371,6 +1382,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
+      calculationStartedAt: calculationStartedAt.toMillis(),
       webhookTargetUsed: webhookResult.webhookTargetUsed,
       fallbackFrom: webhookResult.fallbackFrom || null,
     });

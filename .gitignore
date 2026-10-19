@@ -59,3 +59,9 @@ sync_ids_robust.sql
 update_ids.sql
 *.tsbuildinfo
 package-lock.json
+
+# Local audit backups and exported customer data
+/outputs/calculator-audit/
+/outputs/calculator-zero-filter/
+/outputs/finance-repair-2026-10-17/
+/outputs/material-category-simplification/

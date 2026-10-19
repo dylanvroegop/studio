@@ -799,10 +799,11 @@ function CollapsedInfoChip({
 
 export interface OverzichtPageProps {
   embedded?: boolean;
+  calculationInProgress?: boolean;
   onCalculated?: () => void;
 }
 
-export function OverzichtPage({ embedded = false, onCalculated }: OverzichtPageProps = {}) {
+export function OverzichtPage({ embedded = false, onCalculated, calculationInProgress = false }: OverzichtPageProps = {}) {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -2220,7 +2221,7 @@ export function OverzichtPage({ embedded = false, onCalculated }: OverzichtPageP
       toast({ variant: 'destructive', title: 'Fout', description: 'Geen offerte gevonden om te versturen.' });
       return;
     }
-    if (isSubmitting) return;
+    if (isSubmitting || calculationInProgress) return;
 
     if (!stats.isReady) {
       toast({ variant: 'destructive', title: 'Niet compleet', description: primaryHint });
@@ -2311,7 +2312,7 @@ export function OverzichtPage({ embedded = false, onCalculated }: OverzichtPageP
         throw requestError;
       }
 
-      toast({ title: 'Offerte verzonden', description: 'De offerte is doorgestuurd naar verwerking.' });
+      toast({ title: 'Calculatie gestart', description: 'De berekening loopt op de achtergrond.' });
       if (shouldShowWebsiteUpsellToast()) {
         toast({
           title: 'Volgende stap: premium website',
@@ -3958,19 +3959,24 @@ export function OverzichtPage({ embedded = false, onCalculated }: OverzichtPageP
 
           {/* Sticky (always visible) bottom bar */}
           <div className="mobile-calm-pane fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border z-50">
-            <div className="max-w-5xl mx-auto px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              {!embedded && (
-                <Button variant="outline" asChild className="w-full sm:w-auto">
-                  <Link href={`/offertes/${quoteId}/klus/nieuw`}>
-                    Terug
-                  </Link>
-                </Button>
-              )}
+            <div className="max-w-5xl mx-auto px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+              <div className="flex min-w-0 flex-col gap-2 sm:items-start">
+                {!embedded && (
+                  <Button variant="outline" asChild className="w-full sm:w-auto">
+                    <Link href={`/offertes/${quoteId}/klus/nieuw`}>
+                      Terug
+                    </Link>
+                  </Button>
+                )}
 
-              <div className="w-full flex flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
                 {/* Status indicator */}
                 <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                  {stats.isReady ? (
+                  {isSubmitting || calculationInProgress ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Calculatie bezig…</span>
+                    </>
+                  ) : stats.isReady ? (
                     <>
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                       <span>Klaar voor berekening</span>
@@ -3982,13 +3988,6 @@ export function OverzichtPage({ embedded = false, onCalculated }: OverzichtPageP
                     </>
                   )}
                 </div>
-
-                {billingQuota && !billingQuota.isUnlimited && (
-                  <div className="text-xs text-muted-foreground">
-                    {billingQuota.usedJobs} / {billingQuota.limit ?? 0} klussen gebruikt
-                    {billingQuota.currentCycleEnd ? ` · reset ${new Date(billingQuota.currentCycleEnd).toLocaleDateString('nl-NL')}` : ''}
-                  </div>
-                )}
 
                 {quotaNearLimit && !quotaBlocked && (
                   <div className="text-xs text-amber-300">
@@ -4027,20 +4026,21 @@ export function OverzichtPage({ embedded = false, onCalculated }: OverzichtPageP
                   </Button>
                 )}
 
-                <Button
-                  onClick={handleFinishQuote}
-                  disabled={isSubmitting || !stats.isReady || quotaBlocked}
-                  variant="success"
-                  className="w-full gap-2 sm:w-auto"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                  {isSubmitting ? 'Berekenen…' : 'Materialen berekenen'}
-                </Button>
               </div>
+
+              <Button
+                onClick={handleFinishQuote}
+                disabled={isSubmitting || calculationInProgress || !stats.isReady || quotaBlocked}
+                variant="success"
+                className="w-full gap-2 sm:w-auto"
+              >
+                {isSubmitting || calculationInProgress ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                {isSubmitting || calculationInProgress ? 'Berekenen…' : 'Materialen berekenen'}
+              </Button>
             </div>
           </div>
         </div>

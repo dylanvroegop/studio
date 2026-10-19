@@ -1,3 +1,4 @@
+import { costDocumentError } from '@/lib/cost-document-policy';
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
@@ -109,6 +110,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
     }
 
+    const documentError = costDocumentError(payload);
+    if (documentError) return NextResponse.json({ ok: false, message: documentError }, { status: 422 });
     const result = await queuePendingCostImport(uid, payload);
     return NextResponse.json({ ok: true, ...result }, { headers: noStoreHeaders() });
 

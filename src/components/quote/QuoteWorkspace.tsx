@@ -6,6 +6,7 @@ import { useQuoteSendSelection } from '@/hooks/useQuoteSendSelection';
 import { loadQuotePdfData } from '@/lib/load-quote-pdf-data';
 import { markQuoteSelectionAsSent } from '@/lib/quote-send-status';
 import { useQuoteData } from '@/hooks/useQuoteData';
+import { getCalculationProgress, resolveCalculationStart } from '@/lib/calculation-progress';
 import { useTodayQuoteHours } from '@/hooks/useTodayQuoteHours';
 import {
     calculateQuoteTotals,
@@ -21,12 +22,15 @@ import {
     type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
 import { calculateJointFinishingCost } from '@/lib/joint-finishing-cost';
+import { collectNoteSurfaces, noteSurfaceArea, noteSurfaceJobs } from '@/lib/note-surfaces';
+import { useNoteSurfaceResolver } from '@/components/quote/NoteSurfaceResolver';
 import { calculateScaffoldCost, getScopeCosts, getMissingScopeCosts, setScopeCost, SCOPE_COST_LABELS, type ScopeCostKey } from '@/lib/quote-scope-costs';
 import { PaymentRequestDialog } from '@/components/quote/PaymentRequestDialog';
 import { Link2 } from 'lucide-react';
 import { CostSummaryCard } from '@/components/quote/CostSummaryCard';
 import { QuotePhotoImage } from '@/components/quote/QuotePhotoImage';
 import { createQuotePhotoPreview } from '@/lib/quote-photo-preview';
+import { MaterialCalculationHistory } from '@/components/quote/MaterialCalculationHistory';
 import { SmallMaterialEstimate } from '@/components/quote/SmallMaterialEstimate';
 import { MaterialEditor } from '@/components/quote/MaterialEditor';
 import { NacalculatieTab } from '@/components/quote/NacalculatieTab';
@@ -74,13 +78,14 @@ import { MaterialPresentationTab } from '@/components/quote/MaterialPresentation
 import { WorkDescriptionWorkspace } from '@/components/quote/work-description/WorkDescriptionWorkspace';
 import { HiddenPDFDrawings } from '@/components/quote/HiddenPDFDrawings';
 import { AppNavigation } from '@/components/AppNavigation';
+import { AutoHideQuoteHeader } from '@/components/quote/AutoHideQuoteHeader';
 import { LogoUpload } from '@/components/settings/LogoUpload';
 import { findExistingVoorschotInvoiceId } from '@/lib/invoice-actions';
 import { createMeerwerkbon } from '@/lib/meerwerkbon-actions';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn, parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
-import { buildAddressString, buildGoogleMapsDirectionsUrl, openGoogleMapsDirections, hasMinimalAddress } from '@/lib/maps';
+import { buildAddressString, buildGoogleMapsDirectionsUrl, openGoogleMapsDirections, hasMinimalAddress, resolveTransportDestination } from '@/lib/maps';
 import { reportOperationalError } from '@/lib/report-operational-error';
 import { deduplicateMeasurementRows } from '@/lib/work-description-note-coverage';
 import {
@@ -962,7 +967,7 @@ function buildWorkDescriptionNoteJobs(sections: QuoteNoteSection[]): WorkDescrip
         }
         if (!title && !section.notes.trim()) continue;
         jobs.push({
-            title: title || `Werkzaamheid ${jobs.length + 1}`,
+            title: title || 'Werkzaamheden',
             notes: section.notes.trim(),
             dimensions: [
                 ...getSectionDimensions(section),
@@ -1142,13 +1147,17 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
     const {
         calculation,
         latestCalculationStatus,
+        latestCalculation,
         loading: calculationLoading,
         error: calculationError,
         updateDataJson,
         updateDataJsonPatch,
         refetch: refetchQuoteData,
+        flushWrites: flushCalculationWrites,
     } = useQuoteData(id, {
+        pausePolling: quote?.status === 'fout',
         pollWhenMissing: quote?.status === 'in_behandeling',
+        pollWhileRunning: quote?.status === 'in_behandeling',
         pollIntervalMs: 5000,
         preferCompletedFallback: true,
     });
@@ -1416,6 +1425,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
     const [showVerbruikToelichting, setShowVerbruikToelichting] = useState(false);
     const [compareMaterialView, setCompareMaterialView] = useState<'groot' | 'verbruik'>('groot');
     const [calculationElapsedSeconds, setCalculationElapsedSeconds] = useState(0);
+    const [isStoppingCalculation, setIsStoppingCalculation] = useState(false);
     const [isRetryingCalculation, setIsRetryingCalculation] = useState(false);
     const calculationTimerStartedAtRef = useRef<number | null>(null);
 
@@ -3364,10 +3374,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         isUpdatingRef.current = true;
         setMaterials(nextMaterials);
         try {
-            await updateDataJsonPatch({
-                grootmaterialen: nextMaterials.groot,
-                verbruiksartikelen: nextMaterials.verbruik,
-            });
+            await updateDataJsonPatch({ _scope_cost_updates: { [key]: value } });
             toast({ title: `${SCOPE_COST_LABELS[key]} opgeslagen` });
         } finally {
             isUpdatingRef.current = false;
@@ -5754,17 +5761,6 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         return null;
     };
 
-    const storedQuoteTotal = (() => {
-        const quoteWithTotal = quote as (Quote & { totaalbedrag?: unknown }) | null;
-        const totaalbedrag = quoteWithTotal?.totaalbedrag;
-        if (typeof totaalbedrag === 'number' && Number.isFinite(totaalbedrag)) return totaalbedrag;
-        const amount = quote?.amount;
-        if (typeof amount === 'number' && Number.isFinite(amount)) return amount;
-        return null;
-    })();
-
-    const hasStoredCalculatedTotal = storedQuoteTotal !== null;
-    const hasCalculationResult = Boolean(calculation?.data_json) || hasStoredCalculatedTotal;
     const supabaseCalculationInProgress =
         latestCalculationStatus === 'pending' ||
         latestCalculationStatus === 'processing' ||
@@ -5779,7 +5775,11 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
     const footerVatRate = Number(quoteSettings?.btwTarief) || 21;
     const footerQuoteTotalExcl = totalMaterialExcl + laborTotalExcl;
     const footerQuoteTotalIncl = footerQuoteTotalExcl * (1 + footerVatRate / 100);
-    const calculationInProgress = supabaseCalculationInProgress;
+    const {
+        running: calculationInProgress,
+        completed: currentRunFinished,
+        failed: currentRunFailed,
+    } = getCalculationProgress(quote?.status, getTimestampMillis(quote?.calculationStartedAt), latestCalculation);
     const calculationTimerStorageKey = `offerte_calculation_started_at_${id}`;
 
     useEffect(() => {
@@ -5836,30 +5836,50 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         if (!firestore || !id) return;
         if (quote?.status !== 'in_behandeling') return;
         if (supabaseCalculationInProgress) return;
-        if (!hasCalculationResult) return;
+        if (!currentRunFinished && !currentRunFailed) return;
 
         // Result exists, so move quote out of processing state without requiring a page refresh.
         setQuote((prev) => (
             prev
-                ? ({ ...prev, status: 'concept' } as Quote)
+                ? ({ ...prev, status: currentRunFailed ? 'fout' : 'concept' } as Quote)
                 : prev
         ));
 
         void updateDoc(doc(firestore, 'quotes', id), {
-            status: 'concept',
-            calculationError: null,
+            status: currentRunFailed ? 'fout' : 'concept',
+            calculationError: currentRunFailed ? 'De calculatie is mislukt. Probeer opnieuw.' : null,
             updatedAt: serverTimestamp(),
         }).catch((err) => {
             console.warn('Kon offerte status niet automatisch afronden na calculatie:', err);
         });
-    }, [firestore, id, quote?.status, hasCalculationResult, supabaseCalculationInProgress]);
+    }, [firestore, id, quote?.status, currentRunFinished, currentRunFailed, supabaseCalculationInProgress]);
+
+    const handleStopCalculation = async (): Promise<void> => {
+        if (!user || isStoppingCalculation) return;
+        setIsStoppingCalculation(true);
+        try {
+            const response = await fetch('/api/quotes/stop-calculation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` },
+                body: JSON.stringify({ quoteId: id, startedAt: getTimestampMillis(quote?.calculationStartedAt) }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            setQuote(previous => previous ? { ...previous, status: 'fout' } : previous);
+            toast({ title: 'Wachten gestopt', description: 'Je kunt opnieuw calculeren. Dit stopt alleen het wachten in de app, niet een eventuele actieve n8n-uitvoering.' });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Stoppen mislukt', description: error instanceof Error ? error.message : 'Probeer opnieuw.' });
+        } finally { setIsStoppingCalculation(false); }
+    };
 
     const handleRetryCalculation = async (webhookTarget: 'auto' | 'test' | 'production' = 'auto'): Promise<boolean> => {
         if (!user || isRetryingCalculation) return false;
 
         setIsRetryingCalculation(true);
         try {
+            await flushCalculationWrites();
             const token = await user.getIdToken();
+            const requestedAt = Date.now();
             const response = await fetch('/api/offerte/generate', {
                 method: 'POST',
                 headers: {
@@ -5885,7 +5905,9 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                 throw new Error(message || 'Kon calculatie niet opnieuw starten.');
             }
 
-            const restartedAt = Date.now();
+            // Het antwoord kan pas na afronding binnenkomen. Gebruik nooit de
+            // ontvangsttijd: dan lijkt de zojuist ontvangen run ouder dan de aanvraag.
+            const restartedAt = resolveCalculationStart(payload?.calculationStartedAt, requestedAt);
             calculationTimerStartedAtRef.current = restartedAt;
             window.localStorage.setItem(calculationTimerStorageKey, String(restartedAt));
             setCalculationElapsedSeconds(0);
@@ -6007,14 +6029,31 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
 
     const jointFinishingEnabled = workDescriptionStructured.nadenVullenInbegrepen === true
         && workDescriptionStructured.nadenVullenAfwerkingsniveau === 'schilderklaar';
+    const noteSurfaceCandidates = useMemo(() => collectNoteSurfaces(quoteNoteSections), [quoteNoteSections]);
+    const calculationJobs = (quote as (Quote & { klussen?: Record<string, unknown> }) | null)?.klussen;
+    const useNoteSurfaces = !calculationJobs || Object.keys(calculationJobs).length === 0;
+    const noteSurfaceResolver = useNoteSurfaceResolver({
+        candidates: noteSurfaceCandidates,
+        enabled: !loading && jointFinishingEnabled && useNoteSurfaces && (activeTab === 'werkbeschrijving' || activeTab === 'overzicht'),
+        savedSelection: (quote as (Quote & { noteSurfaceSelection?: unknown }) | null)?.noteSurfaceSelection,
+        quoteId: id, user, firestore,
+    });
+    const noteSurfaceSelection = noteSurfaceResolver.selection;
     const jointFinishing = useMemo(() => {
-        const result = calculateJointFinishingCost((quote as (Quote & { klussen?: unknown }) | null)?.klussen);
+        const result = calculateJointFinishingCost(useNoteSurfaces
+            ? noteSurfaceJobs(noteSurfaceCandidates, noteSurfaceSelection)
+            : calculationJobs);
+        if (useNoteSurfaces && !noteSurfaceSelection) {
+            result.errors = [noteSurfaceCandidates.length
+                ? 'Kies de maten van de wand of het plafond uit Notes.'
+                : 'M² ontbreken. Voeg twee maten toe bij Maatwerk in Notes.'];
+        }
         const previousSmallItems = unwrapRoot(calculation?.data_json)?.kleinmateriaal_specificatie;
         const existingFillers = [...materials.groot, ...materials.verbruik, ...(Array.isArray(previousSmallItems) ? previousSmallItems : [])].some(item =>
             /joint\s*filler|fill\s*(?:&|en|and)\s*finish|voegenvuller|voegenmiddel|finishpasta/i.test(item.product || ''));
         if (existingFillers) return { ...result, amount: 0, errors: [...result.errors, 'Voegmiddel/finish staat al in de materialen. Verwijder die dubbele post voordat je de automatische nadenraming gebruikt.'] };
         return result;
-    }, [quote, materials, calculation?.data_json]);
+    }, [calculationJobs, useNoteSurfaces, noteSurfaceCandidates, noteSurfaceSelection, materials, calculation?.data_json]);
     const jointFinishingError = jointFinishingEnabled ? jointFinishing.errors.join(' ') : '';
 
     const missingScopeCosts = getMissingScopeCosts(workDescriptionStructured, scopeCosts);
@@ -6081,21 +6120,31 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         [],
     );
 
+    const lastAutomaticScopeInputsRef = useRef<string | null>(null);
     const scaffoldCost = calculateScaffoldCost(Number(normalizedData?.totaal_uren) || 0, laborHoursPerDay);
     useEffect(() => {
         if (loading || calculationLoading || !calculation) return;
         if (JSON.stringify(materials.groot) !== JSON.stringify(normalizedData?.grootmaterialen || [])
             || JSON.stringify(materials.verbruik) !== JSON.stringify(normalizedData?.verbruiksartikelen || [])) return;
+        // Een materiaalresultaat is geen opdracht om overige kosten opnieuw te berekenen.
+        const inputs = JSON.stringify([id, normalizedData?.totaal_uren, laborHoursPerDay,
+            workDescriptionStructured.steigerInbegrepen, jointFinishingEnabled,
+            calculationJobs, noteSurfaceSelection, noteSurfaceCandidates]);
+        if (lastAutomaticScopeInputsRef.current === inputs) return;
+        const firstHydration = lastAutomaticScopeInputsRef.current === null;
+        lastAutomaticScopeInputsRef.current = inputs;
+        if (firstHydration && (scopeCosts.steiger > 0 || scopeCosts.naden > 0)) return;
         const targetScaffold = workDescriptionStructured.steigerInbegrepen ? scaffoldCost : scopeCosts.steiger;
         const targetJoints = jointFinishingEnabled ? jointFinishing.amount : 0;
         if (scopeCosts.steiger === targetScaffold && scopeCosts.naden === targetJoints) return;
         const nextMaterials = setScopeCost(setScopeCost(materials, 'steiger', targetScaffold), 'naden', targetJoints);
         setMaterials(nextMaterials);
-        void updateDataJsonPatch({ grootmaterialen: nextMaterials.groot, verbruiksartikelen: nextMaterials.verbruik }).catch((error: unknown) => {
+        void updateDataJsonPatch({ _scope_cost_updates: { steiger: targetScaffold, naden: targetJoints } }).catch((error: unknown) => {
             toast({ variant: 'destructive', title: 'Automatische materiaalkosten opslaan mislukt', description: error instanceof Error ? error.message : 'Probeer opnieuw.' });
         });
     }, [loading, calculationLoading, calculation, materials, normalizedData, workDescriptionStructured.steigerInbegrepen,
-        scopeCosts.steiger, scopeCosts.naden, scaffoldCost, jointFinishingEnabled, jointFinishing.amount, updateDataJsonPatch, toast]);
+        scopeCosts.steiger, scopeCosts.naden, scaffoldCost, jointFinishingEnabled, jointFinishing.amount, updateDataJsonPatch, toast,
+        id, laborHoursPerDay, calculationJobs, noteSurfaceSelection, noteSurfaceCandidates]);
 
     const handleWorkDescriptionChange = (next: WorkDescriptionStructured) => {
         const afvalChanged = next.afvalAfvoeren !== workDescriptionStructuredRef.current.afvalAfvoeren;
@@ -6485,6 +6534,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                         Je kunt ondertussen gewoon blijven werken in deze offerte. Nieuwe materialen en uren verschijnen zodra ze beschikbaar zijn.
                     </p>
                 </div>
+                <Button type="button" variant="outline" size="sm" disabled={isStoppingCalculation || isRetryingCalculation}
+                    onClick={() => void handleStopCalculation()}>
+                    {isStoppingCalculation ? 'Stoppen…' : 'Wachten stoppen'}
+                </Button>
                 {isCalculationTimedOut ? (
                     <Button
                         type="button"
@@ -6534,16 +6587,9 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         return hasMinimalAddress(origin) ? buildAddressString(origin) : '';
     }, [businessData?.adres, businessData?.huisnummer, businessData?.plaats, businessData?.postcode, userProfile?.settings?.adres, userProfile?.settings?.huisnummer, userProfile?.settings?.plaats, userProfile?.settings?.postcode]);
 
-    const routeDestinationAddress = useMemo(() => {
-        if (!klantInfo) return '';
-        const projectAdres = klantInfo.afwijkendProjectadres ? klantInfo.projectAdres : undefined;
-        const preferredAddress = projectAdres && hasMinimalAddress(projectAdres)
-            ? projectAdres
-            : hasMinimalAddress(klantInfo)
-                ? klantInfo
-                : null;
-        return preferredAddress ? buildAddressString(preferredAddress) : '';
-    }, [klantInfo]);
+    const transportDestination = useMemo(() => resolveTransportDestination(klantInfo), [klantInfo]);
+    const routeDestinationAddress = transportDestination.address;
+    const extraDistanceKm = transportDestination.extraDistanceKm;
 
     const routeMapsUrl = useMemo(() => {
         return routeDestinationAddress
@@ -6595,11 +6641,13 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                 throw new Error(payload?.error || 'Distance webhook mislukt.');
             }
 
-            const distanceKmOneWay = Number(payload?.distanceKmOneWay || 0);
-            const distanceKmRoundTrip = Number(payload?.distanceKmRoundTrip || (distanceKmOneWay * 2));
-            if (!(distanceKmOneWay > 0 || distanceKmRoundTrip > 0)) {
+            const routeDistanceKmOneWay = Number(payload?.distanceKmOneWay || 0);
+            const routeDistanceKmRoundTrip = Number(payload?.distanceKmRoundTrip || (routeDistanceKmOneWay * 2));
+            if (!(routeDistanceKmOneWay > 0 || routeDistanceKmRoundTrip > 0)) {
                 throw new Error('Distance API gaf 0 km terug. Transport is niet opgeslagen; probeer opnieuw of controleer de adressen.');
             }
+            const distanceKmOneWay = (routeDistanceKmOneWay || routeDistanceKmRoundTrip / 2) + extraDistanceKm;
+            const distanceKmRoundTrip = (routeDistanceKmRoundTrip || routeDistanceKmOneWay * 2) + extraDistanceKm * 2;
             const durationMinOneWay = Math.max(0, Math.round(Number(payload?.durationMinOneWay || 0)));
             const durationText = `${durationMinOneWay} min`;
             const prijsPerKm = Number(quoteSettings?.extras?.transport?.prijsPerKm || 0);
@@ -6612,6 +6660,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                     transport_berekening: {
                         ...(root as any)?.transport_berekening,
                         distanceKm: distanceKmOneWay,
+                        extraDistanceKm,
                         roundTripDistanceKm: distanceKmRoundTrip,
                         durationText,
                         durationMinOneWay,
@@ -6643,14 +6692,26 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         } finally {
             setIsGeneratingDistanceDev(false);
         }
-    }, [calculation?.data_json, id, quoteSettings?.extras?.transport?.prijsPerKm, routeDestinationAddress, routeOriginAddress, toast, updateDataJsonPatch, user]);
+    }, [calculation?.data_json, extraDistanceKm, id, quoteSettings?.extras?.transport?.prijsPerKm, routeDestinationAddress, routeOriginAddress, toast, updateDataJsonPatch, user]);
 
     const hasTransportDistance = useMemo(() => {
         const rawTransport = (normalizedData as any)?.transport_berekening || {};
         const oneWay = Number(rawTransport?.distanceKm || 0);
         const roundTrip = Number(rawTransport?.roundTripDistanceKm || 0);
-        return oneWay > 0 || roundTrip > 0;
-    }, [normalizedData]);
+        const staleEstimate = Number(rawTransport.extraDistanceKm || 0) > 0 && (
+            rawTransport.destinationAddress !== routeDestinationAddress
+            || rawTransport.originAddress !== routeOriginAddress
+            || rawTransport.extraDistanceKm !== extraDistanceKm
+        );
+        return (oneWay > 0 || roundTrip > 0) && !staleEstimate;
+    }, [normalizedData, routeDestinationAddress, routeOriginAddress, extraDistanceKm]);
+
+    const savedTransportEstimate = (normalizedData as {
+        transport_berekening?: { extraDistanceKm?: number; destinationAddress?: string };
+    } | null)?.transport_berekening;
+    const distanceEstimate = hasTransportDistance && Number(savedTransportEstimate?.extraDistanceKm) > 0
+        ? `Schatting: ${savedTransportEstimate?.destinationAddress} + 5 km per enkele reis.`
+        : null;
 
     useEffect(() => {
         if (!id) return;
@@ -6663,6 +6724,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
             id,
             routeOriginAddress.trim().toLowerCase(),
             routeDestinationAddress.trim().toLowerCase(),
+            extraDistanceKm,
         ].join('|');
         if (autoDistanceAttemptedRef.current.has(attemptKey)) return;
 
@@ -6671,6 +6733,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
     }, [
         calculation?.data_json,
         hasTransportDistance,
+        extraDistanceKm,
         id,
         isGeneratingDistanceDev,
         routeDestinationAddress,
@@ -6848,7 +6911,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
             )}
             <AppNavigation />
             {/* Header */}
-            <header className="sticky top-0 z-50 border-b border-border bg-background/40 px-4 py-3 backdrop-blur-md sm:px-6 sm:py-4">
+            <AutoHideQuoteHeader className="border-b border-border bg-background/40 px-4 py-3 backdrop-blur-md sm:px-6 sm:py-4">
                 {!loading && (
                     <div className="absolute right-3 top-3 sm:hidden">
                         <DropdownMenu>
@@ -7186,9 +7249,9 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                         )}
                     </div>
                 </div>
-            </header>
+            </AutoHideQuoteHeader>
 
-            <main className="mobile-calm mx-auto max-w-7xl px-4 pt-1 pb-28 sm:px-6 sm:pt-2 sm:pb-10">
+            <main className={cn("mobile-calm mx-auto max-w-7xl px-4 pt-1 pb-28 sm:px-6 sm:pt-2 sm:pb-10", activeTab === 'overzicht' && "xl:pb-0")}>
                 {error ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
                         <div className="text-red-400 font-medium">Fout bij laden: {error}</div>
@@ -7209,7 +7272,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                         aria-label="Calculatie"
                                         title="Calculatie"
                                     >
-                                        <Calculator size={16} />
+                                        {calculationInProgress ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="overzicht"
@@ -7305,10 +7368,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                             </div>
                         </div>
 
-                        <div className="relative z-30 pointer-events-auto hidden w-full items-center gap-2 rounded-lg border border-border bg-card p-2 sm:!mt-0 sm:flex">
-                            <TabsList className="h-auto w-full justify-start gap-1 bg-transparent p-0">
+                        <div className="quote-workspace-tabs relative z-30 pointer-events-auto hidden w-full items-center gap-2 rounded-lg border border-border bg-card p-2 sm:!mt-0 sm:flex">
+                            <TabsList className="h-auto w-full justify-start gap-1 bg-transparent p-0 md:justify-center">
                                 <TabsTrigger value="calculatie" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
-                                    <Calculator size={16} />
+                                    {calculationInProgress ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
                                     Calculatie
                                 </TabsTrigger>
                                 <TabsTrigger value="materialen" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
@@ -7981,6 +8044,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                         >
                             {hasJobEditor ? <div className="quote-job-editor">{children}</div> : <QuoteCalculationTab
                                 embedded
+                                calculationInProgress={calculationInProgress}
                                 onCalculated={() => {
                                     setActiveTab('materialen');
                                     void refetchQuoteData();
@@ -8009,6 +8073,8 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                         urenPerDag={laborHoursPerDay}
                                         scopeCosts={scopeCosts}
                                         jointFinishingError={jointFinishingError}
+                                        onSelectNoteSurfaces={useNoteSurfaces && jointFinishingEnabled && noteSurfaceCandidates.length > 0 ? noteSurfaceResolver.openDialog : undefined}
+                                        isResolvingNoteSurfaces={noteSurfaceResolver.busy}
                                         missingScopeCosts={missingScopeCosts}
                                         onUpdateHourlyRate={(newRate) => {
                                             if (!quoteSettings) return;
@@ -8037,12 +8103,13 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                         onUpdateMaterialenSubtotal={handleUpdateMaterialenSubtotal}
                                         onUpdateTransportTotal={handleUpdateTransportTotal}
                                         onUpdateTransportRatePerKm={handleUpdateTransportRatePerKm}
+                                        distanceEstimate={distanceEstimate}
                                         isCalculatingDistance={isGeneratingDistanceDev}
                                         distanceError={quoteSettings?.extras?.transport?.mode === 'perKm' && !hasTransportDistance
                                             ? !routeOriginAddress
                                                 ? 'Vertrekadres ontbreekt. Vul je adres in bij Instellingen.'
                                                 : !routeDestinationAddress
-                                                    ? 'Projectadres ontbreekt of is onvolledig. Vul straat en plaats of postcode in bij de klantgegevens.'
+                                                    ? 'Plaats ontbreekt. Vul de plaats of het projectadres in bij de klantgegevens.'
                                                     : distanceGenerationError || 'Afstand is nog niet berekend. Transportkosten ontbreken.'
                                             : null}
                                         onRetryDistance={routeOriginAddress && routeDestinationAddress ? () => { void runDistanceGeneration(); } : undefined}
@@ -8292,6 +8359,16 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                             </span>
                                         </div>
                                     )}
+
+                                    <MaterialCalculationHistory
+                                        quoteId={id}
+                                        current={{ grootmaterialen: materials.groot, verbruiksartikelen: materials.verbruik }}
+                                        running={calculationInProgress || isRetryingCalculation}
+                                        onCalculate={() => handleRetryCalculation()}
+                                        onStop={handleStopCalculation}
+                                        stopping={isStoppingCalculation}
+                                        canStop={calculationInProgress && !isRetryingCalculation}
+                                    />
 
                                     <MaterialEditor
                                         title="GROOTMATERIALEN"
@@ -8567,14 +8644,29 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                             {loading ? (
                                 <PageLoadingNotice label="Werk & Levering laden..." />
                             ) : (
-                                <div className="space-y-4 pb-32">
+                                <div className="space-y-4">
                                     {!calculation?.data_json && (
                                         <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
                                             Handmatige offertegegevens worden voorbereid. De editor wordt zo geladen.
                                         </div>
                                     )}
                                     <WorkDescriptionWorkspace
+                                        saveAction={
+                                            <Button
+                                                type="button"
+                                                variant="success"
+                                                size="sm"
+                                                className="gap-2"
+                                                disabled={!hasUnsavedWorkDescription || isSavingWorkDescription}
+                                                onClick={() => { void handleSaveWorkDescription(); }}
+                                            >
+                                                {isSavingWorkDescription ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                                Opslaan
+                                            </Button>
+                                        }
                                         jointFinishingError={jointFinishingError}
+                                        onSelectNoteSurfaces={useNoteSurfaces && jointFinishingEnabled && noteSurfaceCandidates.length > 0 ? noteSurfaceResolver.openDialog : undefined}
+                                        isResolvingNoteSurfaces={noteSurfaceResolver.busy}
                                         value={workDescriptionStructured}
                                         mode={workDescriptionMode}
                                         onModeChange={setWorkDescriptionMode}
@@ -8587,28 +8679,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                         meldcodeContextText={meldcodeContextText}
                                         onApplyMeldcode={handleApplyMeldcode}
                                     />
-                                    <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6">
-                                        <div className="mx-auto flex max-w-7xl flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-lg sm:flex-row sm:items-center sm:justify-between">
-                                            <div>
-                                                <p className="text-sm font-medium text-foreground">
-                                                    {hasUnsavedWorkDescription ? 'Niet-opgeslagen wijzigingen' : 'Werk & Levering is opgeslagen'}
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Wijzigingen worden pas opgeslagen wanneer je op opslaan drukt.
-                                                </p>
-                                            </div>
-                                            <Button
-                                                type="button"
-                                                variant="success"
-                                                className="gap-2 sm:min-w-36"
-                                                disabled={!hasUnsavedWorkDescription || isSavingWorkDescription}
-                                                onClick={() => { void handleSaveWorkDescription(); }}
-                                            >
-                                                {isSavingWorkDescription ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                                                Opslaan
-                                            </Button>
-                                        </div>
-                                    </div>
+
                                 </div>
                             )}
                         </TabsContent>
@@ -9027,8 +9098,8 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                                     </div>
                                                     {section.maatwerkLines.length > 0 && (
                                                         <div className="space-y-2">
-                                                            {section.maatwerkLines.map((maatwerkLine) => (
-                                                                <div key={maatwerkLine.id} className="grid gap-2 sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr_auto]">
+                                                            {section.maatwerkLines.map((maatwerkLine, maatwerkIndex) => (
+                                                                <div key={maatwerkLine.id} className="grid gap-2 sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr_0.7fr_auto]">
                                                                     <div className="space-y-1">
                                                                         <Label className="text-[11px] text-muted-foreground">Titel</Label>
                                                                         <Input
@@ -9077,6 +9148,14 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                                                             inputMode="decimal"
                                                                             className="h-9"
                                                                         />
+                                                                    </div>
+                                                                    <div className="space-y-1">
+                                                                        <Label className="text-[11px] text-muted-foreground">Oppervlakte</Label>
+                                                                        <div className="flex h-9 items-center text-sm">
+                                                                            {noteSurfaceArea(maatwerkLine, noteSurfaceSelection?.surfaces.find(surface => surface.key === `${index}:${maatwerkIndex}`)?.kind || (/plafond/i.test(maatwerkLine.title) ? 'plafond' : 'wand')) > 0
+                                                                                ? `${noteSurfaceArea(maatwerkLine, noteSurfaceSelection?.surfaces.find(surface => surface.key === `${index}:${maatwerkIndex}`)?.kind || (/plafond/i.test(maatwerkLine.title) ? 'plafond' : 'wand')).toLocaleString('nl-NL', { maximumFractionDigits: 2 })} m²`
+                                                                                : '— m²'}
+                                                                        </div>
                                                                     </div>
                                                                     <Button
                                                                         type="button"
@@ -9826,6 +9905,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                 />
             )}
 
+            {noteSurfaceResolver.dialog}
             <AlertDialog open={confirmResetToNieuwOpen} onOpenChange={setConfirmResetToNieuwOpen}>
                 <AlertDialogContent className="rounded-2xl">
                     <AlertDialogHeader>

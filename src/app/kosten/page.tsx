@@ -1,5 +1,6 @@
 'use client';
 
+import { isReviewSourceCost, isConfirmedCashCost } from '@/lib/finance-cost-visibility';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -102,7 +103,7 @@ const KOSTEN_PAGE_TABS: Array<{ value: KostenViewMode; label: string; financeTab
   { value: 'kosten', label: 'Kosten' },
   { value: 'pdfs', label: 'PDF-bestanden' },
   { value: 'overview', label: 'Overzicht', financeTab: 'overview' },
-  { value: 'finance-costs', label: 'Kosten', financeTab: 'costs' },
+  { value: 'finance-costs', label: 'Bankuitgaven', financeTab: 'costs' },
   { value: 'invoices', label: 'Facturen', financeTab: 'invoices' },
   { value: 'quotes', label: 'Offertes', financeTab: 'quotes' },
   { value: 'projects', label: 'Projecten', financeTab: 'projects' },
@@ -568,6 +569,7 @@ function KostenPageContent() {
   const [quotesError, setQuotesError] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
+  const [showSourceReview, setShowSourceReview] = useState(false);
   const [filter, setFilter] = useState<CostFilterMode>('alle');
   const [viewMode, setViewMode] = useState<KostenViewMode>(() => {
     const requestedTab = searchParams?.get('tab') || null;
@@ -904,6 +906,7 @@ function KostenPageContent() {
     const term = search.trim().toLowerCase();
 
     return costs
+      .filter((cost) => isReviewSourceCost(cost) === showSourceReview)
       .filter((cost) => (filter === 'alle'
         ? !isPrivateBankTransactionCost(cost) && !isInternalProfitTransferCost(cost)
         : cost.category === filter))
@@ -922,11 +925,12 @@ function KostenPageContent() {
         const right = new Date(b.date || b.created_at).getTime();
         return right - left;
       });
-  }, [costs, filter, quoteById, search]);
+  }, [costs, filter, quoteById, search, showSourceReview]);
 
   const tabTotals = useMemo(() => {
     const term = search.trim().toLowerCase();
     const costsMatchingSearch = costs.filter((cost) => {
+      if (isReviewSourceCost(cost) !== showSourceReview) return false;
       if (!term) return true;
       const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
       const offerteNummer = quote?.offerteNummer ? String(quote.offerteNummer) : '';
@@ -973,7 +977,7 @@ function KostenPageContent() {
       profit: roundEuro(totals.profit),
       overig: roundEuro(totals.overig),
     } satisfies Record<CostFilterMode, number>;
-  }, [costs, quoteById, search]);
+  }, [costs, quoteById, search, showSourceReview]);
 
   const tabLineCounts = useMemo(() => {
     const counts = Object.fromEntries(
@@ -981,12 +985,13 @@ function KostenPageContent() {
     ) as Record<CostFilterMode, number>;
 
     for (const cost of costs) {
+      if (isReviewSourceCost(cost) !== showSourceReview) continue;
       const lineCount = Array.isArray(cost.line_items) ? cost.line_items.length : 0;
       counts[cost.category] += lineCount;
       if (!isPrivateBankTransactionCost(cost) && !isInternalProfitTransferCost(cost)) counts.alle += lineCount;
     }
     return counts;
-  }, [costs]);
+  }, [costs, showSourceReview]);
 
   const filteredQuotesForPicker = useMemo(() => {
     const term = normalizeSearchText(quoteSearch);
@@ -1211,7 +1216,7 @@ function KostenPageContent() {
           date: saveForm.date,
           receipt_url: normalizedReceiptUrl,
           receipt_files: payloadReceiptFiles,
-          status: 'confirmed',
+          status: costs.find((cost) => cost.id === editingCostId)?.status === 'paid_cash' ? 'paid_cash' : 'confirmed',
         }),
       });
 
@@ -1472,6 +1477,7 @@ function KostenPageContent() {
     setForm({
       category: normalizeProjectCostCategory(cost.category),
       supplierName: safeString(cost.supplier_name),
+      paymentType: cost.payment_type,
       description: safeString(cost.description),
       offerteId: safeString(cost.offerte_id),
       date: safeString(cost.date) || new Date().toISOString().slice(0, 10),
@@ -2361,6 +2367,16 @@ function KostenPageContent() {
                 </Dialog>
               </div>
 
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant={!showSourceReview ? 'default' : 'outline'} onClick={() => setShowSourceReview(false)}>Bank + contant</Button>
+                  <Button type="button" variant={showSourceReview ? 'default' : 'outline'} onClick={() => setShowSourceReview(true)}>Bonnen controleren ({costs.filter(isReviewSourceCost).length})</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {showSourceReview ? 'Bronnen zonder bankmatch. Controleer betaling en mogelijke dubbelen; deze bedragen tellen niet mee bij Bank + contant.' : 'Bankafschrijvingen plus bevestigde contante betalingen. Niet alle uitgaven zijn compleet zolang bonnen of bankgegevens ontbreken.'}
+                  {' '}Laatste geladen bankdatum: {costs.filter(isBankTransactionCost).map((cost) => cost.date).sort().at(-1) || 'onbekend'}.
+                </p>
+              </div>
               <div className="flex flex-wrap gap-2.5">
                 {filterOptions.map((option) => (
                   <Button
@@ -2470,12 +2486,12 @@ function KostenPageContent() {
                             <td className="px-3 py-2.5 text-center">
                               {hasReceipt ? <Receipt className="mx-auto h-4 w-4 text-emerald-400" aria-label="Bon gekoppeld" /> : <span className="text-muted-foreground/50">—</span>}
                             </td>
-                            <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{formatCurrency(cost.amount_excl_btw || 0)}</td>
-                            <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-muted-foreground">{formatCurrency(cost.btw_amount || 0)}</td>
+                            <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{cost.vat_known === false ? 'n.b.' : formatCurrency(cost.amount_excl_btw || 0)}</td>
+                            <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-muted-foreground">{cost.vat_known === false ? 'n.b.' : formatCurrency(cost.btw_amount || 0)}</td>
                             <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-foreground">
                               <div className="flex items-center justify-end gap-1.5">
                                 <span>{formatCurrency(cost.amount_incl_btw || 0)}</span>
-                                {isHistoricalSourceCost(cost) ? (
+                                {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Controleren</Badge> : isHistoricalSourceCost(cost) ? (
                                   <Badge variant="outline" className="text-[10px] text-muted-foreground">Bron vóór Knab</Badge>
                                 ) : !isBankTransactionCost(cost) ? <Button
                                   type="button"
@@ -2502,7 +2518,7 @@ function KostenPageContent() {
                 </div>
                 <div className="flex items-center justify-between border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
                   <span>{filteredCosts.length} {filteredCosts.length === 1 ? 'kost' : 'kosten'}</span>
-                  <span className="font-semibold tabular-nums text-foreground">Totaal incl. BTW: {formatCurrency(filteredCosts.reduce((sum, cost) => sum + safeNumber(cost.amount_incl_btw), 0))}</span>
+                  <span className="font-semibold tabular-nums text-foreground">{showSourceReview ? 'Brontotaal (niet opgeteld)' : 'Totaal incl. BTW'}: {formatCurrency(filteredCosts.reduce((sum, cost) => sum + safeNumber(cost.amount_incl_btw), 0))}</span>
                 </div>
               </div>
 
@@ -2539,6 +2555,7 @@ function KostenPageContent() {
                           <Badge variant="outline" className={categoryBadgeClass(cost.category)}>
                             {PROJECT_COST_CATEGORY_LABELS[cost.category]}
                           </Badge>
+                          {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Controleren</Badge> : null}
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
                             <Link2 className="h-3.5 w-3.5" />
                             {linkedLabel}
@@ -2650,11 +2667,11 @@ function KostenPageContent() {
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 p-3">
                   <div className="text-xs text-muted-foreground">Excl. btw</div>
-                  <div className="mt-1 font-medium tabular-nums">{formatCurrency(selectedBankCost.amount_excl_btw)}</div>
+                  <div className="mt-1 font-medium tabular-nums">{selectedBankCost.vat_known === false ? 'n.b.' : formatCurrency(selectedBankCost.amount_excl_btw)}</div>
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 p-3">
                   <div className="text-xs text-muted-foreground">Btw</div>
-                  <div className="mt-1 font-medium tabular-nums">{formatCurrency(selectedBankCost.btw_amount)}</div>
+                  <div className="mt-1 font-medium tabular-nums">{selectedBankCost.vat_known === false ? 'n.b.' : formatCurrency(selectedBankCost.btw_amount)}</div>
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 p-3 sm:col-span-2">
                   <Label htmlFor="bank-cost-offerte" className="text-xs font-normal text-muted-foreground">Klant / offerte</Label>

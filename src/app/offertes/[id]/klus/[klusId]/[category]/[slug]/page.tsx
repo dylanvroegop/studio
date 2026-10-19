@@ -4855,7 +4855,7 @@ export default function GenericMeasurementPage() {
                             { id: 'gable', icon: Triangle, label: 'Punt' },
                             { id: 'l-shape', icon: null, label: 'L', customIcon: 'L' },
                             { id: 'u-shape', icon: null, label: 'U', customIcon: 'U' }
-                          ].map((shapeOption) => {
+                          ].filter(option => jobSlug !== 'systeemplafond' || ['rectangle', 'l-shape', 'u-shape'].includes(option.id)).map((shapeOption) => {
                             const currentShape = item.shape || 'rectangle';
                             const isActive = currentShape === shapeOption.id;
                             const Icon = shapeOption.icon;
@@ -5324,6 +5324,7 @@ export default function GenericMeasurementPage() {
                                     onClick={() => handleSwapDimensions(index, 'lengte', showBreedte ? 'breedte' : 'hoogte')}
                                     disabled={disabledAll}
                                     title="Wissel afmetingen"
+                                  tabIndex={-1}
                                   >
                                     <ArrowDownUp className="h-4 w-4 rotate-90" />
                                   </Button>
@@ -5353,6 +5354,7 @@ export default function GenericMeasurementPage() {
                                     onClick={() => handleSwapDimensions(index, 'lengte', 'breedte')}
                                     disabled={disabledAll}
                                     title="Wissel afmetingen"
+                                  tabIndex={-1}
                                   >
                                     <ArrowDownUp className="h-4 w-4 rotate-90" />
                                   </Button>
@@ -5463,6 +5465,7 @@ export default function GenericMeasurementPage() {
                                   onClick={() => handleSwapDimensions(index, 'lengte', showBreedte ? 'breedte' : 'hoogte')}
                                   disabled={disabledAll}
                                   title="Wissel afmetingen"
+                                  tabIndex={-1}
                                 >
                                   <ArrowDownUp className="h-4 w-4 rotate-90" />
                                 </Button>
@@ -7202,7 +7205,7 @@ export default function GenericMeasurementPage() {
                     {/* Extra Fields - NO SLICE, just filter out known keys and grouped fields */}
                     {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'aantal_daken', 'tussenmuur', 'tengelafstand', 'latafstand', 'onderzijde_latafstand', 'lichtplaten_aantal', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).length > 0 && (
                       <div className="space-y-3 pt-4 border-t border-white/5">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Extra's</h4>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{jobSlug === 'systeemplafond' ? 'Raster & ophanging' : "Extra’s"}</h4>
                         <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
                           {fields.filter(f => f.type !== 'textarea' && !f.group && !['lengte', 'breedte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'aantal', 'aantal_pannen_breedte', 'aantal_pannen_hoogte', 'balkafstand', 'aantal_daken', 'tussenmuur', 'tengelafstand', 'latafstand', 'onderzijde_latafstand', 'lichtplaten_aantal', 'lengte_onderzijde', 'dakrand_breedte', 'dakrand_hoogte', 'edge_top', 'edge_bottom', 'edge_left', 'edge_right', 'kopkanten', 'kopkant_breedte', 'kopkant_hoogte'].includes(f.key)).map(f => (
                             <DynamicInput key={f.key} field={f} value={item[f.key]} onChange={v => updateItem(index, f.key, v)} onKeyDown={handleKeyDown} disabled={disabledAll} />

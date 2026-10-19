@@ -47,6 +47,20 @@ export function hasMinimalAddress(parts: AddressParts): boolean {
   return Boolean(postcode || (straat && plaats));
 }
 
+export function resolveTransportDestination(info?: (AddressParts & {
+  afwijkendProjectadres?: boolean;
+  projectAdres?: AddressParts | null;
+}) | null): { address: string; extraDistanceKm: number } {
+  if (!info) return { address: '', extraDistanceKm: 0 };
+  const parts = info.afwijkendProjectadres ? info.projectAdres : info;
+  if (!parts) return { address: '', extraDistanceKm: 0 };
+  if (hasMinimalAddress(parts)) {
+    return { address: buildAddressString(parts), extraDistanceKm: 0 };
+  }
+  const plaats = cleanPart(parts.plaats);
+  return { address: plaats, extraDistanceKm: plaats ? 5 : 0 };
+}
+
 export function resolveQuoteProjectAddress(quote: QuoteAddressSource): string {
   const info = quote?.klantinformatie;
   if (!info) return '';

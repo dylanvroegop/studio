@@ -1588,11 +1588,12 @@ function buildPromptFromBody(body: RequestBody): string {
   const scopeRules = [
     'Geef uitsluitend platte tekst terug. Geen JSON. Geen markdown. Geen codeblok. Geen velden zoals title, summary, jobs, work_scope, dimensions, included of excluded.',
     'Schrijf geen stappenplan en geen uitvoeringsvolgorde.',
+    'Gebruik nooit algemene labels zoals "Werkzaamheid 1:" of "Klus 1:". Begin direct met de inhoudelijke omschrijving als een concrete titel ontbreekt.',
     'Gebruik nooit de secties Voorbereiding, Uitvoering of Afwerking.',
     noteJobs.length > 0
       ? [
           `De notities bevatten ${noteJobs.length} klussen. Schrijf voor iedere notitieklus één eigen alinea in dezelfde volgorde.`,
-          'Begin iedere alinea met de notitietitel gevolgd door een dubbele punt en daarna de professionele klanttekst.',
+          'Begin iedere alinea met de concrete notitietitel gevolgd door een dubbele punt en daarna de professionele klanttekst. Bij een algemene titel zoals Werkzaamheden, Werkzaamheid 1 of Klus 1: laat dat label weg en begin direct met de omschrijving.',
           'Plaats exact één lege regel tussen de alinea’s van verschillende notitieklussen.',
           'Elke alinea mag uitsluitend informatie gebruiken uit zijn eigen object in NOTITIEKLUSSEN: title, notes en dimensions.',
           'Verplaats nooit feiten, aantallen, maatvoering, materialen, kleuren, locaties, inbegrepen werk of schilderwerk van de ene job naar een andere job.',
@@ -1751,6 +1752,11 @@ async function finalizeGeneratedJobs(
   for (const [index, source] of sources.entries()) {
     const existing = controls.jobs[index] || toStructuredWorkDescription({ title: source.title }).jobs[0];
     const normalize = (text: string): WorkDescriptionJob => {
+      // Interne standaardtitels horen niet in de klanttekst, ook niet bij AI-herstel.
+      const cleanedText = text.replace(/^\s*(?:werkzaamheden|werkzaamheid(?:\s+\d+)?|klus\s+\d+)\s*:\s*/gim, '').trim();
+      const title = /^(?:werkzaamheid|klus)\s+\d+$/i.test(source.title.trim())
+        ? 'Werkzaamheden'
+        : source.title;
       const scope = sanitizeWorkDeliveryScope({
         ...existing,
         // De schakelaars op de pagina gelden voor alle gegenereerde klussen,
@@ -1766,9 +1772,9 @@ async function finalizeGeneratedJobs(
         electricalScope: controls.electricalScope,
         finishLevel: controls.finishLevel,
         customFinishDescription: controls.customFinishDescription,
-        title: source.title,
-        summary: text,
-        work_scope: text ? [text] : [],
+        title,
+        summary: cleanedText,
+        work_scope: cleanedText ? [cleanedText] : [],
         dimensions: source.dimensions || existing?.dimensions || [],
       });
       return { ...existing, ...scope, context: scope.summary, sections: existing?.sections || { voorbereiding: [], uitvoering: [], afwerking: [] } };

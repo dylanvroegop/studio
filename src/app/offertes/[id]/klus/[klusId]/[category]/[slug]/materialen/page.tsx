@@ -2987,6 +2987,15 @@ export default function GenericMaterialsPageRedesigned() {
 
   useEffect(() => { fetchMaterials(); }, [fetchMaterials]);
 
+  // Ook imports uit een ander tabblad en afgeronde achtergrondimports ophalen.
+  useEffect(() => {
+    if (!isExtraModalOpen) return;
+    void fetchMaterials();
+    const refreshCatalog = () => { void fetchMaterials(); };
+    window.addEventListener('focus', refreshCatalog);
+    return () => window.removeEventListener('focus', refreshCatalog);
+  }, [isExtraModalOpen, fetchMaterials]);
+
   // Fetch Presets
   useEffect(() => {
     if (!user || !firestore) {
@@ -4824,6 +4833,7 @@ export default function GenericMaterialsPageRedesigned() {
           : { ...payload, row_id: realId, id: realId };
 
         replacePendingMaterialById(item.id, normalizeMaterialForSelection(mergedResolved));
+        void fetchMaterials();
         setPendingSafetyItems((prev) => prev.filter((x) => x.id !== item.id));
         void persistPendingMaterialState(item.id, { status: 'resolved', row_id: realId }, { remove: true });
       } catch (err: any) {
@@ -4852,6 +4862,7 @@ export default function GenericMaterialsPageRedesigned() {
     quoteId,
     replacePendingMaterialById,
     normalizeMaterialForSelection,
+    fetchMaterials,
     user,
   ]);
 
@@ -7288,6 +7299,23 @@ export default function GenericMaterialsPageRedesigned() {
       </AlertDialog>
 
       <MaterialSelectionModal
+        requiresMaterialTarget={!actieveSectie && !activeGroupId}
+        materialTargetControl={!actieveSectie && !activeGroupId ? (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <Label>Materiaalonderdeel</Label>
+            <Select onValueChange={(key) => {
+              setActieveSectie(key);
+              setActiveComponentId(null);
+              setActiveMultiEntryKey(materialSections.find(section => section.key === key)?.multiEntry ? key : null);
+              setActiveMultiEntryId(null);
+            }}>
+              <SelectTrigger aria-label="Materiaalonderdeel"><SelectValue placeholder="Kies waar dit materiaal moet komen" /></SelectTrigger>
+              <SelectContent>
+                {materialSections.map(section => <SelectItem key={section.key} value={section.key}>{section.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
         open={isExtraModalOpen}
         onOpenChange={(open) => {
           setIsExtraModalOpen(open);
@@ -7362,6 +7390,7 @@ export default function GenericMaterialsPageRedesigned() {
         }}
         onMaterialAdded={(newMaterial: any) => {
           applyMaterialToCurrentModalTarget(normalizeMaterialForSelection(newMaterial));
+          void fetchMaterials();
         }}
         onPendingMaterialQueued={({ clientId, placeholderMaterial, draftPayload }) => {
           const targetMeta =
@@ -7451,6 +7480,7 @@ export default function GenericMaterialsPageRedesigned() {
         }}
         onPendingMaterialResolved={({ clientId, material }) => {
           replacePendingMaterialById(clientId, normalizeMaterialForSelection(material));
+          void fetchMaterials();
           setPendingSafetyItems((prev) => prev.filter((item) => item.id !== clientId));
           void persistPendingMaterialState(clientId, {
             status: 'resolved',

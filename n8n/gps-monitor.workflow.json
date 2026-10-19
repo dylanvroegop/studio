@@ -1,0 +1,69 @@
+{
+  "name": "GPS bewaking - appmelding bij uitval",
+  "nodes": [
+    {
+      "id": "3e2b8a26-8a13-453c-95b6-86c983497380",
+      "name": "Elke 5 minuten",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 19 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "1a73552d-4fcb-4d70-b3d8-d8fe4837c945",
+      "name": "Controleer GPS en stuur appmelding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.calvora.nl/api/tracking/monitor",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    }
+  ],
+  "connections": {
+    "Elke 5 minuten": {
+      "main": [
+        [
+          {
+            "node": "Controleer GPS en stuur appmelding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Amsterdam"
+  },
+  "active": false
+}

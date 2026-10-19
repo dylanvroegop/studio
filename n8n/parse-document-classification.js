@@ -1,0 +1,4 @@
+const input=$json??{};
+function find(v){if(v==null)return null;if(typeof v==='string'){const t=v.trim();try{return JSON.parse(t)}catch{}const a=t.indexOf('{'),b=t.lastIndexOf('}');if(a>=0&&b>a){try{return JSON.parse(t.slice(a,b+1))}catch{}}return null}if(Array.isArray(v)){for(const x of v){const y=find(x);if(y)return y}return null}if(typeof v==='object'){if(Object.prototype.hasOwnProperty.call(v,'is_cost_document'))return v;for(const k of ['text','output','response','content','message']){if(v[k]!==undefined){const y=find(v[k]);if(y)return y}}}return null}
+const r=find(input);if(!r)throw new Error('Geen bruikbare documentclassificatie ontvangen.');
+const c=Number(r.confidence);return[{json:{classification:{is_cost_document:r.is_cost_document===true && ['invoice','receipt','credit_note'].includes(String(r.document_type||'').trim().toLowerCase()),document_type:String(r.document_type||'other'),confidence:Number.isFinite(c)?c:0,reason:String(r.reason||'')}}}];

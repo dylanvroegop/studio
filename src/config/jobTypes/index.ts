@@ -53,6 +53,7 @@ export const jobSections: Record<string, MeasurementSection[]> = {
     'cinewall-tv-wand':       WALL_SECTIONS,
 
     // Plafonds
+    'systeemplafond':          ['openingen'],
     'plafond-houten-framework': CEILING_SECTIONS,
     'plafond-metalstud':        CEILING_SECTIONS,
 

@@ -1,3 +1,5 @@
+import { costDocumentError, costDocumentKeys } from '@/lib/cost-document-policy';
+import { validateCostVat } from '@/lib/cost-vat-validation';
 import { classifyPurchaseLines, rememberCategoryCorrections } from '@/lib/purchase-product-category-server';
 import { NextResponse } from 'next/server';
 import type { DocumentReference } from 'firebase-admin/firestore';
@@ -565,6 +567,11 @@ export async function POST(request: Request) {
       };
     }
 
+    if (!token || (pendingImportId && input.document_type)) {
+      const documentError = costDocumentError(input);
+      if (documentError) return NextResponse.json({ ok: false, message: documentError }, { status: 422 });
+    }
+
     if (!token) {
       const classified = await classifyPurchaseLines(uid, normalizeProjectCostLineItems(input.line_items));
       input = { ...input, line_items: classified.lines };
@@ -605,7 +612,9 @@ export async function POST(request: Request) {
     const requestedAmountExcl = roundEuro(safeNumber(input.amount_excl_btw));
     const requestedAmountIncl = roundEuro(safeNumber(input.amount_incl_btw));
     const manualOverride = input.manual_amount_override === true;
-    const btwPercentage = roundEuro(safeNumber(input.btw_percentage) || 21);
+    const btwPercentage = input.btw_percentage == null ? 21 : roundEuro(safeNumber(input.btw_percentage));
+    const vatError = validateCostVat({ lines: lineItems, rate: btwPercentage, amountIncl: requestedAmountIncl, manualOverride });
+    if (vatError) return NextResponse.json({ ok: false, message: vatError }, { status: 422 });
     const date = dateOnly(input.date);
     const receiptUrl = safeString(input.receipt_url) || null;
     const receiptFiles = normalizeProjectCostReceiptFiles(input.receipt_files, receiptUrl);
@@ -785,6 +794,24 @@ export async function POST(request: Request) {
       }
     }
 
+    // Een claim blijft bij een onderbroken boeking staan: nooit blind opnieuw boeken
+    // nadat mogelijk al een deel van de categorieen is opgeslagen.
+    const documentKeys = costDocumentKeys(uid, input);
+    if ((!token || pendingImportId) && documentKeys.length === 0) {
+      return NextResponse.json({ ok: false, message: 'Factuuridentiteit ontbreekt; controleer leverancier, factuurnummer en bronbestand.' }, { status: 422 });
+    }
+    const { firestore: importFirestore } = initFirebaseAdmin();
+    const claimRefs = documentKeys.map(key => importFirestore.collection('cost_import_claims').doc(key));
+    if (claimRefs.length) {
+      const claimed = await importFirestore.runTransaction(async transaction => {
+        const snapshots = await transaction.getAll(...claimRefs);
+        if (snapshots.some(snapshot => snapshot.exists)) return false;
+        for (const ref of claimRefs) transaction.create(ref, { userId: uid, status: 'processing', createdAt: new Date(), pendingImportId: pendingImportId || null });
+        return true;
+      });
+      if (!claimed) return NextResponse.json({ ok: false, message: 'Dit document is al verwerkt of wordt verwerkt. Bij een eerdere fout: controleer de bestaande boeking voordat je opnieuw importeert.' }, { status: 409 });
+    }
+
     const insertedRows: any[] = [];
 
     for (const [groupIndex, group] of groupedArray.entries()) {
@@ -874,6 +901,11 @@ export async function POST(request: Request) {
     const insertedCostIds = insertedRows
       .map((row) => safeString((row as Record<string, unknown>).id))
       .filter(Boolean);
+    if (claimRefs.length) {
+      const batch = importFirestore.batch();
+      for (const ref of claimRefs) batch.update(ref, { status: 'booked', costIds: insertedCostIds, updatedAt: new Date() });
+      await batch.commit();
+    }
     for (const archiveId of archiveIdsFromReceiptFiles(receiptFiles)) {
       try {
         await linkTaxDocumentToCosts({

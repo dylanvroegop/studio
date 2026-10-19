@@ -29,6 +29,23 @@ const { createInvoiceAtomically } = load('@/lib/invoice-create-server');
 const { resolveInvoiceTotal } = load('@/lib/invoice-total');
 const advance = (id, total, status = 'verzonden', paid = 0) => ({ id, userId: 'owner', quoteId: 'quote', invoiceType: 'voorschot', status, invoiceNumberLabel: id, totalsSnapshot: { totaalInclBtw: total }, paymentSummary: { paidAmount: paid } });
 
+test('browser en Admin timestamps geven dezelfde offertecontrole, echte wijzigingen blijven zichtbaar', () => {
+  const { Timestamp: ClientTimestamp } = require('firebase/firestore');
+  const { Timestamp: AdminTimestamp } = require('firebase-admin/firestore');
+  const quote = (Timestamp, nanos = 873000000) => ({
+    amount: 2210.96,
+    klantinformatie: { voornaam: 'Test', updatedAt: new Timestamp(1775653868, nanos) },
+    extras: [{ updatedAt: new Timestamp(1775653868, nanos) }],
+  });
+  const browser = invoiceQuoteSignature(quote(ClientTimestamp));
+  assert.equal(browser, invoiceQuoteSignature(quote(AdminTimestamp)));
+  assert.notEqual(browser, invoiceQuoteSignature(quote(AdminTimestamp, 873000001)));
+  assert.notEqual(browser, invoiceQuoteSignature({ ...quote(AdminTimestamp), amount: 2300 }));
+  const changedCustomer = quote(AdminTimestamp);
+  changedCustomer.klantinformatie.voornaam = 'Andere klant';
+  assert.notEqual(browser, invoiceQuoteSignature(changedCustomer));
+});
+
 test('een concept is herbruikbaar en telt niet als gefactureerd of ontvangen voorschot', () => {
   const result = summarizeInvoiceBilling([advance('draft', 500, 'concept', 500)]);
   assert.equal(result.existingAdvanceId, 'draft');

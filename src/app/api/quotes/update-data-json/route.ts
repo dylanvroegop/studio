@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { createQuoteDataPatch } from '@/lib/quote-data-patch';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
@@ -125,20 +126,22 @@ export async function POST(req: Request) {
             nextDataJson = preserveWorkDescriptionFields(nextDataJson, currentDataJson);
         }
 
-        // 3. Update Supabase using admin client (bypasses RLS)
-        const { data, error } = await supabaseAdmin
-            .from('quotes_collection')
-            .update({ data_json: nextDataJson })
-            .eq('id', calculation_id)
-            .eq('gebruikerid', decodedToken.uid)
-            .select();
+        // Alleen gewijzigde velden bijwerken, ook in een inmiddels gestarte nieuwe run.
+        const patch = data_json_patch && typeof data_json_patch === 'object' && !Array.isArray(data_json_patch)
+            ? data_json_patch
+            : createQuoteDataPatch(currentDataJson, nextDataJson);
+        const { data, error } = await supabaseAdmin.rpc('patch_quote_calculation_input', {
+            calculation_id,
+            owner_uid: decodedToken.uid,
+            patch,
+        });
 
         if (error) {
             console.error('Supabase update error:', error);
             return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
         }
 
-        if (!data || data.length === 0) {
+        if (!Array.isArray(data) || data.length === 0) {
             return NextResponse.json({ ok: false, message: 'No rows updated - calculation not found' }, { status: 404 });
         }
 

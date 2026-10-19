@@ -1,3 +1,5 @@
+import { costDocumentKeys } from '@/lib/cost-document-policy';
+import { createHash } from 'node:crypto';
 import { classifyPurchaseLines } from '@/lib/purchase-product-category-server';
 import { enrichPurchaseFromGps } from '@/lib/gps-purchase-link-server';
 import { initFirebaseAdmin } from '@/firebase/admin';
@@ -126,7 +128,8 @@ export async function queuePendingCostImport(uid: string, payload: Record<string
         if (matches.length === 1) payload.offerte_id = matches[0].id;
       }
     }
-    const incomingFingerprint = createPendingFingerprint(payload);
+    const identityKeys = costDocumentKeys(uid, payload);
+    const incomingFingerprint = identityKeys[0] || createPendingFingerprint(payload);
     const existingSnapshot = await firestore
       .collection('pending_cost_imports')
       .where('userId', '==', uid)
@@ -145,12 +148,12 @@ export async function queuePendingCostImport(uid: string, payload: Record<string
       };
     }
 
-    const pendingRef = firestore.collection('pending_cost_imports').doc();
+    const pendingRef = firestore.collection('pending_cost_imports').doc(createHash('sha256').update(`${uid}:${incomingFingerprint}`).digest('hex'));
     const now = new Date();
     const storedPayload = { ...payload };
     delete storedPayload.user_id;
 
-    await pendingRef.set({
+    const pendingData = {
       userId: uid,
       status: 'pending',
       pendingFingerprint: incomingFingerprint,
@@ -160,7 +163,14 @@ export async function queuePendingCostImport(uid: string, payload: Record<string
       },
       createdAt: now,
       updatedAt: now,
+    };
+    const existing = await firestore.runTransaction(async transaction => {
+      const snapshot = await transaction.get(pendingRef);
+      if (snapshot.exists) return snapshot.data();
+      transaction.create(pendingRef, pendingData);
+      return null;
     });
+    if (existing) return { id: pendingRef.id, deduplicated: true, data: mapPendingImport(pendingRef.id, existing) };
 
     return { id: pendingRef.id, deduplicated: false, data: mapPendingImport(pendingRef.id, { payload, status: 'pending', createdAt: now, updatedAt: now }) };
 }

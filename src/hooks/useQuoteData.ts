@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DataJson } from '@/lib/quote-calculations';
+import { setScopeCost, type ScopeCostKey } from '@/lib/quote-scope-costs';
+import { normalizeDataJson, DataJson } from '@/lib/quote-calculations';
 import { useUser } from '@/firebase/provider';
+import { createQuoteDataPatch } from '@/lib/quote-data-patch';
 
 export interface QuoteCalculation {
     id: string;
@@ -12,7 +14,9 @@ export interface QuoteCalculation {
 }
 
 interface UseQuoteDataOptions {
+    pausePolling?: boolean;
     pollWhenMissing?: boolean;
+    pollWhileRunning?: boolean;
     pollIntervalMs?: number;
     preferCompletedFallback?: boolean;
 }
@@ -103,12 +107,15 @@ async function getUserTokenSafe(user: { getIdToken: () => Promise<string> } | nu
 
 export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
     const { user } = useUser();
+    const pausePolling = options?.pausePolling === true;
+    const pollWhileRunning = options?.pollWhileRunning === true;
     const pollWhenMissing = options?.pollWhenMissing === true;
     const pollIntervalMs = Number.isFinite(options?.pollIntervalMs)
         ? Math.max(1000, Number(options?.pollIntervalMs))
         : 5000;
     const preferCompletedFallback = options?.preferCompletedFallback !== false;
     const [calculation, setCalculation] = useState<QuoteCalculation | null>(null);
+    const [latestCalculation, setLatestCalculation] = useState<QuoteCalculation | null>(null);
     const [latestCalculationStatus, setLatestCalculationStatus] = useState<QuoteCalculation['status'] | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -118,6 +125,8 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
     const latestRequestedDataJsonSignatureRef = useRef<string | null>(null);
     const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
     const mutationVersionRef = useRef(0);
+    const pendingWritesRef = useRef(0);
+    const lastWriteErrorRef = useRef<unknown>(null);
 
     const refetch = useCallback(() => {
         setLoading(true);
@@ -142,6 +151,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                 // But generally, we want the UI to know we are "waiting" for completion.
                 // We'll keep loading=true as long as we don't have a 'completed' status.
 
+                const fetchMutationVersion = mutationVersionRef.current;
                 const token = await getUserTokenSafe(user);
                 if (!token) {
                     throw new Error('Authenticatie tijdelijk niet beschikbaar. Controleer je internetverbinding en probeer opnieuw.');
@@ -177,14 +187,21 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
 
                 if (isMounted) {
                     setError(null);
+                    if (mutationVersionRef.current !== fetchMutationVersion || pendingWritesRef.current > 0) {
+                        pollTimer = setTimeout(fetchQuoteData, POLL_INTERVAL_MS);
+                        return;
+                    }
                     setCalculation(data);
                     setLatestCalculationStatus(latestStatus);
+                    setLatestCalculation(latestRow ?? data);
                     calculationRef.current = data;
                     lastSyncedDataJsonSignatureRef.current = data?.data_json ? JSON.stringify(data.data_json) : null;
 
+                    if (pausePolling) { setLoading(false); return; }
+
                     if (!data) {
                         // Calculation may still be creating the row (n8n webhook path).
-                        if (pollWhenMissing) {
+                        if (pollWhenMissing || pollWhileRunning) {
                             setLoading(true);
                             pollTimer = setTimeout(fetchQuoteData, POLL_INTERVAL_MS);
                             return;
@@ -193,7 +210,13 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                         return;
                     }
 
-                    if (data.status === 'failed') {
+                    if (pollWhileRunning) {
+                        setLoading(!hasDataJson);
+                        pollTimer = setTimeout(fetchQuoteData, POLL_INTERVAL_MS);
+                        return;
+                    }
+
+                    if (latestStatus === 'failed') {
                         setLoading(false);
                         setError('De calculatie is mislukt. Start de berekening opnieuw.');
                         return;
@@ -216,6 +239,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
             } catch (err) {
                 console.error('Fetch error:', err);
                 if (isMounted) {
+                    if (pausePolling) { setLoading(false); return; }
                     const message = err instanceof Error ? err.message : 'Failed to fetch quote data';
                     const isTransientResponse = err instanceof TransientApiResponseError;
 
@@ -228,6 +252,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
 
                     const hasResolvedData = Boolean(calculationRef.current?.data_json);
                     if (hasResolvedData) {
+                        if (pollWhileRunning && !pausePolling) pollTimer = setTimeout(fetchQuoteData, RETRY_INTERVAL_MS);
                         setLoading(false);
                         return;
                     }
@@ -247,7 +272,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
             isMounted = false;
             if (pollTimer) clearTimeout(pollTimer);
         };
-    }, [quoteId, user, pollWhenMissing, pollIntervalMs, preferCompletedFallback, refreshIndex]);
+    }, [pausePolling, quoteId, user, pollWhenMissing, pollWhileRunning, pollIntervalMs, preferCompletedFallback, refreshIndex]);
 
 
     // Function to update the data_json (for price edits)
@@ -263,6 +288,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
 
         const safeDataJson = preserveWorkDescriptionFields(newDataJson, currentCalculation.data_json);
         const nextSignature = JSON.stringify(safeDataJson);
+        const patch = createQuoteDataPatch(currentCalculation.data_json, safeDataJson);
 
         // Prevent duplicate writes, including repeated blur events for a payload
         // that is already waiting in the queue.
@@ -273,6 +299,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
             return;
         }
 
+        pendingWritesRef.current += 1;
         const mutationVersion = ++mutationVersionRef.current;
         latestRequestedDataJsonSignatureRef.current = nextSignature;
 
@@ -297,7 +324,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                 },
                 body: JSON.stringify({
                     calculation_id: currentCalculation.id,
-                    data_json: safeDataJson
+                    data_json_patch: patch
                 })
             });
 
@@ -318,7 +345,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
             // with this older response while that newer write waits its turn.
             if (mutationVersionRef.current === mutationVersion) {
                 const persistedCalculation = {
-                    ...(calculationRef.current ?? currentCalculation),
+                    ...(result.data ?? calculationRef.current ?? currentCalculation),
                     data_json: persistedDataJson,
                 };
                 calculationRef.current = persistedCalculation;
@@ -329,7 +356,10 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
         const queuedWrite = writeQueueRef.current
             .catch(() => undefined)
             .then(persist);
-        writeQueueRef.current = queuedWrite.catch(() => undefined);
+        writeQueueRef.current = queuedWrite.then(
+            () => { lastWriteErrorRef.current = null; },
+            (error: unknown) => { lastWriteErrorRef.current = error; },
+        );
 
         try {
             await queuedWrite;
@@ -343,6 +373,8 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                 latestRequestedDataJsonSignatureRef.current = null;
             }
             throw err;
+        } finally {
+            pendingWritesRef.current -= 1;
         }
     }, [user]);
 
@@ -352,6 +384,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
             throw new Error('Offerte-data is nog niet beschikbaar.');
         }
 
+        pendingWritesRef.current += 1;
         const mutationVersion = ++mutationVersionRef.current;
         const currentRoot = Array.isArray(currentCalculation.data_json)
             ? currentCalculation.data_json[0]
@@ -360,6 +393,18 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
             ...(currentRoot && typeof currentRoot === 'object' ? currentRoot : {}),
             ...patch,
         } as QuoteCalculation['data_json'];
+        if (patch._scope_cost_updates && typeof patch._scope_cost_updates === 'object') {
+            const normalized = normalizeDataJson(currentCalculation.data_json);
+            let materials = { groot: normalized.grootmaterialen || [], verbruik: normalized.verbruiksartikelen || [] };
+            for (const [key, amount] of Object.entries(patch._scope_cost_updates)) {
+                if (key === 'afval' || key === 'steiger' || key === 'naden') {
+                    materials = setScopeCost(materials, key as ScopeCostKey, Number(amount));
+                }
+            }
+            optimisticDataJson.grootmaterialen = materials.groot;
+            optimisticDataJson.verbruiksartikelen = materials.verbruik;
+            delete optimisticDataJson._scope_cost_updates;
+        }
         const optimisticCalculation = { ...currentCalculation, data_json: optimisticDataJson };
         calculationRef.current = optimisticCalculation;
         latestRequestedDataJsonSignatureRef.current = JSON.stringify(optimisticDataJson);
@@ -397,7 +442,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
             lastSyncedDataJsonSignatureRef.current = JSON.stringify(persisted);
             if (mutationVersionRef.current === mutationVersion) {
                 const persistedCalculation = {
-                    ...(calculationRef.current ?? currentCalculation),
+                    ...(result.data ?? calculationRef.current ?? currentCalculation),
                     data_json: persisted,
                 };
                 calculationRef.current = persistedCalculation;
@@ -408,10 +453,22 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
         const queuedWrite = writeQueueRef.current
             .catch(() => undefined)
             .then(persist);
-        writeQueueRef.current = queuedWrite.catch(() => undefined);
-        await queuedWrite;
-        return persisted;
+        writeQueueRef.current = queuedWrite.then(
+            () => { lastWriteErrorRef.current = null; },
+            (error: unknown) => { lastWriteErrorRef.current = error; },
+        );
+        try {
+            await queuedWrite;
+            return persisted;
+        } finally {
+            pendingWritesRef.current -= 1;
+        }
     }, [user]);
 
-    return { calculation, latestCalculationStatus, loading, error, updateDataJson, updateDataJsonPatch, refetch };
+    const flushWrites = useCallback(async (): Promise<void> => {
+        await writeQueueRef.current;
+        if (lastWriteErrorRef.current) throw lastWriteErrorRef.current;
+    }, []);
+
+    return { flushWrites, calculation, latestCalculation, latestCalculationStatus, loading, error, updateDataJson, updateDataJsonPatch, refetch };
 }

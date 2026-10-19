@@ -29,6 +29,7 @@ const projectCosts = loadSource('src/lib/project-costs.ts');
 const { buildFinanceBankLedger, splitFinanceBankLedgerRowsByCategory } = loadSource('src/lib/finance-bank-ledger.ts', {
   '@/lib/project-costs': projectCosts,
   '@/lib/supabase-admin': {},
+  '@/lib/finance-cost-visibility': loadSource('src/lib/finance-cost-visibility.ts'),
 });
 
 const transaction = (overrides = {}) => ({

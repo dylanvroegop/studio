@@ -1,3 +1,4 @@
+import { validateCostVat } from '@/lib/cost-vat-validation';
 import { rememberCategoryCorrections } from '@/lib/purchase-product-category-server';
 import { NextResponse } from 'next/server';
 
@@ -267,7 +268,7 @@ export async function POST(request: Request) {
 
     const existing = await supabaseAdmin
       .from('project_costs')
-      .select('id,user_id,offerte_id,line_items,payment_type,payment_status,due_date,supplier_invoice_number,reconciliation_group_id,source_email,source_filename')
+      .select('id,user_id,status,offerte_id,line_items,payment_type,payment_status,due_date,supplier_invoice_number,reconciliation_group_id,source_email,source_filename')
       .eq('id', costId)
       .maybeSingle();
 
@@ -320,7 +321,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Bedrag excl. BTW mag niet 0 zijn.' }, { status: 400 });
     }
 
-    const btwPercentage = roundEuro(safeNumber(input.btw_percentage) || 21);
+    const btwPercentage = input.btw_percentage == null ? 21 : roundEuro(safeNumber(input.btw_percentage));
+    const vatError = validateCostVat({ lines: lineItems, rate: btwPercentage, amountIncl: requestedAmountIncl, manualOverride });
+    if (vatError) return NextResponse.json({ ok: false, message: vatError }, { status: 422 });
     const amountIncl = requestedAmountIncl !== 0
       ? requestedAmountIncl
       : roundEuro(amountExcl * (1 + btwPercentage / 100));
@@ -328,7 +331,8 @@ export async function POST(request: Request) {
     const date = dateOnly(input.date);
     const receiptUrl = safeString(input.receipt_url) || null;
     const receiptFiles = normalizeProjectCostReceiptFiles(input.receipt_files, receiptUrl);
-    const status = safeString(input.status) || 'confirmed';
+    // Een gewone inhoudelijke bewerking mag bevestigd contant niet wissen.
+    const status = existing.data.status === 'paid_cash' ? 'paid_cash' : safeString(input.status) || 'confirmed';
     // Keep reconciliation metadata when an older edit form does not send the
     // new Bouwmaat fields. Explicit values from the request still win.
     const existingMetadata = (existing.data || {}) as Record<string, unknown>;

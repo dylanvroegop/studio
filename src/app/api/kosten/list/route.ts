@@ -1,3 +1,4 @@
+import { visibleUnmatchedSources } from '@/lib/finance-cost-visibility';
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
@@ -29,7 +30,7 @@ function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-async function fetchProjectCostsViaRest(uid: string): Promise<unknown[]> {
+async function fetchProjectCostsPage(uid: string, offset: number): Promise<unknown[]> {
   const supabaseUrl = safeString(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const serviceKey = safeString(process.env.SUPABASE_SERVICE_ROLE_KEY);
   if (!supabaseUrl || !serviceKey) {
@@ -39,8 +40,9 @@ async function fetchProjectCostsViaRest(uid: string): Promise<unknown[]> {
   const url = new URL('/rest/v1/project_costs', supabaseUrl);
   url.searchParams.set('select', '*');
   url.searchParams.set('user_id', `eq.${uid}`);
-  url.searchParams.append('order', 'date.desc');
-  url.searchParams.append('order', 'created_at.desc');
+  url.searchParams.set('order', 'date.desc,created_at.desc,id.asc');
+  url.searchParams.set('offset', String(offset));
+  url.searchParams.set('limit', '500');
 
   const response = await fetchWithSupabaseClockSkewRetry(url.toString(), {
     method: 'GET',
@@ -66,6 +68,15 @@ async function fetchProjectCostsViaRest(uid: string): Promise<unknown[]> {
   }
 
   return payload;
+}
+
+async function fetchProjectCostsViaRest(uid: string): Promise<unknown[]> {
+  const rows: unknown[] = [];
+  for (;;) {
+    const page = await fetchProjectCostsPage(uid, rows.length);
+    rows.push(...page);
+    if (page.length < 500) return rows;
+  }
 }
 
 function extractBearerToken(authHeader: string | null): string | null {
@@ -137,7 +148,7 @@ export async function GET(request: Request) {
     // Knab is the cost ledger. The amount of each debit is counted exactly
     // once, but a mixed invoice can produce multiple category parts. Imported
     // invoices and receipts provide the split, VAT, quote and attachments.
-    const mappedRows = ledgerRows.map((ledgerRow) => {
+    const mappedRows: ProjectCostRow[] = ledgerRows.map((ledgerRow) => {
       const sources = ledgerRow.source_cost_ids
         .map((costId) => projectCostById.get(costId))
         .filter((cost): cost is ProjectCostRow => Boolean(cost));
@@ -170,7 +181,7 @@ export async function GET(request: Request) {
       const category = ledgerRow.is_private ? 'eigen_verbruik' : ledgerRow.category;
       const btwPercentage = amountExcl !== 0 ? roundEuro((btwAmount / amountExcl) * 100) : 0;
 
-      return mapProjectCostRow({
+      return { ...mapProjectCostRow({
         id: `bank-knab-${ledgerRow.bank_transaction_id}-${category}`,
         user_id: uid,
         offerte_id: offerteIds.length === 1 ? offerteIds[0] : null,
@@ -197,7 +208,7 @@ export async function GET(request: Request) {
         source_filename: uniqueStrings(sources.map((cost) => cost.source_filename || '')).join(', ') || null,
         created_at: createdAt,
         updated_at: createdAt,
-      });
+      }), vat_known: sources.length > 0 && Math.abs(sourceIncl - sourceExcl - sourceBtw) < 0.02 };
     });
 
     // Transfers to the user's own profit account remain visible for cashflow
@@ -240,23 +251,12 @@ export async function GET(request: Request) {
 
     mappedRows.push(...internalTransferRows);
 
-    // Knab is authoritative from the first available connected transaction.
-    // Older imported costs cannot be verified against this bank history, but
-    // they are still real documented costs and must not disappear from the
-    // category lists. Costs already matched to a later debit remain excluded
-    // here so they can never be counted twice.
-    const firstKnabDate = knabTransactions
-      .map((transaction) => safeString(transaction.booking_date).slice(0, 10))
-      .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
-      .sort()[0] || null;
+    // Een bron zonder bankmatch blijft zichtbaar, maar telt pas mee na
+    // controle. Zo verdwijnen contante bonnen niet en tellen orderbevestigingen
+    // of nog niet gekoppelde facturen niet blind dubbel mee.
     const matchedCostIds = new Set(bankLedgerRows.flatMap((row) => row.source_cost_ids));
-    const historicalSourceRows = firstKnabDate
-      ? projectCosts
-        .filter((cost) => safeString(cost.date).slice(0, 10) < firstKnabDate)
-        .filter((cost) => !matchedCostIds.has(cost.id))
-        .map((cost) => ({ ...cost, status: 'historical_source_cost' }))
-      : [];
-    mappedRows.push(...historicalSourceRows);
+    const unmatchedSources = visibleUnmatchedSources(projectCosts, matchedCostIds);
+    mappedRows.push(...unmatchedSources);
 
     mappedRows.sort((left, right) => {
       const leftTime = new Date(left.date || left.created_at).getTime();
@@ -270,8 +270,7 @@ export async function GET(request: Request) {
           uid,
           source: 'knab-ledger',
           rowCount: mappedRows.length,
-          historicalSourceCount: historicalSourceRows.length,
-          firstKnabDate,
+          unmatchedSourceCount: unmatchedSources.length,
         })
       );
     }

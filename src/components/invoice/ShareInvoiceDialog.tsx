@@ -51,6 +51,7 @@ export function ShareInvoiceDialog({
   const [phone, setPhone] = useState('');
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   const [marking, setMarking] = useState(false);
   const [shareNotice, setShareNotice] = useState('');
   const [shareFailed, setShareFailed] = useState(false);
@@ -63,6 +64,12 @@ export function ShareInvoiceDialog({
   const preparedFile = prepared?.signature === pdfSignature ? prepared.file : null;
   const preparationError = prepared?.signature === pdfSignature ? prepared.error : null;
   const supportsShare = Boolean(preparedFile && typeof navigator !== 'undefined' && canShareInvoiceFile(navigator, preparedFile));
+
+  useEffect(() => {
+    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    setIsDesktop(!mobile);
+  }, []);
 
   const context = useMemo<InvoiceMessageContext | null>(() => pdfData ? {
     clientName: pdfData.klant.naam,
@@ -143,6 +150,24 @@ export function ShareInvoiceDialog({
 
   const shareInvoice = (): void => {
     if (!preparedFile || sharingRef.current) return;
+    if (isDesktop) {
+      const tab = window.open('about:blank', '_blank');
+      if (!tab) {
+        setShareNotice('WhatsApp openen is geblokkeerd door de browser. Sta een nieuw tabblad toe en probeer opnieuw.');
+        return;
+      }
+      tab.opener = null;
+      tab.location.href = whatsappUrl!;
+      try {
+        downloadInvoiceFile(preparedFile);
+        setShareFailed(false);
+        setShareNotice('Voeg de gedownloade PDF toe in WhatsApp Web. Bevestig hieronder zodra je de factuur hebt verstuurd.');
+      } catch {
+        setShareFailed(true);
+        setShareNotice('WhatsApp is geopend, maar downloaden is mislukt. Download de PDF hieronder opnieuw.');
+      }
+      return;
+    }
     sharingRef.current = true;
     // De File is al gereed; de systeemdeelfunctie wordt direct door deze tik geopend.
     const pending = sharePreparedInvoice(navigator, preparedFile, message);
@@ -175,7 +200,10 @@ export function ShareInvoiceDialog({
     }
   };
 
-  const whatsappUrl = invoiceWhatsAppUrl(phone, message);
+  const mobileWhatsAppUrl = invoiceWhatsAppUrl(phone, message);
+  const webParams = new URLSearchParams({ text: stripDocumentLinksFromMessage(message) });
+  if (mobileWhatsAppUrl) webParams.set('phone', new URL(mobileWhatsAppUrl).pathname.slice(1));
+  const whatsappUrl = isDesktop ? `https://web.whatsapp.com/send?${webParams.toString()}` : mobileWhatsAppUrl;
   const ready = accountReady && Boolean(context);
 
   return (
@@ -198,14 +226,14 @@ export function ShareInvoiceDialog({
 
           {preparationError ? <div role="alert" className="space-y-2 text-sm text-destructive"><p>{preparationError}</p><Button size="sm" variant="outline" onClick={() => { setPrepared(null); setRetry((value) => value + 1); }}>Opnieuw proberen</Button></div> : !preparedFile ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> PDF voorbereiden...</p> : null}
 
-          {(supportsShare || !preparedFile) && <Button className="w-full gap-2" variant="success" onClick={shareInvoice} disabled={!ready || !preparedFile || sharing}>
+          {(isDesktop || supportsShare || !preparedFile) && <Button className="w-full gap-2" variant="success" onClick={shareInvoice} disabled={!ready || !preparedFile || sharing}>
             {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
             {sharing ? 'Deelvenster geopend...' : 'Deel PDF en bericht'}
           </Button>}
-          {supportsShare && <p className="text-xs text-muted-foreground">Kies WhatsApp en de klant. Neemt WhatsApp de tekst niet over? Gebruik ‘Kopiëren’.</p>}
+          {isDesktop ? <p className="text-xs text-muted-foreground">Downloadt de PDF en opent WhatsApp Web met je bericht. Voeg de PDF daar zelf toe.</p> : supportsShare && <p className="text-xs text-muted-foreground">Kies WhatsApp en de klant. Neemt WhatsApp de tekst niet over? Gebruik ‘Kopiëren’.</p>}
           {shareNotice && <p role="status" className="text-sm">{shareNotice}</p>}
 
-          <details open={Boolean(preparedFile && (!supportsShare || shareFailed))} className="rounded-md border px-3 py-2">
+          <details open={Boolean(preparedFile && ((!isDesktop && !supportsShare) || shareFailed))} className="rounded-md border px-3 py-2">
             <summary className="cursor-pointer text-sm">Downloaden en WhatsApp openen</summary>
             <div className="space-y-3 pt-3">
               <Button variant="outline" className="w-full gap-2" disabled={!preparedFile || sharing} onClick={() => { if (preparedFile) downloadInvoiceFile(preparedFile); }}><Download className="h-4 w-4" /> Download PDF</Button>

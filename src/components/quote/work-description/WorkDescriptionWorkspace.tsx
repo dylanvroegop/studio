@@ -29,7 +29,10 @@ type AiAction = 'full' | 'uitvoering-only' | 'improve';
 type RowKey = 'work_scope' | 'materials' | 'dimensions' | 'included' | 'excluded' | 'internal_notes';
 
 interface WorkDescriptionWorkspaceProps {
+  saveAction?: ReactNode;
   jointFinishingError?: string;
+  onSelectNoteSurfaces?: () => void;
+  isResolvingNoteSurfaces?: boolean;
   value: WorkDescriptionStructured;
   mode: Mode;
   onModeChange: (mode: Mode) => void;
@@ -389,7 +392,10 @@ export function LegacyWorkDescriptionWorkspace({
 }
 
 export function WorkDescriptionWorkspace({
+  saveAction,
   jointFinishingError,
+  onSelectNoteSurfaces,
+  isResolvingNoteSurfaces,
   value,
   mode,
   onModeChange,
@@ -569,6 +575,7 @@ export function WorkDescriptionWorkspace({
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               Genereer
             </Button>
+            {saveAction}
           </div>
           {!validation.valid ? (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
@@ -577,6 +584,7 @@ export function WorkDescriptionWorkspace({
             </div>
           ) : null}
           {jointFinishingError && <p role="alert" className="rounded border border-red-500/50 bg-red-500/5 p-3 text-sm text-red-500">{jointFinishingError}</p>}
+          {onSelectNoteSurfaces && <Button type="button" variant="outline" size="sm" disabled={isResolvingNoteSurfaces} onClick={onSelectNoteSurfaces}>{isResolvingNoteSurfaces ? 'AI bekijkt de maten…' : 'Maten uit Notes kiezen'}</Button>}
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {([
               ['afvalAfvoeren', 'Afval afvoeren'], ['schilderwerkInbegrepen', 'Schilderwerk'],

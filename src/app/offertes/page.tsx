@@ -542,7 +542,7 @@ function getOfferteStatusStyles(
 
   if (status === 'verzonden') {
     return {
-      label: 'Verstuurd',
+      label: 'Verzonden',
       badgeClass: 'bg-blue-500/10 text-blue-300/90 border-blue-500/25',
       sideBorderClass: 'border-l-blue-400/70',
       rowTintClass: 'bg-blue-500/[0.07]',
@@ -2170,7 +2170,7 @@ export default function OffertesPage() {
                                   void setQuoteDecisionStatus(q, 'verzonden');
                                 }}
                               >
-                                Status: Verstuurd
+                                Status: Verzonden
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}
@@ -2380,7 +2380,7 @@ export default function OffertesPage() {
                                 void setQuoteDecisionStatus(q, 'verzonden');
                               }}
                             >
-                              Status: Verstuurd
+                              Status: Verzonden
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={isArchived || acceptedByInvoice || isUpdatingAcceptance}

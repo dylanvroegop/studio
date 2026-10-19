@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { materialNeedsCalculation } from '@/lib/material-calculation-status';
 import { formatCurrency, MaterialItem } from '@/lib/quote-calculations';
 import { Package, AlertCircle, Plus, Minus, Check, X, Trash2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -77,7 +78,8 @@ function MaterialRow({
     showLineTotalInclBtw,
     showSourceCategoryBadge,
 }: MaterialRowProps) {
-    const [localAantal, setLocalAantal] = useState<string>(item.aantal?.toString() || '');
+    const incomplete = materialNeedsCalculation(item);
+    const [localAantal, setLocalAantal] = useState<string>(incomplete ? '' : item.aantal?.toString() || '');
     const [localProduct, setLocalProduct] = useState<string>(item.product || '');
     const [localPrijs, setLocalPrijs] = useState<string>(item.prijs_per_stuk === 0 ? '' : item.prijs_per_stuk?.toString() || '');
     const [localEenheid, setLocalEenheid] = useState<string>(item.eenheid || 'stuk');
@@ -92,18 +94,19 @@ function MaterialRow({
 
     // Sync from props if they change externally (e.g. from modal)
     useEffect(() => {
-        setLocalAantal(item.aantal?.toString() || '');
+        setLocalAantal(incomplete ? '' : item.aantal?.toString() || '');
         setLocalProduct(item.product || '');
         setLocalPrijs(item.prijs_per_stuk === undefined || item.prijs_per_stuk === 0 ? '' : formatPrice(item.prijs_per_stuk));
         setLocalEenheid(item.eenheid || 'stuk');
-    }, [item.aantal, item.product, item.prijs_per_stuk, item.eenheid]);
+    }, [item.aantal, item.product, item.prijs_per_stuk, item.eenheid, incomplete]);
 
     const handleAantalBlur = () => {
         console.log('🔵 Aantal BLUR fired!', { index, localAantal, itemAantal: item.aantal });
+        if (incomplete && localAantal.trim() === '') return;
         const val = parseFloat(localAantal) || 0;
-        if (val !== item.aantal) {
+        if (val !== item.aantal || incomplete) {
             console.log('🔵 Calling onUpdateItem with aantal:', { index, val, onUpdateItemType: typeof onUpdateItem });
-            onUpdateItem(index, { aantal: val });
+            onUpdateItem(index, { aantal: val, berekening_status: 'manual', voorstel: '' });
         } else {
             console.log('⚪ Aantal unchanged, skipping');
         }
@@ -116,7 +119,7 @@ function MaterialRow({
         const nextValue = Math.max(0, baseValue + delta);
         const nextAsText = String(nextValue);
         setLocalAantal(nextAsText);
-        onUpdateItem(index, { aantal: nextValue });
+        onUpdateItem(index, { aantal: nextValue, berekening_status: 'manual', voorstel: '' });
     };
 
     const handleProductBlur = () => {
@@ -285,9 +288,9 @@ function MaterialRow({
 
                                 <div className="rounded-lg border border-zinc-700/60 bg-zinc-900/35 p-2 text-right">
                                     <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Totaal</div>
-                                    <div className="text-sm font-semibold text-zinc-200">{formatCurrency(itemTotal)}</div>
+                                    <div className="text-sm font-semibold text-zinc-200">{incomplete ? 'Niet berekend' : formatCurrency(itemTotal)}</div>
                                     {showLineTotalInclBtw && (
-                                        <div className="mt-0.5 text-[11px] text-zinc-500">incl. {formatCurrency(itemTotal * (1 + vatRate / 100))}</div>
+                                        <div className="mt-0.5 text-[11px] text-zinc-500">incl. {incomplete ? '—' : formatCurrency(itemTotal * (1 + vatRate / 100))}</div>
                                     )}
                                 </div>
                             </div>
@@ -376,7 +379,7 @@ function MaterialRow({
                         </div>
                     </label>
                     <p className="mt-1 text-[10px] font-medium text-zinc-400 sm:hidden">
-                        {formatCurrency(itemTotal)}
+                        {incomplete ? 'Niet berekend' : formatCurrency(itemTotal)}
                     </p>
                 </td>
                 <td className="px-2 py-2 sm:px-2 sm:py-3">
@@ -391,11 +394,11 @@ function MaterialRow({
                     </select>
                 </td>
                 <td className="hidden px-2 py-3 text-right text-zinc-300 text-sm sm:table-cell">
-                    {formatCurrency(itemTotal)}
+                    {incomplete ? 'Niet berekend' : formatCurrency(itemTotal)}
                 </td>
                 {showLineTotalInclBtw && (
                     <td className="hidden px-2 py-3 text-right text-zinc-400 text-sm font-medium sm:table-cell">
-                        {formatCurrency(itemTotal * (1 + vatRate / 100))}
+                        {incomplete ? '—' : formatCurrency(itemTotal * (1 + vatRate / 100))}
                     </td>
                 )}
                 {onRemoveItem && (
@@ -412,6 +415,13 @@ function MaterialRow({
                     </td>
                 )}
             </tr>
+            {incomplete && (
+                <tr className="bg-amber-500/10">
+                    <td colSpan={totalColumns} className="px-3 py-2 text-xs text-amber-400">
+                        Niet berekend: {item.voorstel || 'benodigde gegevens ontbreken'}. Vul het aantal in; het totaal is nog onvolledig.
+                    </td>
+                </tr>
+            )}
             {showCalculation && calculationText && (
                 <tr className="bg-zinc-900/20">
                     <td colSpan={totalColumns} className="px-6 py-3 text-xs text-zinc-300">
@@ -579,6 +589,11 @@ export function MaterialEditor({
 
     return (
         <div className={`bg-card/50 rounded-xl border border-border overflow-hidden backdrop-blur-sm ${categoryContainerClass}`}>
+            {items.some(materialNeedsCalculation) && (
+                <p role="status" className="border-b border-amber-500/30 px-4 py-3 text-sm text-amber-400">
+                    Calculatie onvolledig: er zijn materialen zonder berekend aantal. Het totaal is voorlopig.
+                </p>
+            )}
             {/* Header */}
             {!hideHeader && (
                 <div className={`flex justify-between items-start gap-3 px-6 py-4 border-b border-border ${categoryHeaderClass}`}>

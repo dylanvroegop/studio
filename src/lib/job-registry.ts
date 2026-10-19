@@ -221,6 +221,28 @@ const CEILLING_FIELDS: MeasurementField[] = [
   { key: 'latafstand', label: 'Latafstand (h.o.h.)', type: 'number', suffix: 'mm', defaultValue: 300, group: 'spacing' },
 ]
 
+const SYSTEM_CEILING_FIELDS: MeasurementField[] = [
+  { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
+  { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' },
+  { key: 'plaat_lengte', label: 'Rastermaat plaat – lengte', type: 'number', suffix: 'mm', defaultValue: 600 },
+  { key: 'plaat_breedte', label: 'Rastermaat plaat – breedte', type: 'number', suffix: 'mm', defaultValue: 600 },
+  { key: 'afhanghoogte', label: 'Afhanghoogte', type: 'number', suffix: 'mm', optional: true },
+  { key: 'hoofdprofiel_afstand', label: 'Hoofdprofielen h.o.h.', type: 'number', suffix: 'mm', optional: true },
+  { key: 'ophanger_afstand', label: 'Ophangers h.o.h.', type: 'number', suffix: 'mm', optional: true },
+];
+
+const SYSTEM_CEILING_MATS: MaterialSection[] = [
+  { key: 'plafondplaten', label: 'Plafondplaten', category: 'beplating' },
+  { key: 'hoofdprofielen', label: 'Hoofdprofielen', category: 'metaal' },
+  { key: 'dwarsprofielen_lang', label: 'Dwarsprofielen lang', category: 'metaal' },
+  { key: 'dwarsprofielen_kort', label: 'Dwarsprofielen kort', category: 'metaal' },
+  { key: 'randprofielen', label: 'Randprofielen / hoeklijnen', category: 'metaal' },
+  { key: 'ophangers', label: 'Ophangers / snelhangers', category: 'montage' },
+  { key: 'plafondankers', label: 'Plafondankers', category: 'montage' },
+  { key: 'randbevestiging', label: 'Bevestiging randprofielen', category: 'montage' },
+  { key: 'isolatie', label: 'Isolatie boven plafond', category: 'isolatie' },
+];
+
 const METAL_STUD_CEILING_FIELDS: MeasurementField[] = [
   { key: 'lengte', label: 'Lengte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 5000' },
   { key: 'breedte', label: 'Breedte', type: 'number', suffix: 'mm', placeholder: 'Bijv. 4000' },
@@ -1620,6 +1642,20 @@ export const JOB_REGISTRY: Record<string, CategoryConfig> = {
     title: 'Plafonds',
     searchPlaceholder: 'Zoek plafondtype...',
     items: [
+      {
+        title: 'Systeemplafonds',
+        description: 'Plafondplaten in een ophangraster',
+        slug: 'systeemplafond',
+        measurementLabel: 'Plafond',
+        measurements: SYSTEM_CEILING_FIELDS,
+        materialSections: SYSTEM_CEILING_MATS,
+        categoryConfig: {
+          beplating: { title: 'Plafondplaten', order: 1 },
+          metaal: { title: 'Draagraster & randprofielen', order: 2 },
+          montage: { title: 'Ophanging & bevestiging', order: 3 },
+          isolatie: { title: 'Isolatie', order: 4 },
+        },
+      },
       {
         title: 'Plafond – Houten Framewerk',
         description: 'Houten draagconstructie',

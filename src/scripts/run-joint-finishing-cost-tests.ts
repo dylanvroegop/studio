@@ -17,4 +17,22 @@ assert.ok(calculateJointFinishingCost({ a: job('wanden', 'AK2', [{ lengte: 4000,
 const double = job();
 Object.assign(double.materialen.materialen_lijst, { beplating_2: { material: { materiaalnaam: 'Gipsplaat AK2' } } });
 assert.equal(calculateJointFinishingCost({ a: double }).area, 24);
+// Offerte 260494: dezelfde netto oppervlakken als op de twee tekeningen.
+const gable = (width: number, height: number) => job('wanden', 'AK2', [{
+    shape: 'gable', lengte: 6600, hoogte: 800, hoogteNok: 2800,
+    openings: [{ width, height }],
+}]);
+const firstGable = calculateJointFinishingCost({ a: gable(930, 2115) });
+const secondGable = calculateJointFinishingCost({ a: gable(850, 2015) });
+assert.deepEqual(firstGable.errors, []);
+assert.deepEqual(secondGable.errors, []);
+assert.equal(firstGable.area.toFixed(2), '9.91');
+assert.equal(secondGable.area.toFixed(2), '10.17');
+assert.equal(calculateJointFinishingCost({ a: gable(930, 2115), b: gable(850, 2015) }).area.toFixed(2), '20.08');
+assert.equal(calculateJointFinishingCost({ a: job('wanden', 'AK2', [{
+    shape: 'slope', lengte: 4000, hoogteLinks: 1000, hoogteRechts: 3000,
+}]) }).area, 8);
+assert.ok(calculateJointFinishingCost({ a: job('wanden', 'AK2', [{
+    shape: 'gable', lengte: 6600, hoogte: 800,
+}]) }).errors.length, 'Ontbrekende nokhoogte niet verzinnen');
 console.log('Nadenraming geslaagd: wand, plafond, gekozen kant, gemengde offerte, ontbrekende maten, RK, openingen en twee zijden.');

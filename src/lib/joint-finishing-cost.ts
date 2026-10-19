@@ -12,6 +12,34 @@ type Row = Record<string, any>;
 const number = (v: unknown): number => Number(String(v ?? '').replace(',', '.')) || 0;
 const object = (v: unknown): Row => v && typeof v === 'object' && !Array.isArray(v) ? v as Row : {};
 
+// Gebruik de vormmaten uit de calculatie, net als de wandtekening.
+// Een puntwand bewaart de zijhoogte in hoogte en de top in hoogteNok.
+function grossSurface(row: Row, ceiling: boolean): number {
+    const length = number(row.lengte);
+    const height = number(ceiling ? row.breedte : row.hoogte);
+    const shape = row.shape || 'rectangle';
+    if (shape === 'rectangle' || shape === 'rect') return length * height / 1e6;
+    if (ceiling) return 0;
+    if (shape === 'gable') {
+        if ((row.hoogte == null || row.hoogte === '')
+            && (row.hoogteLinks == null || row.hoogteLinks === '' || row.hoogteRechts == null || row.hoogteRechts === '')) return 0;
+        const left = number(row.hoogteLinks) || height;
+        const right = number(row.hoogteRechts) || height;
+        const peak = number(row.hoogteNok);
+        if (length <= 0 || left < 0 || right < 0 || peak <= 0 || peak < Math.max(left, right)) return 0;
+        // Twee trapezia, met de nok halverwege de wand.
+        return length * (left + 2 * peak + right) / 4e6;
+    }
+    if (shape === 'slope') {
+        const left = number(row.hoogteLinks);
+        const right = number(row.hoogteRechts);
+        if (row.hoogteLinks == null || row.hoogteLinks === '' || row.hoogteRechts == null || row.hoogteRechts === '') return 0;
+        if (length <= 0 || left < 0 || right < 0) return 0;
+        return length * (left + right) / 2e6;
+    }
+    return 0;
+}
+
 export function calculateJointFinishingCost(jobsInput: unknown): JointFinishingCost {
     const errors: string[] = [];
     let amount = 0;
@@ -50,13 +78,11 @@ export function calculateJointFinishingCost(jobsInput: unknown): JointFinishingC
             const row = object(raw);
             let surface = number(row.netto_oppervlakte_m2 ?? row.oppervlakte_m2);
             if (!(surface > 0)) {
-                const length = number(row.lengte);
-                const height = number(ceiling ? row.breedte : row.hoogte);
-                if (!length || !height || (row.shape && row.shape !== 'rectangle')) { invalid = true; break; }
-                surface = length * height / 1e6;
+                surface = grossSurface(row, ceiling);
+                if (!(surface > 0)) { invalid = true; break; }
                 for (const opening of Array.isArray(row.openings) ? row.openings : []) {
-                    const width = number(opening.breedte ?? opening.width);
-                    const h = number(opening.hoogte ?? opening.height);
+                    const width = number(opening.breedte ?? opening.width ?? opening.openingWidth);
+                    const h = number(opening.hoogte ?? opening.height ?? opening.openingHeight);
                     if (!width || !h) { invalid = true; break; }
                     surface -= width * h / 1e6;
                 }

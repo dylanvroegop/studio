@@ -1,0 +1,52 @@
+.container {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+}
+
+.trigger {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .container {
+        height: 16px;
+    }
+
+    .trigger {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        width: 100%;
+        align-items: center;
+        justify-content: center;
+        color: hsl(var(--muted-foreground));
+        background: hsl(var(--card));
+    }
+
+    .panel {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: hsl(var(--background) / 0.97);
+        box-shadow: 0 8px 20px rgb(0 0 0 / 0.15);
+        transform: translateY(-100%);
+        visibility: hidden;
+        transition: transform 200ms ease-out, visibility 200ms;
+    }
+
+    .container[data-expanded='true'] .panel,
+    .container:has(.panel :focus-visible) .panel,
+    .container:has(.panel [data-state='open']) .panel {
+        transform: translateY(0);
+        visibility: visible;
+    }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .panel {
+        transition: none;
+    }
+}

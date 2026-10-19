@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { PriceImportRequestForm } from '@/components/PriceImportRequestForm';
 import { cn } from '@/lib/utils';
 import { reportOperationalError } from '@/lib/report-operational-error';
-import { normalizeTaxonomyLabel, uniqueTaxonomyLabels } from '@/lib/material-taxonomy';
+import { normalizeTaxonomyLabel, uniqueTaxonomyLabels, resolveMaterialOpeningCategory } from '@/lib/material-taxonomy';
 import { useToast } from '@/hooks/use-toast';
 
 type InlineDialogContextValue = {
@@ -522,6 +522,7 @@ function isLooseFilterMatch(haystackRaw: unknown, needleRaw: unknown): boolean {
 }
 
 function getMaterialSubCategory(material: ExistingMaterial): string {
+  if (getMaterialMainCategory(material) === 'Overig') return '';
   const value =
     (material as any).subsectie ??
     (material as any).sub_categorie ??
@@ -624,6 +625,8 @@ export type ExistingMaterial = {
 };
 
 interface MaterialSelectionModalProps {
+  materialTargetControl?: React.ReactNode;
+  requiresMaterialTarget?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialAiImage?: File | null;
@@ -649,6 +652,8 @@ interface MaterialSelectionModalProps {
 }
 
 export function MaterialSelectionModal({
+  materialTargetControl,
+  requiresMaterialTarget = false,
   open,
   onOpenChange,
   initialAiImage,
@@ -694,10 +699,8 @@ export function MaterialSelectionModal({
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string | string[]>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string | string[]>('');
   const [subCategoryFilter, setSubCategoryFilter] = useState<string | string[]>('all');
-  const [categorySearchTerm, setCategorySearchTerm] = useState('');
-  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const [quickCategoryPickerOpen, setQuickCategoryPickerOpen] = useState(false);
   const [quickCategorySearchTerm, setQuickCategorySearchTerm] = useState('');
   const [priceImportDialogOpen, setPriceImportDialogOpen] = useState(false);
@@ -773,7 +776,11 @@ export function MaterialSelectionModal({
     return `material_selection_modal_subcategory_favs_${subCategoryPreferenceScope}`;
   }, [categoryTitle, defaultCategory]);
 
-  // --- RESET ON OPEN ---
+  const resolvedOpeningCategory = useMemo(
+    () => resolveMaterialOpeningCategory(defaultCategory, existingMaterials),
+    [defaultCategory, existingMaterials]
+  );
+
   // --- RESET ON OPEN ---
   useEffect(() => {
     if (open) {
@@ -803,10 +810,8 @@ export function MaterialSelectionModal({
       setStep(initialAiImage ? 'form' : 'search');
       setError(null);
       setSearchTerm('');
-      setCategoryFilter(defaultCategory || 'all');
+      setCategoryFilter(resolvedOpeningCategory);
       setSubCategoryFilter([]);
-      setCategorySearchTerm('');
-      setCategoryPickerOpen(false);
       setQuickCategorySearchTerm('');
       setQuickCategoryPickerOpen(false);
       setPriceImportDialogOpen(false);
@@ -851,7 +856,7 @@ export function MaterialSelectionModal({
       // 4. Reset Edit State
       setEditingMaterialId(null);
     }
-  }, [clearLegacyExtensionToasts, open, defaultCategory, initialWastePercentage, favoriteSubCategoryKey, initialAiImage]);
+  }, [clearLegacyExtensionToasts, open, defaultCategory, resolvedOpeningCategory, initialWastePercentage, favoriteSubCategoryKey, initialAiImage]);
 
   useEffect(() => {
     setDisplayLimit(50);
@@ -865,7 +870,7 @@ export function MaterialSelectionModal({
     const CATEGORY_ORDER = [
       "Vuren ruw", "Vuren geschaafd", "Ribben, sls, rachels", "Plinten & koplatten", "Hardhout geschaafd", "Merantie",
       "Vloer-rabat-vellingdelen", "Underlayment", "Interieur Platen", "Exterieur platen", "Deurbeslag", "Binnendeuren",
-      "Buitendeuren", "Kozijnhout", "Montage kozijnen", "Metalstud profielen", "Gipsplaten", "Brandwerende platen", "Stucwerk", "Rockpanel", "Kikern",
+      "Buitendeuren", "Kozijnhout", "Montage kozijnen", "Metalstud profielen", "Gips", "Brandwerende platen", "Stucwerk", "Rockpanel", "Kikern",
       "Glaswol", "Steenwol", "Pir", "Eps", "Xps", "Folieën", "Dpc", "Lood", "Loodvervanger", "Epdm folie", "Epdm benodigdheden",
       "Epdm afvoeren", "Dakrollen", "Asfaltsingels", "Betonpannen", "Gebakken pannen", "Flexim", "Bitumen golfplaten",
       "Polyester golfplaten", "Pvc golfplaten", "Vezelcement golfplaten", "Golfplaat afdichting en bevestiging", "Velux",
@@ -877,6 +882,9 @@ export function MaterialSelectionModal({
     );
 
     return list.sort((a, b) => {
+      // Overig blijft onderaan, ook als er nieuwe categorieën bijkomen.
+      const overigOrder = Number(a.toLowerCase() === 'overig') - Number(b.toLowerCase() === 'overig');
+      if (overigOrder !== 0) return overigOrder;
       const idxA = CATEGORY_ORDER.indexOf(a);
       const idxB = CATEGORY_ORDER.indexOf(b);
 
@@ -914,10 +922,7 @@ export function MaterialSelectionModal({
   }, [existingMaterials]);
 
   const filteredSidebarCategories = useMemo(() => {
-    const query = categorySearchTerm.trim().toLowerCase();
-    const base = !query
-      ? uniqueCategories
-      : uniqueCategories.filter((cat) => cat.toLowerCase().includes(query));
+    const base = uniqueCategories;
 
     const selected = Array.isArray(categoryFilter)
       ? categoryFilter[0]
@@ -926,17 +931,17 @@ export function MaterialSelectionModal({
     if (
       selected &&
       selected !== 'all' &&
-      !base.includes(selected) &&
-      (!query || selected.toLowerCase().includes(query))
+      !base.includes(selected)
     ) {
-      return [selected, ...base];
+      return selected.toLowerCase() === 'overig' ? [...base, selected] : [selected, ...base];
     }
 
     return base;
-  }, [uniqueCategories, categorySearchTerm, categoryFilter]);
+  }, [uniqueCategories, categoryFilter]);
 
   const selectedCategoryLabel = useMemo(() => {
     if (Array.isArray(categoryFilter)) return categoryFilter.join(', ');
+    if (!categoryFilter) return 'Kies categorie';
     if (categoryFilter === 'all') return 'Toon alles';
     return categoryFilter;
   }, [categoryFilter]);
@@ -1390,6 +1395,7 @@ export function MaterialSelectionModal({
   }, [existingMaterials]);
 
   const materialsAfterCategoryFilter = useMemo(() => {
+    if (!categoryFilter) return [];
     let result = uniqueMaterials;
 
     if (categoryFilter !== 'all') {
@@ -1507,6 +1513,7 @@ export function MaterialSelectionModal({
   }, [open, shouldApplyDefaultSubCategoryOnOpen, normalizedDefaultSubCategoryFilters, availableSubCategories]);
 
   const allFilteredMaterials = useMemo(() => {
+    if (!categoryFilter) return [];
     const deletedIds = new Set(deletedMaterialIds);
     let result = materialsAfterCategoryFilter.filter((material) => !deletedIds.has(material.row_id));
 
@@ -1571,7 +1578,7 @@ export function MaterialSelectionModal({
       const orderB = b.order_id ?? 999999;
       return orderA - orderB;
     });
-  }, [materialsAfterCategoryFilter, searchTerm, subCategoryFilter, selectedMaterialId, existingMaterials, isSelectedMaterial, deletedMaterialIds]);
+  }, [categoryFilter, materialsAfterCategoryFilter, searchTerm, subCategoryFilter, selectedMaterialId, existingMaterials, isSelectedMaterial, deletedMaterialIds]);
 
   const visibleMaterials = useMemo(() => {
     return allFilteredMaterials.slice(0, displayLimit);
@@ -1961,6 +1968,7 @@ export function MaterialSelectionModal({
       setError(null);
 
       // 1. Validation
+      if (requiresMaterialTarget) throw new Error('Kies eerst het materiaalonderdeel waarin dit materiaal moet komen.');
       const safetyAnswerFinal = (safetyAnswerOverride || '').trim();
       const isVerbruikQuestion =
         safetyAnswerFinal.length > 0 &&
@@ -2319,6 +2327,59 @@ export function MaterialSelectionModal({
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
+          onDragOver={(event) => {
+            if (!event.dataTransfer.types.includes('Files')) return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.dataTransfer.dropEffect = 'copy';
+            setIsDraggingAiImage(true);
+          }}
+          onDragLeave={(event) => {
+            event.stopPropagation();
+            const nextTarget = event.relatedTarget as Node | null;
+            if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+              setIsDraggingAiImage(false);
+            }
+          }}
+          onDragEnter={(event) => {
+            if (!event.dataTransfer.types.includes('Files')) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setIsDraggingAiImage(true);
+          }}
+          onDrop={(event) => {
+            if (!event.dataTransfer.types.includes('Files')) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setIsDraggingAiImage(false);
+            if (isAiExtracting || isAiBulkExtracting) return;
+
+            const file = Array.from(event.dataTransfer.files).find((candidate) => (
+              /\.(jpe?g|png|webp|heic|heif)$/i.test(candidate.name)
+              || /^image\/(jpeg|png|webp|heic|heif)$/i.test(candidate.type)
+            ));
+            if (!file) {
+              toast({ title: 'Geen afbeelding gevonden', description: 'Gebruik een JPG, PNG, WEBP of HEIC screenshot.', variant: 'destructive' });
+              return;
+            }
+
+            if (step !== 'form') {
+              setEditingMaterialId(null);
+              setCustomNaam('');
+              setCustomEenheid('stuk');
+              setCustomPrijs('');
+              setCustomPrijsExclBtw('');
+              setCustomCategorie(selectedCategoryForNewMaterial || '');
+              setCustomSubsectie(selectedSubCategoryForNewMaterial || '');
+              setCustomLeverancier('');
+              setCustomLengte('');
+              setCustomBreedte('');
+              setCustomHoogte('');
+              setCustomDikte('');
+            }
+            setStep('form');
+            handleAiFilePicked(file, { autoAnalyze: true });
+          }}
           className={cn(
             "w-[98vw] p-0 transition-all duration-200",
             step === 'search'
@@ -2326,6 +2387,11 @@ export function MaterialSelectionModal({
               : "sm:max-w-[640px] h-auto block"
           )}
         >
+          {isDraggingAiImage && step === 'search' && (
+            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-emerald-500 bg-background/90">
+              <p className="text-sm font-medium">Laat screenshot los om materiaal toe te voegen</p>
+            </div>
+          )}
 
           {/* === STEP 1: SEARCH & FILTER === */}
           {step === 'search' && (
@@ -2337,46 +2403,8 @@ export function MaterialSelectionModal({
                   </div>
                   <div className="min-h-0 overflow-y-auto p-2 border-r border-border/60">
                     <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium mb-2">Categorie</div>
-                    <button
-                      type="button"
-                      onClick={() => setCategoryPickerOpen((prev) => !prev)}
-                      className="w-full h-9 rounded-md border border-muted-foreground/25 px-2.5 text-xs text-left flex items-center justify-between text-muted-foreground hover:text-foreground hover:border-emerald-500/40 transition-colors"
-                    >
-                      <span className="truncate pr-2">{selectedCategoryLabel}</span>
-                      <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", categoryPickerOpen && "rotate-180")} />
-                    </button>
-
-                    {categoryPickerOpen && (
-                      <div className="mt-2 space-y-2">
-                        <div className="relative">
-                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
-                          <Input
-                            value={categorySearchTerm}
-                            onChange={(e) => {
-                              setCategorySearchTerm(e.target.value);
-                              if (!categoryPickerOpen) setCategoryPickerOpen(true);
-                            }}
-                            placeholder="Zoek categorie..."
-                            className="h-8 pl-8 text-xs border-muted-foreground/20"
-                          />
-                        </div>
-                        <div className="max-h-[190px] overflow-y-auto space-y-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              applyCategoryFilter('all');
-                              setCategorySearchTerm('');
-                              setCategoryPickerOpen(false);
-                            }}
-                            className={cn(
-                              "w-full rounded-md border px-2.5 py-1.5 text-xs text-left transition-colors",
-                              categoryFilter === 'all'
-                                ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-300"
-                                : "border-muted-foreground/25 text-muted-foreground hover:text-foreground hover:border-emerald-500/40"
-                            )}
-                          >
-                            Toon alles
-                          </button>
+                    <div className="space-y-2">
+                        <div className="space-y-1.5">
                           {filteredSidebarCategories.map((cat) => {
                             const selected = Array.isArray(categoryFilter)
                               ? categoryFilter.includes(cat)
@@ -2387,8 +2415,6 @@ export function MaterialSelectionModal({
                                 type="button"
                                 onClick={() => {
                                   applyCategoryFilter(cat);
-                                  setCategorySearchTerm('');
-                                  setCategoryPickerOpen(false);
                                 }}
                                 className={cn(
                                   "w-full rounded-md border px-2.5 py-1.5 text-xs text-left leading-5 transition-colors",
@@ -2407,8 +2433,7 @@ export function MaterialSelectionModal({
                             </div>
                           )}
                         </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
                   <div className="min-h-0 flex flex-col">
                     <div className="px-3 py-2 border-b border-border/60">
@@ -2870,7 +2895,7 @@ export function MaterialSelectionModal({
 
                       {allFilteredMaterials.length === 0 && (
                         <li className="p-8 text-center text-muted-foreground text-sm">
-                          {existingMaterialsLoading ? 'Materialen laden...' : 'Geen materialen gevonden.'}
+                          {existingMaterialsLoading ? 'Materialen laden...' : !categoryFilter ? 'Kies eerst een hoofdcategorie.' : 'Geen materialen gevonden.'}
                         </li>
                       )}
                     </ul>
@@ -2904,6 +2929,7 @@ export function MaterialSelectionModal({
               </DialogHeader>
 
               <div className="space-y-4 px-6 py-4">
+                {materialTargetControl}
                 {error && (
                   <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive border border-destructive/20">
                     {error}
@@ -3247,7 +3273,7 @@ export function MaterialSelectionModal({
                     type="button"
                     className={cn("h-11 gap-2 px-8 text-sm font-bold shadow-lg", POSITIVE_BTN_SOFT)}
                     onClick={() => void saveCustomMaterial()}
-                    disabled={!canSaveCustom || savingCustom}
+                    disabled={!canSaveCustom || savingCustom || requiresMaterialTarget}
                   >
                     {savingCustom ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingMaterialId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />)}
                     {editingMaterialId ? "Opslaan" : "Materiaal toevoegen"}

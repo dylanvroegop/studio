@@ -212,6 +212,23 @@
 }
 
 @media (min-width: 768px) {
+  .quote-workspace-tabs {
+    border: 0;
+    border-radius: 0;
+    isolation: isolate;
+  }
+
+  .quote-workspace-tabs::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: hsl(var(--card));
+    box-shadow: 0 0 0 100vmax hsl(var(--card));
+    clip-path: inset(-8px -100vmax 0);
+  }
+
   .app-shell {
     padding-left: 0;
     transition: padding-left 200ms ease-out;

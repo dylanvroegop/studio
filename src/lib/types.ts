@@ -31,7 +31,7 @@ export type Quote = {
   userId: string;
   offerteNummer?: number;
 
-  status: "werkbespreking" | "concept" | "in_behandeling" | "in_afwachting" | "verzonden" | "geaccepteerd" | "afgewezen" | "verlopen";
+  status: "fout" | "werkbespreking" | "concept" | "in_behandeling" | "in_afwachting" | "verzonden" | "geaccepteerd" | "afgewezen" | "verlopen";
   createdAt: Timestamp;
   updatedAt: Timestamp;
   calculationStartedAt?: Timestamp | Date | string;

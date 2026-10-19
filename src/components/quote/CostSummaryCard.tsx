@@ -8,6 +8,8 @@ import { Switch } from '@/components/ui/switch';
 
 interface CostSummaryCardProps {
     jointFinishingError?: string;
+    onSelectNoteSurfaces?: () => void;
+    isResolvingNoteSurfaces?: boolean;
     totals: CalculationResult | null;
     settings: QuoteSettings | null;
     totalUren: number;
@@ -26,6 +28,7 @@ interface CostSummaryCardProps {
     onUpdateTransportRatePerKm?: (value: number) => void;
     isCalculatingDistance?: boolean;
     distanceError?: string | null;
+    distanceEstimate?: string | null;
     onRetryDistance?: () => void;
     onUpdateWinstMargePercentage?: (value: number) => void;
     onUpdateWinstMargeAmountExcl?: (value: number) => void;
@@ -57,6 +60,8 @@ export function CostSummaryCard({
     totals,
     settings,
     jointFinishingError,
+    onSelectNoteSurfaces,
+    isResolvingNoteSurfaces,
     totalUren,
     urenPerDag = 8,
     scopeCosts,
@@ -73,6 +78,7 @@ export function CostSummaryCard({
     onUpdateTransportRatePerKm,
     isCalculatingDistance = false,
     distanceError,
+    distanceEstimate,
     onRetryDistance,
     onUpdateWinstMargePercentage,
     onUpdateWinstMargeAmountExcl,
@@ -655,6 +661,8 @@ export function CostSummaryCard({
                     <strong>Transport controleren.</strong> {distanceError}
                 </div>
             )}
+            <div className={styles.overviewLayout}>
+            <div className={styles.costsPanel}>
             <div className={`${styles.columnHeader} mb-2 justify-end px-2.5`}>
                 <div className={`${amountGridClass} text-[11px] uppercase tracking-wide text-muted-foreground`}>
                     <span>Excl. btw</span>
@@ -664,7 +672,7 @@ export function CostSummaryCard({
                 </div>
             </div>
 
-            <div className="space-y-3">
+            <div className={`${styles.costSections} space-y-3`}>
                 <div className="rounded-lg border border-border p-2.5 space-y-1.5 bg-background/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <div className={`${styles.costRow} text-sm`}>
                         <span className="text-muted-foreground">Materialen (groot)</span>
@@ -694,6 +702,7 @@ export function CostSummaryCard({
                     <div data-scope-cost="naden" className={`${styles.costRow} text-sm ${jointFinishingError ? 'text-red-500' : ''}`}>
                         <span>Stucwerk kosten
                             {jointFinishingError && <span role="alert" className="block text-xs text-red-500">{jointFinishingError}</span>}
+                            {onSelectNoteSurfaces && <button type="button" className="block text-xs underline" disabled={isResolvingNoteSurfaces} onClick={onSelectNoteSurfaces}>{isResolvingNoteSurfaces ? 'AI bekijkt de maten…' : 'Maten uit Notes kiezen'}</button>}
                         </span>
                         <div className={styles.amountGrid}>
                             <span className={styles.amountCell}><span className={styles.mobileLabel}>Excl. btw</span>{jointFinishingError ? 'n.b.' : formatCurrency(scopeCosts.naden)}</span>
@@ -881,6 +890,8 @@ export function CostSummaryCard({
                                         </button>
                                     ) : null}
                                 </span>
+                            ) : distanceEstimate ? (
+                                <span className="mt-1 block text-xs">{distanceEstimate}</span>
                             ) : null}
                         </span>
                         {renderEditableAmount(
@@ -989,9 +1000,11 @@ export function CostSummaryCard({
                         'totaalIncl',
                     )}
                 </div>
-                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+            </div>
+            </div>
+                <div className={`${styles.profitPanel} rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3`}>
                     <div className="mb-2 flex items-center justify-between gap-4">
-                        <span className="font-medium text-foreground">GEPROJECTEERDE WINST (incl. btw)</span>
+                        <span className="font-medium text-foreground">Verwachte winst (incl. btw)</span>
                         <span className="font-semibold text-emerald-500">{formatCurrency(winstInclBtw)}</span>
                     </div>
                     <div className="space-y-1.5 text-sm">

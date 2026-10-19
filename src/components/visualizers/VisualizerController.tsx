@@ -3,6 +3,7 @@ import React from 'react';
 import { WallDrawing } from './WallDrawing';
 import { SimpleDrawing } from './SimpleDrawing';
 import { CeilingWoodDrawing } from './CeilingWoodDrawing';
+import { SystemCeilingDrawing } from './SystemCeilingDrawing';
 import { MetalStudCeilingDrawing } from './MetalStudCeilingDrawing';
 import { RoofDrawing } from './RoofDrawing';
 import { EPDMDrawing } from './EPDMDrawing';
@@ -59,6 +60,10 @@ export function VisualizerController({
         'vlonder-terras', 'balklaag-constructievloer', 'vliering-maken'
     ];
     const isSurface = surfaceSlugs.some(s => slug.includes(s)) || category === 'vloeren' || category === 'plafonds';
+
+    if (slug === 'systeemplafond') {
+        return <SystemCeilingDrawing item={normalizedItem} className={className} fitContainer={fitContainer} />;
+    }
 
     if (isSurface) {
         if (slug.includes('plafond-metalstud')) {

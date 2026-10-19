@@ -57,6 +57,53 @@
     display: none;
 }
 
+.overviewLayout {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.costsPanel {
+    min-width: 0;
+}
+
+/* Op laptops staan kosten en winst naast elkaar, zonder informatie in te klappen. */
+@container cost-summary (min-width: 68rem) {
+    .overviewLayout {
+        grid-template-columns: minmax(0, 1fr) 18rem;
+        align-items: start;
+        gap: 1rem;
+    }
+
+    .costSections > * + * {
+        margin-top: 0.5rem;
+    }
+
+    .costSections > :global(.h-px) {
+        display: none;
+    }
+
+    .profitPanel > :first-child {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+
+    .profitPanel > :first-child > :last-child {
+        font-size: 1.25rem;
+    }
+
+    .profitPanel > :last-child > div {
+        gap: 0.75rem;
+        padding-block: 0.375rem;
+    }
+
+    .profitPanel > :last-child > div > :last-child {
+        flex-shrink: 0;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
+}
+
 /* Gebruik de beschikbare kaartbreedte, ook in een smal desktop-paneel. */
 @container cost-summary (min-width: 52rem) {
     .costRow {
@@ -100,5 +147,46 @@
 
     .amountButton {
         min-height: 0;
+    }
+}
+
+@container cost-summary (min-width: 68rem) {
+    .costSections > div {
+        padding: 0.375rem;
+    }
+
+    .costSections > * + * {
+        margin-top: 0.25rem;
+    }
+
+    .card .additionInput {
+        height: 1.5rem;
+    }
+
+    .costSections .costRow + .costRow {
+        margin-top: 0.125rem;
+    }
+
+    .costSections .costRow {
+        min-height: 1.5rem;
+    }
+
+    .costSections > div > :global(.border-t) {
+        padding-top: 0.125rem;
+    }
+
+    .amountGrid {
+        width: 25rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) repeat(2, 4.75rem);
+        column-gap: 0.5rem;
+    }
+
+    .costRow {
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .costRow + .costRow {
+        margin-top: 0.25rem;
     }
 }

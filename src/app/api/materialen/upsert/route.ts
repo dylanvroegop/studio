@@ -7,7 +7,7 @@ import { parsePriceToNumber } from '@/lib/utils';
 import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { isFeatureEnabled } from '@/lib/feature-flags';
-import { findExistingTaxonomyLabel } from '@/lib/material-taxonomy';
+import { findExistingTaxonomyLabel, simplifyMaterialCategory } from '@/lib/material-taxonomy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -697,7 +697,7 @@ export async function POST(req: Request) {
       .map((row) => normalizeString(row.sub_categorie))
       .filter((value): value is string => Boolean(value));
     const effectiveCategorie = findExistingTaxonomyLabel(
-      categorieInput ?? subsectieInput,
+      simplifyMaterialCategory(categorieInput ?? subsectieInput),
       existingCategories
     );
     const subsectie = findExistingTaxonomyLabel(subsectieInput, existingSubsections);
@@ -765,7 +765,9 @@ export async function POST(req: Request) {
       prijs_excl_btw: prijsExclNum,
     };
     if (effectiveCategorie) payload.categorie = effectiveCategorie;
-    if (subsectie) payload.subsectie = subsectie;
+    if (effectiveCategorie === 'Overig') payload.subsectie = null;
+    else if (categorieInput?.toLowerCase() === 'hang- en sluitwerk') payload.subsectie = 'Hang- en sluitwerk';
+    else if (subsectie) payload.subsectie = subsectie;
     // Een expliciet leeg veld uit de editor wist alleen dat niveau.
     if (incomingRowId && Object.prototype.hasOwnProperty.call(body, 'categorie') && !categorieInput) payload.categorie = null;
     if (incomingRowId && Object.prototype.hasOwnProperty.call(body, 'sub_categorie') && !subsectieInput) payload.subsectie = null;

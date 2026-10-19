@@ -49,6 +49,8 @@ export interface ProjectCostReceiptFile {
 }
 
 export interface ProjectCostRow {
+  /** False for bank rows without verified VAT source data. */
+  vat_known?: boolean;
   id: string;
   user_id: string;
   offerte_id: string | null;
@@ -530,6 +532,7 @@ export function mapProjectCostRow(input: unknown): ProjectCostRow {
   const receiptFiles = normalizeProjectCostReceiptFiles(row.receipt_files, receiptUrl);
 
   return {
+    vat_known: typeof row.vat_known === 'boolean' ? row.vat_known : undefined,
     id: safeString(row.id),
     user_id: safeString(row.user_id),
     offerte_id: safeString(row.offerte_id) || null,
