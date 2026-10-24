@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
-  findInvoiceBankCandidates, invoiceBankCents, invoiceBankLinkedCents,
+  findInvoiceBankCandidates, invoiceBankCents, invoiceBankLinkedCents, isInvoiceBankVerified,
   validateInvoiceBankAllocation, type BankMatchInvoice, type InvoiceBankAllocation,
   type InvoiceBankCredit, type InvoiceBankView,
 } from '@/lib/invoice-bank-matching';
@@ -229,4 +229,13 @@ export async function reconcileInvoiceBankPaymentsAfterSync(options: {
 }): Promise<InvoiceBankSyncResult> {
   const context = await loadOwnerInvoiceBankContext(options);
   return reconcileInvoiceBankContext({ ...options, context });
+}
+
+export async function loadInvoiceBankVerification(options: {
+  firestore: Firestore; uid: string; bankUserId: string;
+}): Promise<Array<{ invoiceId: string; totalCents: number }>> {
+  const context = await loadOwnerInvoiceBankContext(options);
+  return context.invoices.filter((invoice) => isInvoiceBankVerified({
+    ...context, invoice, credits: context.bank.credits,
+  })).map((invoice) => ({ invoiceId: invoice.id, totalCents: invoice.totalCents }));
 }

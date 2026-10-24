@@ -44,8 +44,8 @@ test('ander expliciet factuurnummer wint van naam en bedrag', () => {
   const other = { ...invoice, id: 'other', reference: 'F-460002' };
   assert.equal(candidates({ invoices: [invoice, other], credits: [{ ...credit, description: 'F-460002' }] }).length, 0);
 });
-test('concept, geannuleerd, afwijkende valuta en betaling voor factuurdatum worden uitgesloten', () => {
-  for (const status of ['concept', 'geannuleerd']) assert.equal(candidates({ invoice: { ...invoice, status } }).length, 0);
+test('geannuleerd, afwijkende valuta en betaling voor factuurdatum worden uitgesloten', () => {
+  for (const status of ['geannuleerd']) assert.equal(candidates({ invoice: { ...invoice, status } }).length, 0);
   assert.equal(candidates({ credits: [{ ...credit, currency: 'USD' }] }).length, 0);
   assert.equal(candidates({ credits: [{ ...credit, bookingDate: '2026-09-30' }] }).length, 0);
 });
@@ -235,11 +235,16 @@ function routeFixture({ unauthorized = false } = {}) {
     } },
     '@/lib/demo-trial-server': { ensureDemoTrialActiveByUid: async () => null },
     '@/lib/invoice-bank-payments': { ...payments, loadInvoiceBankContext: async () => context,
+      reconcileInvoiceBankPaymentsAfterSync: async (options) => {
+        assert.equal(options.uid, 'owner'); assert.equal(options.bankUserId, 'bank-owner');
+        writes += 1; return { applied: 1, remaining: 0, warnings: [] };
+      },
+      loadInvoiceBankVerification: async () => [{ invoiceId: invoice.id, totalCents: 10000 }],
       applyInvoiceBankPayment: async () => { writes += 1; return true; } },
   });
   return { routes, writes: () => writes };
 }
-test('GET is uitsluitend lezen; factuurbezoek boekt geen betaling', async () => {
+test('GET is uitsluitend lezen; automatische verwerking loopt via POST', async () => {
   const fixture = routeFixture();
   const response = await fixture.routes.GET(new Request('https://app.test/api/facturen/bank-payments?invoiceId=invoice-a'));
   assert.equal(response.status, 200);
@@ -288,4 +293,62 @@ test('geslaagde Knab-import blijft succesvol wanneer factuurmatching tijdelijk f
   assert.equal(result.status, 200);
   assert.equal(result.body.ok, true);
   assert.deepEqual(result.body.invoiceMatching.warnings, ['Tijdelijk factuurconflict']);
+});
+
+test('overzicht bevestigt ook handmatig betaald alleen bij uniek factuurnummer en volledig bedrag', () => {
+  const paid = { ...invoice, status: 'betaald', paidCents: 10000 };
+  const verify = (overrides = {}) => matching.isInvoiceBankVerified({ invoice: paid, invoices: [paid], credits: [credit], allocations: new Map(), ...overrides });
+  assert.equal(verify(), true);
+  assert.equal(verify({ credits: [] }), false);
+  assert.equal(verify({ credits: [{ ...credit, description: 'Bedankt' }] }), false);
+  assert.equal(verify({ credits: [{ ...credit, amountCents: 9999 }] }), false);
+  assert.equal(verify({ credits: [credit, { ...credit, id: 'duplicate', key: 'duplicate' }] }), false);
+  assert.equal(verify({ invoices: [paid, { ...paid, id: 'other' }] }), false);
+  assert.equal(verify({ credits: [{ ...credit, currency: 'USD' }] }), false);
+  assert.equal(verify({ credits: [{ ...credit, bookingDate: '2026-09-01' }] }), false);
+  assert.equal(verify({ allocations: new Map([[credit.key, [{ invoiceId: 'other', amountCents: 10000, mode: 'link' }]]]) }), false);
+});
+
+test('overzicht controleert volledige bankdekking van expliciet gekoppelde deelbetalingen', () => {
+  const credits = [{ ...credit, amountCents: 4000 }, { ...credit, id: 'second', key: 'second', amountCents: 6000 }];
+  const allocations = new Map(credits.map((item) => [item.key, [{ invoiceId: invoice.id, amountCents: item.amountCents, mode: 'add' }]]));
+  const verify = (overrides = {}) => matching.isInvoiceBankVerified({ invoice, invoices: [invoice], credits, allocations, ...overrides });
+  assert.equal(verify(), true);
+  assert.equal(verify({ credits: [credits[0]] }), false);
+  assert.equal(verify({ credits: [credits[0], credits[0]] }), false);
+  assert.equal(verify({ credits: [credits[0], { ...credits[1], amountCents: 5000 }] }), false);
+  assert.equal(verify({ invoice: { ...invoice, totalCents: 11000 } }), false);
+  assert.equal(verify({ invoice: { ...invoice, status: 'concept' } }), true);
+});
+
+
+test('conceptfactuur wordt bij exacte bankmatch automatisch betaald met eenmalig betaalbewijs', async () => {
+  const fixture = firestoreFixture({ status: 'concept' });
+  assert.equal(await apply(fixture), true);
+  assert.equal(await apply(fixture), false);
+  const saved = fixture.documents.get('invoices/invoice-a');
+  assert.equal(saved.status, 'betaald');
+  assert.equal(saved.paymentSummary.paidAmount, 100);
+  assert.equal(saved.paymentSummary.openAmount, 0);
+});
+test('gekoppelde deelbetaling op concept blijft gedeeltelijk betaald', async () => {
+  const fixture = firestoreFixture({ status: 'concept' });
+  const partial = { ...credit, amountCents: 4000 };
+  assert.equal(await apply(fixture, { credit: partial, credits: [partial], amountCents: 4000, automatic: false }), true);
+  const saved = fixture.documents.get('invoices/invoice-a');
+  assert.equal(saved.status, 'gedeeltelijk_betaald');
+  assert.equal(saved.paymentSummary.openAmount, 60);
+});
+
+test('overzicht verwerkt bankmatches via geauthenticeerde POST en geeft gecontroleerde facturen terug', async () => {
+  const fixture = routeFixture();
+  const request = () => new Request('https://app.test/', { method: 'POST', body: JSON.stringify({ action: 'reconcile-overview' }) });
+  const response = await fixture.routes.POST(request());
+  assert.equal(response.status, 200);
+  assert.equal(fixture.writes(), 1);
+  assert.equal(response.body.matching.applied, 1);
+  assert.deepEqual(response.body.data, [{ invoiceId: invoice.id, totalCents: 10000 }]);
+  const unauthorized = routeFixture({ unauthorized: true });
+  assert.equal((await unauthorized.routes.POST(request())).status, 401);
+  assert.equal(unauthorized.writes(), 0);
 });

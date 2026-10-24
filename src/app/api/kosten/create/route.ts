@@ -1,4 +1,5 @@
 import { costDocumentError, costDocumentKeys } from '@/lib/cost-document-policy';
+import { bookedCostRowsMatch, costImportClaimDecision, receiptFilesWithDocumentType, type CostImportClaimDecision } from '@/lib/cost-import-idempotency';
 import { validateCostVat } from '@/lib/cost-vat-validation';
 import { classifyPurchaseLines, rememberCategoryCorrections } from '@/lib/purchase-product-category-server';
 import { NextResponse } from 'next/server';
@@ -454,6 +455,7 @@ async function upsertProfitOverview(params: {
     hotel: 0,
     telefoon: 0,
     leadkosten: 0,
+    storage: 0,
     profit: 0,
     overig: 0,
   };
@@ -472,7 +474,7 @@ async function upsertProfitOverview(params: {
   const totalMaterialCost = roundEuro(totals.materiaal);
   const totalFuelCost = roundEuro(totals.brandstof + totals.autokosten);
   const totalToolCost = roundEuro(totals.gereedschap);
-  const totalOtherCost = roundEuro(totals.overig + totals.boetes + totals.schulden + totals.afval + totals.eigen_verbruik + totals.hotel + totals.telefoon + totals.leadkosten);
+  const totalOtherCost = roundEuro(totals.overig + totals.boetes + totals.schulden + totals.afval + totals.eigen_verbruik + totals.hotel + totals.telefoon + totals.leadkosten + totals.storage);
   const totalLaborCost = roundEuro(laborCost);
   const totalCosts = roundEuro(
     totalMaterialCost
@@ -572,6 +574,31 @@ export async function POST(request: Request) {
       if (documentError) return NextResponse.json({ ok: false, message: documentError }, { status: 422 });
     }
 
+    const documentKeys = costDocumentKeys(uid, input);
+    const { firestore: importFirestore } = initFirebaseAdmin();
+    const claimRefs = documentKeys.map(key => importFirestore.collection('cost_import_claims').doc(key));
+    const existingImportResponse = async (decision: CostImportClaimDecision): Promise<NextResponse | null> => {
+      if (decision.state === 'new') return null;
+      if (decision.state === 'booked') {
+        const { data: existingRows, error } = await supabaseAdmin.from('project_costs')
+          .select('*').eq('user_id', uid).in('id', decision.costIds);
+        if (error) throw new Error(error.message);
+        if (bookedCostRowsMatch(uid, decision.costIds, existingRows || [], input)) {
+          const rows = (existingRows || []).map(row => mapProjectCostRow(row));
+          return NextResponse.json({ ok: true, deduplicated: true, already_booked: true,
+            cost_ids: decision.costIds, data: rows[0], rows, inserted_count: 0 });
+        }
+      }
+      return NextResponse.json({ ok: false, message: 'Dit document wordt verwerkt of de eerdere boeking is niet volledig aantoonbaar. Controleer de bestaande boeking voordat je opnieuw importeert.' }, { status: 409 });
+    };
+    // Herkennen vóór categorie-/offertecontrole voorkomt een tweede openstaande import.
+    if (claimRefs.length) {
+      const snapshots = await importFirestore.getAll(...claimRefs);
+      const response = await existingImportResponse(costImportClaimDecision(uid,
+        snapshots.filter(snapshot => snapshot.exists).map(snapshot => snapshot.data() || {})));
+      if (response) return response;
+    }
+
     if (!token) {
       const classified = await classifyPurchaseLines(uid, normalizeProjectCostLineItems(input.line_items));
       input = { ...input, line_items: classified.lines };
@@ -617,7 +644,7 @@ export async function POST(request: Request) {
     if (vatError) return NextResponse.json({ ok: false, message: vatError }, { status: 422 });
     const date = dateOnly(input.date);
     const receiptUrl = safeString(input.receipt_url) || null;
-    const receiptFiles = normalizeProjectCostReceiptFiles(input.receipt_files, receiptUrl);
+    const receiptFiles = receiptFilesWithDocumentType(normalizeProjectCostReceiptFiles(input.receipt_files, receiptUrl), input.document_type);
     const status = safeString(input.status) || 'confirmed';
     const paymentMetadata = normalizePaymentMetadata(input, {
       supplierName,
@@ -796,20 +823,20 @@ export async function POST(request: Request) {
 
     // Een claim blijft bij een onderbroken boeking staan: nooit blind opnieuw boeken
     // nadat mogelijk al een deel van de categorieen is opgeslagen.
-    const documentKeys = costDocumentKeys(uid, input);
     if ((!token || pendingImportId) && documentKeys.length === 0) {
       return NextResponse.json({ ok: false, message: 'Factuuridentiteit ontbreekt; controleer leverancier, factuurnummer en bronbestand.' }, { status: 422 });
     }
-    const { firestore: importFirestore } = initFirebaseAdmin();
-    const claimRefs = documentKeys.map(key => importFirestore.collection('cost_import_claims').doc(key));
     if (claimRefs.length) {
-      const claimed = await importFirestore.runTransaction(async transaction => {
+      const decision = await importFirestore.runTransaction(async transaction => {
         const snapshots = await transaction.getAll(...claimRefs);
-        if (snapshots.some(snapshot => snapshot.exists)) return false;
+        const decision = costImportClaimDecision(uid,
+          snapshots.filter(snapshot => snapshot.exists).map(snapshot => snapshot.data() || {}));
+        if (decision.state !== 'new') return decision;
         for (const ref of claimRefs) transaction.create(ref, { userId: uid, status: 'processing', createdAt: new Date(), pendingImportId: pendingImportId || null });
-        return true;
+        return decision;
       });
-      if (!claimed) return NextResponse.json({ ok: false, message: 'Dit document is al verwerkt of wordt verwerkt. Bij een eerdere fout: controleer de bestaande boeking voordat je opnieuw importeert.' }, { status: 409 });
+      const response = await existingImportResponse(decision);
+      if (response) return response;
     }
 
     const insertedRows: any[] = [];

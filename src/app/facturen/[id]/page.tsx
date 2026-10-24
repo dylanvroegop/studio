@@ -250,6 +250,29 @@ export default function FactuurDetailPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
+  // Verwerk reeds opgehaalde banktransacties ook bij rechtstreeks openen van een factuur.
+  useEffect(() => {
+    if (!user || !invoiceId) return;
+    const controller = new AbortController();
+    const reconcile = async () => {
+      try {
+        const token = await user.getIdToken();
+        if (controller.signal.aborted) return;
+        const response = await fetch('/api/facturen/bank-payments', {
+          method: 'POST', signal: controller.signal,
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ invoiceId, action: 'reconcile' }),
+        });
+        if (!response.ok) throw new Error('Automatische bankcontrole is niet gelukt. Controleer opnieuw via Betalingen.');
+      } catch (cause) {
+        if (!controller.signal.aborted) console.error('Factuur bankcontrole:', cause);
+      }
+    };
+    void reconcile();
+    window.addEventListener('focus', reconcile);
+    return () => { controller.abort(); window.removeEventListener('focus', reconcile); };
+  }, [user, invoiceId]);
+
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
   const [loading, setLoading] = useState(true);

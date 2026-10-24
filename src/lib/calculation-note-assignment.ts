@@ -72,6 +72,7 @@ export function buildCalculationMeasurementAssignments(
   items: Record<string, unknown>[],
   fields: MeasurementField[],
   itemLabel: string,
+  sourceJobLabel?: string,
 ): CalculationMeasurementAssignment[] {
   const lengthField = findField(fields, ['lengte', 'length'], [/\blengte\b/, /\blength\b/]);
   const widthField = findField(fields, ['breedte', 'width'], [/\bbreedte\b/, /\bwidth\b/]);
@@ -96,7 +97,8 @@ export function buildCalculationMeasurementAssignments(
 
     if (!length && !width && !height && !thickness && extras.length === 0) return [];
 
-    const baseLabel = `${itemLabel || 'Onderdeel'} ${index + 1}`;
+    const itemTitle = `${itemLabel || 'Onderdeel'} ${index + 1}`;
+    const baseLabel = sourceJobLabel ? `${sourceJobLabel} — ${itemTitle}` : itemTitle;
     const label = extras.length > 0 ? `${baseLabel} (${extras.join('; ')})` : baseLabel;
     const dimensions = [
       length ? `Lengte: ${length}` : '',

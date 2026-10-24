@@ -63,6 +63,7 @@ import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import {
   PROJECT_COST_CATEGORY_LABELS,
+  isSupportingProjectCostReceipt,
   normalizeProjectCostCategory,
   roundEuro,
   type ProjectCostCategory,
@@ -74,6 +75,8 @@ import { invoiceImpliesAccepted } from '@/lib/quote-status';
 import type { InvoiceStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { deduplicateRequest } from '@/lib/deduplicate-request';
+import { summarizeBankCostRows } from '@/lib/bank-cost-summary';
+import type { KnabBankCostRow } from '@/lib/knab-cost-list';
 
 const KostenPdfTab = dynamic(() => import('@/components/kosten/KostenPdfTab').then((module) => module.KostenPdfTab));
 const BankOverzichtContent = dynamic(() => import('@/components/finance/BankOverzichtContent').then((module) => module.BankOverzichtContent), {
@@ -81,6 +84,7 @@ const BankOverzichtContent = dynamic(() => import('@/components/finance/BankOver
 });
 
 type CostFilterMode = 'alle' | ProjectCostCategory;
+const BANK_CATEGORY_LABELS = { ...PROJECT_COST_CATEGORY_LABELS, eigen_verbruik: 'Privé-opnames', profit: 'Eigen overboekingen' };
 type EntryMode = 'manual' | 'upload';
 type KostenViewMode =
   | 'quick-add'
@@ -202,18 +206,48 @@ function getCostAmountSearchText(cost: ProjectCostRow): string {
     .join(' ');
 }
 
+function isPrivateDeposit(cost: ProjectCostRow & Partial<KnabBankCostRow>): boolean {
+  return cost.is_private_deposit === true;
+}
+
+function formatBankRowAmount(cost: ProjectCostRow & Partial<KnabBankCostRow>, privateView: boolean): string {
+  return privateView
+    ? `${isPrivateDeposit(cost) ? '+' : '−'} ${formatCurrency(Math.abs(cost.amount_incl_btw || 0))}`
+    : formatCurrency(cost.amount_incl_btw || 0);
+}
+
+function matchingCostRows(rows: ProjectCostRow[], month: string, search: string, quoteById: ReadonlyMap<string, QuoteOption>): ProjectCostRow[] {
+  const term = search.trim().toLowerCase();
+  return rows.filter((cost) => {
+    if (month !== 'all' && !cost.date.startsWith(month)) return false;
+    if (!term) return true;
+    const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
+    const receiptFilenames = (cost.receipt_files || []).map((file) => file.filename).join(' ');
+    const target = `${cost.supplier_name} ${cost.description} ${cost.supplier_invoice_number || ''} ${cost.source_filename || ''} ${receiptFilenames} ${quote?.offerteNummer || ''} ${quote?.label || ''} ${getCostAmountSearchText(cost)}`.toLowerCase();
+    return target.includes(term);
+  });
+}
+
+function costRowsForFilter(matchingCosts: ProjectCostRow[], matchingPrivateCredits: ProjectCostRow[], filter: CostFilterMode): ProjectCostRow[] {
+  const rows = matchingCosts.filter(cost => filter === 'alle' || cost.category === filter);
+  if (filter !== 'eigen_verbruik') return rows;
+  return [...rows, ...matchingPrivateCredits].sort((left, right) =>
+    (right.date || right.created_at).localeCompare(left.date || left.created_at) || left.id.localeCompare(right.id));
+}
+
+function availableCostMonths(costs: ProjectCostRow[], privateCredits: ProjectCostRow[]): string[] {
+  return Array.from(new Set([...costs, ...privateCredits].map(cost => cost.date.slice(0, 7)))).sort().reverse();
+}
+
 function isBankTransactionCost(cost: ProjectCostRow): boolean {
-  return cost.status === 'bank_transaction'
+  return isPrivateDeposit(cost) || cost.status === 'bank_transaction'
     || cost.status === 'internal_profit_transfer'
     || cost.id.startsWith('bank-bunq-topup-');
 }
 
-function isPrivateBankTransactionCost(cost: ProjectCostRow): boolean {
-  return isBankTransactionCost(cost) && cost.payment_type === 'private';
-}
-
-function isInternalProfitTransferCost(cost: ProjectCostRow): boolean {
-  return cost.status === 'internal_profit_transfer' || cost.category === 'profit';
+function hasCostReceipt(cost: ProjectCostRow & Partial<KnabBankCostRow>): boolean {
+  if (typeof cost.has_supporting_document === 'boolean') return cost.has_supporting_document;
+  return Boolean(cost.receipt_url || cost.receipt_files?.some((file) => file.url || file.path));
 }
 
 function isHistoricalSourceCost(cost: ProjectCostRow): boolean {
@@ -565,11 +599,13 @@ function KostenPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [costReloadVersion, setCostReloadVersion] = useState(0);
   const [costs, setCosts] = useState<ProjectCostRow[]>([]);
+  const [privateCredits, setPrivateCredits] = useState<KnabBankCostRow[]>([]);
+  const [sourceCosts, setSourceCosts] = useState<ProjectCostRow[]>([]);
+  const [costMonth, setCostMonth] = useState('all');
   const [quotes, setQuotes] = useState<QuoteOption[]>([]);
   const [quotesError, setQuotesError] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
-  const [showSourceReview, setShowSourceReview] = useState(false);
   const [filter, setFilter] = useState<CostFilterMode>('alle');
   const [viewMode, setViewMode] = useState<KostenViewMode>(() => {
     const requestedTab = searchParams?.get('tab') || null;
@@ -589,7 +625,7 @@ function KostenPageContent() {
   const [quoteSearch, setQuoteSearch] = useState('');
   const [quoteSearchOpen, setQuoteSearchOpen] = useState(false);
   const [editingCostId, setEditingCostId] = useState<string | null>(null);
-  const [selectedBankCost, setSelectedBankCost] = useState<ProjectCostRow | null>(null);
+  const [selectedBankCost, setSelectedBankCost] = useState<(ProjectCostRow & Partial<KnabBankCostRow>) | null>(null);
   const [bankCategoryDraft, setBankCategoryDraft] = useState<ProjectCostCategory>('overig');
   const [savingBankCategory, setSavingBankCategory] = useState(false);
   const [bankOfferteDraft, setBankOfferteDraft] = useState('');
@@ -696,8 +732,8 @@ function KostenPageContent() {
     return data;
   }), [firestore, user]);
 
-  const loadCosts = useMemo(() => deduplicateRequest(async (): Promise<ProjectCostRow[]> => {
-    if (!user) return [];
+  const loadCosts = useMemo(() => deduplicateRequest(async (): Promise<{ costs: ProjectCostRow[]; sourceCosts: ProjectCostRow[]; privateCredits: KnabBankCostRow[] }> => {
+    if (!user) return { costs: [], sourceCosts: [], privateCredits: [] };
     const token = await user.getIdToken();
     const response = await fetch('/api/kosten/list', {
       method: 'GET',
@@ -710,13 +746,15 @@ function KostenPageContent() {
       ok?: boolean;
       message?: string;
       data?: ProjectCostRow[];
+      sourceCosts?: ProjectCostRow[];
+      privateCredits?: KnabBankCostRow[];
     } | null;
 
     if (!response.ok || !payload?.ok || !Array.isArray(payload.data)) {
       throw new Error(payload?.message || `HTTP ${response.status}`);
     }
 
-    return payload.data
+    const bankCosts = payload.data
       .map((item) => ({
         ...item,
         category: normalizeProjectCostCategory(item.category),
@@ -724,8 +762,9 @@ function KostenPageContent() {
       .sort((a, b) => {
         const left = new Date(a.date || a.created_at).getTime();
         const right = new Date(b.date || b.created_at).getTime();
-          return right - left;
-        });
+        return right - left;
+      });
+    return { costs: bankCosts, sourceCosts: payload.sourceCosts || [], privateCredits: payload.privateCredits || [] };
   }), [user]);
 
   const refreshCostsAfterChange = async (): Promise<void> => {
@@ -733,7 +772,9 @@ function KostenPageContent() {
     try {
       const data = await loadCosts(true);
       if (version !== costReadVersionRef.current) return;
-      setCosts(data);
+      setCosts(data.costs);
+      setPrivateCredits(data.privateCredits);
+      setSourceCosts(data.sourceCosts);
       setError(null);
     } finally {
       if (version === costReadVersionRef.current) setLoading(false);
@@ -750,7 +791,9 @@ function KostenPageContent() {
       try {
         const costsData = await loadCosts();
         if (cancelled || version !== costReadVersionRef.current) return;
-        setCosts(costsData);
+        setCosts(costsData.costs);
+        setPrivateCredits(costsData.privateCredits);
+        setSourceCosts(costsData.sourceCosts);
       } catch (loadError) {
         if (cancelled || version !== costReadVersionRef.current) return;
         const message = loadError instanceof Error ? loadError.message : 'Kon kosten niet laden.';
@@ -892,106 +935,23 @@ function KostenPageContent() {
     { value: 'boetes', label: 'Boetes' },
     { value: 'schulden', label: 'Schulden' },
     { value: 'afval', label: 'Afval' },
-    { value: 'brandstof', label: 'Benzine' },
-    { value: 'gereedschap', label: 'Gereedschap' },
+    { value: 'brandstof', label: 'Brandstof' },
+    { value: 'gereedschap', label: 'Investering' },
     { value: 'eigen_verbruik', label: 'Privé-opnames' },
     { value: 'hotel', label: 'Hotel' },
     { value: 'telefoon', label: 'Telefoon' },
     { value: 'leadkosten', label: 'Leadkosten' },
-    { value: 'profit', label: 'Profit' },
+    { value: 'storage', label: 'Storage' },
+    { value: 'profit', label: 'Eigen overboekingen' },
     { value: 'overig', label: 'Overig' },
   ];
 
-  const filteredCosts = useMemo(() => {
-    const term = search.trim().toLowerCase();
-
-    return costs
-      .filter((cost) => isReviewSourceCost(cost) === showSourceReview)
-      .filter((cost) => (filter === 'alle'
-        ? !isPrivateBankTransactionCost(cost) && !isInternalProfitTransferCost(cost)
-        : cost.category === filter))
-      .filter((cost) => {
-        if (!term) return true;
-        const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
-        const offerteNummer = quote?.offerteNummer ? String(quote.offerteNummer) : '';
-        const receiptFilenames = (Array.isArray(cost.receipt_files) ? cost.receipt_files : [])
-          .map((file) => file.filename)
-          .join(' ');
-        const target = `${cost.supplier_name} ${cost.description} ${cost.supplier_invoice_number || ''} ${cost.source_filename || ''} ${receiptFilenames} ${offerteNummer} ${quote?.label || ''} ${getCostAmountSearchText(cost)}`.toLowerCase();
-        return target.includes(term);
-      })
-      .sort((a, b) => {
-        const left = new Date(a.date || a.created_at).getTime();
-        const right = new Date(b.date || b.created_at).getTime();
-        return right - left;
-      });
-  }, [costs, filter, quoteById, search, showSourceReview]);
-
-  const tabTotals = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    const costsMatchingSearch = costs.filter((cost) => {
-      if (isReviewSourceCost(cost) !== showSourceReview) return false;
-      if (!term) return true;
-      const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
-      const offerteNummer = quote?.offerteNummer ? String(quote.offerteNummer) : '';
-      const target = `${cost.supplier_name} ${cost.description} ${offerteNummer} ${quote?.label || ''} ${getCostAmountSearchText(cost)}`.toLowerCase();
-      return target.includes(term);
-    });
-
-    const totals = {
-      alle: 0,
-      materiaal: 0,
-      autokosten: 0,
-      boetes: 0,
-      schulden: 0,
-      afval: 0,
-      brandstof: 0,
-      gereedschap: 0,
-      eigen_verbruik: 0,
-      hotel: 0,
-      telefoon: 0,
-      leadkosten: 0,
-      profit: 0,
-      overig: 0,
-    } satisfies Record<CostFilterMode, number>;
-
-    for (const cost of costsMatchingSearch) {
-      const amountIncl = roundEuro(safeNumber(cost.amount_incl_btw));
-      if (!isPrivateBankTransactionCost(cost) && !isInternalProfitTransferCost(cost)) totals.alle += amountIncl;
-      totals[cost.category] += amountIncl;
-    }
-
-    return {
-      alle: roundEuro(totals.alle),
-      materiaal: roundEuro(totals.materiaal),
-      autokosten: roundEuro(totals.autokosten),
-      boetes: roundEuro(totals.boetes),
-      schulden: roundEuro(totals.schulden),
-      afval: roundEuro(totals.afval),
-      brandstof: roundEuro(totals.brandstof),
-      gereedschap: roundEuro(totals.gereedschap),
-      eigen_verbruik: roundEuro(totals.eigen_verbruik),
-      hotel: roundEuro(totals.hotel),
-      telefoon: roundEuro(totals.telefoon),
-      leadkosten: roundEuro(totals.leadkosten),
-      profit: roundEuro(totals.profit),
-      overig: roundEuro(totals.overig),
-    } satisfies Record<CostFilterMode, number>;
-  }, [costs, quoteById, search, showSourceReview]);
-
-  const tabLineCounts = useMemo(() => {
-    const counts = Object.fromEntries(
-      filterOptions.map((option) => [option.value, 0])
-    ) as Record<CostFilterMode, number>;
-
-    for (const cost of costs) {
-      if (isReviewSourceCost(cost) !== showSourceReview) continue;
-      const lineCount = Array.isArray(cost.line_items) ? cost.line_items.length : 0;
-      counts[cost.category] += lineCount;
-      if (!isPrivateBankTransactionCost(cost) && !isInternalProfitTransferCost(cost)) counts.alle += lineCount;
-    }
-    return counts;
-  }, [costs, showSourceReview]);
+  const availableMonths = useMemo(() => availableCostMonths(costs, privateCredits), [costs, privateCredits]);
+  const matchingCosts = useMemo(() => matchingCostRows(costs, costMonth, search, quoteById), [costs, costMonth, quoteById, search]);
+  const matchingPrivateCredits = useMemo(() => matchingCostRows(privateCredits, costMonth, search, quoteById), [privateCredits, costMonth, quoteById, search]);
+  const filteredCosts = useMemo(() => costRowsForFilter(matchingCosts, matchingPrivateCredits, filter), [matchingCosts, matchingPrivateCredits, filter]);
+  const { totals: tabTotals, counts: tabLineCounts, privateSummary } = useMemo(() => summarizeBankCostRows(matchingCosts, matchingPrivateCredits), [matchingCosts, matchingPrivateCredits]);
+  const isPrivateView = filter === 'eigen_verbruik';
 
   const filteredQuotesForPicker = useMemo(() => {
     const term = normalizeSearchText(quoteSearch);
@@ -1216,7 +1176,7 @@ function KostenPageContent() {
           date: saveForm.date,
           receipt_url: normalizedReceiptUrl,
           receipt_files: payloadReceiptFiles,
-          status: costs.find((cost) => cost.id === editingCostId)?.status === 'paid_cash' ? 'paid_cash' : 'confirmed',
+          status: sourceCosts.find((cost) => cost.id === editingCostId)?.status === 'paid_cash' ? 'paid_cash' : 'confirmed',
         }),
       });
 
@@ -1495,8 +1455,13 @@ function KostenPageContent() {
     setCreateOpen(true);
   };
 
+  const canEditBankCategory = Boolean(selectedBankCost
+    && (selectedBankCost.has_supporting_document || selectedBankCost.is_fuel_payment)
+    && !selectedBankCost.is_creman_debt && !selectedBankCost.is_bunq_topup
+    && !selectedBankCost.is_internal_transfer && !selectedBankCost.is_private_deposit && selectedBankCost.payment_type !== 'private');
+
   const handleSaveBankCategory = async (): Promise<void> => {
-    if (!user || !selectedBankCost?.paid_bank_transaction_id || savingBankCategory) return;
+    if (!user || !selectedBankCost?.paid_bank_transaction_id || savingBankCategory || !canEditBankCategory) return;
 
     setSavingBankCategory(true);
     try {
@@ -1521,7 +1486,7 @@ function KostenPageContent() {
       setSelectedBankCost(null);
       toast({
         title: 'Categorie opgeslagen',
-        description: `Deze Knab-afschrijving staat nu onder ${PROJECT_COST_CATEGORY_LABELS[bankCategoryDraft]}.`,
+        description: `Deze Knab-afschrijving staat nu onder ${BANK_CATEGORY_LABELS[bankCategoryDraft]}.`,
       });
     } catch (saveError) {
       toast({
@@ -1535,7 +1500,7 @@ function KostenPageContent() {
   };
 
   const handleSaveBankOfferte = async (): Promise<void> => {
-    if (!user || !selectedBankCost?.paid_bank_transaction_id || savingBankOfferte) return;
+    if (!user || !selectedBankCost?.paid_bank_transaction_id || savingBankOfferte || selectedBankCost.is_internal_transfer || selectedBankCost.is_private_deposit) return;
 
     setSavingBankOfferte(true);
     try {
@@ -1964,12 +1929,13 @@ function KostenPageContent() {
                                       <SelectItem value="boetes">Boetes</SelectItem>
                                       <SelectItem value="schulden">Schulden</SelectItem>
                                       <SelectItem value="afval">Afval</SelectItem>
-                                      <SelectItem value="brandstof">Benzine</SelectItem>
-                                      <SelectItem value="gereedschap">Gereedschap</SelectItem>
+                                      <SelectItem value="brandstof">Brandstof</SelectItem>
+                                      <SelectItem value="gereedschap">Investering</SelectItem>
                                       <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
                                       <SelectItem value="hotel">Hotel</SelectItem>
                                       <SelectItem value="telefoon">Telefoon</SelectItem>
                                       <SelectItem value="leadkosten">Leadkosten</SelectItem>
+                                      <SelectItem value="storage">Storage</SelectItem>
                                       <SelectItem value="overig">Overig</SelectItem>
                                     </SelectContent>
                                   </Select>
@@ -2144,17 +2110,18 @@ function KostenPageContent() {
                                             </SelectTrigger>
                                             <SelectContent>
                                               <SelectItem value="materiaal">Materiaal</SelectItem>
-                                              <SelectItem value="gereedschap">Gereedschap</SelectItem>
+                                              <SelectItem value="gereedschap">Investering</SelectItem>
                                               <SelectItem value="autokosten">Autokosten</SelectItem>
                                               <SelectItem value="boetes">Boetes</SelectItem>
                                               <SelectItem value="schulden">Schulden</SelectItem>
                                               <SelectItem value="afval">Afval</SelectItem>
-                                              <SelectItem value="brandstof">Benzine</SelectItem>
+                                              <SelectItem value="brandstof">Brandstof</SelectItem>
                                               <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
                                               <SelectItem value="hotel">Hotel</SelectItem>
                                               <SelectItem value="telefoon">Telefoon</SelectItem>
                                               <SelectItem value="leadkosten">Leadkosten</SelectItem>
-                                              <SelectItem value="overig">Overig</SelectItem>
+                                              <SelectItem value="storage">Storage</SelectItem>
+                                      <SelectItem value="overig">Overig</SelectItem>
                                             </SelectContent>
                                           </Select>
                                         </div>
@@ -2368,13 +2335,19 @@ function KostenPageContent() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant={!showSourceReview ? 'default' : 'outline'} onClick={() => setShowSourceReview(false)}>Bank + contant</Button>
-                  <Button type="button" variant={showSourceReview ? 'default' : 'outline'} onClick={() => setShowSourceReview(true)}>Bonnen controleren ({costs.filter(isReviewSourceCost).length})</Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label htmlFor="cost-month" className="text-xs text-muted-foreground">Maand</Label>
+                  <Select value={costMonth} onValueChange={setCostMonth}>
+                    <SelectTrigger id="cost-month" className="h-8 w-[190px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle maanden</SelectItem>
+                      {availableMonths.map((month) => <SelectItem key={month} value={month}>{new Intl.DateTimeFormat('nl-NL', { month: 'long', year: 'numeric' }).format(new Date(`${month}-01T12:00:00`))}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {showSourceReview ? 'Bronnen zonder bankmatch. Controleer betaling en mogelijke dubbelen; deze bedragen tellen niet mee bij Bank + contant.' : 'Bankafschrijvingen plus bevestigde contante betalingen. Niet alle uitgaven zijn compleet zolang bonnen of bankgegevens ontbreken.'}
-                  {' '}Laatste geladen bankdatum: {costs.filter(isBankTransactionCost).map((cost) => cost.date).sort().at(-1) || 'onbekend'}.
+                  ‘Alle’ toont Knab-afschrijvingen, inclusief privé en eigen overboekingen. Privé-opnames verrekent bevestigde privéstortingen. Automatisch: bunq-top-ups → Privé-opnames, Creman → Schulden, herkenbare tankstations → Brandstof. Zonder bon blijft de btw onbekend. Overig is je controlelijst.
+                  {' '}Bankperiode: {costs.map((cost) => cost.date).sort()[0] || 'onbekend'} t/m {costs.map((cost) => cost.date).sort().at(-1) || 'onbekend'}.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2.5">
@@ -2400,12 +2373,22 @@ function KostenPageContent() {
                         )}
                       >
                         {formatCurrency(tabTotals[option.value])}
-                        {tabLineCounts[option.value] > 0 ? ` · ${tabLineCounts[option.value]} regels` : ''}
+                        {option.value === 'eigen_verbruik' ? ' netto' : ''}
+                        {` · ${tabLineCounts[option.value]} ${option.value === 'eigen_verbruik'
+                          ? tabLineCounts[option.value] === 1 ? 'boeking' : 'boekingen'
+                          : tabLineCounts[option.value] === 1 ? 'afschrijving' : 'afschrijvingen'}`}
                       </span>
                     </span>
                   </Button>
                 ))}
               </div>
+              {isPrivateView && (
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm tabular-nums" aria-label="Overzicht privé-opnames">
+                  <span className="text-muted-foreground">Opgenomen {formatCurrency(privateSummary.withdrawalTotal)}</span>
+                  <span className="text-muted-foreground">− teruggestort {formatCurrency(privateSummary.depositTotal)}</span>
+                  <span className="font-semibold">= netto {formatCurrency(privateSummary.netTotal)}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
           ) : null}
@@ -2413,13 +2396,13 @@ function KostenPageContent() {
           {activeFinanceTab ? (
             <BankOverzichtContent embedded requestedTabId={activeFinanceTab} />
           ) : loading || error ? null : viewMode === 'pdfs' ? (
-            <KostenPdfTab costs={costs} quoteById={quoteById} onOpenCost={handleOpenCost} />
+            <KostenPdfTab costs={sourceCosts} quoteById={quoteById} onOpenCost={handleOpenCost} />
           ) : viewMode !== 'kosten' ? null : error ? null : filteredCosts.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center space-y-3">
-                <div className="font-semibold">Geen kosten gevonden</div>
+                <div className="font-semibold">{isPrivateView ? 'Geen privéboekingen gevonden' : 'Geen afschrijvingen gevonden'}</div>
                 <div className="text-sm text-muted-foreground">
-                  Voeg je eerste leverancierkost toe om winst per project te volgen.
+                  {isPrivateView ? 'Geen privé-opnames of bevestigde privéstortingen voor deze maand of zoekopdracht.' : 'Geen Knab-afschrijvingen voor deze maand of zoekopdracht. Losse facturen staan bij PDF-bestanden.'}
                 </div>
                 <Button
                   type="button"
@@ -2446,7 +2429,7 @@ function KostenPageContent() {
                         <th className="w-[70px] px-3 py-2.5 text-center">Bon</th>
                         <th className="w-[120px] px-3 py-2.5 text-right">Excl. BTW</th>
                         <th className="w-[105px] px-3 py-2.5 text-right">BTW</th>
-                        <th className="w-[150px] px-3 py-2.5 text-right">Incl. BTW</th>
+                        <th className="w-[150px] px-3 py-2.5 text-right">{isPrivateView ? 'Bedrag' : 'Afgeschreven'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/70">
@@ -2454,8 +2437,8 @@ function KostenPageContent() {
                         const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
                         const linkedLabel = quote
                           ? (quote.offerteNummer ? `#${quote.offerteNummer}` : quote.label)
-                          : 'Niet gekoppeld';
-                        const hasReceipt = (Array.isArray(cost.receipt_files) && cost.receipt_files.length > 0) || Boolean(cost.receipt_url);
+                          : isPrivateDeposit(cost) ? 'Niet van toepassing' : 'Niet gekoppeld';
+                        const hasReceipt = hasCostReceipt(cost);
 
                         return (
                           <tr
@@ -2476,7 +2459,7 @@ function KostenPageContent() {
                             </td>
                             <td className="px-3 py-2.5">
                               <Badge variant="outline" className="rounded px-1.5 py-0 text-[11px] font-medium">
-                                {PROJECT_COST_CATEGORY_LABELS[cost.category]}
+                                {isPrivateDeposit(cost) ? 'Privéstorting' : BANK_CATEGORY_LABELS[cost.category]}
                               </Badge>
                             </td>
                             <td className="max-w-[280px] px-3 py-2.5">
@@ -2488,10 +2471,10 @@ function KostenPageContent() {
                             </td>
                             <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">{cost.vat_known === false ? 'n.b.' : formatCurrency(cost.amount_excl_btw || 0)}</td>
                             <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-muted-foreground">{cost.vat_known === false ? 'n.b.' : formatCurrency(cost.btw_amount || 0)}</td>
-                            <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-foreground">
+                            <td className={cn('whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums', isPrivateDeposit(cost) ? 'text-emerald-300' : 'text-foreground')}>
                               <div className="flex items-center justify-end gap-1.5">
-                                <span>{formatCurrency(cost.amount_incl_btw || 0)}</span>
-                                {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Controleren</Badge> : isHistoricalSourceCost(cost) ? (
+                                <span>{formatBankRowAmount(cost, isPrivateView)}</span>
+                                {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Betaling controleren</Badge> : isHistoricalSourceCost(cost) ? (
                                   <Badge variant="outline" className="text-[10px] text-muted-foreground">Bron vóór Knab</Badge>
                                 ) : !isBankTransactionCost(cost) ? <Button
                                   type="button"
@@ -2517,8 +2500,8 @@ function KostenPageContent() {
                   </table>
                 </div>
                 <div className="flex items-center justify-between border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                  <span>{filteredCosts.length} {filteredCosts.length === 1 ? 'kost' : 'kosten'}</span>
-                  <span className="font-semibold tabular-nums text-foreground">{showSourceReview ? 'Brontotaal (niet opgeteld)' : 'Totaal incl. BTW'}: {formatCurrency(filteredCosts.reduce((sum, cost) => sum + safeNumber(cost.amount_incl_btw), 0))}</span>
+                  <span>{filteredCosts.length} {isPrivateView ? filteredCosts.length === 1 ? 'boeking' : 'boekingen' : filteredCosts.length === 1 ? 'afschrijving' : 'afschrijvingen'}</span>
+                  <span className="font-semibold tabular-nums text-foreground">{isPrivateView ? 'Netto privé-opnames' : 'Totaal getoonde afschrijvingen'}: {formatCurrency(tabTotals[filter])}</span>
                 </div>
               </div>
 
@@ -2527,7 +2510,7 @@ function KostenPageContent() {
                 const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
                 const linkedLabel = quote
                   ? (quote.offerteNummer ? `Offerte #${quote.offerteNummer}` : quote.label)
-                  : 'Niet gekoppeld';
+                  : isPrivateDeposit(cost) ? 'Niet van toepassing' : 'Niet gekoppeld';
                 const linkedClientName = quote ? quote.clientName : '';
 
                 return (
@@ -2553,9 +2536,9 @@ function KostenPageContent() {
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                           <Badge variant="outline" className={categoryBadgeClass(cost.category)}>
-                            {PROJECT_COST_CATEGORY_LABELS[cost.category]}
+                            {isPrivateDeposit(cost) ? 'Privéstorting' : BANK_CATEGORY_LABELS[cost.category]}
                           </Badge>
-                          {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Controleren</Badge> : null}
+                          {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Betaling controleren</Badge> : null}
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
                             <Link2 className="h-3.5 w-3.5" />
                             {linkedLabel}
@@ -2572,7 +2555,7 @@ function KostenPageContent() {
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
                             Geplaatst: {formatDateLabel(cost.created_at)}
                           </span>
-                          {(Array.isArray(cost.receipt_files) && cost.receipt_files.length > 0) || cost.receipt_url ? (
+                          {hasCostReceipt(cost) ? (
                             <span className="inline-flex items-center gap-1 text-emerald-300">
                               <Receipt className="h-3.5 w-3.5" />
                               Bon gekoppeld
@@ -2583,9 +2566,9 @@ function KostenPageContent() {
 
                       <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
                         <div className="text-right">
-                          <div className="text-xs uppercase tracking-wide text-muted-foreground">Incl. BTW</div>
-                          <div className="text-2xl font-bold tabular-nums text-emerald-300">
-                            {formatCurrency(cost.amount_incl_btw || 0)}
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground">{isPrivateDeposit(cost) ? 'Bijgeschreven' : 'Afgeschreven'}</div>
+                          <div className={cn('text-2xl font-bold tabular-nums', isPrivateView && !isPrivateDeposit(cost) ? 'text-foreground' : 'text-emerald-300')}>
+                            {formatBankRowAmount(cost, isPrivateView)}
                           </div>
                         </div>
                         {!isBankTransactionCost(cost) ? <div className="flex items-center gap-1">
@@ -2626,6 +2609,12 @@ function KostenPageContent() {
                   </div>
                 );
               })}
+              {isPrivateView && (
+                <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
+                  <span>{filteredCosts.length} {filteredCosts.length === 1 ? 'boeking' : 'boekingen'}</span>
+                  <span className="font-semibold text-foreground">Netto privé-opnames: {formatCurrency(privateSummary.netTotal)}</span>
+                </div>
+              )}
             </div>
             </>
           )}
@@ -2639,31 +2628,46 @@ function KostenPageContent() {
               <DialogHeader>
                 <DialogTitle>{selectedBankCost.supplier_name || 'Knab-transactie'}</DialogTitle>
                 <DialogDescription>
-                  Knab-afschrijving van {formatDateLabel(selectedBankCost.date)}. De banktransactie bepaalt het bedrag; documenten leveren de onderbouwing en btw.
+                  {selectedBankCost.is_private_deposit
+                    ? `Privéstorting van ${formatDateLabel(selectedBankCost.date)}. Geld van privé naar de zakelijke rekening.`
+                    : `Knab-afschrijving van ${formatDateLabel(selectedBankCost.date)}. De banktransactie bepaalt het bedrag; documenten leveren de onderbouwing en btw.`}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-md border border-border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">Incl. btw</div>
-                  <div className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(selectedBankCost.amount_incl_btw)}</div>
+                  <div className="text-xs text-muted-foreground">{selectedBankCost.is_private_deposit ? 'Bijgeschreven door Knab' : 'Afgeschreven door Knab'}</div>
+                  <div className={cn('mt-1 text-xl font-semibold tabular-nums', selectedBankCost.is_private_deposit && 'text-emerald-300')}>{formatBankRowAmount(selectedBankCost, Boolean(selectedBankCost.is_private_deposit) || isPrivateView)}</div>
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 p-3">
                   <Label htmlFor="bank-cost-category" className="text-xs font-normal text-muted-foreground">Categorie</Label>
-                  <Select
+                  {selectedBankCost.is_private_deposit ? (
+                    <div className="mt-1 font-medium">Privéstorting</div>
+                  ) : <Select
                     value={bankCategoryDraft}
                     onValueChange={(value) => setBankCategoryDraft(normalizeProjectCostCategory(value))}
-                    disabled={savingBankCategory}
+                    disabled={savingBankCategory || !canEditBankCategory}
                   >
                     <SelectTrigger id="bank-cost-category" className="mt-1 h-9 bg-background">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(PROJECT_COST_CATEGORY_LABELS).filter(([value]) => value !== 'profit').map(([value, label]) => (
+                      {Object.entries(BANK_CATEGORY_LABELS).filter(([value]) => value !== 'profit').map(([value, label]) => (
                         <SelectItem key={value} value={value}>{label}</SelectItem>
                       ))}
                     </SelectContent>
-                  </Select>
+                  </Select>}
+                  {!selectedBankCost.has_supporting_document && !selectedBankCost.is_private_deposit ? (
+                    <p className="mt-1 text-xs text-muted-foreground">{selectedBankCost.is_creman_debt
+                      ? 'Door jou bevestigd als betaling op de totale schuld bij Creman. Een losse factuur per betaling is niet nodig voor deze categorie.'
+                      : selectedBankCost.is_bunq_topup
+                        ? 'Bunq-top-ups zijn privé-opnames; hiervoor is geen factuur nodig.'
+                        : selectedBankCost.is_fuel_payment
+                          ? selectedBankCost.fuel_needs_review
+                            ? 'Tankstation herkend, maar de bestaande bron bevat een privé-aanduiding. Controleer de categorie; btw blijft onbekend zonder bon.'
+                            : 'Tankstation herkend aan de banknaam. Je kunt de categorie corrigeren; btw blijft onbekend zonder bon.'
+                          : 'Nog niet onderbouwd of herkend. Deze afschrijving blijft in Overig om te controleren.'}</p>
+                  ) : null}
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 p-3">
                   <div className="text-xs text-muted-foreground">Excl. btw</div>
@@ -2673,12 +2677,12 @@ function KostenPageContent() {
                   <div className="text-xs text-muted-foreground">Btw</div>
                   <div className="mt-1 font-medium tabular-nums">{selectedBankCost.vat_known === false ? 'n.b.' : formatCurrency(selectedBankCost.btw_amount)}</div>
                 </div>
-                <div className="rounded-md border border-border bg-muted/20 p-3 sm:col-span-2">
+                {!selectedBankCost.is_private_deposit && <div className="rounded-md border border-border bg-muted/20 p-3 sm:col-span-2">
                   <Label htmlFor="bank-cost-offerte" className="text-xs font-normal text-muted-foreground">Klant / offerte</Label>
                   <Select
                     value={bankOfferteDraft || 'none'}
                     onValueChange={(value) => setBankOfferteDraft(value === 'none' ? '' : value)}
-                    disabled={savingBankCategory || savingBankOfferte}
+                    disabled={savingBankCategory || savingBankOfferte || selectedBankCost.is_internal_transfer}
                   >
                     <SelectTrigger id="bank-cost-offerte" className="mt-1 bg-background">
                       <SelectValue placeholder="Niet gekoppeld" />
@@ -2690,8 +2694,8 @@ function KostenPageContent() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="mt-1 text-xs text-muted-foreground">De gekozen klant komt uit de gekoppelde offerte. De bankafschrijving blijft één keer meetellen.</p>
-                </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{selectedBankCost.is_internal_transfer ? 'Een overboeking tussen eigen rekeningen hoort niet bij een klant.' : 'De gekozen klant komt uit de gekoppelde offerte. De bankafschrijving blijft één keer meetellen.'}</p>
+                </div>}
               </div>
 
               <div className="space-y-1 rounded-md border border-border p-3">
@@ -2700,7 +2704,7 @@ function KostenPageContent() {
               </div>
 
               <div className="space-y-2">
-                <div className="text-sm font-semibold">Facturen en bonnen</div>
+                <div className="text-sm font-semibold">Bijlagen</div>
                 {selectedBankCost.receipt_files.length > 0 ? (
                   <div className="space-y-2">
                     {selectedBankCost.receipt_files.map((file, index) => (
@@ -2712,8 +2716,11 @@ function KostenPageContent() {
                         className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
                       >
                         <span className="flex min-w-0 items-center gap-2">
-                          <Receipt className="h-4 w-4 shrink-0 text-emerald-400" />
-                          <span className="truncate">{file.filename || `Document ${index + 1}`}</span>
+                          <Receipt className={cn('h-4 w-4 shrink-0', isSupportingProjectCostReceipt(file) ? 'text-emerald-400' : 'text-muted-foreground')} />
+                          <span className="min-w-0">
+                            <span className="block truncate">{file.filename || `Document ${index + 1}`}</span>
+                            {!isSupportingProjectCostReceipt(file) && <span className="text-xs text-muted-foreground">{file.document_type === 'unreadable' ? 'Onleesbaar bestand' : 'Brondocument · geen factuur of bon'}</span>}
+                          </span>
                         </span>
                         <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
                       </a>
@@ -2729,6 +2736,10 @@ function KostenPageContent() {
                     <span className="flex items-center gap-2"><Receipt className="h-4 w-4 text-emerald-400" />Bekijk document</span>
                     <ExternalLink className="h-4 w-4 text-muted-foreground" />
                   </a>
+                ) : selectedBankCost.is_private_deposit ? (
+                  <div className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground">
+                    Voor deze privéstorting is geen factuur nodig.
+                  </div>
                 ) : (
                   <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
                     Nog geen factuur of bon aan deze banktransactie gekoppeld.
@@ -2759,11 +2770,11 @@ function KostenPageContent() {
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setSelectedBankCost(null)}>Sluiten</Button>
-                <Button
+                {!selectedBankCost.is_private_deposit && <><Button
                   type="button"
                   variant="secondary"
                   onClick={() => void handleSaveBankOfferte()}
-                  disabled={savingBankOfferte || bankOfferteDraft === safeString(selectedBankCost.offerte_id)}
+                  disabled={savingBankOfferte || selectedBankCost.is_internal_transfer || bankOfferteDraft === safeString(selectedBankCost.offerte_id)}
                 >
                   {savingBankOfferte ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Klant opslaan
@@ -2771,11 +2782,12 @@ function KostenPageContent() {
                 <Button
                   type="button"
                   onClick={() => void handleSaveBankCategory()}
-                  disabled={savingBankCategory || bankCategoryDraft === selectedBankCost.category}
+                  disabled={savingBankCategory || !canEditBankCategory || bankCategoryDraft === selectedBankCost.category}
                 >
                   {savingBankCategory ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Categorie opslaan
                 </Button>
+                </>}
               </DialogFooter>
             </>
           ) : null}

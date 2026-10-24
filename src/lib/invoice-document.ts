@@ -1,3 +1,4 @@
+import { resolveQuoteClientInfo } from '@/lib/quote-client-info';
 import type { DataJson } from '@/lib/quote-calculations';
 import type { UserSettings } from '@/lib/types-settings';
 import type { InvoiceCombinedContext, InvoiceType } from '@/lib/types';
@@ -55,36 +56,14 @@ function resolveInvoiceTitle(quote: any, calculationSnapshot?: DataJson): string
   return title || null;
 }
 
-function buildKlantSnapshot(quote: any) {
-  const info = quote?.klantinformatie || {};
-  const factuuradres = info?.factuuradres || info?.factuurAdres || {};
-
-  const voornaam = info?.voornaam || '';
-  const achternaam = info?.achternaam || '';
-  const bedrijfsnaam = info?.bedrijfsnaam || '';
-
-  const naam = (bedrijfsnaam || [voornaam, achternaam].filter(Boolean).join(' ') || 'Onbekende klant').trim();
-
-  const straat = factuuradres?.straat ?? info?.straat ?? '';
-  const huisnummer = factuuradres?.huisnummer ?? info?.huisnummer ?? '';
-  const adres = `${straat} ${huisnummer}`.trim();
-
-  const postcode = factuuradres?.postcode ?? info?.postcode ?? '';
-  const plaats = factuuradres?.plaats ?? info?.plaats ?? '';
-
-  const email =
-    info?.['e-mailadres'] ||
-    info?.emailadres ||
-    info?.email ||
-    '';
-
-  const telefoon =
-    info?.telefoonnummer ||
-    info?.telefoon ||
-    '';
+export function buildKlantSnapshot(quote: any) {
+  const info = resolveQuoteClientInfo(quote?.klantinformatie);
+  const naam = (info.bedrijfsnaam || [info.voornaam, info.achternaam].filter(Boolean).join(' ') || 'Onbekende klant').trim();
+  const adres = `${info.straat} ${info.huisnummer}`.trim();
+  const { postcode, plaats, emailadres: email, telefoonnummer: telefoon } = info;
 
   return {
-    clientId: (info?.clientId || '').toString().trim(),
+    clientId: (quote?.klantinformatie?.clientId || '').toString().trim(),
     klanttype: info?.klanttype ?? null,
     naam,
     adres,
@@ -97,10 +76,10 @@ function buildKlantSnapshot(quote: any) {
   };
 }
 
-function buildProjectAdresSnapshot(quote: any) {
-  const info = quote?.klantinformatie || {};
+export function buildProjectAdresSnapshot(quote: any) {
+  const info = resolveQuoteClientInfo(quote?.klantinformatie);
   const afwijkend = !!info?.afwijkendProjectadres;
-  const project = info?.projectadres || info?.projectAdres;
+  const project = info.projectAdres;
   if (!afwijkend || !project) return null;
 
   const straat = project?.straat ?? '';

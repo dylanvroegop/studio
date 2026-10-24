@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { isCostArchiveVisible } from '@/lib/cost-archive-visibility';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,7 @@ function extractBearerToken(authHeader: string | null): string | null {
 
 export async function GET(request: Request) {
   try {
+    const includeUnlinked = new URL(request.url).searchParams.get('include_unlinked') === 'true';
     const token = extractBearerToken(request.headers.get('authorization'));
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
@@ -42,7 +44,7 @@ export async function GET(request: Request) {
     if (result.error) throw new Error(result.error.message);
 
     return NextResponse.json(
-      { ok: true, data: result.data || [] },
+      { ok: true, data: (result.data || []).filter((record) => isCostArchiveVisible(record, includeUnlinked)) },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
   } catch (error) {

@@ -53,6 +53,7 @@ interface FuelDay {
 interface FinanceFuelRow {
   date?: string | null;
   category?: string | null;
+  bank_category?: string | null;
   categoryLabel?: string | null;
   amount_incl_btw?: number | string | null;
   amount?: number | string | null;
@@ -131,7 +132,8 @@ function financeFuelAmount(row: FinanceFuelRow): number {
 
 function financeFuelRows(rows: FinanceFuelRow[]): FinanceFuelRow[] {
   return rows.filter((row) => (
-    normalizeProjectCostCategory(row.category) === 'brandstof'
+    // De factuurregel in Kosten verandert de herkenning van tankbetalingen niet.
+    normalizeProjectCostCategory(row.bank_category ?? row.category) === 'brandstof'
     || String(row.categoryLabel || '').trim().toLowerCase() === 'benzine'
   ) && validDate(String(row.date || '').slice(0, 10)));
 }

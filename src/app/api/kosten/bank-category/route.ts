@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { deriveBankUserId } from '@/lib/bank-user-id';
-import { loadConnectedKnabTransactions } from '@/lib/finance-bank-ledger';
+import { loadKnabTransactionHistory } from '@/lib/finance-bank-ledger';
 import { PROJECT_COST_CATEGORIES, type ProjectCostCategory } from '@/lib/project-costs';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
@@ -39,8 +39,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Banktransactie of categorie is ongeldig.' }, { status: 400 });
     }
 
-    const transactions = await loadConnectedKnabTransactions(deriveBankUserId(uid));
-    if (!transactions.some((transaction) => transaction.id === bankTransactionId)) {
+    const { transactions } = await loadKnabTransactionHistory(deriveBankUserId(uid));
+    const transaction = transactions.find((row) => row.id === bankTransactionId
+      || row.source_transaction_ids?.includes(bankTransactionId));
+    if (!transaction) {
       return NextResponse.json({ ok: false, message: 'Banktransactie niet gevonden.' }, { status: 404 });
     }
 
@@ -48,7 +50,7 @@ export async function POST(request: Request) {
       .from('bank_transaction_category_overrides')
       .upsert({
         user_id: uid,
-        bank_transaction_id: bankTransactionId,
+        bank_transaction_id: transaction.id,
         category,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id,bank_transaction_id' })

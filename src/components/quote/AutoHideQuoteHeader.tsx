@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import styles from './AutoHideQuoteHeader.module.css';
 
 interface AutoHideQuoteHeaderProps {
@@ -32,7 +32,7 @@ export function AutoHideQuoteHeader({ children, className }: AutoHideQuoteHeader
                 aria-expanded={expanded}
                 onClick={() => setExpanded(true)}
             >
-                <ChevronDown size={14} />
+                <ChevronLeft size={14} />
             </button>
             <header className={`${className ?? ''} ${styles.panel}`}>
                 {children}

@@ -1,8 +1,11 @@
-import { costDocumentError } from '@/lib/cost-document-policy';
+import { costDocumentError, costDocumentKeys } from '@/lib/cost-document-policy';
+import { bookedCostRowsMatch, costImportClaimDecision } from '@/lib/cost-import-idempotency';
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { mapPendingImport, pendingFingerprint, queuePendingCostImport } from '@/lib/pending-cost-imports';
+import { mapProjectCostRow } from '@/lib/project-costs';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -112,6 +115,26 @@ export async function POST(request: Request) {
 
     const documentError = costDocumentError(payload);
     if (documentError) return NextResponse.json({ ok: false, message: documentError }, { status: 422 });
+    const keys = costDocumentKeys(uid, payload);
+    if (keys.length) {
+      const { firestore } = initFirebaseAdmin();
+      const snapshots = await firestore.getAll(...keys.map(key => firestore.collection('cost_import_claims').doc(key)));
+      const decision = costImportClaimDecision(uid,
+        snapshots.filter(snapshot => snapshot.exists).map(snapshot => snapshot.data() || {}));
+      if (decision.state === 'booked') {
+        const { data: existingRows, error } = await supabaseAdmin.from('project_costs')
+          .select('*').eq('user_id', uid).in('id', decision.costIds);
+        if (error) throw new Error(error.message);
+        if (bookedCostRowsMatch(uid, decision.costIds, existingRows || [], payload)) {
+          const rows = (existingRows || []).map(row => mapProjectCostRow(row));
+          return NextResponse.json({ ok: true, pending: false, deduplicated: true, already_booked: true,
+            cost_ids: decision.costIds, data: rows[0], rows, inserted_count: 0 }, { headers: noStoreHeaders() });
+        }
+      }
+      if (decision.state !== 'new') {
+        return NextResponse.json({ ok: false, message: 'Dit document wordt verwerkt of de eerdere boeking is niet volledig aantoonbaar. Controleer de bestaande boeking voordat je opnieuw importeert.' }, { status: 409, headers: noStoreHeaders() });
+      }
+    }
     const result = await queuePendingCostImport(uid, payload);
     return NextResponse.json({ ok: true, ...result }, { headers: noStoreHeaders() });
 

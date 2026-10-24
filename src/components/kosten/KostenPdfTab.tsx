@@ -5,7 +5,6 @@ import { CalendarDays, FileText, Image as ImageIcon, Link2, Loader2, Receipt, Se
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useUser } from '@/firebase';
 import {
@@ -14,6 +13,8 @@ import {
   type ProjectCostRow,
 } from '@/lib/project-costs';
 import { cn } from '@/lib/utils';
+import { isCostArchiveLinked } from '@/lib/cost-archive-visibility';
+import { costDocumentSourceLabel } from '@/lib/cost-document-display';
 
 type QuoteLookup = {
   offerteNummer: number | null;
@@ -32,6 +33,7 @@ interface PdfItem {
   file: ProjectCostReceiptFile;
   key: string;
   sourceDate?: string;
+  hasCostLink?: boolean;
 }
 
 interface ArchivedPdfRecord {
@@ -152,13 +154,19 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
   const { user } = useUser();
   const [archivedPdfs, setArchivedPdfs] = useState<ArchivedPdfRecord[]>([]);
   const [search, setSearch] = useState('');
+  const [showUnlinked, setShowUnlinked] = useState(false);
   const pdfItems = useMemo(() => {
-    const items = collectPdfItems(costs);
-    const knownArchiveIds = new Set(items.map((item) => safeString(item.file.archive_id)).filter(Boolean));
+    const linkedItems = collectPdfItems(costs);
+    const items = showUnlinked ? [] : linkedItems;
+    const knownArchiveIds = new Set(costs.flatMap(cost => cost.receipt_files || [])
+      .map(file => safeString(file.archive_id)).filter(Boolean));
+    const costById = new Map(costs.map(cost => [cost.id, cost]));
 
     archivedPdfs.forEach((archive) => {
       const archiveId = safeString(archive.id);
       if (!archiveId || knownArchiveIds.has(archiveId)) return;
+      const hasCostLink = isCostArchiveLinked(archive);
+      if (showUnlinked === hasCostLink) return;
       const file = {
         url: '',
         path: safeString(archive.storage_path) || null,
@@ -168,12 +176,15 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
         content_type: safeString(archive.content_type) || 'application/pdf',
         size_bytes: Number(archive.size_bytes) || 0,
         sha256: safeString(archive.sha256) || null,
+        document_type: safeString(archive.metadata?.document_type) || null,
         uploaded_at: safeString(archive.archived_at) || safeString(archive.received_at),
       };
       if (!isSupportedDocumentFile(file)) return;
       items.push({
         key: `archive:${archiveId}`,
-        costs: [],
+        costs: (archive.linked_cost_ids || []).map(id => costById.get(id))
+          .filter((cost): cost is ProjectCostRow => Boolean(cost)),
+        hasCostLink,
         sourceDate: safeString(archive.metadata?.source_email_ts)
           || safeString(archive.received_at)
           || safeString(archive.archived_at),
@@ -188,7 +199,7 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
       const rightTime = new Date(rightCost?.date || right.sourceDate || right.file.uploaded_at).getTime();
       return rightTime - leftTime;
     });
-  }, [archivedPdfs, costs]);
+  }, [archivedPdfs, costs, showUnlinked]);
   const [selectedKey, setSelectedKey] = useState('');
   const [archiveUrls, setArchiveUrls] = useState<Record<string, string>>({});
   const [loadingArchiveId, setLoadingArchiveId] = useState('');
@@ -242,7 +253,7 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
     const loadArchive = async () => {
       try {
         const token = await user.getIdToken();
-        const response = await fetch('/api/kosten/documents', {
+        const response = await fetch(`/api/kosten/documents${showUnlinked ? '?include_unlinked=true' : ''}`, {
           headers: { Authorization: `Bearer ${token}` },
           cache: 'no-store',
         });
@@ -262,7 +273,7 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, showUnlinked]);
 
   const selectedItem = filteredPdfItems.find((item) => item.key === selectedKey) || filteredPdfItems[0] || null;
   const selectedArchiveId = safeString(selectedItem?.file.archive_id);
@@ -316,21 +327,9 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
     };
   }, [archiveUrls, retryVersion, selectedArchiveId, user]);
 
-  if (pdfItems.length === 0) {
-    return (
-      <Card>
-        <CardContent className="space-y-3 p-8 text-center">
-          <FileText className="mx-auto h-9 w-9 text-muted-foreground" />
-          <div className="font-semibold">Geen PDF-bestanden gevonden</div>
-          <div className="text-sm text-muted-foreground">
-            Nieuwe PDF-facturen uit de e-mailworkflow verschijnen hier automatisch.
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   const selectedCost = selectedItem?.costs[0] || null;
+  const selectedHasCostLink = Boolean(selectedCost || selectedItem?.hasCostLink);
+  const selectedSourceLabel = selectedItem ? costDocumentSourceLabel(selectedItem.file) : null;
   const selectedQuotes = selectedItem
     ? Array.from(new Map(selectedItem.costs
       .map((cost) => (cost.offerte_id ? quoteById.get(cost.offerte_id) : null))
@@ -351,6 +350,10 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
           <div className="text-xs text-muted-foreground">
             {search.trim() ? `${filteredPdfItems.length} van ${pdfItems.length}` : pdfItems.length} {pdfItems.length === 1 ? 'bestand' : 'bestanden'}
           </div>
+          <div className="mt-2 flex gap-2">
+            <Button type="button" size="sm" variant={showUnlinked ? 'outline' : 'secondary'} onClick={() => setShowUnlinked(false)}>Bij kosten</Button>
+            <Button type="button" size="sm" variant={showUnlinked ? 'secondary' : 'outline'} onClick={() => setShowUnlinked(true)}>Ongekoppelde bronnen</Button>
+          </div>
           <div className="relative mt-3">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -367,10 +370,12 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
         <div className="max-h-[420px] divide-y divide-border/70 overflow-y-auto lg:max-h-[680px]">
           {filteredPdfItems.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              Geen PDF-facturen gevonden voor “{search.trim()}”.
+              {search.trim() ? `Geen documenten gevonden voor “${search.trim()}”.` : 'Geen documenten gevonden.'}
             </div>
           ) : filteredPdfItems.map((item) => {
             const primaryCost = item.costs[0];
+            const hasCostLink = Boolean(primaryCost || item.hasCostLink);
+            const sourceLabel = costDocumentSourceLabel(item.file);
             const linkedQuotes = Array.from(new Map(item.costs
               .map((cost) => (cost.offerte_id ? quoteById.get(cost.offerte_id) : null))
               .filter((quote): quote is QuoteLookup => Boolean(quote))
@@ -396,11 +401,12 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-foreground">
-                      {primaryCost?.supplier_name || 'Niet gekoppeld'}
+                      {primaryCost?.supplier_name || (hasCostLink ? 'Gekoppeld document' : 'Brondocument')}
                     </div>
                     <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {primaryCost?.supplier_invoice_number || item.file.filename || 'Factuur'}
+                      {primaryCost?.supplier_invoice_number || item.file.filename || 'Document'}
                     </div>
+                    {sourceLabel && <div className="mt-1 text-[11px] text-muted-foreground">{sourceLabel}</div>}
                     <div className="mt-2 flex items-center justify-between gap-2 text-xs">
                       <span className="text-muted-foreground">{formatDateLabel(primaryCost?.date || item.sourceDate || item.file.uploaded_at)}</span>
                       {primaryCost ? (
@@ -408,7 +414,7 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
                           {formatCurrency(sumCostAmount(item, 'amount_incl_btw'))}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">Nog niet gekoppeld</span>
+                        <span className="text-muted-foreground">{hasCostLink ? 'Aan kosten gekoppeld' : 'Geen kostenkoppeling'}</span>
                       )}
                     </div>
                     {linkedQuotes.length > 1 ? (
@@ -433,7 +439,8 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
                   {selectedItem.file.filename || selectedCost?.source_filename || 'Factuur.pdf'}
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {selectedCost ? <Badge variant="outline">{PROJECT_COST_CATEGORY_LABELS[selectedCost.category]}</Badge> : null}
+                  {selectedSourceLabel && <Badge variant="outline">{selectedSourceLabel}</Badge>}
+                  <Badge variant="outline">{selectedCost ? PROJECT_COST_CATEGORY_LABELS[selectedCost.category] : selectedHasCostLink ? 'Aan kosten gekoppeld' : 'Geen kostenkoppeling'}</Badge>
                   <span className="inline-flex items-center gap-1">
                     <CalendarDays className="h-3.5 w-3.5" />
                     {formatDateLabel(selectedCost?.date || selectedItem.sourceDate || selectedItem.file.uploaded_at)}
@@ -446,9 +453,9 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
               </div>
               <div className="flex shrink-0 items-center gap-3">
                 <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Totaal factuur</div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{selectedCost ? selectedSourceLabel ? 'Totaal document' : 'Totaal factuur' : 'Status'}</div>
                   <div className="font-semibold tabular-nums text-foreground">
-                    {selectedCost ? formatCurrency(sumCostAmount(selectedItem, 'amount_incl_btw')) : 'Niet gekoppeld'}
+                    {selectedCost ? formatCurrency(sumCostAmount(selectedItem, 'amount_incl_btw')) : selectedHasCostLink ? 'Aan kosten gekoppeld' : 'Niet aan kosten gekoppeld'}
                   </div>
                 </div>
                 {selectedCost ? (
@@ -503,7 +510,7 @@ export function KostenPdfTab({ costs, quoteById, onOpenCost }: KostenPdfTabProps
           </>
         ) : (
           <div className="flex min-h-[560px] items-center justify-center p-6 text-center text-sm text-muted-foreground">
-            Pas je zoekopdracht aan om een PDF-factuur te openen.
+            {search.trim() ? 'Pas je zoekopdracht aan om een document te openen.' : showUnlinked ? 'Geen ongekoppelde bronnen gevonden.' : 'Geen documenten bij kosten. Controleer eventueel de ongekoppelde bronnen.'}
           </div>
         )}
       </div>

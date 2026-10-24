@@ -4613,17 +4613,21 @@ export default function GenericMeasurementPage() {
           void generateDrawingSnapshotsInBackground();
         }
 
+        const latestQuote = await getDoc(quoteRef);
+        const quoteJobs = Object.entries(latestQuote.data()?.klussen || {});
+        const jobNumber = quoteJobs.findIndex(([id]) => id === klusId) + 1;
+        const sourceJobLabel = `${jobConfig.title} ${jobNumber || klusId}`;
         const assignments = buildCalculationMeasurementAssignments(
           processedItems,
           fields,
           jobConfig.measurementLabel || jobConfig.title,
+          sourceJobLabel,
         );
         if (assignments.length === 0) {
           router.push(`/offertes/${quoteId}/overzicht`);
           return;
         }
 
-        const latestQuote = await getDoc(quoteRef);
         const quoteNotes = String(latestQuote.data()?.notities || '');
         const noteJobTitles = getQuoteNoteJobTitles(quoteNotes);
         const assignmentLines = assignments.map((assignment) => assignment.line);

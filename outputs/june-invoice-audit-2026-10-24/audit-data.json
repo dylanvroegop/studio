@@ -1,0 +1,1362 @@
+{
+  "audit_date": "2026-10-24",
+  "scope": "June 2026 invoice/document dates, plus separate June service-period examples and June bank category consistency",
+  "counts": {
+    "june_gmail_documents": 11,
+    "present": 9,
+    "missing": 2,
+    "missing_gross_eur": 165.85,
+    "june_source_records_reviewed": 25,
+    "all_cost_records_searched": 328,
+    "all_archive_records_searched": 284,
+    "all_pending_imports_searched": 47,
+    "all_import_claims_searched": 129,
+    "june_bank_rows_reconstructed": 38
+  },
+  "documents": [
+    {
+      "supplier": "Bouwmaat Amsterdam Sloterdijk XL",
+      "number": "5000VF001891333",
+      "date": "2026-06-08",
+      "net": 634.21,
+      "vat": 133.18,
+      "gross": 767.39,
+      "scope": "june_document_date",
+      "expected": [
+        "materiaal",
+        "gereedschap"
+      ],
+      "cost_ids": [
+        "b56c9980-c15a-4a21-85d5-abfecc32dbcd",
+        "b6987baf-7a60-45a4-9673-669b1318a7be"
+      ],
+      "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eab408adb3f05d",
+      "account": "vroegoptimmerwerken@gmail.com",
+      "message_id": "19eab408adb3f05d",
+      "notes": [
+        "Both split records lack supplier_invoice_number and source_email/source_filename.",
+        "Same invoice split records have different reconciliation_group_id values."
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Bouwmaat-5000VF001891333-2026-06-08.pdf",
+      "pdf_relative": "sources/Bouwmaat-5000VF001891333-2026-06-08.pdf",
+      "status": "present",
+      "app_sources": [
+        {
+          "id": "b56c9980-c15a-4a21-85d5-abfecc32dbcd",
+          "date": "2026-06-08",
+          "invoice_date": null,
+          "supplier_invoice_number": null,
+          "supplier_name": "Bouwmaat Amsterdam B.V.",
+          "category": "materiaal",
+          "amount_excl_btw": "281.64",
+          "amount_incl_btw": "340.78",
+          "btw_amount": "59.14"
+        },
+        {
+          "id": "b6987baf-7a60-45a4-9673-669b1318a7be",
+          "date": "2026-06-08",
+          "invoice_date": null,
+          "supplier_invoice_number": null,
+          "supplier_name": "Bouwmaat Amsterdam B.V.",
+          "category": "gereedschap",
+          "amount_excl_btw": "352.57",
+          "amount_incl_btw": "426.61",
+          "btw_amount": "74.04"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-f9e8e764-fb72-4cbd-beb0-1b903fd18773",
+          "date": "2026-06-22",
+          "supplier_name": "DERDENGELDEN BOUWMAAT",
+          "category": "materiaal",
+          "amount_incl_btw": 767.39,
+          "source_cost_ids": [
+            "b56c9980-c15a-4a21-85d5-abfecc32dbcd",
+            "b6987baf-7a60-45a4-9673-669b1318a7be"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Amsterdam Sloterdijk XL",
+      "number": "1216924",
+      "date": "2026-06-09",
+      "net": 61.07,
+      "vat": 12.82,
+      "gross": 73.89,
+      "scope": "june_document_date",
+      "expected": [
+        "materiaal",
+        "gereedschap"
+      ],
+      "cost_ids": [],
+      "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eab76bfbbaea0b",
+      "account": "vroegoptimmerwerken@gmail.com",
+      "message_id": "19eab76bfbbaea0b",
+      "notes": [
+        "Printed line nets total 61.06; header net 61.07 differs by 0.01. Preserve gross/header total rather than silently adjusting source lines.",
+        "No matches across all 328 app costs and 284 archives by invoice number, filename, exact gross, June9 date or Gehoorkap item."
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Bouwmaat-1216924-2026-06-09.pdf",
+      "pdf_relative": "sources/Bouwmaat-1216924-2026-06-09.pdf",
+      "status": "missing",
+      "app_sources": [],
+      "bank_display": []
+    },
+    {
+      "supplier": "Glasdiscount B.V.",
+      "number": "GD-2026-06-185270",
+      "date": "2026-06-20",
+      "net": 53.26,
+      "vat": 11.18,
+      "gross": 64.44,
+      "scope": "june_document_date",
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "2e60aa71-80c2-4b4f-b0bb-d220d11a5e26"
+      ],
+      "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19ee515a9201af15",
+      "account": "vroegoptimmerwerken@gmail.com",
+      "message_id": "19ee515a9201af15",
+      "notes": [
+        "App cost date uses delivery date 2026-07-09 while invoice is dated 2026-06-20.",
+        "supplier_invoice_number missing."
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Glasdiscount-GD-2026-06-185270-2026-06-20.pdf",
+      "pdf_relative": "sources/Glasdiscount-GD-2026-06-185270-2026-06-20.pdf",
+      "status": "present",
+      "app_sources": [
+        {
+          "id": "2e60aa71-80c2-4b4f-b0bb-d220d11a5e26",
+          "date": "2026-07-09",
+          "invoice_date": null,
+          "supplier_invoice_number": null,
+          "supplier_name": "Glasdiscount B.V.",
+          "category": "materiaal",
+          "amount_excl_btw": "53.26",
+          "amount_incl_btw": "64.44",
+          "btw_amount": "11.18"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-50a935fc-a7ce-42b4-b8ae-96adb7f06a33",
+          "date": "2026-06-22",
+          "supplier_name": "glasdiscount.nl via MultiSafepay",
+          "category": "materiaal",
+          "amount_incl_btw": 64.44,
+          "source_cost_ids": [
+            "2e60aa71-80c2-4b4f-b0bb-d220d11a5e26"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Online Deurbeslagshop BV",
+      "number": "F26055691",
+      "date": "2026-06-20",
+      "net": 24.96,
+      "vat": 5.24,
+      "gross": 30.2,
+      "scope": "june_document_date",
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "3aa5e3d4-ceef-489d-a17c-fce2223f2a08"
+      ],
+      "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19ee533e1951ee33",
+      "account": "vroegoptimmerwerken@gmail.com",
+      "message_id": "19ee533e1951ee33",
+      "notes": [
+        "supplier_invoice_number missing; source_email contains generic gmail-work-account rather than specific message id."
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Online-F26055691-2026-06-20.pdf",
+      "pdf_relative": "sources/Online-F26055691-2026-06-20.pdf",
+      "status": "present",
+      "app_sources": [
+        {
+          "id": "3aa5e3d4-ceef-489d-a17c-fce2223f2a08",
+          "date": "2026-06-20",
+          "invoice_date": null,
+          "supplier_invoice_number": null,
+          "supplier_name": "Deurbeslagshop (ODS)",
+          "category": "materiaal",
+          "amount_excl_btw": "24.96",
+          "amount_incl_btw": "30.20",
+          "btw_amount": "5.24"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-694fd285-79cc-4558-8d43-324cb394ce72",
+          "date": "2026-06-22",
+          "supplier_name": "Online Deurbeslag Shop via MultiSaf",
+          "category": "materiaal",
+          "amount_incl_btw": 30.2,
+          "source_cost_ids": [
+            "3aa5e3d4-ceef-489d-a17c-fce2223f2a08"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Derks Lease B.V.",
+      "number": "56262146",
+      "date": "2026-06-01",
+      "net": 94.5,
+      "vat": 2.63,
+      "gross": 97.13,
+      "scope": "june_document_date",
+      "expected": [
+        "boetes"
+      ],
+      "cost_ids": [
+        "24906778-8796-4db4-b032-eb196137fcdd"
+      ],
+      "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19e883bf7a072bb6",
+      "account": "facturenvroegoptimmerwerken@gmail.com",
+      "message_id": "19e883bf7a072bb6",
+      "notes": [
+        "Fine 2062542282069771, May 24 speeding + administration"
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Derks-56262146-2026-06-01.pdf",
+      "pdf_relative": "sources/Derks-56262146-2026-06-01.pdf",
+      "status": "present",
+      "app_sources": [
+        {
+          "id": "24906778-8796-4db4-b032-eb196137fcdd",
+          "date": "2026-05-24",
+          "invoice_date": null,
+          "supplier_invoice_number": null,
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_excl_btw": "94.50",
+          "amount_incl_btw": "97.13",
+          "btw_amount": "2.63"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-7f81cdad-4b96-4784-ad20-0c5eebd8ab85",
+          "date": "2026-06-22",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_incl_btw": 97.13,
+          "source_cost_ids": [
+            "24906778-8796-4db4-b032-eb196137fcdd"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Derks Lease B.V.",
+      "number": "56262173",
+      "date": "2026-06-03",
+      "net": 136.5,
+      "vat": 2.63,
+      "gross": 139.13,
+      "scope": "june_document_date",
+      "expected": [
+        "boetes"
+      ],
+      "cost_ids": [
+        "206ecc72-cc01-4187-8c33-4cb170cf5de1"
+      ],
+      "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19e8c8fb5624fe1d",
+      "account": "facturenvroegoptimmerwerken@gmail.com",
+      "message_id": "19e8c8fb5624fe1d",
+      "notes": [
+        "Fine 1062542282128408, May 27 speeding + administration"
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Derks-56262173-2026-06-03.pdf",
+      "pdf_relative": "sources/Derks-56262173-2026-06-03.pdf",
+      "status": "present",
+      "app_sources": [
+        {
+          "id": "206ecc72-cc01-4187-8c33-4cb170cf5de1",
+          "date": "2026-06-22",
+          "invoice_date": "2026-06-03",
+          "supplier_invoice_number": "56262173",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_excl_btw": "136.50",
+          "amount_incl_btw": "139.13",
+          "btw_amount": "2.63"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-2963e49f-b738-4c62-a9c8-cb53f7f90f6a",
+          "date": "2026-06-22",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_incl_btw": 139.13,
+          "source_cost_ids": [
+            "206ecc72-cc01-4187-8c33-4cb170cf5de1"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Derks Lease B.V.",
+      "number": "56262189",
+      "date": "2026-06-04",
+      "net": 58.5,
+      "vat": 2.63,
+      "gross": 61.13,
+      "scope": "june_document_date",
+      "expected": [
+        "boetes"
+      ],
+      "cost_ids": [
+        "84219b2d-eb7d-43f3-8e42-9e6bd5162713"
+      ],
+      "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19eab4a08eda340a",
+      "account": "facturenvroegoptimmerwerken@gmail.com",
+      "message_id": "19eab4a08eda340a",
+      "notes": [
+        "Fine 1062542282156360, May 27 speeding + administration"
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Derks-56262189-2026-06-04.pdf",
+      "pdf_relative": "sources/Derks-56262189-2026-06-04.pdf",
+      "status": "present",
+      "app_sources": [
+        {
+          "id": "84219b2d-eb7d-43f3-8e42-9e6bd5162713",
+          "date": "2026-06-22",
+          "invoice_date": "2026-06-04",
+          "supplier_invoice_number": "56262189",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_excl_btw": "58.50",
+          "amount_incl_btw": "61.13",
+          "btw_amount": "2.63"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-05b8509c-ff06-437d-876d-c7a4892abf53",
+          "date": "2026-06-22",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_incl_btw": 61.13,
+          "source_cost_ids": [
+            "84219b2d-eb7d-43f3-8e42-9e6bd5162713"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Derks Lease B.V.",
+      "number": "56262423",
+      "date": "2026-06-26",
+      "net": 93.5,
+      "vat": 2.63,
+      "gross": 96.13,
+      "scope": "june_document_date",
+      "expected": [
+        "boetes"
+      ],
+      "cost_ids": [
+        "81277c6c-4ba8-48b6-a149-276758e6d50c"
+      ],
+      "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f284ae95a717be",
+      "account": "facturenvroegoptimmerwerken@gmail.com",
+      "message_id": "19f284ae95a717be",
+      "notes": [
+        "Parking tax assessment 8924413 June 9 + administration"
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Derks-56262423-2026-06-26.pdf",
+      "pdf_relative": "sources/Derks-56262423-2026-06-26.pdf",
+      "status": "present",
+      "app_sources": [
+        {
+          "id": "81277c6c-4ba8-48b6-a149-276758e6d50c",
+          "date": "2026-07-15",
+          "invoice_date": null,
+          "supplier_invoice_number": null,
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_excl_btw": "93.50",
+          "amount_incl_btw": "96.13",
+          "btw_amount": "2.63"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-efce7d57-d536-4837-aea6-bb454998e443",
+          "date": "2026-07-01",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_incl_btw": 96.13,
+          "source_cost_ids": [
+            "81277c6c-4ba8-48b6-a149-276758e6d50c"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Derks Lease B.V.",
+      "number": "56262650",
+      "date": "2026-06-29",
+      "net": 151.5,
+      "vat": 2.63,
+      "gross": 154.13,
+      "scope": "june_document_date",
+      "expected": [
+        "boetes"
+      ],
+      "cost_ids": [
+        "db61770e-cc59-4300-a6ab-a9ec8926a4d2"
+      ],
+      "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f284b56e468832",
+      "account": "facturenvroegoptimmerwerken@gmail.com",
+      "message_id": "19f284b56e468832",
+      "notes": [
+        "Fine 2062542282746808 June 24 parking + administration"
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Derks-56262650-2026-06-29.pdf",
+      "pdf_relative": "sources/Derks-56262650-2026-06-29.pdf",
+      "status": "present",
+      "app_sources": [
+        {
+          "id": "db61770e-cc59-4300-a6ab-a9ec8926a4d2",
+          "date": "2026-06-24",
+          "invoice_date": null,
+          "supplier_invoice_number": null,
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_excl_btw": "151.50",
+          "amount_incl_btw": "154.13",
+          "btw_amount": "2.63"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-5e60cee8-2610-496b-b75a-b5cc2bfd19d2",
+          "date": "2026-07-02",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_incl_btw": 154.13,
+          "source_cost_ids": [
+            "db61770e-cc59-4300-a6ab-a9ec8926a4d2"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Online Deurbeslagshop BV",
+      "number": "F26057645",
+      "date": "2026-06-27",
+      "net": 17.64,
+      "vat": 3.7,
+      "gross": 21.34,
+      "scope": "june_document_date",
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "4ad76f1d-29a1-420b-9ba5-a0ef24539b4a"
+      ],
+      "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f0998da642cfc1",
+      "account": "facturenvroegoptimmerwerken@gmail.com",
+      "message_id": "19f0998da642cfc1",
+      "notes": [
+        "AXA deurdranger 7505 compact basic zwart; PDF labels date Bestel datum, no separate invoice date"
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Online-F26057645-2026-06-27.pdf",
+      "pdf_relative": "sources/Online-F26057645-2026-06-27.pdf",
+      "status": "present",
+      "app_sources": [
+        {
+          "id": "4ad76f1d-29a1-420b-9ba5-a0ef24539b4a",
+          "date": "2026-06-27",
+          "invoice_date": null,
+          "supplier_invoice_number": null,
+          "supplier_name": "Online Deurbeslagshop BV",
+          "category": "materiaal",
+          "amount_excl_btw": "17.64",
+          "amount_incl_btw": "21.34",
+          "btw_amount": "3.70"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-89beaf98-fb00-4aeb-bbd5-b1f524e5f202",
+          "date": "2026-06-29",
+          "supplier_name": "Online Deurbeslag Shop via MultiSaf",
+          "category": "materiaal",
+          "amount_incl_btw": 21.34,
+          "source_cost_ids": [
+            "4ad76f1d-29a1-420b-9ba5-a0ef24539b4a"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Werkspot",
+      "number": "NL26-49111",
+      "date": "2026-06-01",
+      "net": 76,
+      "vat": 15.96,
+      "gross": 91.96,
+      "scope": "june_document_date",
+      "expected": [
+        "leadkosten"
+      ],
+      "cost_ids": [],
+      "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/1a03341a5db9f1df",
+      "account": "facturenvroegoptimmerwerken@gmail.com",
+      "message_id": "1a03341a5db9f1df",
+      "notes": [
+        "Four lead fees for May 2026; PDF forwarded August 24"
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Werkspot-NL26-49111-2026-06-01.pdf",
+      "pdf_relative": "sources/Werkspot-NL26-49111-2026-06-01.pdf",
+      "status": "missing",
+      "app_sources": [],
+      "bank_display": []
+    },
+    {
+      "supplier": "Derks Lease B.V.",
+      "number": "56262088",
+      "date": "2026-05-26",
+      "net": 1096.05,
+      "vat": 230.17,
+      "gross": 1326.22,
+      "scope": "june_service_period",
+      "expected": [
+        "autokosten"
+      ],
+      "cost_ids": [
+        "7f43e3b4-7dcb-40da-92f0-f30b564a1df4"
+      ],
+      "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19e685755c49a4e7",
+      "account": "facturenvroegoptimmerwerken@gmail.com",
+      "message_id": "19e685755c49a4e7",
+      "notes": [
+        "Opel Vivaro lease June1-June30; June service period but May invoice"
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Derks-56262088-2026-05-26.pdf",
+      "pdf_relative": "sources/Derks-56262088-2026-05-26.pdf",
+      "status": "present",
+      "app_sources": [
+        {
+          "id": "7f43e3b4-7dcb-40da-92f0-f30b564a1df4",
+          "date": "2026-06-30",
+          "invoice_date": null,
+          "supplier_invoice_number": null,
+          "supplier_name": "Derkslease",
+          "category": "autokosten",
+          "amount_excl_btw": "1096.05",
+          "amount_incl_btw": "1326.22",
+          "btw_amount": "230.17"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-155ac917-cab8-4482-b5e5-a1dc585b4f07",
+          "date": "2026-06-10",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "autokosten",
+          "amount_incl_btw": 1326.22,
+          "source_cost_ids": [
+            "7f43e3b4-7dcb-40da-92f0-f30b564a1df4"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Werkspot",
+      "number": "NL26-55179",
+      "date": "2026-07-01",
+      "net": 850,
+      "vat": 178.5,
+      "gross": 1028.5,
+      "scope": "june_service_period",
+      "expected": [
+        "leadkosten"
+      ],
+      "cost_ids": [
+        "a92e843e-c1ca-442d-843b-17753dafa6b3"
+      ],
+      "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/1a03340aa2f34937",
+      "account": "facturenvroegoptimmerwerken@gmail.com",
+      "message_id": "1a03340aa2f34937",
+      "notes": [
+        "52 June lead fees including promotional credits; July invoice"
+      ],
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/june-invoice-audit-2026-10-24/sources/Werkspot-NL26-55179-2026-07-01.pdf",
+      "pdf_relative": "sources/Werkspot-NL26-55179-2026-07-01.pdf",
+      "status": "present",
+      "app_sources": [
+        {
+          "id": "a92e843e-c1ca-442d-843b-17753dafa6b3",
+          "date": "2026-07-01",
+          "invoice_date": null,
+          "supplier_invoice_number": null,
+          "supplier_name": "Werkspot",
+          "category": "leadkosten",
+          "amount_excl_btw": "850.00",
+          "amount_incl_btw": "1028.50",
+          "btw_amount": "178.50"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-539f5909-609c-4fa7-8993-fbf9257dfb85",
+          "date": "2026-07-03",
+          "supplier_name": "GC RE WERKSPOT",
+          "category": "leadkosten",
+          "amount_incl_btw": 1028.5,
+          "source_cost_ids": [
+            "a92e843e-c1ca-442d-843b-17753dafa6b3"
+          ]
+        }
+      ]
+    }
+  ],
+  "source_category_issues": [
+    {
+      "supplier": "GAMMA Haarlem",
+      "document": "2037 / 13 June",
+      "gross": 108.19,
+      "current": "Investering (cost row and saved bank override)",
+      "expected": "Materiaal",
+      "evidence": "Plywood, chain, hinges and knobs. Every imported line already says materiaal, but the enclosing cost and bank override say gereedschap.",
+      "cost_ids": [
+        "7a53fbd5-13d2-4411-b3fa-7f2faf16459a"
+      ],
+      "pdf": "sources/GAMMA-2037-2026-06-13.pdf"
+    },
+    {
+      "supplier": "Bouwmaat Alkmaar",
+      "document": "634122 / 29 June",
+      "gross": 192.77,
+      "current": "Entire invoice and timber line: Investering; bank override agrees",
+      "expected": "Timber: Materiaal; retain tools separately",
+      "evidence": "10 vuren battens: EUR18.60 excl. VAT = EUR22.51 incl. VAT. Timber is stored as gereedschap. Other lines are workwear, diamond drill and drill guide; this audit does not infer a tax depreciation policy.",
+      "cost_ids": [
+        "2ce6e947-b9a9-4a8f-9ffe-e14d36801b35"
+      ],
+      "pdf": "sources/Bouwmaat-634122-2026-06-29.pdf"
+    },
+    {
+      "supplier": "Derks Lease",
+      "document": "56262088 / June lease period",
+      "gross": 1326.22,
+      "current": "Overall Autokosten; nested lease line Investering",
+      "expected": "Autokosten at both levels",
+      "evidence": "Vehicle lease for 1-30 June. Invoice date 26 May. Stored gross amount and overall category are correct.",
+      "cost_ids": [
+        "7f43e3b4-7dcb-40da-92f0-f30b564a1df4"
+      ],
+      "pdf": "sources/Derks-56262088-2026-05-26.pdf"
+    }
+  ],
+  "display_analysis_current_local_code": {
+    "downgraded_with_matched_source": [
+      {
+        "id": "85cc4748-fbd6-4140-8e1d-d0f081e5f110",
+        "date": "2026-06-29",
+        "supplier": "KPN",
+        "amount": 39,
+        "visible_category": "overig",
+        "bank_category": "telefoon",
+        "source_categories": [
+          "telefoon"
+        ],
+        "stored_override": null,
+        "ledger_override": null,
+        "hasdoc": false
+      },
+      {
+        "id": "4b51951b-31e2-40f3-beeb-824c3ebca847",
+        "date": "2026-06-26",
+        "supplier": "MS* VIAAMSTERDAM",
+        "amount": 3.39,
+        "visible_category": "overig",
+        "bank_category": "hotel",
+        "source_categories": [
+          "hotel"
+        ],
+        "stored_override": null,
+        "ledger_override": null,
+        "hasdoc": false
+      },
+      {
+        "id": "979a2e4a-0193-4c76-90cb-4a9a6b38acb6",
+        "date": "2026-06-26",
+        "supplier": "Booking",
+        "amount": 21.87,
+        "visible_category": "overig",
+        "bank_category": "hotel",
+        "source_categories": [
+          "hotel"
+        ],
+        "stored_override": null,
+        "ledger_override": null,
+        "hasdoc": false
+      },
+      {
+        "id": "7b82b7c1-7ec5-4c05-ba1f-89f128e8e3bd",
+        "date": "2026-06-25",
+        "supplier": "Total Vissers De Ijsse",
+        "amount": 19.81,
+        "visible_category": "overig",
+        "bank_category": "overig",
+        "source_categories": [
+          "brandstof"
+        ],
+        "stored_override": null,
+        "ledger_override": null,
+        "hasdoc": false
+      },
+      {
+        "id": "ce0c04b5-f2ce-4a0e-8b4c-dd74c701d848",
+        "date": "2026-06-25",
+        "supplier": "Booking",
+        "amount": 21.87,
+        "visible_category": "overig",
+        "bank_category": "hotel",
+        "source_categories": [
+          "hotel"
+        ],
+        "stored_override": null,
+        "ledger_override": null,
+        "hasdoc": false
+      },
+      {
+        "id": "fbe36f0a-b090-4e55-9c10-9c8bfc85ba0a",
+        "date": "2026-06-25",
+        "supplier": "MS* VIAAMSTERDAM",
+        "amount": 3.39,
+        "visible_category": "overig",
+        "bank_category": "hotel",
+        "source_categories": [
+          "hotel"
+        ],
+        "stored_override": null,
+        "ledger_override": null,
+        "hasdoc": false
+      },
+      {
+        "id": "13c7aad8-4c78-4a68-a00d-05d72e65bf41",
+        "date": "2026-06-22",
+        "supplier": "MS* VIAAMSTERDAM",
+        "amount": 3.3,
+        "visible_category": "overig",
+        "bank_category": "hotel",
+        "source_categories": [
+          "hotel"
+        ],
+        "stored_override": null,
+        "ledger_override": null,
+        "hasdoc": false
+      },
+      {
+        "id": "18556e8b-c3d9-4f02-82c9-206558792d23",
+        "date": "2026-06-15",
+        "supplier": "BCK*Toolstation CG",
+        "amount": 17.64,
+        "visible_category": "overig",
+        "bank_category": "materiaal",
+        "source_categories": [
+          "materiaal"
+        ],
+        "stored_override": null,
+        "ledger_override": null,
+        "hasdoc": false
+      }
+    ],
+    "mixed_source_cats": [
+      {
+        "id": "02ed4d6b-1261-4f55-955a-34ab9a0ecb8b",
+        "date": "2026-06-22",
+        "supplier": "DERDENGELDEN BOUWMAAT",
+        "amount": 524.12,
+        "visible_category": "materiaal",
+        "bank_category": "materiaal",
+        "source_categories": [
+          "gereedschap",
+          "materiaal"
+        ],
+        "stored_override": null,
+        "ledger_override": null,
+        "hasdoc": true,
+        "breakdown": {
+          "gereedschap": 247.93,
+          "materiaal": 276.19
+        },
+        "invoice_dates": [
+          "2026-05-26"
+        ]
+      },
+      {
+        "id": "eb2b83d2-8f7e-42ca-be10-4bf9c19f4ac0",
+        "date": "2026-06-22",
+        "supplier": "DERDENGELDEN BOUWMAAT",
+        "amount": 193.62,
+        "visible_category": "materiaal",
+        "bank_category": "materiaal",
+        "source_categories": [
+          "gereedschap",
+          "materiaal"
+        ],
+        "stored_override": null,
+        "ledger_override": null,
+        "hasdoc": true,
+        "breakdown": {
+          "gereedschap": 60.67,
+          "materiaal": 132.95
+        },
+        "invoice_dates": [
+          "2026-05-27"
+        ]
+      },
+      {
+        "id": "f9e8e764-fb72-4cbd-beb0-1b903fd18773",
+        "date": "2026-06-22",
+        "supplier": "DERDENGELDEN BOUWMAAT",
+        "amount": 767.39,
+        "visible_category": "materiaal",
+        "bank_category": "materiaal",
+        "source_categories": [
+          "gereedschap",
+          "materiaal"
+        ],
+        "stored_override": null,
+        "ledger_override": null,
+        "hasdoc": true,
+        "breakdown": {
+          "gereedschap": 426.61,
+          "materiaal": 340.78
+        },
+        "invoice_dates": [
+          "2026-06-08"
+        ]
+      }
+    ],
+    "source_overrides": [
+      {
+        "id": "d05b5fff-5f98-442c-9f62-66bffdd2e280",
+        "date": "2026-06-29",
+        "supplier": "Bouwmaat Alkmaar",
+        "amount": 192.77,
+        "visible_category": "gereedschap",
+        "bank_category": "gereedschap",
+        "source_categories": [
+          "gereedschap"
+        ],
+        "stored_override": {
+          "bank_transaction_id": "d05b5fff-5f98-442c-9f62-66bffdd2e280",
+          "category": "gereedschap"
+        },
+        "ledger_override": "gereedschap",
+        "hasdoc": true
+      },
+      {
+        "id": "bbda2078-e032-4281-afbe-ec33860f624a",
+        "date": "2026-06-15",
+        "supplier": "GAMMA HAARLEM",
+        "amount": 108.19,
+        "visible_category": "gereedschap",
+        "bank_category": "gereedschap",
+        "source_categories": [
+          "gereedschap"
+        ],
+        "stored_override": {
+          "bank_transaction_id": "bbda2078-e032-4281-afbe-ec33860f624a",
+          "category": "gereedschap"
+        },
+        "ledger_override": "gereedschap",
+        "hasdoc": true
+      }
+    ]
+  },
+  "limits": [
+    "Read-only. No app, Gmail or n8n changes.",
+    "Gmail searches fully paginated for the documented queries; targeted all-date June terms catch later forwards but cannot prove discovery of every historic scanned attachment.",
+    "Live database values verified. Display behavior reconstructed with current local app functions, not visually confirmed on deployed production.",
+    "Bank history starts 10 June; bank rows alone cannot establish missing invoices before that date.",
+    "Current n8n executions not inspected; findings do not establish which historical import/manual editing step caused each discrepancy.",
+    "Orders, reminders, packing lists, quotes and duplicate mailbox copies were excluded as additional invoices."
+  ],
+  "queries": {
+    "business": [
+      {
+        "query": "in:anywhere after:2026/06/01 before:2026/07/01 -in:sent",
+        "pages": [
+          94,
+          2
+        ],
+        "next_page_token": null,
+        "complete": true
+      },
+      {
+        "query": "in:anywhere after:2026/07/01 before:2026/07/10 -in:sent {factuur invoice receipt bon betaling creditnota}",
+        "pages": [
+          10
+        ],
+        "next_page_token": null,
+        "complete": true
+      },
+      {
+        "query": "in:anywhere after:2026/06/01 before:2026/07/01 {factuur invoice receipt aankoopbon creditnota}",
+        "pages": [
+          18
+        ],
+        "next_page_token": null,
+        "complete": true
+      },
+      {
+        "query": "in:anywhere after:2026/05/31 before:2026/06/02 -in:sent",
+        "pages": [
+          0
+        ],
+        "next_page_token": null,
+        "complete": true
+      },
+      {
+        "query": "in:anywhere after:2026/05/20 before:2026/06/01 -in:sent {factuur invoice receipt aankoopbon creditnota}",
+        "pages": [
+          8
+        ],
+        "next_page_token": null,
+        "complete": true
+      },
+      {
+        "query": "in:anywhere has:attachment {\"juni 2026\" \"June 2026\" \"06-2026\" \"2026-06\"}",
+        "complete": true,
+        "pages": [
+          31
+        ],
+        "next_page_token": null,
+        "messages": [
+          {
+            "id": "1a033416f30a025b",
+            "subject": "72a463fc-660e-4797-8736-6d4b7220a046",
+            "date": "2026-08-24T12:12:01+02:00",
+            "from": "dylan vroegop vroegoptimmerwerken@gmail.com",
+            "files": [
+              "72a463fc-660e-4797-8736-6d4b7220a046.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/1a033416f30a025b"
+          },
+          {
+            "id": "1a03340780b9026d",
+            "subject": "6cea8e0e-b765-48e8-80c7-2789b3b13edb 4",
+            "date": "2026-08-24T12:10:58+02:00",
+            "from": "dylan vroegop vroegoptimmerwerken@gmail.com",
+            "files": [
+              "6cea8e0e-b765-48e8-80c7-2789b3b13edb 4.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/1a03340780b9026d"
+          },
+          {
+            "id": "19fa753d0128a8ea",
+            "subject": "RE: Pallet ophalen",
+            "date": "2026-07-28T06:05:05+00:00",
+            "from": "Bouwmaat Sloterdijk sloterdijk@bouwmaat.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19fa753d0128a8ea"
+          },
+          {
+            "id": "19fa1e07f5005d7d",
+            "subject": "RE: Pallet ophalen",
+            "date": "2026-07-27T04:41:04+00:00",
+            "from": "Bouwmaat Sloterdijk sloterdijk@bouwmaat.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19fa1e07f5005d7d"
+          },
+          {
+            "id": "19f76745a42af1e7",
+            "subject": "Belangrijke informatie: Ingebrekestelling",
+            "date": "2026-07-18T20:19:12+02:00",
+            "from": "Danni Zandburg dannizandburg@gmail.com",
+            "files": [
+              "Ingebrekestelling.pdf",
+              "Danni Zandburg - 260359 (1).pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f76745a42af1e7"
+          },
+          {
+            "id": "19f4b91087f61139",
+            "subject": "Glasdiscount - Je bestelling met bestelnummer GD-2026-06-185270 is geleverd",
+            "date": "2026-07-10T10:27:02+00:00",
+            "from": "Glasdiscount logistiek@glasdiscount.nl",
+            "files": [
+              "fotos.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f4b91087f61139"
+          },
+          {
+            "id": "19f122c03e515000",
+            "subject": "Je bestelling is verstuurd",
+            "date": "2026-06-29T06:58:21+00:00",
+            "from": "Online Deurbeslagshop notifications@picqerapp.com",
+            "files": [
+              "packlist-185033888.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f122c03e515000"
+          },
+          {
+            "id": "19f035d9aa56e048",
+            "subject": "Re: Offerte aanvraag",
+            "date": "2026-06-26T11:58:13+02:00",
+            "from": "dylan vroegop vroegoptimmerwerken@gmail.com",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f035d9aa56e048"
+          },
+          {
+            "id": "19f034e5ce5376eb",
+            "subject": "Re: Schade / adblue tanken",
+            "date": "2026-06-26T11:41:34+02:00",
+            "from": "dylan vroegop vroegoptimmerwerken@gmail.com",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f034e5ce5376eb"
+          },
+          {
+            "id": "19f034be5e81859b",
+            "subject": "RE: Schade / adblue tanken",
+            "date": "2026-06-26T09:38:38+00:00",
+            "from": "Stan Stundebeek stan.stundebeek@derksbedrijfswagens.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f034be5e81859b"
+          },
+          {
+            "id": "19f03214cf3b51d8",
+            "subject": "Re: Schade",
+            "date": "2026-06-26T10:52:21+02:00",
+            "from": "dylan vroegop vroegoptimmerwerken@gmail.com",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f03214cf3b51d8"
+          },
+          {
+            "id": "19f028ace8629159",
+            "subject": "RE: Schade",
+            "date": "2026-06-26T06:07:42+00:00",
+            "from": "Stan Stundebeek stan.stundebeek@derksbedrijfswagens.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f028ace8629159"
+          },
+          {
+            "id": "19efefedcfd0cdf0",
+            "subject": "Reservering 3330136783",
+            "date": "2026-06-25T13:36:12+00:00",
+            "from": "\"Boels Verhuur B.V. Haarlem\" Depot.333@boels.nl",
+            "files": [
+              "3330136783.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19efefedcfd0cdf0"
+          },
+          {
+            "id": "19efee2b4d05b7ff",
+            "subject": "Re: Offerte aanvraag",
+            "date": "2026-06-25T15:05:30+02:00",
+            "from": "dylan vroegop vroegoptimmerwerken@gmail.com",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19efee2b4d05b7ff"
+          },
+          {
+            "id": "19efee0c21eb16ec",
+            "subject": "RE: Offerte aanvraag",
+            "date": "2026-06-25T13:03:17+00:00",
+            "from": "Mario van Ewijk mewijk@bouwmaat.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19efee0c21eb16ec"
+          },
+          {
+            "id": "19efec2f2147b2e0",
+            "subject": "Re: Offerte aanvraag",
+            "date": "2026-06-25T14:30:48+02:00",
+            "from": "dylan vroegop vroegoptimmerwerken@gmail.com",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19efec2f2147b2e0"
+          },
+          {
+            "id": "19efebefcb6c6448",
+            "subject": "Re: Offerte aanvraag",
+            "date": "2026-06-25T14:26:29+02:00",
+            "from": "dylan vroegop vroegoptimmerwerken@gmail.com",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19efebefcb6c6448"
+          },
+          {
+            "id": "19efebdfaf731fed",
+            "subject": "RE: Offerte aanvraag",
+            "date": "2026-06-25T12:25:17+00:00",
+            "from": "Mario van Ewijk mewijk@bouwmaat.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19efebdfaf731fed"
+          },
+          {
+            "id": "19ef5b505d2a0c35",
+            "subject": "offerte getekend",
+            "date": "2026-06-23T18:18:53+00:00",
+            "from": "januitamersfoort januitamersfoort@proton.me",
+            "files": [
+              "JM Boon - 260310 (2) Getekend.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19ef5b505d2a0c35"
+          },
+          {
+            "id": "19ef431f9966c73f",
+            "subject": "Offertee aanvraag",
+            "date": "2026-06-23T13:16:15+02:00",
+            "from": "dylan vroegop vroegoptimmerwerken@gmail.com",
+            "files": [
+              "Emma Kilczynski - 260341 (2).pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19ef431f9966c73f"
+          },
+          {
+            "id": "19eee3bd82bdd385",
+            "subject": "Je bestelling is verstuurd",
+            "date": "2026-06-22T07:29:19+00:00",
+            "from": "Online Deurbeslagshop notifications@picqerapp.com",
+            "files": [
+              "packlist-184310298.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eee3bd82bdd385"
+          },
+          {
+            "id": "19ee515a9201af15",
+            "subject": "Glasdiscount.nl: Factuur # GD-2026-06-185270 voor Bestelnr # GD-2026-06-185270",
+            "date": "2026-06-20T12:50:55+00:00",
+            "from": "Glasdiscount klantenservice@glasdiscount.nl",
+            "files": [
+              "FACTUUR_GD-2026-06-185270.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19ee515a9201af15"
+          },
+          {
+            "id": "19ee51592f5666b5",
+            "subject": "Glasdiscount.nl: orderbevestiging # GD-2026-06-185270",
+            "date": "2026-06-20T12:50:55+00:00",
+            "from": "Glasdiscount klantenservice@glasdiscount.nl",
+            "files": [
+              "BESTELLING_GD-2026-06-185270.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19ee51592f5666b5"
+          },
+          {
+            "id": "19eb193b336a94db",
+            "subject": "FW: Contact gegevens BMN",
+            "date": "2026-06-10T12:48:14+00:00",
+            "from": "Steven Dragt steven.dragt@bmn.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eb193b336a94db"
+          },
+          {
+            "id": "19eb171b81b4d299",
+            "subject": "RE: Aanvraag short-lease VDD-37-F, Opel Vivaro",
+            "date": "2026-06-10T12:11:11+00:00",
+            "from": "Stan Stundebeek stan.stundebeek@derksbedrijfswagens.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eb171b81b4d299"
+          },
+          {
+            "id": "19eb16ba8caec032",
+            "subject": "Re: Aanvraag short-lease VDD-37-F, Opel Vivaro",
+            "date": "2026-06-10T14:04:42+02:00",
+            "from": "dylan vroegop vroegoptimmerwerken@gmail.com",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eb16ba8caec032"
+          },
+          {
+            "id": "19eb1685ff181ebd",
+            "subject": "RE: Aanvraag short-lease VDD-37-F, Opel Vivaro",
+            "date": "2026-06-10T12:00:54+00:00",
+            "from": "Stan Stundebeek stan.stundebeek@derksbedrijfswagens.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eb1685ff181ebd"
+          },
+          {
+            "id": "19eb0f3697164fb2",
+            "subject": "Re: Aanvraag short-lease VDD-37-F, Opel Vivaro",
+            "date": "2026-06-10T11:53:21+02:00",
+            "from": "dylan vroegop vroegoptimmerwerken@gmail.com",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eb0f3697164fb2"
+          },
+          {
+            "id": "19eac3e9e19e8a0d",
+            "subject": "RE: Aanvraag short-lease VDD-37-F, Opel Vivaro",
+            "date": "2026-06-09T11:57:15+00:00",
+            "from": "Stan Stundebeek stan.stundebeek@derksbedrijfswagens.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eac3e9e19e8a0d"
+          },
+          {
+            "id": "19eab76bfbbaea0b",
+            "subject": "Aankoopbon van Bouwmaat",
+            "date": "2026-06-09T10:19:05+02:00",
+            "from": "Bouwmaat Amsterdam Sloterdijk XL sloterdijk@bouwmaat.nl",
+            "files": [
+              "Bon_1216924.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eab76bfbbaea0b"
+          },
+          {
+            "id": "19eab408adb3f05d",
+            "subject": "Factuur 5000VF001891333",
+            "date": "2026-06-09T07:19:53+00:00",
+            "from": "Bouwmaat centraal debiteurenbeheer debiteuren@bouwmaat.nl",
+            "files": [
+              "Factuur 5000VF001891333.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eab408adb3f05d"
+          }
+        ]
+      },
+      {
+        "query": "in:anywhere {filename:invoice-634122.pdf filename:26061315150004092037.pdf filename:220003476866.pdf}",
+        "complete": true,
+        "pages": [
+          0
+        ],
+        "next_page_token": null,
+        "messages": []
+      },
+      {
+        "query": "in:anywhere {\"1216924\" \"F26055691\" \"GD-2026-06-185270\" \"5000VF001891333\"}",
+        "complete": true,
+        "pages": [
+          10
+        ],
+        "next_page_token": null,
+        "messages": [
+          {
+            "id": "19f4b91087f61139",
+            "subject": "Glasdiscount - Je bestelling met bestelnummer GD-2026-06-185270 is geleverd",
+            "date": "2026-07-10T10:27:02+00:00",
+            "from": "Glasdiscount logistiek@glasdiscount.nl",
+            "files": [
+              "fotos.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f4b91087f61139"
+          },
+          {
+            "id": "19f469966b144671",
+            "subject": "Tijdsindicatie bekend voor uw bestelling GD-2026-06-185270",
+            "date": "2026-07-09T11:18:05+00:00",
+            "from": "\"Glasdiscount.nl\" logistiek@glasdiscount.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f469966b144671"
+          },
+          {
+            "id": "19f3c6d769b74111",
+            "subject": "Gewijzigde leverdatum van uw bestelling: GD-2026-06-185270",
+            "date": "2026-07-07T11:53:53+00:00",
+            "from": "Glasdiscount klantenservice@glasdiscount.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f3c6d769b74111"
+          },
+          {
+            "id": "19ef47095d0125d0",
+            "subject": "Leveringsinformatie voor uw bestelling #GD-2026-06-185270 bij Glasdiscount.nl",
+            "date": "2026-06-23T12:24:37+00:00",
+            "from": "Glasdiscount klantenservice@glasdiscount.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19ef47095d0125d0"
+          },
+          {
+            "id": "19ee533e1951ee33",
+            "subject": "Je bestelling bij Online Deurbeslagshop is ontvangen!",
+            "date": "2026-06-20T13:24:01+00:00",
+            "from": "Online Deurbeslagshop info@onlinedeurbeslagshop.nl",
+            "files": [
+              "factuur-55691.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19ee533e1951ee33"
+          },
+          {
+            "id": "19ee515a9201af15",
+            "subject": "Glasdiscount.nl: Factuur # GD-2026-06-185270 voor Bestelnr # GD-2026-06-185270",
+            "date": "2026-06-20T12:50:55+00:00",
+            "from": "Glasdiscount klantenservice@glasdiscount.nl",
+            "files": [
+              "FACTUUR_GD-2026-06-185270.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19ee515a9201af15"
+          },
+          {
+            "id": "19ee51592f5666b5",
+            "subject": "Glasdiscount.nl: orderbevestiging # GD-2026-06-185270",
+            "date": "2026-06-20T12:50:55+00:00",
+            "from": "Glasdiscount klantenservice@glasdiscount.nl",
+            "files": [
+              "BESTELLING_GD-2026-06-185270.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19ee51592f5666b5"
+          },
+          {
+            "id": "19edecdff97685d7",
+            "subject": "Automatische incasso op je Knab Betaalrekening",
+            "date": "2026-06-19T09:35:01+02:00",
+            "from": "Knab service@knab.nl",
+            "files": [],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19edecdff97685d7"
+          },
+          {
+            "id": "19eab76bfbbaea0b",
+            "subject": "Aankoopbon van Bouwmaat",
+            "date": "2026-06-09T10:19:05+02:00",
+            "from": "Bouwmaat Amsterdam Sloterdijk XL sloterdijk@bouwmaat.nl",
+            "files": [
+              "Bon_1216924.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eab76bfbbaea0b"
+          },
+          {
+            "id": "19eab408adb3f05d",
+            "subject": "Factuur 5000VF001891333",
+            "date": "2026-06-09T07:19:53+00:00",
+            "from": "Bouwmaat centraal debiteurenbeheer debiteuren@bouwmaat.nl",
+            "files": [
+              "Factuur 5000VF001891333.pdf"
+            ],
+            "url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19eab408adb3f05d"
+          }
+        ]
+      }
+    ],
+    "invoice": [
+      {
+        "query": "in:anywhere after:2026/05/31 before:2026/07/02",
+        "message_count": 18,
+        "next_page_token": null,
+        "completed": true
+      },
+      {
+        "query": "in:anywhere after:2026/07/01 before:2026/08/01",
+        "message_count": 24,
+        "next_page_token": null,
+        "completed": true
+      },
+      {
+        "query": "in:anywhere after:2026/05/01 before:2026/06/01",
+        "message_count": 17,
+        "next_page_token": null,
+        "completed": true
+      },
+      {
+        "query": "in:anywhere after:2026/07/31 has:attachment {\"juni 2026\" \"06-2026\" \"06/2026\" \"June 2026\"}",
+        "message_count": 3,
+        "next_page_token": null,
+        "completed": true
+      },
+      {
+        "query": "in:anywhere after:2026/07/31 has:attachment {\"2026-06\" \"juni\" \"june\"}",
+        "message_count": 3,
+        "next_page_token": null,
+        "completed": true
+      }
+    ]
+  }
+}

@@ -1,5 +1,6 @@
 'use client';
 
+import { resolveQuoteClientInfo } from '@/lib/quote-client-info';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuoteSendSelection } from '@/hooks/useQuoteSendSelection';
@@ -11,7 +12,6 @@ import { useTodayQuoteHours } from '@/hooks/useTodayQuoteHours';
 import {
     calculateQuoteTotals,
     QuoteSettings as QuoteCalculationSettings,
-    KlantInformatie,
     formatCurrency,
     MaterialItem,
     normalizeWerkbeschrijving,
@@ -1176,7 +1176,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
     );
 
     const [quoteSettings, setQuoteSettings] = useState<QuoteCalculationSettings | null>(null);
-    const [klantInfo, setKlantInfo] = useState<KlantInformatie | null>(null);
+    const klantInfo = useMemo(
+        () => resolveQuoteClientInfo(quote?.klantinformatie, normalizedData?.klantinformatie),
+        [quote?.klantinformatie, normalizedData?.klantinformatie],
+    );
     const [firebaseLoading, setFirebaseLoading] = useState(true);
     const [firebaseError, setFirebaseError] = useState<string | null>(null);
     const [isEnsuringManualQuoteData, setIsEnsuringManualQuoteData] = useState(false);
@@ -1907,28 +1910,6 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                     : { groot: nextGroot, verbruik: nextVerbruik };
             });
 
-            // 2. Client Info
-            if (normalized.klantinformatie) {
-                const rawKi = normalized.klantinformatie as any;
-                const normalizedKi: KlantInformatie = {
-                    klanttype: rawKi.klanttype || 'Particulier',
-                    voornaam: rawKi.voornaam || '',
-                    achternaam: rawKi.achternaam || '',
-                    bedrijfsnaam: rawKi.bedrijfsnaam || null,
-                    kvkNummer: rawKi.kvkNummer || '',
-                    btwNummer: rawKi.btwNummer || '',
-                    emailadres: rawKi.emailadres || rawKi['e-mailadres'] || '',
-                    telefoonnummer: rawKi.telefoonnummer || '',
-                    straat: rawKi.straat || rawKi.factuuradres?.straat || '',
-                    huisnummer: rawKi.huisnummer || rawKi.factuuradres?.huisnummer || '',
-                    postcode: rawKi.postcode || rawKi.factuuradres?.postcode || '',
-                    plaats: rawKi.plaats || rawKi.factuuradres?.plaats || '',
-                    afwijkendProjectadres: rawKi.afwijkendProjectadres || false,
-                    projectAdres: rawKi.projectAdres || rawKi.projectadres,
-                };
-                setKlantInfo(normalizedKi);
-            }
-
             // 3. Settings
             if (normalized.instellingen || normalized.extras || quote?.instellingen || quote?.extras) {
                 const mappedSettings = resolveQuoteCalculationSettings(normalized, quote);
@@ -2039,40 +2020,6 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
 
                 setFirebaseError(null);
                 setQuote({ ...quoteData, id: docSnap.id } as Quote);
-
-                // If calculation didn't have client info, try Firebase (legacy support)
-                setKlantInfo((prev) => {
-                    const hasExistingClientData = !!(
-                        (prev?.bedrijfsnaam && String(prev.bedrijfsnaam).trim()) ||
-                        (prev?.voornaam && String(prev.voornaam).trim()) ||
-                        (prev?.achternaam && String(prev.achternaam).trim()) ||
-                        (prev?.emailadres && String(prev.emailadres).trim()) ||
-                        (prev?.telefoonnummer && String(prev.telefoonnummer).trim())
-                    );
-                    if (hasExistingClientData) return prev;
-
-                    const ki = quoteData.klantinformatie || {};
-                    const factuur = ki.factuuradres || {};
-                    return {
-                        klanttype: ki.klanttype || 'Particulier',
-                        voornaam: ki.voornaam || '',
-                        achternaam: ki.achternaam || '',
-                        bedrijfsnaam: ki.bedrijfsnaam,
-                        emailadres: ki.emailadres || ki['e-mailadres'] || '',
-                        telefoonnummer: ki.telefoonnummer || '',
-                        straat: ki.straat || factuur.straat || '',
-                        huisnummer: ((ki.huisnummer || factuur.huisnummer || '') + ((ki.toevoeging || factuur.toevoeging) ? ` ${ki.toevoeging || factuur.toevoeging}` : '')).trim(),
-                        postcode: ki.postcode || factuur.postcode || '',
-                        plaats: ki.plaats || factuur.plaats || '',
-                        afwijkendProjectadres: ki.afwijkendProjectadres || false,
-                        projectAdres: (ki.projectAdres || ki.projectadres) ? {
-                            straat: (ki.projectAdres?.straat || ki.projectadres?.straat || ''),
-                            huisnummer: ((ki.projectAdres?.huisnummer || ki.projectadres?.huisnummer || '') + ((ki.projectAdres?.toevoeging || ki.projectadres?.toevoeging) ? ` ${ki.projectAdres?.toevoeging || ki.projectadres?.toevoeging}` : '')).trim(),
-                            postcode: ki.projectAdres?.postcode || ki.projectadres?.postcode || '',
-                            plaats: ki.projectAdres?.plaats || ki.projectadres?.plaats || ''
-                        } : undefined
-                    };
-                });
 
                 setQuoteSettings(prev => {
                     if (prev) return prev;
@@ -6980,7 +6927,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                         </DropdownMenu>
                     </div>
                 )}
-                <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-center sm:flex-row sm:items-center sm:gap-4 sm:text-left">
+                <div data-quote-header-layout className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-center sm:flex-row sm:items-center sm:gap-4 sm:text-left">
                     <div className="flex min-w-0 w-full items-center justify-center sm:flex-1 sm:justify-start">
                         <div className="min-w-0 w-full">
                             <div className="flex min-w-0 items-center justify-center gap-3 sm:justify-start">
@@ -7105,7 +7052,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                         </div>
                     )}
 
-                    <div className="hidden w-full gap-4 overflow-x-auto pb-1 sm:flex sm:w-auto sm:overflow-visible sm:pb-0">
+                    <div data-quote-header-actions className="hidden w-full gap-4 overflow-x-auto pb-1 sm:flex sm:w-auto sm:overflow-visible sm:pb-0">
                         {!loading && (
                             <>
                                 <Button
@@ -9862,6 +9809,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                     businessData?.bedrijfsnaam ||
                     ''
                 }
+                afzenderEmail={userProfile?.settings?.email || businessData?.email || user?.email || ''}
                 afzenderNaam={businessData?.contactNaam || user?.displayName || userProfile?.naam || ''}
                 korteTitel={workDescriptionStructured.title || normalizedData?.korteTitel}
                 korteBeschrijving={workDescriptionStructured.summary || normalizedData?.korteBeschrijving}

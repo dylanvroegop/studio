@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { noStoreHeaders, resolveBankIdentity } from '@/lib/bank-api-auth';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
-import { applyInvoiceBankPayment, InvoiceBankError, invoiceBankView, loadInvoiceBankContext } from '@/lib/invoice-bank-payments';
+import { applyInvoiceBankPayment, InvoiceBankError, invoiceBankView, loadInvoiceBankContext, loadInvoiceBankVerification, reconcileInvoiceBankPaymentsAfterSync } from '@/lib/invoice-bank-payments';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,8 +24,13 @@ function failure(error: unknown): NextResponse {
 export async function GET(request: Request): Promise<NextResponse> {
   try {
     const identity = await resolveBankIdentity(request);
-    const id = invoiceId(new URL(request.url).searchParams.get('invoiceId'));
+    const params = new URL(request.url).searchParams;
     const { firestore } = initFirebaseAdmin();
+    if (params.get('view') === 'overview') {
+      const data = await loadInvoiceBankVerification({ firestore, uid: identity.firebaseUid, bankUserId: identity.bankUserId });
+      return NextResponse.json({ ok: true, data }, { headers: noStoreHeaders() });
+    }
+    const id = invoiceId(params.get('invoiceId'));
     const context = await loadInvoiceBankContext({ firestore, uid: identity.firebaseUid, bankUserId: identity.bankUserId, invoiceId: id });
     return NextResponse.json({ ok: true, data: invoiceBankView(context) }, { headers: noStoreHeaders() });
   } catch (error) { return failure(error); }
@@ -37,6 +42,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     const blocked = await ensureDemoTrialActiveByUid(identity.firebaseUid);
     if (blocked) return blocked;
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    if (body?.action === 'reconcile-overview') {
+      const { firestore } = initFirebaseAdmin();
+      const options = { firestore, uid: identity.firebaseUid, bankUserId: identity.bankUserId };
+      const matching = await reconcileInvoiceBankPaymentsAfterSync(options);
+      const data = await loadInvoiceBankVerification(options);
+      return NextResponse.json({ ok: true, data, matching }, { headers: noStoreHeaders() });
+    }
     const id = invoiceId(body?.invoiceId);
     const action = body?.action;
     if (action !== 'reconcile' && action !== 'confirm') throw new InvoiceBankError('Ongeldige actie.', 400);

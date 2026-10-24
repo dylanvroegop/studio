@@ -84,7 +84,7 @@ export function findInvoiceBankCandidates(options: {
   allocations: ReadonlyMap<string, InvoiceBankAllocation[]>;
 }): InvoiceBankCandidate[] {
   const { invoice, invoices, credits, allocations } = options;
-  if (!['verzonden', 'gedeeltelijk_betaald', 'betaald'].includes(invoice.status)) return [];
+  if (!['concept', 'verzonden', 'gedeeltelijk_betaald', 'betaald'].includes(invoice.status)) return [];
   const openCents = Math.max(0, invoice.totalCents - invoice.paidCents);
   const linkedCents = invoiceBankLinkedCents(invoice.id, allocations);
   const unlinkedPaid = Math.max(0, invoice.paidCents - linkedCents);
@@ -135,7 +135,7 @@ export function validateInvoiceBankAllocation(options: {
   mode: 'add' | 'link';
 }): void {
   const { invoice, credit, existing, linkedCents, amountCents, mode } = options;
-  if (!['verzonden', 'gedeeltelijk_betaald', 'betaald'].includes(invoice.status)) throw new Error('Alleen een verzonden factuur kan een bankbetaling krijgen.');
+  if (!['concept', 'verzonden', 'gedeeltelijk_betaald', 'betaald'].includes(invoice.status)) throw new Error('Deze factuurstatus kan geen bankbetaling krijgen.');
   if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || credit.currency !== 'EUR') throw new Error('Ongeldig betaalbedrag.');
   if (existing.some((item) => item.invoiceId === invoice.id && item.mode === mode)) throw new Error('Deze betaling is al gekoppeld aan deze factuur.');
   const available = credit.amountCents - existing.reduce((sum, item) => sum + item.amountCents, 0);
@@ -143,4 +143,42 @@ export function validateInvoiceBankAllocation(options: {
   const maximum = mode === 'add' ? Math.max(0, invoice.totalCents - invoice.paidCents)
     : Math.max(0, invoice.paidCents - linkedCents);
   if (amountCents > maximum) throw new Error('Het factuurbedrag is gewijzigd. Vernieuw de betaalgegevens.');
+}
+
+/** Leescontrole voor het overzicht; boekt of wijzigt geen betalingen. */
+export function isInvoiceBankVerified(options: {
+  invoice: BankMatchInvoice;
+  invoices: BankMatchInvoice[];
+  credits: InvoiceBankCredit[];
+  allocations: ReadonlyMap<string, InvoiceBankAllocation[]>;
+}): boolean {
+  const { invoice, invoices, credits, allocations } = options;
+  if (!['concept', 'verzonden', 'gedeeltelijk_betaald', 'betaald'].includes(invoice.status)
+    || invoice.totalCents <= 0) return false;
+
+  // Alleen toewijzingen die nog door de echte banktransactie gedekt zijn.
+  let confirmedCents = 0;
+  const seen = new Set<string>();
+  for (const credit of credits) {
+    if (seen.has(credit.key)) continue;
+    seen.add(credit.key);
+    const assigned = allocations.get(credit.key) || [];
+    if (credit.currency !== 'EUR' || credit.amountCents <= 0
+      || assigned.some((item) => !Number.isSafeInteger(item.amountCents) || item.amountCents <= 0)
+      || assigned.reduce((sum, item) => sum + item.amountCents, 0) > credit.amountCents) continue;
+    confirmedCents += assigned.filter((item) => item.invoiceId === invoice.id)
+      .reduce((sum, item) => sum + item.amountCents, 0);
+  }
+  if (confirmedCents === invoice.totalCents) return true;
+  if (invoiceBankLinkedCents(invoice.id, allocations) > 0 || !invoice.issueDate) return false;
+
+  // Ook handmatig betaalde facturen kunnen zo bewijs krijgen, zonder dubbel te boeken.
+  const matchingKeys = new Set(credits.filter((credit) => {
+    if (credit.currency !== 'EUR' || credit.amountCents !== invoice.totalCents
+      || !credit.bookingDate || credit.bookingDate < invoice.issueDate!
+      || (allocations.get(credit.key) || []).length > 0) return false;
+    const referenced = invoices.filter((item) => hasInvoiceBankReference(credit.description, item.reference));
+    return referenced.length === 1 && referenced[0].id === invoice.id;
+  }).map((credit) => credit.key));
+  return matchingKeys.size === 1;
 }

@@ -1,13 +1,22 @@
 import { gpsHealth, type GpsHealth } from '@/lib/gps-health';
 
-interface Position { deviceId?: number; fixTime?: string; deviceTime?: string; valid?: boolean }
+interface Position { deviceId?: number; fixTime?: string; deviceTime?: string; valid?: boolean; speed?: number; attributes?: { motion?: boolean } }
 
 export function recentGpsHealth(positions: Position[], deviceId: number, now = Date.now()): GpsHealth {
   // Een fout punt in de toekomst mag actuele, geldige punten niet overschaduwen.
-  const times = positions.filter(p => p.deviceId === deviceId && p.valid !== false)
-    .map(p => Date.parse(p.fixTime || p.deviceTime || ''))
-    .filter(time => Number.isFinite(time) && time <= now + 5 * 60_000);
-  return gpsHealth(times.length ? new Date(Math.max(...times)).toISOString() : null, now);
+  const latest = positions.filter(p => p.deviceId === deviceId && p.valid !== false)
+    .map(position => ({ position, time: Date.parse(position.fixTime || position.deviceTime || '') }))
+    .filter(({ time }) => Number.isFinite(time) && time <= now + 5 * 60_000)
+    .sort((a, b) => b.time - a.time)[0];
+  const health = gpsHealth(latest ? new Date(latest.time).toISOString() : null, now);
+  // Expliciete stilstand kan de tracker laten slapen. Dit bewijst geen actuele
+  // GPS-verbinding: na maximaal 24 uur zonder punt blijft controle nodig.
+  if (latest && health.state === 'stale' && health.minutesWithoutFix! < 24 * 60
+    && latest.position.attributes?.motion === false
+    && (latest.position.speed === undefined || latest.position.speed === 0)) {
+    return { ...health, state: 'stationary' };
+  }
+  return health;
 }
 
 export async function readGpsHealth(now = Date.now()): Promise<GpsHealth> {
@@ -25,5 +34,10 @@ export async function readGpsHealth(now = Date.now()): Promise<GpsHealth> {
   if (!device?.id) throw new Error('GPS-apparaat niet gevonden');
   const query = new URLSearchParams({ deviceId: String(device.id), from: new Date(now - 30 * 60_000).toISOString(), to: new Date(now).toISOString() });
   const positions: Position[] = await get(`/api/positions?${query}`);
+  // Ook na het venster van 30 minuten moet het laatste stilstandpunt bekend blijven.
+  if (device.positionId) {
+    const latest: Position[] = await get(`/api/positions?id=${encodeURIComponent(device.positionId)}`);
+    positions.push(...latest);
+  }
   return recentGpsHealth(positions, device.id, now);
 }

@@ -44,6 +44,7 @@ import {
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
+import { invoiceBankCents } from '@/lib/invoice-bank-matching';
 import { promoteInvoiceRelatedQuotesToAcceptedInTransaction } from '@/lib/quote-status';
 
 type FilterMode = 'alle' | 'concept' | 'verzonden' | 'openstaand' | 'betaald';
@@ -84,6 +85,7 @@ function FacturenPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Array<Invoice & { issueDateDate: Date | null }>>([]);
+  const [bankVerified, setBankVerified] = useState<Record<string, number>>({});
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterMode>('alle');
 
@@ -135,6 +137,35 @@ function FacturenPageContent() {
 
     return () => unsub();
   }, [user, firestore, quoteFilter]);
+
+  useEffect(() => {
+    setBankVerified({});
+    if (!user || loading) return;
+    const controller = new AbortController();
+    let requestVersion = 0;
+    async function checkBank() {
+      const version = ++requestVersion;
+      setBankVerified({});
+      try {
+        const token = await user!.getIdToken();
+        const response = await fetch('/api/facturen/bank-payments', {
+          method: 'POST', body: JSON.stringify({ action: 'reconcile-overview' }),
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, cache: 'no-store', signal: controller.signal,
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error('Bankcontrole niet beschikbaar');
+        if (!controller.signal.aborted && version === requestVersion) {
+          setBankVerified(Object.fromEntries(result.data.map((item: { invoiceId: string; totalCents: number }) => [item.invoiceId, item.totalCents])));
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) console.error('Facturen bankcontrole:', error);
+      }
+    }
+    void checkBank();
+    const onFocus = () => { void checkBank(); };
+    window.addEventListener('focus', onFocus);
+    return () => { controller.abort(); window.removeEventListener('focus', onFocus); };
+  }, [user, loading, invoices]);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -317,6 +348,12 @@ function FacturenPageContent() {
                 const open = inv.paymentSummary?.openAmount ?? inv.totalsSnapshot?.totaalInclBtw ?? 0;
                 const totaal = inv.totalsSnapshot?.totaalInclBtw ?? 0;
                 const amountToShow = inv.status === 'betaald' ? totaal : open;
+                const verified = bankVerified[inv.id] === invoiceBankCents(totaal) && totaal > 0;
+                const bankCheck = verified ? (
+                  <span className="inline-flex shrink-0 text-emerald-400" role="img" aria-label="Bedrag bevestigd via bank" title="Factuurbedrag bevestigd via bank">
+                    <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                ) : null;
                 const klant = inv.sourceQuote?.klantSnapshot?.naam || 'Onbekende klant';
                 const datum = inv.issueDateDate;
                 const nrLabel = inv.invoiceNumberLabel ? `Factuur #${inv.invoiceNumberLabel}` : 'Factuur';
@@ -359,14 +396,14 @@ function FacturenPageContent() {
                         {titel !== '—' && (
                           <div className="mt-1 truncate text-xs text-muted-foreground/90">{titel.toString()}</div>
                         )}
-                        <div className="mt-2 text-xl font-bold tabular-nums text-emerald-400 sm:hidden">
-                          {formatCurrency(amountToShow)}
+                        <div className="mt-2 flex items-center gap-2 text-xl font-bold tabular-nums text-emerald-400 sm:hidden">
+                          {formatCurrency(amountToShow)}{bankCheck}
                         </div>
                       </div>
 
                       <div className="relative z-20 flex items-center gap-1.5 sm:gap-2">
                         <div className="hidden min-w-[140px] text-right sm:block">
-                          <div className="text-2xl font-bold tabular-nums text-emerald-400">{formatCurrency(amountToShow)}</div>
+                          <div className="flex items-center justify-end gap-2 text-2xl font-bold tabular-nums text-emerald-400">{formatCurrency(amountToShow)}{bankCheck}</div>
                         </div>
 
                         {inv.status !== 'betaald' && (

@@ -1,7 +1,8 @@
+import { resolveQuoteClientInfo } from '@/lib/quote-client-info';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { doc, getDoc, type Firestore } from 'firebase/firestore';
 import { buildOfficialQuotePdfData, resolveQuotePdfWorkDescription, resolveQuoteCalculationSettings } from './quote-pdf-data';
-import { calculateQuoteTotals, normalizeDataJson, type KlantInformatie } from './quote-calculations';
+import { calculateQuoteTotals, normalizeDataJson } from './quote-calculations';
 import { sanitizeQuotePdfTextSettings } from './quote-pdf-text-settings';
 import { sanitizeMaterialPresentations } from './material-presentations';
 import { prepareDrawingImageForPdf } from './pdf-drawing-image';
@@ -40,16 +41,7 @@ export async function loadQuotePdfData(options: LoadQuotePdfOptions): Promise<PD
     }
     const normalizedData = normalizeDataJson(payload.row.data_json);
     const quoteSettings = resolveQuoteCalculationSettings(normalizedData, quote);
-    const ki = (normalizedData.klantinformatie || quote.klantinformatie || {}) as any;
-    const klantInfo: KlantInformatie = {
-        klanttype: ki.klanttype || 'Particulier',
-        voornaam: ki.voornaam || '', achternaam: ki.achternaam || '', bedrijfsnaam: ki.bedrijfsnaam || null,
-        kvkNummer: ki.kvkNummer || '', btwNummer: ki.btwNummer || '',
-        emailadres: ki.emailadres || ki['e-mailadres'] || '', telefoonnummer: ki.telefoonnummer || '',
-        straat: ki.straat || ki.factuuradres?.straat || '', huisnummer: ki.huisnummer || ki.factuuradres?.huisnummer || '',
-        postcode: ki.postcode || ki.factuuradres?.postcode || '', plaats: ki.plaats || ki.factuuradres?.plaats || '',
-        afwijkendProjectadres: ki.afwijkendProjectadres || false, projectAdres: ki.projectAdres || ki.projectadres,
-    };
+    const klantInfo = resolveQuoteClientInfo(quote.klantinformatie, normalizedData.klantinformatie);
     const materials = {
         groot: Array.isArray(normalizedData.grootmaterialen) ? normalizedData.grootmaterialen : [],
         verbruik: Array.isArray(normalizedData.verbruiksartikelen) ? normalizedData.verbruiksartikelen : [],

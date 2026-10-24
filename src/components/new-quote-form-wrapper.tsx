@@ -791,7 +791,7 @@ export function NewQuoteForm({
       // 3) Ensure Supabase data_json is in sync with the latest client info.
       // Needed for manual-flow quotes that were initialized before klantdata existed.
       const token = await user.getIdToken();
-      await fetch('/api/quotes/ensure-data-json', {
+      const syncResponse = await fetch('/api/quotes/ensure-data-json', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -799,6 +799,10 @@ export function NewQuoteForm({
         },
         body: JSON.stringify({ quoteId }),
       });
+
+      if (!syncResponse.ok) {
+        throw new Error('Klantgegevens zijn opgeslagen, maar de documenten konden niet worden bijgewerkt. Klik opnieuw op Opslaan.');
+      }
 
       if (requiresWorkDescriptionPrompt && workDescriptionPrompt) {
         const generateResponse = await fetch('/api/generate-work-description', {

@@ -1,6 +1,7 @@
 import { isConfirmedCashCost } from '@/lib/finance-cost-visibility';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { inferProjectCostCategory, normalizeProjectCostCategory, roundEuro, type ProjectCostCategory, type ProjectCostRow } from '@/lib/project-costs';
+import { categoryOverrideForTransaction, isCremanCounterparty, isFuelCounterparty } from '@/lib/confirmed-bank-categories';
 
 export interface FinanceBankTransaction {
   id: string;
@@ -11,6 +12,7 @@ export interface FinanceBankTransaction {
   category?: string | null;
   reconciliation_group_id?: string | null;
   raw?: unknown;
+  source_transaction_ids?: string[];
 }
 
 export interface FinanceBankCostLedgerRow {
@@ -22,6 +24,7 @@ export interface FinanceBankCostLedgerRow {
   description: string;
   amount: number;
   category: ProjectCostCategory;
+  category_override?: ProjectCostCategory;
   is_private: boolean;
   source_cost_ids: string[];
   source_amount: number;
@@ -143,11 +146,13 @@ export function isProfitAccountTransfer(input: unknown): boolean {
 }
 
 function classify(transaction: FinanceBankTransaction, matchedCosts: ProjectCostRow[]): ProjectCostCategory {
+  if (isCremanCounterparty(transaction.counterparty_name)) return 'schulden';
   if (matchedCosts.length > 0) {
     const categories = matchedCosts.map((cost) => normalizeProjectCostCategory(cost.category));
     const first = categories[0];
     if (first && categories.every((category) => category === first)) return first;
   }
+  if (isFuelCounterparty(transaction.counterparty_name, transaction.description)) return 'brandstof';
   return inferProjectCostCategory({
     supplierName: transaction.counterparty_name || '',
     description: transaction.description || '',
@@ -249,6 +254,180 @@ export async function loadConnectedKnabTransactions(bankUserId: string): Promise
   }));
 }
 
+interface KnabHistoryAccount {
+  id: string;
+  iban: string | null;
+  name?: string | null;
+  currency?: string | null;
+  connection_id?: string;
+}
+
+export interface KnabTransactionHistoryMetadata {
+  iban: string;
+  name: string;
+  currency: string;
+  connected: boolean;
+  lastSyncedAt: string | null;
+  firstBookingDate: string | null;
+  lastBookingDate: string | null;
+  historicalAccountCount: number;
+  sourceTransactionCount: number;
+  transactionCount: number;
+  duplicateTransactionCount: number;
+  unidentifiedTransactionCount: number;
+}
+
+export interface KnabTransactionHistory {
+  transactions: FinanceBankTransaction[];
+  metadata: KnabTransactionHistoryMetadata;
+}
+
+function normalizedIban(value: unknown): string {
+  return text(value).replace(/\s/g, '').toUpperCase();
+}
+
+/** Alleen bankidentiteiten ontdubbelen; gelijke bedragen op dezelfde dag blijven aparte betalingen. */
+export function selectKnabTransactionHistory(params: {
+  accounts: KnabHistoryAccount[];
+  rows: Record<string, unknown>[];
+  preferredAccountIds?: readonly string[];
+  iban?: string;
+}): KnabTransactionHistory {
+  const accounts = params.accounts.filter((account) => /^NL\d{2}KNAB\d{10}$/.test(normalizedIban(account.iban)));
+  const accountById = new Map(accounts.map((account) => [account.id, account]));
+  const availableRows = params.rows.filter((row) => accountById.has(text(row.bank_account_id)));
+  const populatedIbans = new Set(availableRows.map((row) => normalizedIban(accountById.get(text(row.bank_account_id))?.iban)));
+  const requestedIban = normalizedIban(params.iban);
+  if (!requestedIban && populatedIbans.size > 1) {
+    throw new Error('Er zijn transacties van meerdere Knab-rekeningen. Kies één rekening om de afschrijvingen te vergelijken.');
+  }
+  const iban = requestedIban || Array.from(populatedIbans)[0]
+    || (new Set(accounts.map((account) => normalizedIban(account.iban))).size === 1 ? normalizedIban(accounts[0]?.iban) : '');
+  const matchingAccounts = accounts.filter((account) => normalizedIban(account.iban) === iban);
+  if (!iban || matchingAccounts.length === 0) {
+    throw new Error('Er is geen opgeslagen Knab-rekening met transacties gevonden. Synchroniseer Knab eerst.');
+  }
+
+  const preferredRank = new Map((params.preferredAccountIds || []).map((id, index) => [id, index]));
+  const rank = (id: string): number => preferredRank.get(id) ?? Number.MAX_SAFE_INTEGER;
+  matchingAccounts.sort((left, right) => rank(left.id) - rank(right.id) || left.id.localeCompare(right.id));
+  const accountIds = new Set(matchingAccounts.map((account) => account.id));
+  const rows = availableRows.filter((row) => accountIds.has(text(row.bank_account_id))).sort((left, right) => (
+    rank(text(left.bank_account_id)) - rank(text(right.bank_account_id)) || text(left.id).localeCompare(text(right.id))
+  ));
+  const seen = new Map<string, Record<string, unknown>>();
+  const sourceIds = new Map<string, Set<string>>();
+  let unidentifiedTransactionCount = 0;
+  for (const row of rows) {
+    const amount = Number(row.amount);
+    if (!text(row.id) || !Number.isFinite(amount) || row.amount === null || row.amount === '') {
+      throw new Error('Een opgeslagen Knab-transactie heeft geen geldig bedrag of kenmerk.');
+    }
+    const raw = row.raw && typeof row.raw === 'object' ? row.raw as Record<string, unknown> : {};
+    const entryReference = text(raw.entry_reference);
+    const transactionId = text(raw.transaction_id);
+    // De importfallback is een hash van betalingsgegevens, geen uniek bankbewijs.
+    // Zonder bankkenmerk bewaren we de rij; nooit twee echte gelijke betalingen samenvoegen.
+    const identity = entryReference ? `entry:${entryReference}`
+      : transactionId ? `transaction:${transactionId}` : `stored:${text(row.id)}`;
+    const key = `${iban}:${identity}`;
+    if (!sourceIds.has(key)) sourceIds.set(key, new Set());
+    sourceIds.get(key)!.add(text(row.id));
+    const existing = seen.get(key);
+    if (existing) {
+      const currency = text(row.currency) || text(matchingAccounts[0].currency) || 'EUR';
+      const existingCurrency = text(existing.currency) || text(matchingAccounts[0].currency) || 'EUR';
+      if (cents(Number(existing.amount)) !== cents(amount) || text(existing.booking_date) !== text(row.booking_date) || currency !== existingCurrency) {
+        throw new Error('Hetzelfde Knab-bankkenmerk heeft afwijkende boekingsgegevens. Controleer de bankimport.');
+      }
+      continue;
+    }
+    if (!entryReference && !transactionId) unidentifiedTransactionCount += 1;
+    seen.set(key, row);
+  }
+  const transactions = Array.from(seen.entries()).map(([key, row]): FinanceBankTransaction => ({
+    id: text(row.id),
+    amount: Number(row.amount),
+    booking_date: text(row.booking_date) || null,
+    counterparty_name: text(row.counterparty_name) || null,
+    description: text(row.description) || text(row.remittance_information) || null,
+    category: text(row.category) || null,
+    reconciliation_group_id: text(row.reconciliation_group_id) || null,
+    raw: row.raw,
+    source_transaction_ids: Array.from(sourceIds.get(key) || []).sort(),
+  })).sort((left, right) => (right.booking_date || '').localeCompare(left.booking_date || '') || left.id.localeCompare(right.id));
+  const dates = transactions.map((row) => row.booking_date).filter((date): date is string => Boolean(date)).sort();
+  return {
+    transactions,
+    metadata: {
+      iban,
+      name: text(matchingAccounts[0].name) || 'Knab',
+      currency: text(matchingAccounts[0].currency) || 'EUR',
+      connected: false,
+      lastSyncedAt: null,
+      firstBookingDate: dates[0] || null,
+      lastBookingDate: dates[dates.length - 1] || null,
+      historicalAccountCount: matchingAccounts.length,
+      sourceTransactionCount: rows.length,
+      transactionCount: transactions.length,
+      duplicateTransactionCount: rows.length - transactions.length,
+      unidentifiedTransactionCount,
+    },
+  };
+}
+
+/** Alle bewaarde koppelingen van dezelfde fysieke Knab-rekening, zonder facturen of andere banken. */
+export async function loadKnabTransactionHistory(
+  bankUserId: string,
+  options: { iban?: string } = {},
+): Promise<KnabTransactionHistory> {
+  const connectionResult = await supabaseAdmin.from('bank_connections')
+    .select('id,status,linked_account_ids,last_synced_at,updated_at')
+    .eq('provider', 'enablebanking').eq('user_id', bankUserId)
+    .order('updated_at', { ascending: false });
+  if (connectionResult.error) throw new Error(`Knab-koppelingen konden niet worden geladen: ${connectionResult.error.message}`);
+  const connections = connectionResult.data || [];
+  if (connections.length === 0) throw new Error('Er is nog geen opgeslagen Knab-koppeling gevonden.');
+  const accountResult = await supabaseAdmin.from('bank_accounts')
+    .select('id,iban,name,currency,connection_id')
+    .in('connection_id', connections.map((connection) => String(connection.id)));
+  if (accountResult.error) throw new Error(`Knab-rekeningen konden niet worden geladen: ${accountResult.error.message}`);
+  const accounts: KnabHistoryAccount[] = (accountResult.data || []).map((account) => ({
+    id: text(account.id),
+    iban: text(account.iban) || null,
+    name: text(account.name) || null,
+    currency: text(account.currency) || null,
+    connection_id: text(account.connection_id),
+  })).filter((account) => (
+    /^NL\d{2}KNAB\d{10}$/.test(normalizedIban(account.iban))
+    && (!options.iban || normalizedIban(account.iban) === normalizedIban(options.iban))
+  ));
+  if (accounts.length === 0) throw new Error('Er is geen opgeslagen Knab-rekening gevonden.');
+  const rows: Record<string, unknown>[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const result = await supabaseAdmin.from('bank_transactions')
+      .select('id,bank_account_id,amount,currency,booking_date,counterparty_name,description,remittance_information,category,reconciliation_group_id,raw')
+      .eq('user_id', bankUserId).in('bank_account_id', accounts.map((account) => account.id))
+      .order('booking_date', { ascending: false }).order('id', { ascending: true })
+      .range(offset, offset + 499);
+    if (result.error) throw new Error(`Knab-transacties konden niet worden geladen: ${result.error.message}`);
+    rows.push(...(result.data || []));
+    if ((result.data || []).length < 500) break;
+  }
+  // Een huidige rij behoudt zijn id voor bestaande koppelingen. Oudere periodes
+  // komen uit de meest recente koppeling die ze nog bewaart.
+  const preferredConnections = [...connections].sort((left, right) => Number(right.status === 'connected') - Number(left.status === 'connected'));
+  const preferredAccountIds = preferredConnections.flatMap((connection) => accounts
+    .filter((account) => account.connection_id === String(connection.id)).map((account) => account.id));
+  const result = selectKnabTransactionHistory({ accounts, rows, preferredAccountIds, iban: options.iban });
+  const selectedConnectionIds = new Set(accounts.filter((account) => normalizedIban(account.iban) === result.metadata.iban)
+    .map((account) => account.connection_id));
+  const selectedConnections = connections.filter((connection) => selectedConnectionIds.has(String(connection.id)));
+  result.metadata.connected = selectedConnections.some((connection) => connection.status === 'connected');
+  result.metadata.lastSyncedAt = selectedConnections.map((connection) => text(connection.last_synced_at)).filter(Boolean).sort().at(-1) || null;
+  return result;
+}
+
 interface PreparedCost {
   cost: ProjectCostRow;
   amount: number;
@@ -271,7 +450,8 @@ function matchSources(
   // invoices remain complete and cannot silently lose tool/material lines.
   const explicitlyLinkedCosts = costs.filter(({ cost }) =>
     !usedCosts.has(cost.id)
-    && cost.paid_bank_transaction_id === transaction.id
+    && (cost.paid_bank_transaction_id === transaction.id
+      || Boolean(cost.paid_bank_transaction_id && transaction.source_transaction_ids?.includes(cost.paid_bank_transaction_id)))
   ).map(({ cost }) => cost);
   if (explicitlyLinkedCosts.length > 0) {
     explicitlyLinkedCosts.forEach((cost) => usedCosts.add(cost.id));
@@ -365,7 +545,7 @@ export function buildFinanceBankLedger(params: {
       const privateTransaction = isPrivate(transaction);
       const amount = roundEuro(Math.abs(Number(transaction.amount) || 0));
       const matchedCosts = privateTransaction ? [] : matchSources(transaction, preparedCosts, usedCosts);
-      const categoryOverride = params.categoryOverrides?.get(transaction.id);
+      const categoryOverride = categoryOverrideForTransaction(transaction, params.categoryOverrides);
       const sourceAmountTotal = roundEuro(matchedCosts.reduce((sum, cost) => sum + Number(cost.amount_incl_btw || 0), 0));
       const documentCount = sourceDocumentCount(matchedCosts);
       const supplierName = text(transaction.counterparty_name) || 'Onbekende tegenpartij';
@@ -377,6 +557,7 @@ export function buildFinanceBankLedger(params: {
         description: text(transaction.description) || 'Bankafschrijving',
         amount,
         category: privateTransaction ? 'overig' : categoryOverride || classify(transaction, matchedCosts),
+        ...(categoryOverride ? { category_override: categoryOverride } : {}),
         is_private: privateTransaction,
         source_cost_ids: matchedCosts.map((cost) => cost.id),
         source_amount: sourceAmountTotal,

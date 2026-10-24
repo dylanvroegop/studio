@@ -21,7 +21,8 @@ function loadSource(filename, dependencies = {}) {
 const costsModule = loadSource('src/lib/project-costs.ts');
 const { buildFinanceBankLedger, splitFinanceBankLedgerRowsByCategory } = loadSource(
   'src/lib/finance-bank-ledger.ts',
-  { '@/lib/project-costs': costsModule, '@/lib/supabase-admin': {}, '@/lib/finance-cost-visibility': loadSource('src/lib/finance-cost-visibility.ts') },
+  { '@/lib/project-costs': costsModule, '@/lib/supabase-admin': {}, '@/lib/finance-cost-visibility': loadSource('src/lib/finance-cost-visibility.ts'),
+    '@/lib/confirmed-bank-categories': loadSource('src/lib/confirmed-bank-categories.ts') },
 );
 
 const costs = [
@@ -100,6 +101,7 @@ test('bankhistorie wordt volledig geladen voorbij de database paginalimiet', asy
     return query;
   } };
   const { loadConnectedKnabTransactions } = loadSource('src/lib/finance-bank-ledger.ts', {
+    '@/lib/confirmed-bank-categories': loadSource('src/lib/confirmed-bank-categories.ts'),
     '@/lib/project-costs': costsModule,
     '@/lib/supabase-admin': { supabaseAdmin: db },
     '@/lib/finance-cost-visibility': loadSource('src/lib/finance-cost-visibility.ts'),

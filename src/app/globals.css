@@ -355,6 +355,20 @@ html[data-theme='light'] .hover\:bg-black\/20:hover {
   }
 }
 
+/* iOS zoomt bij focus op tekstvelden kleiner dan 16px.
+   Ook compacte velden en liggend gebruik moeten deze minimumgrootte houden.
+   !important voorkomt dat lokale text-xs/text-sm-klassen dit overschrijven. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]),
+  textarea,
+  select,
+  [contenteditable="true"],
+  [contenteditable=""],
+  [contenteditable="plaintext-only"] {
+    font-size: 16px !important;
+  }
+}
+
 /* De klus scrolt binnen de offerte; kop en offert tabs blijven bereikbaar. */
 .quote-workspace-with-job {
   display: flex;

@@ -27,7 +27,7 @@ export function GpsHealthNotice() {
         const data = await response.json();
         if (!disposed) {
           setHealth(data);
-          if (data.state === 'ok' || data.enabled === false) {
+          if (data.state === 'ok' || data.state === 'stationary' || data.enabled === false) {
             setDismissed(false);
             try { sessionStorage.removeItem(dismissalKey); } catch { /* Browseropslag is optioneel. */ }
           }
@@ -41,7 +41,7 @@ export function GpsHealthNotice() {
     document.addEventListener('visibilitychange', check);
     return () => { disposed = true; clearInterval(interval); document.removeEventListener('visibilitychange', check); };
   }, [user]);
-  if (!user || !health?.enabled || health.state === 'ok' || dismissed) return null;
+  if (!user || !health?.enabled || health.state === 'ok' || health.state === 'stationary' || dismissed) return null;
   const dismiss = () => {
     setDismissed(true);
     try { sessionStorage.setItem(`gps-health-dismissed:${user.uid}`, 'true'); } catch { /* Sluiten blijft werken zonder browseropslag. */ }

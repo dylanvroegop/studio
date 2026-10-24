@@ -29,6 +29,7 @@ import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import {
   normalizeProjectCostCategory,
+  PROJECT_COST_CATEGORY_LABELS,
   roundEuro,
   type ProjectCostCategory,
   type ProjectCostLineItem,
@@ -477,9 +478,9 @@ export function PendingCostImportPrompt() {
       <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-4xl">
         <div className="flex max-h-[90vh] flex-col">
           <DialogHeader className="px-6 pb-2 pt-6">
-            <DialogTitle>{hasTools ? 'Gereedschap controleren' : 'Nieuwe kost'}</DialogTitle>
+            <DialogTitle>{hasTools ? 'Investering controleren' : 'Nieuwe kost'}</DialogTitle>
             <DialogDescription>
-              {hasTools ? 'Gereedschap wordt als algemene bedrijfskosten opgeslagen. Alleen de overige regels worden aan de gekozen offerte gekoppeld.' : 'Controleer de herkende gegevens en sla de kost op.'}
+              {hasTools ? 'Investeringen worden zonder offerte opgeslagen. Alleen de overige regels worden aan de gekozen offerte gekoppeld.' : 'Controleer de herkende gegevens en sla de kost op.'}
             </DialogDescription>
           </DialogHeader>
           {pending?.extraction_warning && <p role="alert" className="mx-6 mb-3 rounded-md border border-amber-500 px-3 py-2 text-sm">{pending.extraction_warning}</p>}
@@ -505,11 +506,12 @@ export function PendingCostImportPrompt() {
                         <SelectItem value="schulden">Schulden</SelectItem>
                         <SelectItem value="afval">Afval</SelectItem>
                         <SelectItem value="brandstof">Benzine</SelectItem>
-                        <SelectItem value="gereedschap">Gereedschap</SelectItem>
+                        <SelectItem value="gereedschap">Investering</SelectItem>
                         <SelectItem value="eigen_verbruik">Eigen verbruik</SelectItem>
                         <SelectItem value="hotel">Hotel</SelectItem>
                         <SelectItem value="telefoon">Telefoon</SelectItem>
                         <SelectItem value="leadkosten">Leadkosten</SelectItem>
+                        <SelectItem value="storage">Storage</SelectItem>
                         <SelectItem value="overig">Overig</SelectItem>
                       </SelectContent>
                     </Select>
@@ -574,8 +576,8 @@ export function PendingCostImportPrompt() {
                           <Select value={item.category || 'materiaal'} onValueChange={(value) => updateLineItem(index, { category: normalizeProjectCostCategory(value), offerte_id: null })}>
                             <SelectTrigger aria-label={`Categorie regel ${index + 1}`} className="w-44"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              {['materiaal', 'gereedschap', 'autokosten', 'boetes', 'schulden', 'afval', 'brandstof', 'eigen_verbruik', 'hotel', 'telefoon', 'leadkosten', 'overig'].map((category) => (
-                                <SelectItem key={category} value={category}>{category === 'eigen_verbruik' ? 'Eigen verbruik' : category.charAt(0).toUpperCase() + category.slice(1)}</SelectItem>
+                              {['materiaal', 'gereedschap', 'autokosten', 'boetes', 'schulden', 'afval', 'brandstof', 'eigen_verbruik', 'hotel', 'telefoon', 'leadkosten', 'storage', 'overig'].map((category) => (
+                                <SelectItem key={category} value={category}>{PROJECT_COST_CATEGORY_LABELS[normalizeProjectCostCategory(category)]}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -633,7 +635,7 @@ export function PendingCostImportPrompt() {
                   </div>
                 ) : null}
 
-                {hasTools && <p className="text-sm">Gereedschap algemeen: <strong>{formatCurrency(toolsExcl)} excl. btw</strong> · Overige kosten: <strong>{formatCurrency(roundEuro(amountExcl - toolsExcl))} excl. btw</strong></p>}
+                {hasTools && <p className="text-sm">Investering: <strong>{formatCurrency(toolsExcl)} excl. btw</strong> · Overige kosten: <strong>{formatCurrency(roundEuro(amountExcl - toolsExcl))} excl. btw</strong></p>}
                 <div className="grid grid-cols-1 gap-3 rounded-lg border border-border/70 bg-background/40 p-4 md:grid-cols-4">
                   <div><p className="text-xs text-muted-foreground">Excl. BTW</p><p className="mt-1 text-sm font-semibold">€ {amountExcl.toFixed(2).replace('.', ',')}</p></div>
                   <div><p className="text-xs text-muted-foreground">BTW</p><p className="mt-1 text-sm font-semibold">€ {btwAmount.toFixed(2).replace('.', ',')}</p></div>

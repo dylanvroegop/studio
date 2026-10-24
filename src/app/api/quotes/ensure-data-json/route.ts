@@ -1,3 +1,4 @@
+import { syncInvoiceDraftClients } from '@/lib/invoice-draft-client-sync';
 import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
@@ -49,6 +50,8 @@ export async function POST(req: Request) {
     if (quoteData.userId !== decodedTokenUid) {
       return NextResponse.json({ ok: false, message: 'Geen toegang tot deze offerte' }, { status: 403 });
     }
+
+    await syncInvoiceDraftClients(firestore, quoteId, decodedTokenUid);
 
     const { data: existingRows, error: existingError } = await supabaseAdmin
       .from('quotes_collection')

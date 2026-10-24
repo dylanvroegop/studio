@@ -35,6 +35,7 @@ interface SendQuoteModalProps {
     geldigTot: string;
     bedrijfsnaam: string;
     afzenderNaam: string;
+    afzenderEmail?: string;
     korteTitel?: string;
     korteBeschrijving?: string;
     onMarkAsSent?: () => Promise<void> | void;
@@ -51,6 +52,7 @@ export function SendQuoteModal({
     geldigTot,
     bedrijfsnaam,
     afzenderNaam,
+    afzenderEmail,
     korteTitel,
     korteBeschrijving,
     onMarkAsSent
@@ -63,11 +65,11 @@ export function SendQuoteModal({
     const [isSending, setIsSending] = useState(false);
     const hasInitializedForOpenRef = useRef(false);
     const isLaunchingMailRef = useRef(false);
-    const [attachments, setAttachments] = useState<QuoteAttachmentOptions>({
+    const attachments: QuoteAttachmentOptions = {
         includeOfferte: true,
-        includeTekeningen: true,
-        includeWerkbeschrijving: true,
-    });
+        includeTekeningen: false,
+        includeWerkbeschrijving: false,
+    };
 
     useEffect(() => {
         if (!isOpen) {
@@ -80,17 +82,12 @@ export function SendQuoteModal({
 
         hasInitializedForOpenRef.current = true;
         setEmail(klantInfo.emailadres || '');
-        setAttachments({
-            includeOfferte: true,
-            includeTekeningen: true,
-            includeWerkbeschrijving: true,
-        });
+
 
         const shortDesc = generateWorkSummary(werkbeschrijving, 40);
         setSubject(`Offerte #${offerteNummer}${shortDesc ? ` - ${shortDesc}` : ''}`);
 
-        // Set a default body or placeholder
-        setBody(`Beste ${klantInfo.voornaam || (klantInfo.bedrijfsnaam || 'klant')},\n\nHierbij ontvangt u de offerte voor de aangevraagde werkzaamheden.\n\nMet vriendelijke groet,\n\n${bedrijfsnaam || klantInfo.bedrijfsnaam || ''}`);
+        setBody(`Goedenavond ${klantInfo.voornaam || klantInfo.bedrijfsnaam || 'klant'},\n\nBedankt voor het prettige gesprek.\n\nHierbij ontvangt u de offerte voor de besproken werkzaamheden. Mocht er iets niet duidelijk zijn of wilt u bepaalde onderdelen aanpassen, dan hoor ik dat graag.\n\nMet vriendelijke groet,\n\nDylan Vroegop\nVroegop Timmerwerken`);
     }, [isOpen, klantInfo, offerteNummer, werkbeschrijving, bedrijfsnaam]);
 
     const handleGenerateEmail = async () => {
@@ -179,7 +176,6 @@ export function SendQuoteModal({
 
     const handleDownloadAndOpenEmail = async () => {
         if (isSending || isLaunchingMailRef.current) return;
-        isLaunchingMailRef.current = true;
         const trimmedEmail = email.trim();
         const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
         const selectedAttachmentCount = [attachments.includeOfferte, attachments.includeTekeningen, attachments.includeWerkbeschrijving]
@@ -204,12 +200,20 @@ export function SendQuoteModal({
             return;
         }
 
+        const gmailTab = window.open('about:blank', 'calvora-gmail-compose');
+        if (!gmailTab) {
+            toast({ title: 'Gmail niet geopend', description: 'Sta het openen van Gmail toe in je browser en probeer opnieuw.', variant: 'destructive' });
+            return;
+        }
+        gmailTab.opener = null;
+        isLaunchingMailRef.current = true;
         setIsSending(true);
         try {
             try {
                 await Promise.resolve(onDownloadPDF(attachments));
             } catch (error) {
-                console.error('Error downloading PDF before mailto:', error);
+                gmailTab.close();
+                console.error('Error downloading PDF before Gmail:', error);
                 toast({
                     title: "PDF downloaden mislukt",
                     description: "De e-mail is niet geopend. Probeer het opnieuw.",
@@ -218,6 +222,13 @@ export function SendQuoteModal({
                 return;
             }
 
+            const gmailUrl = new URL('https://mail.google.com/mail/');
+            gmailUrl.search = new URLSearchParams({
+                view: 'cm', fs: '1', to: trimmedEmail, su: subject, body,
+                ...(afzenderEmail?.trim() ? { authuser: afzenderEmail.trim() } : {}),
+            }).toString();
+            gmailTab.location.href = gmailUrl.toString();
+
             if (onMarkAsSent) {
                 try {
                     await Promise.resolve(onMarkAsSent());
@@ -225,21 +236,15 @@ export function SendQuoteModal({
                     console.error('Error marking quote as sent:', error);
                     toast({
                         title: "Status bijwerken mislukt",
-                        description: "Kon offerte niet op 'Verstuurd' zetten. Probeer het opnieuw.",
+                        description: "Gmail is geopend, maar de offertestatus kon niet worden bijgewerkt.",
                         variant: "destructive",
                     });
                     return;
                 }
             }
 
-            const encodedSubject = encodeURIComponent(subject);
-            const encodedBody = encodeURIComponent(body);
-            const mailto = `mailto:${encodeURIComponent(trimmedEmail)}?subject=${encodedSubject}&body=${encodedBody}`;
-
-            window.location.href = mailto;
-
             toast({
-                title: "E-mail geopend",
+                title: "Gmail geopend",
                 description: selectedAttachmentCount === 1
                     ? "Vergeet niet de gedownloade PDF als bijlage toe te voegen."
                     : `Vergeet niet ${selectedAttachmentCount} gedownloade PDF's als bijlage toe te voegen.`,
@@ -275,38 +280,10 @@ export function SendQuoteModal({
                         />
                     </div>
 
-                    <div className="space-y-2">
-                        <Label className="text-zinc-400">PDF bijlagen (losse bestanden)</Label>
-                        <div className="rounded-lg border border-zinc-800 bg-zinc-800/40 p-3 space-y-2">
-                            <label className="flex items-center justify-between gap-3 text-sm text-zinc-200 cursor-pointer">
-                                <span>Offerte (hoofdbestand)</span>
-                                <input
-                                    type="checkbox"
-                                    checked={attachments.includeOfferte}
-                                    onChange={(e) => setAttachments((prev) => ({ ...prev, includeOfferte: e.target.checked }))}
-                                    className="h-4 w-4 accent-emerald-500"
-                                />
-                            </label>
-                            <label className="flex items-center justify-between gap-3 text-sm text-zinc-200 cursor-pointer">
-                                <span>Tekeningen (aparte PDF)</span>
-                                <input
-                                    type="checkbox"
-                                    checked={attachments.includeTekeningen}
-                                    onChange={(e) => setAttachments((prev) => ({ ...prev, includeTekeningen: e.target.checked }))}
-                                    className="h-4 w-4 accent-emerald-500"
-                                />
-                            </label>
-                            <label className="flex items-center justify-between gap-3 text-sm text-zinc-200 cursor-pointer">
-                                <span>Werk &amp; Levering (aparte PDF)</span>
-                                <input
-                                    type="checkbox"
-                                    checked={attachments.includeWerkbeschrijving}
-                                    onChange={(e) => setAttachments((prev) => ({ ...prev, includeWerkbeschrijving: e.target.checked }))}
-                                    className="h-4 w-4 accent-emerald-500"
-                                />
-                            </label>
-                        </div>
-                    </div>
+                    <p className="text-sm text-zinc-400">
+                        Je downloadt één complete offerte-PDF, zoals in het tabblad PDF.
+                        Voeg dit bestand daarna als bijlage toe in Gmail.
+                    </p>
 
                     <div className="space-y-2">
                         <Label htmlFor="subject" className="text-zinc-400">Onderwerp</Label>
@@ -361,8 +338,8 @@ export function SendQuoteModal({
                     >
                         {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
                         <div className="flex flex-col items-start leading-tight">
-                            <span>{isSending ? 'PDF(s) downloaden...' : 'Download PDF(s) en open e-mail'}</span>
-                            <span className="text-[10px] opacity-80 font-normal">Voeg de bestanden handmatig toe in je mail-app</span>
+                            <span>{isSending ? 'Offerte-PDF downloaden...' : 'Download offerte-PDF en open Gmail'}</span>
+                            <span className="text-[10px] opacity-80 font-normal">Voeg de offerte-PDF toe in Gmail</span>
                         </div>
                     </Button>
                 </DialogFooter>

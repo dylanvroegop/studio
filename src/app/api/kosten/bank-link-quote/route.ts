@@ -5,7 +5,7 @@ import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { deriveBankUserId } from '@/lib/bank-user-id';
 import {
   buildFinanceBankLedger,
-  loadConnectedKnabTransactions,
+  loadKnabTransactionHistory,
 } from '@/lib/finance-bank-ledger';
 import { mapProjectCostRow, normalizeProjectCostCategory, roundEuro } from '@/lib/project-costs';
 import { supabaseAdmin } from '@/lib/supabase-admin';
@@ -75,8 +75,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Offerte niet gevonden voor deze gebruiker.' }, { status: 404 });
     }
 
-    const [transactions, costsResult, overridesResult] = await Promise.all([
-      loadConnectedKnabTransactions(deriveBankUserId(uid)),
+    const [history, costsResult, overridesResult] = await Promise.all([
+      loadKnabTransactionHistory(deriveBankUserId(uid)),
       supabaseAdmin.from('project_costs').select('*').eq('user_id', uid),
       supabaseAdmin
         .from('bank_transaction_category_overrides')
@@ -86,7 +86,8 @@ export async function POST(request: Request) {
     if (costsResult.error) throw new Error(`Kosten konden niet worden geladen: ${costsResult.error.message}`);
     if (overridesResult.error) throw new Error(`Categorieën konden niet worden geladen: ${overridesResult.error.message}`);
 
-    const transaction = transactions.find((item) => item.id === bankTransactionId);
+    const transaction = history.transactions.find((item) => item.id === bankTransactionId
+      || item.source_transaction_ids?.includes(bankTransactionId));
     if (!transaction) {
       return NextResponse.json({ ok: false, message: 'Banktransactie niet gevonden.' }, { status: 404 });
     }

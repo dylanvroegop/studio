@@ -12,6 +12,7 @@ export const PROJECT_COST_CATEGORIES = [
   'hotel',
   'telefoon',
   'leadkosten',
+  'storage',
   'profit',
   'overig',
 ] as const;
@@ -45,7 +46,17 @@ export interface ProjectCostReceiptFile {
   content_type: string;
   size_bytes: number;
   sha256?: string | null;
+  /** Vastgesteld bij documentcontrole; een betaalbewijs is geen factuur. */
+  document_type?: string | null;
+  document_reviewed_at?: string | null;
+  document_review_note?: string | null;
   uploaded_at: string;
+}
+
+export function isSupportingProjectCostReceipt(file: ProjectCostReceiptFile): boolean {
+  const documentType = file.document_type?.trim().toLowerCase();
+  return Boolean((file.url?.trim() || file.path?.trim())
+    && (!documentType || ['invoice', 'receipt', 'credit_note'].includes(documentType)));
 }
 
 export interface ProjectCostRow {
@@ -91,12 +102,13 @@ export const PROJECT_COST_CATEGORY_LABELS: Record<ProjectCostCategory, string> =
   boetes: 'Boetes',
   schulden: 'Schulden',
   afval: 'Afval',
-  brandstof: 'Benzine',
-  gereedschap: 'Gereedschap',
+  brandstof: 'Brandstof',
+  gereedschap: 'Investering',
   eigen_verbruik: 'Eigen verbruik',
   hotel: 'Hotel',
   telefoon: 'Telefoon',
   leadkosten: 'Leadkosten',
+  storage: 'Storage',
   profit: 'Profit',
   overig: 'Overig',
 };
@@ -123,11 +135,12 @@ export function normalizeProjectCostCategory(value: unknown): ProjectCostCategor
   if (normalized === 'schulden' || normalized === 'schuld' || normalized === 'aflossing') return 'schulden';
   if (normalized === 'afval' || normalized === 'afvoer' || normalized === 'afvalverwerking') return 'afval';
   if (normalized === 'brandstof' || normalized === 'benzine' || normalized === 'diesel') return 'brandstof';
-  if (normalized === 'gereedschap') return 'gereedschap';
+  if (normalized === 'gereedschap' || normalized === 'investering' || normalized === 'investeringen') return 'gereedschap';
   if (normalized === 'eigen_verbruik' || normalized === 'eigen verbruik') return 'eigen_verbruik';
   if (normalized === 'hotel' || normalized === 'overnachting') return 'hotel';
   if (normalized === 'telefoon' || normalized === 'phone') return 'telefoon';
   if (normalized === 'leadkosten' || normalized === 'lead kosten' || normalized === 'lead cost') return 'leadkosten';
+  if (normalized === 'storage' || normalized === 'opslag') return 'storage';
   if (normalized === 'profit' || normalized === 'winst' || normalized === 'interne overboeking') return 'profit';
   return 'overig';
 }
@@ -238,6 +251,9 @@ export function normalizeProjectCostReceiptFiles(input: unknown, fallbackUrl?: s
       content_type: safeString(item.content_type),
       size_bytes: Math.max(0, Math.round(safeNumber(item.size_bytes))),
       sha256: safeString(item.sha256) || null,
+      ...(safeString(item.document_type) ? { document_type: safeString(item.document_type) } : {}),
+      ...(safeString(item.document_reviewed_at) ? { document_reviewed_at: safeString(item.document_reviewed_at) } : {}),
+      ...(safeString(item.document_review_note) ? { document_review_note: safeString(item.document_review_note) } : {}),
       uploaded_at: safeString(item.uploaded_at),
       };
     })
@@ -265,6 +281,8 @@ export function inferProjectCostCategory(params: {
       .trim() || '';
 
   const target = `${supplier} ${description} ${lines}`;
+
+  if (/\ball\s*safe\b/i.test(target)) return 'storage';
 
   const containsAny = (needles: string[]) => needles.some((needle) => target.includes(needle));
 
@@ -536,7 +554,10 @@ export function mapProjectCostRow(input: unknown): ProjectCostRow {
     id: safeString(row.id),
     user_id: safeString(row.user_id),
     offerte_id: safeString(row.offerte_id) || null,
-    category: normalizeProjectCostCategory(row.category),
+    category: normalizeProjectCostCategory(row.category) === 'overig'
+      && inferProjectCostCategory({ supplierName: safeString(row.supplier_name), description: safeString(row.description) }) === 'storage'
+      ? 'storage'
+      : normalizeProjectCostCategory(row.category),
     supplier_name: safeString(row.supplier_name),
     description: safeString(row.description),
     line_items: lineItems,

@@ -2,9 +2,13 @@ import { createHash } from 'node:crypto';
 
 const text = (value: unknown): string => typeof value === 'string' ? value.trim().toLowerCase().replace(/\s+/g, ' ') : '';
 
+export function isFinalCostDocumentType(value: unknown): boolean {
+  return ['invoice', 'receipt', 'credit_note'].includes(text(value));
+}
+
 /** Alleen definitieve aankoopdocumenten mogen automatisch kosten worden. */
 export function costDocumentError(payload: Record<string, unknown>): string | null {
-  if (!['invoice', 'receipt', 'credit_note'].includes(text(payload.document_type))) {
+  if (!isFinalCostDocumentType(payload.document_type)) {
     return 'Dit document is geen bevestigde factuur, kassabon of creditnota. Bewaar het als brondocument; maak geen kostenboeking.';
   }
   if (payload.amount_excl_btw == null || payload.amount_incl_btw == null || payload.btw_amount == null) {

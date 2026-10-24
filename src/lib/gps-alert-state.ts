@@ -14,7 +14,7 @@ export function gpsDailyReminderId(state: GpsAlertState, now: number): string | 
   return `gps-herinnering:${value('year')}-${value('month')}-${value('day')}`;
 }
 export function nextGpsAlert(previous: GpsAlertState | undefined, health: GpsHealth, now: number): GpsAlertState {
-  if (health.state === 'ok') return { outageSince: null, eventId: null };
+  if (health.state === 'ok' || health.state === 'stationary') return { outageSince: null, eventId: null };
   const outageSince = previous?.outageSince ?? (health.state === 'stale' && health.lastFixAt ? Date.parse(health.lastFixAt) : now);
   return {
     outageSince,

@@ -1,0 +1,3518 @@
+{
+  "audit_date": "2026-10-24",
+  "period": "2026-07",
+  "read_only": true,
+  "document_count_including_overlapping_homing_version": 39,
+  "non_overlapping_purchase_count": 38,
+  "missing_documents": [],
+  "documents": [
+    {
+      "supplier": "Bouwmaat Haarlem (DSG Bouwmaten B.V.)",
+      "number": "1000VF003319716",
+      "date": "2026-07-01",
+      "net": 101.14,
+      "vat": 21.24,
+      "gross": 122.38,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "e6e96e0a-bc35-4495-b249-12693b8bf56b"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f219e09f9fded5",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f219e09f9fded5"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1000VF003319716-2026-07-01.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1000VF003319716-2026-07-01.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "e6e96e0a-bc35-4495-b249-12693b8bf56b",
+          "date": "2026-07-01",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Haarlem (DSG Bouwmaten B.V.)",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "101.14",
+          "amount_incl_btw": "122.38",
+          "btw_amount": "21.24"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-fd90fdb4-33ec-4544-baa6-9c3dca36fbef",
+          "date": "2026-07-15",
+          "supplier_name": "DERDENGELDEN BOUWMAAT",
+          "category": "materiaal",
+          "amount_incl_btw": 122.38,
+          "source_cost_ids": [
+            "e6e96e0a-bc35-4495-b249-12693b8bf56b"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Derks Lease B.V.",
+      "number": "56262629",
+      "date": "2026-07-01",
+      "net": 1070.05,
+      "vat": 224.71,
+      "gross": 1294.76,
+      "expected": [
+        "autokosten"
+      ],
+      "cost_ids": [
+        "9f233815-3cb7-4dce-ae7a-e3a64a07ccfc"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Overall category autokosten is correct; nested lease line category brandstof should be autokosten. Invoice and app amount EUR1294.76 match.",
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f284ae5ef86f79",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f284ae5ef86f79"
+        }
+      ],
+      "pdf_relative": "sources/derks-56262629-2026-07-01.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/derks-56262629-2026-07-01.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "9f233815-3cb7-4dce-ae7a-e3a64a07ccfc",
+          "date": "2026-07-01",
+          "invoice_date": null,
+          "supplier_name": "Derkslease",
+          "supplier_invoice_number": null,
+          "category": "autokosten",
+          "amount_excl_btw": "1070.05",
+          "amount_incl_btw": "1294.76",
+          "btw_amount": "224.71"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-fe0a9b51-895d-48b5-a3be-c13ebc1eea18",
+          "date": "2026-07-01",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "autokosten",
+          "amount_incl_btw": 1294.76,
+          "source_cost_ids": [
+            "9f233815-3cb7-4dce-ae7a-e3a64a07ccfc"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Toolstation NL B.V.",
+      "number": "OAH209255740",
+      "date": "2026-07-01",
+      "net": 191.4,
+      "vat": 40.2,
+      "gross": 231.6,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "edbddbcb-8b38-496d-bef4-9c8b935b8f0e"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f1cc43b52fce2a",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f1cc43b52fce2a"
+        }
+      ],
+      "pdf_relative": "sources/toolstation-OAH209255740-2026-07-01.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/toolstation-OAH209255740-2026-07-01.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "edbddbcb-8b38-496d-bef4-9c8b935b8f0e",
+          "date": "2026-07-01",
+          "invoice_date": null,
+          "supplier_name": "Toolstation NL B.V.",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "191.40",
+          "amount_incl_btw": "231.60",
+          "btw_amount": "40.20"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-cc724cbc-9c2b-4778-a65c-087ce0ef6905",
+          "date": "2026-07-01",
+          "supplier_name": "BCK*Toolstation AH",
+          "category": "materiaal",
+          "amount_incl_btw": 231.6,
+          "source_cost_ids": [
+            "edbddbcb-8b38-496d-bef4-9c8b935b8f0e"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Werkspot",
+      "number": "NL26-55179",
+      "date": "2026-07-01",
+      "net": 850,
+      "vat": 178.5,
+      "gross": 1028.5,
+      "expected": [
+        "leadkosten"
+      ],
+      "cost_ids": [
+        "a92e843e-c1ca-442d-843b-17753dafa6b3"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "1a03340aa2f34937",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/1a03340aa2f34937"
+        }
+      ],
+      "pdf_relative": "sources/werkspot-NL26-55179-2026-07-01.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/werkspot-NL26-55179-2026-07-01.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "a92e843e-c1ca-442d-843b-17753dafa6b3",
+          "date": "2026-07-01",
+          "invoice_date": null,
+          "supplier_name": "Werkspot",
+          "supplier_invoice_number": null,
+          "category": "leadkosten",
+          "amount_excl_btw": "850.00",
+          "amount_incl_btw": "1028.50",
+          "btw_amount": "178.50"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-539f5909-609c-4fa7-8993-fbf9257dfb85",
+          "date": "2026-07-03",
+          "supplier_name": "GC RE WERKSPOT",
+          "category": "leadkosten",
+          "amount_incl_btw": 1028.5,
+          "source_cost_ids": [
+            "a92e843e-c1ca-442d-843b-17753dafa6b3"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "KPN",
+      "number": "1383695122",
+      "date": "2026-07-02",
+      "net": 33.88,
+      "vat": 7.12,
+      "gross": 41.0,
+      "expected": [
+        "telefoon"
+      ],
+      "cost_ids": [
+        "3cd4e505-dc5a-4d01-9644-9ecca3465cc8"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "1a0486e05bfcc195",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/1a0486e05bfcc195"
+        }
+      ],
+      "pdf_relative": "sources/kpn-1383695122-2026-07-02.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/kpn-1383695122-2026-07-02.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "3cd4e505-dc5a-4d01-9644-9ecca3465cc8",
+          "date": "2026-07-02",
+          "invoice_date": null,
+          "supplier_name": "KPN",
+          "supplier_invoice_number": null,
+          "category": "telefoon",
+          "amount_excl_btw": "33.88",
+          "amount_incl_btw": "41.00",
+          "btw_amount": "7.12"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-36bc443a-1200-42ff-b7f3-f8779fda06f1",
+          "date": "2026-08-17",
+          "supplier_name": "KPN",
+          "category": "telefoon",
+          "amount_incl_btw": 41,
+          "source_cost_ids": [
+            "3cd4e505-dc5a-4d01-9644-9ecca3465cc8"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Toolstation NL B.V.",
+      "number": "OAH209339072",
+      "date": "2026-07-02",
+      "net": 9.21,
+      "vat": 1.94,
+      "gross": 11.15,
+      "expected": [
+        "gereedschap"
+      ],
+      "cost_ids": [
+        "b1f07c1b-f2e7-41ad-a227-2e5ef3ca70d6"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f21e284b4f11e5",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f21e284b4f11e5"
+        }
+      ],
+      "pdf_relative": "sources/toolstation-OAH209339072-2026-07-02.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/toolstation-OAH209339072-2026-07-02.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "b1f07c1b-f2e7-41ad-a227-2e5ef3ca70d6",
+          "date": "2026-07-02",
+          "invoice_date": null,
+          "supplier_name": "Toolstation NL B.V.",
+          "supplier_invoice_number": null,
+          "category": "gereedschap",
+          "amount_excl_btw": "9.21",
+          "amount_incl_btw": "11.15",
+          "btw_amount": "1.94"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-b69dcaab-eb78-4f74-87a2-0a5d74f6cf7e",
+          "date": "2026-07-02",
+          "supplier_name": "BCK*Toolstation AH",
+          "category": "gereedschap",
+          "amount_incl_btw": 11.15,
+          "source_cost_ids": [
+            "b1f07c1b-f2e7-41ad-a227-2e5ef3ca70d6"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Toolstation NL B.V.",
+      "number": "OWW209336679",
+      "date": "2026-07-02",
+      "net": 62.52,
+      "vat": 13.13,
+      "gross": 75.65,
+      "expected": [
+        "split"
+      ],
+      "cost_ids": [
+        "6fc81746-8986-42f4-8bbe-310723ae3f35",
+        "75bb6a2b-55c4-467a-98b0-4d66bbdbf15d",
+        "808024d3-229d-4500-8e4e-020a20f36ad7",
+        "b42315b8-a425-4292-b4d3-89cd4df3c71e"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Same invoice stored twice as tools50.47+materials25.18. Root also confirmed identical invoice on legacy screenshot. Do not sum all four source rows as distinct expenses; bank shows one75.65 payment. Category split itself correct.",
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f21d2fc864b05c",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f21d2fc864b05c"
+        }
+      ],
+      "pdf_relative": "sources/toolstation-OWW209336679-2026-07-02.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/toolstation-OWW209336679-2026-07-02.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "6fc81746-8986-42f4-8bbe-310723ae3f35",
+          "date": "2026-07-02",
+          "invoice_date": null,
+          "supplier_name": "Toolstation NL B.V",
+          "supplier_invoice_number": null,
+          "category": "gereedschap",
+          "amount_excl_btw": "41.71",
+          "amount_incl_btw": "50.47",
+          "btw_amount": "8.76"
+        },
+        {
+          "id": "75bb6a2b-55c4-467a-98b0-4d66bbdbf15d",
+          "date": "2026-07-02",
+          "invoice_date": null,
+          "supplier_name": "Toolstation NL B.V.",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "20.81",
+          "amount_incl_btw": "25.18",
+          "btw_amount": "4.37"
+        },
+        {
+          "id": "808024d3-229d-4500-8e4e-020a20f36ad7",
+          "date": "2026-07-02",
+          "invoice_date": null,
+          "supplier_name": "Toolstation NL B.V.",
+          "supplier_invoice_number": null,
+          "category": "gereedschap",
+          "amount_excl_btw": "41.71",
+          "amount_incl_btw": "50.47",
+          "btw_amount": "8.76"
+        },
+        {
+          "id": "b42315b8-a425-4292-b4d3-89cd4df3c71e",
+          "date": "2026-07-02",
+          "invoice_date": null,
+          "supplier_name": "Toolstation NL B.V",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "20.81",
+          "amount_incl_btw": "25.18",
+          "btw_amount": "4.37"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-3ca42849-62f6-48ff-9bc6-c30ba5ec399c",
+          "date": "2026-07-02",
+          "supplier_name": "Toolstation via PayPal (Europe)",
+          "category": "gereedschap",
+          "amount_incl_btw": 75.65,
+          "source_cost_ids": [
+            "6fc81746-8986-42f4-8bbe-310723ae3f35",
+            "b42315b8-a425-4292-b4d3-89cd4df3c71e"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Derks Lease B.V.",
+      "number": "56262706",
+      "date": "2026-07-03",
+      "net": 92.5,
+      "vat": 2.63,
+      "gross": 95.13,
+      "expected": [
+        "boetes"
+      ],
+      "cost_ids": [
+        "b250fa32-da87-4c95-9f0d-ceb6093d05d3"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f294233f6811fa",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f294233f6811fa"
+        }
+      ],
+      "pdf_relative": "sources/derks-56262706-2026-07-03.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/derks-56262706-2026-07-03.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "b250fa32-da87-4c95-9f0d-ceb6093d05d3",
+          "date": "2026-07-13",
+          "invoice_date": null,
+          "supplier_name": "Derks Lease B.V.",
+          "supplier_invoice_number": null,
+          "category": "boetes",
+          "amount_excl_btw": "92.50",
+          "amount_incl_btw": "95.13",
+          "btw_amount": "2.63"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-d9ce671c-61e2-473a-90ea-0f78337957d3",
+          "date": "2026-07-13",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_incl_btw": 95.13,
+          "source_cost_ids": [
+            "b250fa32-da87-4c95-9f0d-ceb6093d05d3"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Haarlem XL",
+      "number": "1308133",
+      "date": "2026-07-04",
+      "net": 90.24,
+      "vat": 18.95,
+      "gross": 109.19,
+      "expected": [
+        "gereedschap",
+        "materiaal"
+      ],
+      "cost_ids": [
+        "4904f1e9-917e-4091-b4af-66b89e18a659",
+        "b8084939-2f28-4341-91ea-a96b860d628f"
+      ],
+      "result": "present_category_review",
+      "count_as_purchase": true,
+      "notes": [
+        "Bouwmaat Reinigingsdoekjes 80st 8.90net/10.77gross classified gereedschap (UI Investering); consumable cleaning wipes, better materiaal/overig subject to user policy."
+      ],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f2cabe2f462dca",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f2cabe2f462dca"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1308133-2026-07-04.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1308133-2026-07-04.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "4904f1e9-917e-4091-b4af-66b89e18a659",
+          "date": "2026-07-04",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Haarlem XL",
+          "supplier_invoice_number": null,
+          "category": "gereedschap",
+          "amount_excl_btw": "18.81",
+          "amount_incl_btw": "22.76",
+          "btw_amount": "3.95"
+        },
+        {
+          "id": "b8084939-2f28-4341-91ea-a96b860d628f",
+          "date": "2026-07-04",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Haarlem XL",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "71.43",
+          "amount_incl_btw": "86.43",
+          "btw_amount": "15.00"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-cf45a7f7-86fb-468e-8a9b-a534650984c2",
+          "date": "2026-07-06",
+          "supplier_name": "Bouwmaat Haarlem",
+          "category": "materiaal",
+          "amount_incl_btw": 109.19,
+          "source_cost_ids": [
+            "4904f1e9-917e-4091-b4af-66b89e18a659",
+            "b8084939-2f28-4341-91ea-a96b860d628f"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "HomingXL BV",
+      "number": "I3000007400",
+      "date": "2026-07-06",
+      "net": 997.93,
+      "vat": 209.57,
+      "gross": 1207.5,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "63905f52-bcda-46d4-bd86-ceee0a90952e"
+      ],
+      "result": "earlier_overlapping_order_version_not_additive",
+      "count_as_purchase": false,
+      "notes": [
+        "The same 42 deck boards appear in the later invoice I 3000007421 for amended order 3000009153-1. Email 19f 370fa 164ee 280 explicitly confirms the order was adjusted and a remaining amount is payable. App boards 1207.50 plus incremental clips 257.00 total 1464.50. The PDF does not explicitly mark the earlier invoice cancelled; treat as one revised purchase set, not additive full invoices.",
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f367c940d6bc79",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f367c940d6bc79"
+        },
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "1a0439f3b8db605f",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/1a0439f3b8db605f"
+        }
+      ],
+      "pdf_relative": "sources/homing-I3000007400-2026-07-06.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/homing-I3000007400-2026-07-06.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "63905f52-bcda-46d4-bd86-ceee0a90952e",
+          "date": "2026-07-06",
+          "invoice_date": null,
+          "supplier_name": "HomingXL BV",
+          "supplier_invoice_number": "I3000007400",
+          "category": "materiaal",
+          "amount_excl_btw": "997.93",
+          "amount_incl_btw": "1207.50",
+          "btw_amount": "209.57"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-5826d36c-cf6f-4904-981f-5c21b2ebb608",
+          "date": "2026-07-06",
+          "supplier_name": "HomingXL via MultiSafepay",
+          "category": "materiaal",
+          "amount_incl_btw": 1207.5,
+          "source_cost_ids": [
+            "63905f52-bcda-46d4-bd86-ceee0a90952e"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "HomingXL BV",
+      "number": "I3000007421",
+      "date": "2026-07-06",
+      "net": 1210.33,
+      "vat": 254.17,
+      "gross": 1464.5,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "5bd4fee3-16eb-4068-a245-15424fdb37d7",
+        "63905f52-bcda-46d4-bd86-ceee0a90952e"
+      ],
+      "result": "present_revised_invoice_split_incrementally",
+      "count_as_purchase": true,
+      "notes": [
+        "App has 257.00 incremental clips on I 3000007421 plus 1207.50 boards on I 3000007400, total 1464.50 matching revised PDF.",
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f37116ce180277",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f37116ce180277"
+        },
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "1a0439f3b8db605f",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/1a0439f3b8db605f"
+        }
+      ],
+      "pdf_relative": "sources/homing-I3000007421-2026-07-06.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/homing-I3000007421-2026-07-06.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "5bd4fee3-16eb-4068-a245-15424fdb37d7",
+          "date": "2026-07-06",
+          "invoice_date": "2026-07-06",
+          "supplier_name": "HomingXL BV",
+          "supplier_invoice_number": "I3000007421",
+          "category": "materiaal",
+          "amount_excl_btw": "212.40",
+          "amount_incl_btw": "257.00",
+          "btw_amount": "44.60"
+        },
+        {
+          "id": "63905f52-bcda-46d4-bd86-ceee0a90952e",
+          "date": "2026-07-06",
+          "invoice_date": null,
+          "supplier_name": "HomingXL BV",
+          "supplier_invoice_number": "I3000007400",
+          "category": "materiaal",
+          "amount_excl_btw": "997.93",
+          "amount_incl_btw": "1207.50",
+          "btw_amount": "209.57"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-1917fad1-9470-4d1f-95ab-85891dadcc9e",
+          "date": "2026-07-06",
+          "supplier_name": "HomingXL via MultiSafepay",
+          "category": "materiaal",
+          "amount_incl_btw": 257,
+          "source_cost_ids": [
+            "5bd4fee3-16eb-4068-a245-15424fdb37d7"
+          ]
+        },
+        {
+          "id": "bank-knab-5826d36c-cf6f-4904-981f-5c21b2ebb608",
+          "date": "2026-07-06",
+          "supplier_name": "HomingXL via MultiSafepay",
+          "category": "materiaal",
+          "amount_incl_btw": 1207.5,
+          "source_cost_ids": [
+            "63905f52-bcda-46d4-bd86-ceee0a90952e"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Toolstation NL B.V.",
+      "number": "OWW209597314",
+      "date": "2026-07-06",
+      "net": 10.33,
+      "vat": 2.17,
+      "gross": 12.5,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "005287a5-40fa-45ee-b96c-047f893a2098"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f35e86162aea60",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f35e86162aea60"
+        }
+      ],
+      "pdf_relative": "sources/toolstation-OWW209597314-2026-07-06.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/toolstation-OWW209597314-2026-07-06.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "005287a5-40fa-45ee-b96c-047f893a2098",
+          "date": "2026-07-06",
+          "invoice_date": null,
+          "supplier_name": "Toolstation NL B.V.",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "10.33",
+          "amount_incl_btw": "12.50",
+          "btw_amount": "2.17"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-e99ceb44-91cc-4ccb-bb7b-d676d53b06b8",
+          "date": "2026-07-06",
+          "supplier_name": "Toolstation via PayPal (Europe)",
+          "category": "materiaal",
+          "amount_incl_btw": 12.5,
+          "source_cost_ids": [
+            "005287a5-40fa-45ee-b96c-047f893a2098"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Amersfoort",
+      "number": "941350",
+      "date": "2026-07-09",
+      "net": 424.55,
+      "vat": 89.16,
+      "gross": 513.71,
+      "expected": [
+        "gereedschap",
+        "materiaal"
+      ],
+      "cost_ids": [
+        "0fddd40f-dfa0-4b55-be91-31b9b3b3161c",
+        "a0a73949-8c0d-4430-a8d8-215c5350a25e"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [
+        "All products are tools; 0.22 transport surcharge split into materiaal. Consider allocating surcharge to gereedschap with purchase; no amount missing."
+      ],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f45b8597478687",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f45b8597478687"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-941350-2026-07-09.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-941350-2026-07-09.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "0fddd40f-dfa0-4b55-be91-31b9b3b3161c",
+          "date": "2026-07-09",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amersfoort",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "0.18",
+          "amount_incl_btw": "0.22",
+          "btw_amount": "0.04"
+        },
+        {
+          "id": "a0a73949-8c0d-4430-a8d8-215c5350a25e",
+          "date": "2026-07-09",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amersfoort",
+          "supplier_invoice_number": null,
+          "category": "gereedschap",
+          "amount_excl_btw": "424.37",
+          "amount_incl_btw": "513.49",
+          "btw_amount": "89.12"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-ca28542a-9c74-4218-9b5b-f2c961b16c54",
+          "date": "2026-07-09",
+          "supplier_name": "Bouwmaat Amersfoort",
+          "category": "materiaal",
+          "amount_incl_btw": 513.71,
+          "source_cost_ids": [
+            "0fddd40f-dfa0-4b55-be91-31b9b3b3161c",
+            "a0a73949-8c0d-4430-a8d8-215c5350a25e"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Derks Lease B.V.",
+      "number": "56262760",
+      "date": "2026-07-09",
+      "net": 92.5,
+      "vat": 2.63,
+      "gross": 95.13,
+      "expected": [
+        "boetes"
+      ],
+      "cost_ids": [
+        "293bf3cf-82ef-42aa-81a5-f34210411883"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f482968b030558",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f482968b030558"
+        }
+      ],
+      "pdf_relative": "sources/derks-56262760-2026-07-09.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/derks-56262760-2026-07-09.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "293bf3cf-82ef-42aa-81a5-f34210411883",
+          "date": "2026-07-20",
+          "invoice_date": null,
+          "supplier_name": "Derks Lease B.V.",
+          "supplier_invoice_number": null,
+          "category": "boetes",
+          "amount_excl_btw": "92.50",
+          "amount_incl_btw": "95.13",
+          "btw_amount": "2.63"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-4a0634d7-6311-47f8-9fc4-ee2ebe2d1862",
+          "date": "2026-07-20",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_incl_btw": 95.13,
+          "source_cost_ids": [
+            "293bf3cf-82ef-42aa-81a5-f34210411883"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Houthandel Bos",
+      "number": "6020415",
+      "date": "2026-07-09",
+      "net": 253.88,
+      "vat": 53.32,
+      "gross": 307.2,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "c913f4fe-7074-415d-b28b-3723aa4ab6b2"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f4590833afc6f8",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f4590833afc6f8"
+        }
+      ],
+      "pdf_relative": "sources/houthandelbos-6020415-2026-07-09.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/houthandelbos-6020415-2026-07-09.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "c913f4fe-7074-415d-b28b-3723aa4ab6b2",
+          "date": "2026-07-09",
+          "invoice_date": null,
+          "supplier_name": "Houthandel Bos (Bos Houtbedrijf BV)",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "253.88",
+          "amount_incl_btw": "307.20",
+          "btw_amount": "53.32"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-d470a7da-22ef-4172-9094-82678d57c5c0",
+          "date": "2026-07-09",
+          "supplier_name": "Bos Houtbedrijf BVHout",
+          "category": "materiaal",
+          "amount_incl_btw": 307.2,
+          "source_cost_ids": [
+            "c913f4fe-7074-415d-b28b-3723aa4ab6b2"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Amersfoort",
+      "number": "941648",
+      "date": "2026-07-10",
+      "net": 379.68,
+      "vat": 79.73,
+      "gross": 459.41,
+      "expected": [
+        "gereedschap",
+        "materiaal"
+      ],
+      "cost_ids": [
+        "ca432d73-cca3-4572-b250-98f693f1c448",
+        "d4679b0f-466f-4221-bbeb-13e6f362405c"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f4acedb6a8988c",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f4acedb6a8988c"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-941648-2026-07-10.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-941648-2026-07-10.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "ca432d73-cca3-4572-b250-98f693f1c448",
+          "date": "2026-07-10",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amersfoort",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "374.00",
+          "amount_incl_btw": "452.54",
+          "btw_amount": "78.54"
+        },
+        {
+          "id": "d4679b0f-466f-4221-bbeb-13e6f362405c",
+          "date": "2026-07-10",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amersfoort",
+          "supplier_invoice_number": null,
+          "category": "gereedschap",
+          "amount_excl_btw": "5.68",
+          "amount_incl_btw": "6.87",
+          "btw_amount": "1.19"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-7f16b300-a6f0-47a3-92ce-a43645befdee",
+          "date": "2026-07-10",
+          "supplier_name": "Bouwmaat Amersfoort",
+          "category": "materiaal",
+          "amount_incl_btw": 459.41,
+          "source_cost_ids": [
+            "ca432d73-cca3-4572-b250-98f693f1c448",
+            "d4679b0f-466f-4221-bbeb-13e6f362405c"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Amersfoort",
+      "number": "941786",
+      "date": "2026-07-10",
+      "net": 297.54,
+      "vat": 62.48,
+      "gross": 360.02,
+      "expected": [
+        "gereedschap",
+        "materiaal"
+      ],
+      "cost_ids": [
+        "387cb547-393d-407a-88af-5c9ee87d59b4",
+        "6a06386e-2027-41f0-b43a-d4c212ef64ab"
+      ],
+      "result": "present_category_review",
+      "count_as_purchase": true,
+      "notes": [
+        "Bouwmaat Reinigingsdoekjes 80st 8.90net/10.77gross classified gereedschap (UI Investering); consumable cleaning wipes, better materiaal/overig subject to user policy."
+      ],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f4be0d39408764",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f4be0d39408764"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-941786-2026-07-10.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-941786-2026-07-10.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "387cb547-393d-407a-88af-5c9ee87d59b4",
+          "date": "2026-07-10",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amersfoort",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "288.64",
+          "amount_incl_btw": "349.25",
+          "btw_amount": "60.61"
+        },
+        {
+          "id": "6a06386e-2027-41f0-b43a-d4c212ef64ab",
+          "date": "2026-07-10",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amersfoort",
+          "supplier_invoice_number": null,
+          "category": "gereedschap",
+          "amount_excl_btw": "8.90",
+          "amount_incl_btw": "10.77",
+          "btw_amount": "1.87"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-867b52af-d485-4388-b689-3e235c2860b9",
+          "date": "2026-07-10",
+          "supplier_name": "Bouwmaat Amersfoort",
+          "category": "materiaal",
+          "amount_incl_btw": 360.02,
+          "source_cost_ids": [
+            "387cb547-393d-407a-88af-5c9ee87d59b4",
+            "6a06386e-2027-41f0-b43a-d4c212ef64ab"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Amersfoort",
+      "number": "942055",
+      "date": "2026-07-11",
+      "net": 841.12,
+      "vat": 176.64,
+      "gross": 1017.76,
+      "expected": [
+        "gereedschap",
+        "materiaal"
+      ],
+      "cost_ids": [
+        "96ae8025-8598-47ea-bc44-e1d5b34beb89",
+        "997d7455-05cb-46f6-910d-56fa190a28e3"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f50e8394118423",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f50e8394118423"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-942055-2026-07-11.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-942055-2026-07-11.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "96ae8025-8598-47ea-bc44-e1d5b34beb89",
+          "date": "2026-07-11",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amersfoort",
+          "supplier_invoice_number": null,
+          "category": "gereedschap",
+          "amount_excl_btw": "587.00",
+          "amount_incl_btw": "710.27",
+          "btw_amount": "123.27"
+        },
+        {
+          "id": "997d7455-05cb-46f6-910d-56fa190a28e3",
+          "date": "2026-07-11",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amersfoort",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "254.12",
+          "amount_incl_btw": "307.49",
+          "btw_amount": "53.37"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-9b68439c-1925-4110-8d4c-b453c61a0011",
+          "date": "2026-07-13",
+          "supplier_name": "Bouwmaat Amersfoort",
+          "category": "materiaal",
+          "amount_incl_btw": 1017.76,
+          "source_cost_ids": [
+            "96ae8025-8598-47ea-bc44-e1d5b34beb89",
+            "997d7455-05cb-46f6-910d-56fa190a28e3"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "GAMMA Amersfoort",
+      "number": "4369",
+      "date": "2026-07-12",
+      "net": 72.29,
+      "vat": 15.18,
+      "gross": 87.47,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "16909e9c-cdcf-487c-8fc9-1b9e83f673b4"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "1a048535c3544bd1",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/1a048535c3544bd1"
+        }
+      ],
+      "pdf_relative": "sources/gamma-4369-2026-07-12.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/gamma-4369-2026-07-12.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "16909e9c-cdcf-487c-8fc9-1b9e83f673b4",
+          "date": "2026-07-12",
+          "invoice_date": null,
+          "supplier_name": "GAMMA",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "72.29",
+          "amount_incl_btw": "87.47",
+          "btw_amount": "15.18"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-2bd79cdb-eccc-47ba-9e7f-5c2c490303f8",
+          "date": "2026-07-13",
+          "supplier_name": "HD8201GammaA'foort",
+          "category": "materiaal",
+          "amount_incl_btw": 87.47,
+          "source_cost_ids": [
+            "16909e9c-cdcf-487c-8fc9-1b9e83f673b4"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat",
+      "number": "5000VF001955694",
+      "date": "2026-07-13",
+      "net": 1498.98,
+      "vat": 302.19,
+      "gross": 1801.17,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "21b0e43a-501e-491c-9bce-d5b2960e3457",
+        "28912bca-64eb-4236-a789-623926342070",
+        "f40f355d-52ae-4921-962c-7a819b5c7f90"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [
+        "LEGO promotional toy 0.01 stored rowcategory materiaal but its line category overig. Rest categories/totals match, including 60.00 pallet deposit at 0% VAT."
+      ],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f8a8da672af29d",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f8a8da672af29d"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-5000VF001955694-2026-07-13.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-5000VF001955694-2026-07-13.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "21b0e43a-501e-491c-9bce-d5b2960e3457",
+          "date": "2026-07-13",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "970.96",
+          "amount_incl_btw": "1162.27",
+          "btw_amount": "191.31"
+        },
+        {
+          "id": "28912bca-64eb-4236-a789-623926342070",
+          "date": "2026-07-13",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "0.01",
+          "amount_incl_btw": "0.01",
+          "btw_amount": "0.00"
+        },
+        {
+          "id": "f40f355d-52ae-4921-962c-7a819b5c7f90",
+          "date": "2026-07-13",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "528.01",
+          "amount_incl_btw": "638.89",
+          "btw_amount": "110.88"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-1ac5c844-5f45-4081-9f1e-f58c4cc95b05",
+          "date": "2026-07-27",
+          "supplier_name": "DERDENGELDEN BOUWMAAT",
+          "category": "materiaal",
+          "amount_incl_btw": 1801.17,
+          "source_cost_ids": [
+            "21b0e43a-501e-491c-9bce-d5b2960e3457",
+            "28912bca-64eb-4236-a789-623926342070",
+            "f40f355d-52ae-4921-962c-7a819b5c7f90"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Alkmaar",
+      "number": "636707",
+      "date": "2026-07-13",
+      "net": 103.63,
+      "vat": 21.76,
+      "gross": 125.39,
+      "expected": [
+        "gereedschap",
+        "materiaal"
+      ],
+      "cost_ids": [
+        "1b208ec9-c99e-44e0-92e0-aa6fcd394da0",
+        "37e0d63c-0300-4e8f-8210-673e7f6e7283"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [
+        "Correct gereedschap/material split but app describes Stanley Hamerholster as hangerslot."
+      ],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f5a2e55430531f",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f5a2e55430531f"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-636707-2026-07-13.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-636707-2026-07-13.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "1b208ec9-c99e-44e0-92e0-aa6fcd394da0",
+          "date": "2026-07-13",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Alkmaar",
+          "supplier_invoice_number": null,
+          "category": "gereedschap",
+          "amount_excl_btw": "9.10",
+          "amount_incl_btw": "11.01",
+          "btw_amount": "1.91"
+        },
+        {
+          "id": "37e0d63c-0300-4e8f-8210-673e7f6e7283",
+          "date": "2026-07-13",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Alkmaar",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "94.53",
+          "amount_incl_btw": "114.38",
+          "btw_amount": "19.85"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-70482c91-740a-496b-a058-5567f57cf04b",
+          "date": "2026-07-13",
+          "supplier_name": "Bouwmaat Alkmaar",
+          "category": "materiaal",
+          "amount_incl_btw": 125.39,
+          "source_cost_ids": [
+            "1b208ec9-c99e-44e0-92e0-aa6fcd394da0",
+            "37e0d63c-0300-4e8f-8210-673e7f6e7283"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat",
+      "number": "1000VF003357675",
+      "date": "2026-07-14",
+      "net": 1910.9,
+      "vat": 401.3,
+      "gross": 2312.2,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "6cb1e6e2-b10a-4d0b-90fc-e86ddcc80ce8"
+      ],
+      "result": "present_one_cent_header_difference",
+      "count_as_purchase": true,
+      "notes": [
+        "Final PDF total 2312.20/VAT 401.30 versus app 2312.19/VAT 401.29. App mirrors lower delivery-note subtotal printed on same PDF."
+      ],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f8a698b2070bb4",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f8a698b2070bb4"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1000VF003357675-2026-07-14.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1000VF003357675-2026-07-14.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "6cb1e6e2-b10a-4d0b-90fc-e86ddcc80ce8",
+          "date": "2026-07-14",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "1910.90",
+          "amount_incl_btw": "2312.19",
+          "btw_amount": "401.29"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-29f14c65-47d1-45ab-b781-5c45966709f3",
+          "date": "2026-07-13",
+          "supplier_name": "Bouwmaat Alkmaar",
+          "category": "materiaal",
+          "amount_incl_btw": 2312.19,
+          "source_cost_ids": [
+            "6cb1e6e2-b10a-4d0b-90fc-e86ddcc80ce8"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "PIVADA verhuur",
+      "number": "20260653",
+      "date": "2026-07-14",
+      "net": 21.9,
+      "vat": 4.6,
+      "gross": 26.5,
+      "expected": [
+        "overig"
+      ],
+      "cost_ids": [
+        "1f7196ea-b851-4cea-b426-9e5b2565d213"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f6098a6560d6ad",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f6098a6560d6ad"
+        }
+      ],
+      "pdf_relative": "sources/pivada-20260653-2026-07-14.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/pivada-20260653-2026-07-14.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "1f7196ea-b851-4cea-b426-9e5b2565d213",
+          "date": "2026-07-14",
+          "invoice_date": "2026-07-14",
+          "supplier_name": "PIVADA verhuur",
+          "supplier_invoice_number": "20260653",
+          "category": "overig",
+          "amount_excl_btw": "21.90",
+          "amount_incl_btw": "26.50",
+          "btw_amount": "4.60"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-0b46f5b2-2c1e-4107-9a17-11199e2d3d2c",
+          "date": "2026-07-14",
+          "supplier_name": "PIVADA verhuur",
+          "category": "materiaal",
+          "amount_incl_btw": 211.5,
+          "source_cost_ids": [
+            "1f7196ea-b851-4cea-b426-9e5b2565d213"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Derks Lease B.V.",
+      "number": "56262842",
+      "date": "2026-07-17",
+      "net": 49.5,
+      "vat": 2.63,
+      "gross": 52.13,
+      "expected": [
+        "boetes"
+      ],
+      "cost_ids": [
+        "e75cbc99-8f86-4ec7-88fb-e9aedd98368e"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f7159f69b497f6",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f7159f69b497f6"
+        }
+      ],
+      "pdf_relative": "sources/derks-56262842-2026-07-17.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/derks-56262842-2026-07-17.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "e75cbc99-8f86-4ec7-88fb-e9aedd98368e",
+          "date": "2026-07-27",
+          "invoice_date": null,
+          "supplier_name": "Derks Lease B.V.",
+          "supplier_invoice_number": null,
+          "category": "boetes",
+          "amount_excl_btw": "49.50",
+          "amount_incl_btw": "52.13",
+          "btw_amount": "2.63"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-93faf05c-080a-42bc-b27c-44423b26491d",
+          "date": "2026-07-27",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_incl_btw": 52.13,
+          "source_cost_ids": [
+            "e75cbc99-8f86-4ec7-88fb-e9aedd98368e"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Toolstation NL B.V.",
+      "number": "OAH210711592",
+      "date": "2026-07-20",
+      "net": 199.72,
+      "vat": 41.94,
+      "gross": 241.66,
+      "expected": [
+        "split"
+      ],
+      "cost_ids": [
+        "6514af44-ffd4-4150-b71a-fa2098cf40c2",
+        "956faf9e-36c6-4f3b-94d8-b0d51378e63e"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f7fce576596318",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f7fce576596318"
+        }
+      ],
+      "pdf_relative": "sources/toolstation-OAH210711592-2026-07-20.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/toolstation-OAH210711592-2026-07-20.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "6514af44-ffd4-4150-b71a-fa2098cf40c2",
+          "date": "2026-07-20",
+          "invoice_date": "2026-07-20",
+          "supplier_name": "Toolstation NL B.V.",
+          "supplier_invoice_number": "OAH210711592",
+          "category": "gereedschap",
+          "amount_excl_btw": "182.70",
+          "amount_incl_btw": "221.07",
+          "btw_amount": "38.37"
+        },
+        {
+          "id": "956faf9e-36c6-4f3b-94d8-b0d51378e63e",
+          "date": "2026-07-20",
+          "invoice_date": "2026-07-20",
+          "supplier_name": "Toolstation NL B.V.",
+          "supplier_invoice_number": "OAH210711592",
+          "category": "materiaal",
+          "amount_excl_btw": "17.02",
+          "amount_incl_btw": "20.59",
+          "btw_amount": "3.57"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-d2d59248-3d02-4991-b61d-7377bf3252f6",
+          "date": "2026-07-20",
+          "supplier_name": "BCK*Toolstation AH",
+          "category": "gereedschap",
+          "amount_incl_btw": 241.66,
+          "source_cost_ids": [
+            "6514af44-ffd4-4150-b71a-fa2098cf40c2",
+            "956faf9e-36c6-4f3b-94d8-b0d51378e63e"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Haarlem XL",
+      "number": "1314116",
+      "date": "2026-07-21",
+      "net": 264.79,
+      "vat": 55.61,
+      "gross": 320.4,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "029ade17-f819-4be8-bf77-04b4c4d3fdb9",
+        "35f8762f-2fdd-4188-87ea-c58d1bd335e4"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f83dc7e6bd1955",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f83dc7e6bd1955"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1314116-2026-07-21.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1314116-2026-07-21.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "029ade17-f819-4be8-bf77-04b4c4d3fdb9",
+          "date": "2026-07-21",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Haarlem XL",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "248.66",
+          "amount_incl_btw": "300.88",
+          "btw_amount": "52.22"
+        },
+        {
+          "id": "35f8762f-2fdd-4188-87ea-c58d1bd335e4",
+          "date": "2026-07-21",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Haarlem XL",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "16.13",
+          "amount_incl_btw": "19.52",
+          "btw_amount": "3.39"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-0271bdde-3c38-457a-ab4b-3d2fb5703ada",
+          "date": "2026-07-21",
+          "supplier_name": "Bouwmaat Haarlem",
+          "category": "materiaal",
+          "amount_incl_btw": 320.4,
+          "source_cost_ids": [
+            "029ade17-f819-4be8-bf77-04b4c4d3fdb9",
+            "35f8762f-2fdd-4188-87ea-c58d1bd335e4"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Haarlem XL",
+      "number": "1314120",
+      "date": "2026-07-21",
+      "net": 42,
+      "vat": 8.82,
+      "gross": 50.82,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "e0963d62-74f9-48cd-9731-9c7df8951e90"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f83dc0a5eb67b7",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f83dc0a5eb67b7"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1314120-2026-07-21.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1314120-2026-07-21.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "e0963d62-74f9-48cd-9731-9c7df8951e90",
+          "date": "2026-07-21",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Haarlem XL",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "42.00",
+          "amount_incl_btw": "50.82",
+          "btw_amount": "8.82"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-888d680d-e3a7-487c-8b86-c4ebbf175225",
+          "date": "2026-07-21",
+          "supplier_name": "Bouwmaat Haarlem",
+          "category": "materiaal",
+          "amount_incl_btw": 50.82,
+          "source_cost_ids": [
+            "e0963d62-74f9-48cd-9731-9c7df8951e90"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Toolstation NL B.V.",
+      "number": "OAH210772240",
+      "date": "2026-07-21",
+      "net": 2.24,
+      "vat": 0.47,
+      "gross": 2.71,
+      "expected": [
+        "gereedschap"
+      ],
+      "cost_ids": [
+        "36d8a389-d2b8-473f-9659-f4b28e56d90e"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f8439bb8dd5897",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f8439bb8dd5897"
+        }
+      ],
+      "pdf_relative": "sources/toolstation-OAH210772240-2026-07-21.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/toolstation-OAH210772240-2026-07-21.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "36d8a389-d2b8-473f-9659-f4b28e56d90e",
+          "date": "2026-07-21",
+          "invoice_date": "2026-07-21",
+          "supplier_name": "Toolstation NL B.V.",
+          "supplier_invoice_number": "OAH210772240",
+          "category": "gereedschap",
+          "amount_excl_btw": "2.24",
+          "amount_incl_btw": "2.71",
+          "btw_amount": "0.47"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-b1fb5497-3764-444c-928a-1bb7674aaefe",
+          "date": "2026-07-21",
+          "supplier_name": "BCK*Toolstation AH",
+          "category": "gereedschap",
+          "amount_incl_btw": 2.71,
+          "source_cost_ids": [
+            "36d8a389-d2b8-473f-9659-f4b28e56d90e"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Haarlem XL",
+      "number": "1314719",
+      "date": "2026-07-22",
+      "net": 21.15,
+      "vat": 4.44,
+      "gross": 25.59,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "1614fa28-85b3-46fe-9340-3c570dc8f933"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f89b53fdad89cc",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f89b53fdad89cc"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1314719-2026-07-22.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1314719-2026-07-22.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "1614fa28-85b3-46fe-9340-3c570dc8f933",
+          "date": "2026-07-22",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Haarlem XL",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "21.15",
+          "amount_incl_btw": "25.59",
+          "btw_amount": "4.44"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-8b73217b-adaa-44e7-ae41-9b7f62b2f1c5",
+          "date": "2026-07-22",
+          "supplier_name": "Bouwmaat Haarlem",
+          "category": "materiaal",
+          "amount_incl_btw": 25.59,
+          "source_cost_ids": [
+            "1614fa28-85b3-46fe-9340-3c570dc8f933"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Toolstation NL B.V.",
+      "number": "OCG211000767",
+      "date": "2026-07-24",
+      "net": 30.27,
+      "vat": 6.36,
+      "gross": 36.63,
+      "expected": [
+        "gereedschap"
+      ],
+      "cost_ids": [
+        "3f852730-326e-4a4b-b5ec-add7fb247f07",
+        "a29bb4fb-9832-41f8-a369-e57eb81ab629"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "Correct total36.63 already includes discount1.93 gross. Separate legacy overig row-2.34 repeats this discount and misreads gross as net; needs cleanup review. Bank36.63 correct.",
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19f92d4bd7a2e36d",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19f92d4bd7a2e36d"
+        }
+      ],
+      "pdf_relative": "sources/toolstation-OCG211000767-2026-07-24.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/toolstation-OCG211000767-2026-07-24.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "3f852730-326e-4a4b-b5ec-add7fb247f07",
+          "date": "2026-07-24",
+          "invoice_date": null,
+          "supplier_name": "Toolstation NL B.V",
+          "supplier_invoice_number": null,
+          "category": "overig",
+          "amount_excl_btw": "-1.93",
+          "amount_incl_btw": "-2.34",
+          "btw_amount": "-0.41"
+        },
+        {
+          "id": "a29bb4fb-9832-41f8-a369-e57eb81ab629",
+          "date": "2026-07-24",
+          "invoice_date": null,
+          "supplier_name": "Toolstation NL B.V",
+          "supplier_invoice_number": null,
+          "category": "gereedschap",
+          "amount_excl_btw": "30.27",
+          "amount_incl_btw": "36.63",
+          "btw_amount": "6.36"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-b9c91582-2a6a-40e2-9996-8c04c4e42ecc",
+          "date": "2026-07-24",
+          "supplier_name": "BCK*Toolstation CG",
+          "category": "gereedschap",
+          "amount_incl_btw": 36.63,
+          "source_cost_ids": [
+            "a29bb4fb-9832-41f8-a369-e57eb81ab629"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Sloterdijk",
+      "number": "1233192",
+      "date": "2026-07-25",
+      "net": 336.17,
+      "vat": 70.59,
+      "gross": 406.76,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "da12cbed-d46e-417c-bae2-621cd20299c6"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f9891b3e5a118f",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f9891b3e5a118f"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1233192-2026-07-25.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1233192-2026-07-25.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "da12cbed-d46e-417c-bae2-621cd20299c6",
+          "date": "2026-07-25",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Sloterdijk",
+          "supplier_invoice_number": "1233192",
+          "category": "materiaal",
+          "amount_excl_btw": "336.17",
+          "amount_incl_btw": "406.76",
+          "btw_amount": "70.59"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-5aafdb21-b461-4cdb-abf5-2525e3332613",
+          "date": "2026-07-27",
+          "supplier_name": "BCK*Bouwmaat Sloterdij",
+          "category": "materiaal",
+          "amount_incl_btw": 406.76,
+          "source_cost_ids": [
+            "da12cbed-d46e-417c-bae2-621cd20299c6"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "XXL Direct BV",
+      "number": "32531138",
+      "date": "2026-07-25",
+      "net": 258.89,
+      "vat": 54.39,
+      "gross": 313.28,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "36fd7d39-cb45-4cef-9f26-6f1e6e0e21ea",
+        "d1a05d54-3cbb-4ee8-9159-72fcc6ffc198",
+        "e72c5e74-2bcc-4291-b2b5-87bfc2430d68"
+      ],
+      "result": "present_redundant_source_representations",
+      "count_as_purchase": true,
+      "notes": [
+        "Full 313.28 source plus older 278.31+34.97 split represent same invoice. Only full row linked to bank. Do not infer doubled visible bank total.",
+        "Older shipping row 28.90net differs from PDF 28.88net; full source row correct."
+      ],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19f9b44d9d876653",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19f9b44d9d876653"
+        }
+      ],
+      "pdf_relative": "sources/xxl-32531138-2026-07-25.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/xxl-32531138-2026-07-25.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "36fd7d39-cb45-4cef-9f26-6f1e6e0e21ea",
+          "date": "2026-07-25",
+          "invoice_date": "2026-07-25",
+          "supplier_name": "XXL Direct BV",
+          "supplier_invoice_number": "32531138",
+          "category": "materiaal",
+          "amount_excl_btw": "258.89",
+          "amount_incl_btw": "313.28",
+          "btw_amount": "54.39"
+        },
+        {
+          "id": "d1a05d54-3cbb-4ee8-9159-72fcc6ffc198",
+          "date": "2026-07-25",
+          "invoice_date": null,
+          "supplier_name": "XXL Direct BV",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "230.01",
+          "amount_incl_btw": "278.31",
+          "btw_amount": "48.30"
+        },
+        {
+          "id": "e72c5e74-2bcc-4291-b2b5-87bfc2430d68",
+          "date": "2026-07-25",
+          "invoice_date": null,
+          "supplier_name": "XXL Direct BV",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "28.90",
+          "amount_incl_btw": "34.97",
+          "btw_amount": "6.07"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-e43db21c-66a0-414e-b9f5-2c977a86ef29",
+          "date": "2026-07-27",
+          "supplier_name": "xxldirect.nl",
+          "category": "materiaal",
+          "amount_incl_btw": 313.28,
+          "source_cost_ids": [
+            "36fd7d39-cb45-4cef-9f26-6f1e6e0e21ea"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Amsterdam Amstel XL",
+      "number": "1920756",
+      "date": "2026-07-27",
+      "net": 83.94,
+      "vat": 17.63,
+      "gross": 101.57,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "c34380a2-05b5-4af4-8b7d-b2e8c65bc183"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19fa3235382842b6",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19fa3235382842b6"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1920756-2026-07-27.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1920756-2026-07-27.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "c34380a2-05b5-4af4-8b7d-b2e8c65bc183",
+          "date": "2026-07-27",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amsterdam Amstel XL",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "83.94",
+          "amount_incl_btw": "101.57",
+          "btw_amount": "17.63"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-9354e3f0-2607-4718-b720-209dbefef195",
+          "date": "2026-07-27",
+          "supplier_name": "BCK*Bouwmaat Amstel",
+          "category": "materiaal",
+          "amount_incl_btw": 101.57,
+          "source_cost_ids": [
+            "c34380a2-05b5-4af4-8b7d-b2e8c65bc183"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Rotterdam Zuid XL",
+      "number": "1202000",
+      "date": "2026-07-28",
+      "net": 160.81,
+      "vat": 33.77,
+      "gross": 194.58,
+      "expected": [
+        "gereedschap",
+        "materiaal"
+      ],
+      "cost_ids": [
+        "29990f13-6ec4-4a4f-af57-6d7070978f60",
+        "4503b68c-1cf2-491f-8047-03dea0536d6e"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19fa857b8114b939",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19fa857b8114b939"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1202000-2026-07-28.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1202000-2026-07-28.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "29990f13-6ec4-4a4f-af57-6d7070978f60",
+          "date": "2026-07-28",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Rotterdam Zuid XL",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "153.20",
+          "amount_incl_btw": "185.37",
+          "btw_amount": "32.17"
+        },
+        {
+          "id": "4503b68c-1cf2-491f-8047-03dea0536d6e",
+          "date": "2026-07-28",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Rotterdam Zuid XL",
+          "supplier_invoice_number": null,
+          "category": "gereedschap",
+          "amount_excl_btw": "7.61",
+          "amount_incl_btw": "9.21",
+          "btw_amount": "1.60"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-141d6a6a-0adf-4ec9-a13c-6ed937e0974c",
+          "date": "2026-07-28",
+          "supplier_name": "BOUWMAAT R'DAM ZUID",
+          "category": "materiaal",
+          "amount_incl_btw": 194.58,
+          "source_cost_ids": [
+            "29990f13-6ec4-4a4f-af57-6d7070978f60",
+            "4503b68c-1cf2-491f-8047-03dea0536d6e"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Rotterdam Zuid XL",
+      "number": "1202010",
+      "date": "2026-07-28",
+      "net": 91.26,
+      "vat": 19.17,
+      "gross": 110.43,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "40ad0c7d-eee8-4f46-a5d2-70b0846f0005"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19fa8629865a3eac",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19fa8629865a3eac"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1202010-2026-07-28.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1202010-2026-07-28.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "40ad0c7d-eee8-4f46-a5d2-70b0846f0005",
+          "date": "2026-07-28",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Rotterdam Zuid XL",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "91.26",
+          "amount_incl_btw": "110.43",
+          "btw_amount": "19.17"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-3205f311-7e67-4e7f-93f3-368836cc4e1e",
+          "date": "2026-07-28",
+          "supplier_name": "BOUWMAAT R'DAM ZUID",
+          "category": "materiaal",
+          "amount_incl_btw": 110.43,
+          "source_cost_ids": [
+            "40ad0c7d-eee8-4f46-a5d2-70b0846f0005"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Amsterdam Sloterdijk XL",
+      "number": "1234469",
+      "date": "2026-07-29",
+      "net": 59.69,
+      "vat": 12.54,
+      "gross": 72.23,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "b1644596-12d9-4d66-8eca-292c0905363a"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19fae3a0e8d16df0",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19fae3a0e8d16df0"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1234469-2026-07-29.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1234469-2026-07-29.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "b1644596-12d9-4d66-8eca-292c0905363a",
+          "date": "2026-07-29",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amsterdam Sloterdijk XL",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "59.69",
+          "amount_incl_btw": "72.23",
+          "btw_amount": "12.54"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-b933ffa6-02ed-4178-8483-80ecd15422a8",
+          "date": "2026-07-29",
+          "supplier_name": "BCK*Bouwmaat Sloterdij",
+          "category": "materiaal",
+          "amount_incl_btw": 72.23,
+          "source_cost_ids": [
+            "b1644596-12d9-4d66-8eca-292c0905363a"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Rotterdam Zuid XL",
+      "number": "1202620",
+      "date": "2026-07-30",
+      "net": 12.56,
+      "vat": 2.64,
+      "gross": 15.2,
+      "expected": [
+        "materiaal"
+      ],
+      "cost_ids": [
+        "2643e7b6-6998-403a-926b-ec5c70d656ba"
+      ],
+      "result": "present_categories_and_totals_correct",
+      "count_as_purchase": true,
+      "notes": [],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19fb21df547aab1c",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19fb21df547aab1c"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1202620-2026-07-30.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1202620-2026-07-30.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "2643e7b6-6998-403a-926b-ec5c70d656ba",
+          "date": "2026-07-30",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Rotterdam Zuid XL",
+          "supplier_invoice_number": null,
+          "category": "materiaal",
+          "amount_excl_btw": "12.56",
+          "amount_incl_btw": "15.20",
+          "btw_amount": "2.64"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-9df46d24-2800-4709-9aff-6d559f6e3192",
+          "date": "2026-07-30",
+          "supplier_name": "BOUWMAAT R'DAM ZUID",
+          "category": "materiaal",
+          "amount_incl_btw": 15.2,
+          "source_cost_ids": [
+            "2643e7b6-6998-403a-926b-ec5c70d656ba"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Bouwmaat Amsterdam Amstel XL",
+      "number": "1923325",
+      "date": "2026-07-31",
+      "net": 113.92,
+      "vat": 23.92,
+      "gross": 137.84,
+      "expected": [
+        "gereedschap",
+        "materiaal"
+      ],
+      "cost_ids": [
+        "b95a8854-932f-4080-a40c-15b37eb04773",
+        "e3c32ffe-91fa-4e9d-9b2d-3313ee46a50b"
+      ],
+      "result": "present_wrong_invoice_number",
+      "count_as_purchase": true,
+      "notes": [
+        "App supplier_invoice_number 260324 is project memo. Actual invoice 1923325. Discounts and split totals match 137.84."
+      ],
+      "sources": [
+        {
+          "account": "vroegoptimmerwerken@gmail.com",
+          "message_id": "19fb7a05a5406db6",
+          "gmail": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19fb7a05a5406db6"
+        }
+      ],
+      "pdf_relative": "sources/bouwmaat-1923325-2026-07-31.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/bouwmaat-1923325-2026-07-31.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "b95a8854-932f-4080-a40c-15b37eb04773",
+          "date": "2026-07-31",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amsterdam Amstel XL",
+          "supplier_invoice_number": "260324",
+          "category": "gereedschap",
+          "amount_excl_btw": "98.19",
+          "amount_incl_btw": "118.81",
+          "btw_amount": "20.62"
+        },
+        {
+          "id": "e3c32ffe-91fa-4e9d-9b2d-3313ee46a50b",
+          "date": "2026-07-31",
+          "invoice_date": null,
+          "supplier_name": "Bouwmaat Amsterdam Amstel XL",
+          "supplier_invoice_number": "260324",
+          "category": "materiaal",
+          "amount_excl_btw": "15.73",
+          "amount_incl_btw": "19.03",
+          "btw_amount": "3.30"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-76a690b5-9efb-4a70-8dff-bfaf93e38f47",
+          "date": "2026-07-31",
+          "supplier_name": "BCK*Bouwmaat Amstel",
+          "category": "materiaal",
+          "amount_incl_btw": 137.84,
+          "source_cost_ids": [
+            "b95a8854-932f-4080-a40c-15b37eb04773",
+            "e3c32ffe-91fa-4e9d-9b2d-3313ee46a50b"
+          ]
+        }
+      ]
+    },
+    {
+      "supplier": "Derks Lease B.V.",
+      "number": "56263167",
+      "date": "2026-07-31",
+      "net": 65,
+      "vat": 5.25,
+      "gross": 70.25,
+      "expected": [
+        "boetes"
+      ],
+      "cost_ids": [
+        "f2d0d2f8-e42b-4cc3-9632-b474467ab2ae"
+      ],
+      "result": "present",
+      "count_as_purchase": true,
+      "notes": [
+        "July31 invoice is present under app date August10. It is not missing; invoice_date is null.",
+        "Compare invoice against logical matching invoice group; redundant legacy source records are not additional invoices."
+      ],
+      "sources": [
+        {
+          "account": "facturenvroegoptimmerwerken@gmail.com",
+          "message_id": "19fb973782d5b434",
+          "gmail": "https://mail.google.com/mail/u/?authuser=facturenvroegoptimmerwerken%40gmail.com#all/19fb973782d5b434"
+        }
+      ],
+      "pdf_relative": "sources/derks-56263167-2026-07-31.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/derks-56263167-2026-07-31.pdf",
+      "present": true,
+      "app_sources": [
+        {
+          "id": "f2d0d2f8-e42b-4cc3-9632-b474467ab2ae",
+          "date": "2026-08-10",
+          "invoice_date": null,
+          "supplier_name": "Derks Lease B.V.",
+          "supplier_invoice_number": null,
+          "category": "boetes",
+          "amount_excl_btw": "65.00",
+          "amount_incl_btw": "70.25",
+          "btw_amount": "5.25"
+        }
+      ],
+      "bank_display": [
+        {
+          "id": "bank-knab-fc45cc25-c376-4f4f-8304-9d582687b959",
+          "date": "2026-08-10",
+          "supplier_name": "Derks Lease B.V.",
+          "category": "boetes",
+          "amount_incl_btw": 70.25,
+          "source_cost_ids": [
+            "f2d0d2f8-e42b-4cc3-9632-b474467ab2ae"
+          ]
+        }
+      ]
+    }
+  ],
+  "category_findings": {
+    "scope": {
+      "month": "2026-07",
+      "source_rows_scanned": 106,
+      "bank_rows_reconstructed": 91,
+      "read_only": true,
+      "pdfs_visually_inspected": 8,
+      "receipt_images_visually_inspected": 2,
+      "limitations": "All source row/line descriptions reviewed; targeted original review only, not every July invoice. Cannot attribute historical source mistakes to n8n vs manual edits without execution provenance. Reconstruction uses current local code against live-read data."
+    },
+    "findings": [
+      {
+        "key": "kenteken_auto",
+        "cost_ids": [
+          "dee5f041-b060-4738-b531-8a0dac7f891e"
+        ],
+        "kind": "stored_category_error",
+        "confidence": "high",
+        "observed": "Kentekenmaken.nl 2026-07-08 EUR16.94 stored materiaal; attached order confirmation shows white vehicle plate VDD-37-F EUR9.95 plus EUR6.99 shipping.",
+        "recommendation": "Category autokosten for the plate and related shipping; obtain/locate final invoice separately. Do not infer invoice validity from this order confirmation.",
+        "evidence": [
+          "/tmp/studio-july-audit/kenteken.png"
+        ],
+        "amount_incl": 16.94,
+        "document_is_final_invoice": false,
+        "source_links": [
+          "sources/kenteken.png"
+        ]
+      },
+      {
+        "key": "derks_lease_line",
+        "cost_ids": [
+          "9f233815-3cb7-4dce-ae7a-e3a64a07ccfc"
+        ],
+        "kind": "line_category_inconsistency",
+        "confidence": "high",
+        "observed": "Top-level autokosten is correct. Nested line category brandstof is wrong for July Opel Vivaro lease term EUR1070.05 net / EUR1294.76 gross.",
+        "recommendation": "Keep top-level autokosten and align nested line to autokosten.",
+        "evidence": [
+          "/tmp/studio-july-audit/56262629.pdf"
+        ],
+        "invoice_number": "56262629",
+        "invoice_date": "2026-07-01",
+        "amount_incl": 1294.76,
+        "source_links": [
+          "sources/56262629.pdf"
+        ]
+      },
+      {
+        "key": "lego_material",
+        "cost_ids": [
+          "28912bca-64eb-4236-a789-623926342070"
+        ],
+        "kind": "stored_category_error",
+        "confidence": "high",
+        "observed": "Bouwmaat invoice 5000VF001955694 has LEGO 42226 BMW M4 GT3 EVO Racewagen EUR0.01; row category materiaal but line overig.",
+        "recommendation": "Use overig for this promotional toy row, consistent with its existing line; private intent cannot be inferred from toy alone.",
+        "evidence": [
+          "/tmp/studio-july-audit/5000VF001955694.pdf"
+        ],
+        "invoice_number": "5000VF001955694",
+        "amount_incl": 0.01,
+        "priority": "low_amount_row_line_consistency",
+        "source_links": [
+          "sources/5000VF001955694.pdf"
+        ]
+      },
+      {
+        "key": "coffee_material",
+        "cost_ids": [
+          "d61eabed-ae09-403b-85b5-d1c7514b2797"
+        ],
+        "kind": "stored_category_error",
+        "confidence": "medium",
+        "observed": "Source supplier and line both Koffie, EUR3.65; linked bank merchant Selecta Netherlands B. Stored materiaal. No source receipt.",
+        "recommendation": "Coffee is overig under current app product rule; business/private use and VAT cannot be confirmed without source evidence.",
+        "evidence": [
+          "/tmp/studio-july-audit/app-costs.json",
+          "/tmp/studio-july-audit/app-bank-data.json",
+          "/Users/dylanvroegop/Documents/studio/src/lib/purchase-product-category.ts:11"
+        ],
+        "amount_incl": 3.65,
+        "source_document_verified": false,
+        "source_links": []
+      },
+      {
+        "key": "mediamarkt_cables",
+        "cost_ids": [
+          "6e35d3b1-3f4a-4650-a659-571db042f297"
+        ],
+        "kind": "category_requires_purpose_review",
+        "confidence": "high_product_identity_medium_target_category",
+        "observed": "Photo confirms TWO Samsung USB-C charging cables, 2 x EUR16.99 = EUR33.98; source stores one material line.",
+        "recommendation": "Review use: telefoon for business phone accessories, gereedschap for durable work equipment, eigen_verbruik if private; receipt does not establish use. Do not silently select a target category.",
+        "evidence": [
+          "/tmp/studio-july-audit/mediamarkt.jpg"
+        ],
+        "amount_incl": 33.98,
+        "source_quantity": 2,
+        "stored_quantity": 1,
+        "source_links": [
+          "sources/mediamarkt.jpg"
+        ]
+      },
+      {
+        "key": "via_hotel_line",
+        "cost_ids": [
+          "081f740d-0063-40ff-a9aa-72adf5f73e96"
+        ],
+        "kind": "line_category_inconsistency",
+        "confidence": "medium",
+        "observed": "Top-level hotel, line description hotelkosten but line category materiaal EUR3.39. Linked bank merchant VIA Amsterdam. No original receipt.",
+        "recommendation": "Align line with hotel only after retaining current purpose evidence; no claim about invoice/VAT proof.",
+        "evidence": [
+          "/tmp/studio-july-audit/app-costs.json",
+          "/tmp/studio-july-audit/app-bank-data.json"
+        ],
+        "amount_incl": 3.39,
+        "source_document_verified": false,
+        "source_links": []
+      },
+      {
+        "key": "xxl_shipping_line",
+        "cost_ids": [
+          "e72c5e74-2bcc-4291-b2b5-87bfc2430d68"
+        ],
+        "kind": "line_category_inconsistency_duplicate_representation_confirmed",
+        "confidence": "high",
+        "observed": "Old split shipping row top-level materiaal, line overig EUR28.90 net/EUR34.97 gross; full original invoice 32531138 identifies shipping for EPDM, net EUR28.88. New full row 36fd7d39-cb45-4cef-9f26-6f1e6e0e21ea has entire invoice EUR313.28.",
+        "recommendation": "Root/business mailbox agent confirmed redundant full-vs-split representation; leave for manual review and preserve quote links. Reconcile duplicates before correcting nested shipping category. Material-related shipping belongs materiaal under app convention; original printed shipping is EUR28.88 net.",
+        "evidence": [
+          "/tmp/studio-july-audit/XXL-Direct-Factuur-32531138.pdf"
+        ],
+        "amount_incl": 34.97,
+        "printed_shipping_net": 28.88,
+        "source_links": [
+          "sources/XXL-Direct-Factuur-32531138.pdf"
+        ]
+      },
+      {
+        "key": "shell_private_conflict",
+        "cost_ids": [
+          "3375484a-9ea7-4e0b-91e6-608d5c0e0edc"
+        ],
+        "kind": "preserve_private_uncertainty",
+        "confidence": "high_conflict_unknown_correct_category",
+        "observed": "Top-level brandstof, line eigen_verbruik; bank reconstruction flags fuel_needs_review at EUR15.31.",
+        "recommendation": "Do not overwrite private indication based on Shell merchant name. Need original receipt or user confirmation of purchase purpose.",
+        "evidence": [
+          "/tmp/studio-july-audit/app-costs.json",
+          "/tmp/studio-july-audit/app-bank-data.json"
+        ],
+        "amount_incl": 15.31,
+        "source_links": []
+      },
+      {
+        "key": "pivada_saved_override",
+        "cost_ids": [
+          "1f7196ea-b851-4cea-b426-9e5b2565d213"
+        ],
+        "kind": "saved_override_and_source_payment_mismatch",
+        "confidence": "high",
+        "observed": "Invoice 20260653 shows EUR26.50 paid rental of bakwagen with afdeknet, 3 hours, source overig. July14 bank debit EUR211.50 has explicit materiaal override and links this invoice, EUR185 mismatch.",
+        "recommendation": "Preserve explicit bank override. Reconcile EUR185 unmatched payment portion separately; no factual basis to call override importer error.",
+        "evidence": [
+          "/tmp/studio-july-audit/20260653-Vroegop-timmerwerken.pdf",
+          "/tmp/studio-july-audit/app-bank-data.json"
+        ],
+        "invoice_number": "20260653",
+        "source_amount": 26.5,
+        "payment_amount": 211.5,
+        "source_delta": 185,
+        "source_links": [
+          "sources/20260653-Vroegop-timmerwerken.pdf"
+        ]
+      },
+      {
+        "key": "bouwmaat_wrong_invoice_number",
+        "cost_ids": [
+          "b95a8854-932f-4080-a40c-15b37eb04773",
+          "e3c32ffe-91fa-4e9d-9b2d-3313ee46a50b"
+        ],
+        "kind": "invoice_identity_error",
+        "confidence": "high",
+        "observed": "Both split rows store supplier_invoice_number 260324; PDF header says invoice 1923325. 260324 is memo. Total EUR137.84 and discounted line values match original.",
+        "recommendation": "Replace supplier invoice number with 1923325 when authorized; keep memo/offerte reference 260324 separate. No amount correction indicated.",
+        "evidence": [
+          "/tmp/studio-july-audit/Bon_1923325.pdf"
+        ],
+        "correct_invoice_number": "1923325",
+        "wrong_invoice_number": "260324",
+        "amount_incl": 137.84,
+        "source_links": [
+          "sources/Bon_1923325.pdf"
+        ]
+      },
+      {
+        "key": "bouwmaat_august_final",
+        "cost_ids": [
+          "394dea72-f47b-4802-b38e-7a086148bcfa"
+        ],
+        "kind": "invoice_date_and_description_mismatch",
+        "confidence": "high",
+        "observed": "Stored July27 description says betalingsopdracht; attached final invoice 1236131 is dated August4 and says reeds voldaan EUR286.48.",
+        "recommendation": "Distinguish July payment/order date from August final invoice date. Do not add another invoice as missing without matching this existing record.",
+        "evidence": [
+          "/tmp/studio-july-audit/invoice-1236131.pdf"
+        ],
+        "invoice_number": "1236131",
+        "stored_date": "2026-07-27",
+        "printed_invoice_date": "2026-08-04",
+        "amount_incl": 286.48,
+        "source_links": [
+          "sources/invoice-1236131.pdf"
+        ]
+      },
+      {
+        "key": "bouwmaat_payment_order",
+        "cost_ids": [
+          "ae322122-ac56-4957-938b-94f6915d36c8"
+        ],
+        "kind": "nonfinal_source_document",
+        "confidence": "high",
+        "observed": "July23 EUR2831.83 source is explicitly Betalingsopdracht order91079, not a final invoice. Material products are Keralit + delivery surcharge.",
+        "recommendation": "Keep material category evidence separate from invoice validity; find final invoice for same order/payment before importing anything new.",
+        "evidence": [
+          "/tmp/studio-july-audit/betalingsopdracht-91079.pdf"
+        ],
+        "order_number": "91079",
+        "amount_incl": 2831.83,
+        "source_links": [
+          "sources/betalingsopdracht-91079.pdf"
+        ]
+      }
+    ],
+    "verified_checks": [
+      {
+        "cost_id": "da12cbed-d46e-417c-bae2-621cd20299c6",
+        "result": "materiaal correct: all original invoice lines are timber, screws, membranes, roofing/ventilation/building consumables. Generic stored line hides detail but no tools found.",
+        "source": "/tmp/studio-july-audit/Bon_1233192.pdf"
+      },
+      {
+        "cost_ids": [
+          "b95a8854-932f-4080-a40c-15b37eb04773",
+          "e3c32ffe-91fa-4e9d-9b2d-3313ee46a50b"
+        ],
+        "result": "Discounted EUR137.84 invoice total verified, despite unusually low EUR105.31 Festool vacuum amount. Do not restore full shelf price. Material/tools split is broadly consistent, subject to user policy for brushes/markers.",
+        "source": "/tmp/studio-july-audit/Bon_1923325.pdf"
+      }
+    ],
+    "display_analysis": {
+      "month": "2026-07",
+      "bank_row_count": 91,
+      "no_document_fallback": [
+        {
+          "bank_transaction_id": "0c89472f-3f88-4bc6-b5e3-677d8778a359",
+          "date": "2026-07-23",
+          "supplier": "DSG Bouwmaten B.V.",
+          "amount_incl": 2831.83,
+          "display_category": "overig",
+          "bank_category": "materiaal",
+          "has_supporting_document": false,
+          "source_categories": [
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "ae322122-ac56-4957-938b-94f6915d36c8"
+          ],
+          "source_dates": [
+            "2026-07-23"
+          ],
+          "effective_override": null
+        },
+        {
+          "bank_transaction_id": "5e0c9612-37a9-4aaf-b54f-c0ccac86808c",
+          "date": "2026-07-20",
+          "supplier": "Selecta Netherlands B",
+          "amount_incl": 3.65,
+          "display_category": "overig",
+          "bank_category": "materiaal",
+          "has_supporting_document": false,
+          "source_categories": [
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "d61eabed-ae09-403b-85b5-d1c7514b2797"
+          ],
+          "source_dates": [
+            "2026-07-20"
+          ],
+          "effective_override": null
+        },
+        {
+          "bank_transaction_id": "14fbdbda-d06f-4be5-902d-dd45e9afb1bb",
+          "date": "2026-07-14",
+          "supplier": "BCK*Toolstation NL B.V",
+          "amount_incl": 43.29,
+          "display_category": "overig",
+          "bank_category": "materiaal",
+          "has_supporting_document": false,
+          "source_categories": [
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "0da63bb6-9a0c-471e-9bc9-ae2e01af8d2a"
+          ],
+          "source_dates": [
+            "2026-07-18"
+          ],
+          "effective_override": null
+        },
+        {
+          "bank_transaction_id": "13273ecf-98d9-4abc-8874-5fa6e39eba46",
+          "date": "2026-07-13",
+          "supplier": "KARWEI BARENDRECHT",
+          "amount_incl": 37.06,
+          "display_category": "overig",
+          "bank_category": "materiaal",
+          "has_supporting_document": false,
+          "source_categories": [
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "5237478f-befc-4c9f-ae31-14bb7ca27da6"
+          ],
+          "source_dates": [
+            "2026-07-18"
+          ],
+          "effective_override": null
+        },
+        {
+          "bank_transaction_id": "667b4960-e1c9-45b5-bd3e-33e4fb61cfbb",
+          "date": "2026-07-13",
+          "supplier": "MS* VIAAMSTERDAM",
+          "amount_incl": 3.39,
+          "display_category": "overig",
+          "bank_category": "hotel",
+          "has_supporting_document": false,
+          "source_categories": [
+            "hotel"
+          ],
+          "source_cost_ids": [
+            "081f740d-0063-40ff-a9aa-72adf5f73e96"
+          ],
+          "source_dates": [
+            "2026-07-18"
+          ],
+          "effective_override": null
+        },
+        {
+          "bank_transaction_id": "c780535c-4e58-4aed-a36d-8f1e06531d4e",
+          "date": "2026-07-13",
+          "supplier": "Booking",
+          "amount_incl": 15.31,
+          "display_category": "overig",
+          "bank_category": "hotel",
+          "has_supporting_document": false,
+          "source_categories": [
+            "hotel"
+          ],
+          "source_cost_ids": [
+            "9413297a-4b74-4c66-9935-6f5768c26e66"
+          ],
+          "source_dates": [
+            "2026-07-18"
+          ],
+          "effective_override": null
+        },
+        {
+          "bank_transaction_id": "2152bd37-c050-4c48-91e6-2abea4e75cfc",
+          "date": "2026-07-08",
+          "supplier": "Kentekenplaten, Fun + Luxeplaten...",
+          "amount_incl": 16.94,
+          "display_category": "overig",
+          "bank_category": "materiaal",
+          "has_supporting_document": false,
+          "source_categories": [
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "dee5f041-b060-4738-b531-8a0dac7f891e"
+          ],
+          "source_dates": [
+            "2026-07-08"
+          ],
+          "effective_override": null
+        },
+        {
+          "bank_transaction_id": "4173d8d9-8fe8-4b4d-95d0-1da13405e8ec",
+          "date": "2026-07-06",
+          "supplier": "Taffne Bv",
+          "amount_incl": 15,
+          "display_category": "overig",
+          "bank_category": "eigen_verbruik",
+          "has_supporting_document": false,
+          "source_categories": [
+            "eigen_verbruik"
+          ],
+          "source_cost_ids": [
+            "1847de6a-f72f-48fb-9923-33b490d7b2c6"
+          ],
+          "source_dates": [
+            "2026-07-18"
+          ],
+          "effective_override": null
+        },
+        {
+          "bank_transaction_id": "442b8aee-a4d7-44e3-8d70-9593c194b306",
+          "date": "2026-07-06",
+          "supplier": "BCK*Praxis 2271 Vianen",
+          "amount_incl": 41.99,
+          "display_category": "overig",
+          "bank_category": "materiaal",
+          "has_supporting_document": false,
+          "source_categories": [
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "1ed80ffb-dd52-4b26-ad93-08370a2b12d0"
+          ],
+          "source_dates": [
+            "2026-07-18"
+          ],
+          "effective_override": null
+        }
+      ],
+      "fuel_private_review": [
+        {
+          "bank_transaction_id": "8e6b0783-ad88-4804-8c8e-f56689b605d0",
+          "date": "2026-07-06",
+          "supplier": "BCK*SHELL HAARRIJN",
+          "amount_incl": 15.31,
+          "display_category": "overig",
+          "bank_category": "overig",
+          "has_supporting_document": false,
+          "source_categories": [
+            "brandstof"
+          ],
+          "source_cost_ids": [
+            "3375484a-9ea7-4e0b-91e6-608d5c0e0edc"
+          ],
+          "source_dates": [
+            "2026-07-18"
+          ],
+          "effective_override": null
+        }
+      ],
+      "mixed_category_collapse": [
+        {
+          "bank_transaction_id": "76a690b5-9efb-4a70-8dff-bfaf93e38f47",
+          "date": "2026-07-31",
+          "supplier": "BCK*Bouwmaat Amstel",
+          "amount_incl": 137.84,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "b95a8854-932f-4080-a40c-15b37eb04773",
+            "e3c32ffe-91fa-4e9d-9b2d-3313ee46a50b"
+          ],
+          "source_dates": [
+            "2026-07-31"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 118.81,
+            "materiaal": 19.03
+          }
+        },
+        {
+          "bank_transaction_id": "141d6a6a-0adf-4ec9-a13c-6ed937e0974c",
+          "date": "2026-07-28",
+          "supplier": "BOUWMAAT R'DAM ZUID",
+          "amount_incl": 194.58,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "29990f13-6ec4-4a4f-af57-6d7070978f60",
+            "4503b68c-1cf2-491f-8047-03dea0536d6e"
+          ],
+          "source_dates": [
+            "2026-07-28"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 9.21,
+            "materiaal": 185.37
+          }
+        },
+        {
+          "bank_transaction_id": "d2d59248-3d02-4991-b61d-7377bf3252f6",
+          "date": "2026-07-20",
+          "supplier": "BCK*Toolstation AH",
+          "amount_incl": 241.66,
+          "display_category": "gereedschap",
+          "bank_category": "gereedschap",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "6514af44-ffd4-4150-b71a-fa2098cf40c2",
+            "956faf9e-36c6-4f3b-94d8-b0d51378e63e"
+          ],
+          "source_dates": [
+            "2026-07-20"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 221.07,
+            "materiaal": 20.59
+          }
+        },
+        {
+          "bank_transaction_id": "70482c91-740a-496b-a058-5567f57cf04b",
+          "date": "2026-07-13",
+          "supplier": "Bouwmaat Alkmaar",
+          "amount_incl": 125.39,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "1b208ec9-c99e-44e0-92e0-aa6fcd394da0",
+            "37e0d63c-0300-4e8f-8210-673e7f6e7283"
+          ],
+          "source_dates": [
+            "2026-07-13"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 11.01,
+            "materiaal": 114.38
+          }
+        },
+        {
+          "bank_transaction_id": "9b68439c-1925-4110-8d4c-b453c61a0011",
+          "date": "2026-07-13",
+          "supplier": "Bouwmaat Amersfoort",
+          "amount_incl": 1017.76,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "96ae8025-8598-47ea-bc44-e1d5b34beb89",
+            "997d7455-05cb-46f6-910d-56fa190a28e3"
+          ],
+          "source_dates": [
+            "2026-07-11"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 710.27,
+            "materiaal": 307.49
+          }
+        },
+        {
+          "bank_transaction_id": "7f16b300-a6f0-47a3-92ce-a43645befdee",
+          "date": "2026-07-10",
+          "supplier": "Bouwmaat Amersfoort",
+          "amount_incl": 459.41,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "ca432d73-cca3-4572-b250-98f693f1c448",
+            "d4679b0f-466f-4221-bbeb-13e6f362405c"
+          ],
+          "source_dates": [
+            "2026-07-10"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 6.87,
+            "materiaal": 452.54
+          }
+        },
+        {
+          "bank_transaction_id": "867b52af-d485-4388-b689-3e235c2860b9",
+          "date": "2026-07-10",
+          "supplier": "Bouwmaat Amersfoort",
+          "amount_incl": 360.02,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "387cb547-393d-407a-88af-5c9ee87d59b4",
+            "6a06386e-2027-41f0-b43a-d4c212ef64ab"
+          ],
+          "source_dates": [
+            "2026-07-10"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 10.77,
+            "materiaal": 349.25
+          }
+        },
+        {
+          "bank_transaction_id": "ca28542a-9c74-4218-9b5b-f2c961b16c54",
+          "date": "2026-07-09",
+          "supplier": "Bouwmaat Amersfoort",
+          "amount_incl": 513.71,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "0fddd40f-dfa0-4b55-be91-31b9b3b3161c",
+            "a0a73949-8c0d-4430-a8d8-215c5350a25e"
+          ],
+          "source_dates": [
+            "2026-07-09"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 513.49,
+            "materiaal": 0.22
+          }
+        },
+        {
+          "bank_transaction_id": "cf45a7f7-86fb-468e-8a9b-a534650984c2",
+          "date": "2026-07-06",
+          "supplier": "Bouwmaat Haarlem",
+          "amount_incl": 109.19,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "4904f1e9-917e-4091-b4af-66b89e18a659",
+            "b8084939-2f28-4341-91ea-a96b860d628f"
+          ],
+          "source_dates": [
+            "2026-07-04"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 22.76,
+            "materiaal": 86.43
+          }
+        },
+        {
+          "bank_transaction_id": "66dd313d-6d56-4580-89a9-58fa4239ca39",
+          "date": "2026-07-03",
+          "supplier": "Bouwmaat Alkmaar",
+          "amount_incl": 215.73,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "0be48c52-16d8-4e75-8b30-558be71539f4",
+            "0f4a3afa-af9e-499b-8dac-cf6160cb4bbb",
+            "32f57d1b-6cf0-4aa8-8b53-1ed795e61dbc",
+            "fb6c5007-298d-410d-9ce2-f75d7fcfaa5c"
+          ],
+          "source_dates": [
+            "2026-07-03"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 151.13,
+            "materiaal": 64.6
+          }
+        },
+        {
+          "bank_transaction_id": "3ca42849-62f6-48ff-9bc6-c30ba5ec399c",
+          "date": "2026-07-02",
+          "supplier": "Toolstation via PayPal (Europe)",
+          "amount_incl": 75.65,
+          "display_category": "gereedschap",
+          "bank_category": "gereedschap",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "6fc81746-8986-42f4-8bbe-310723ae3f35",
+            "b42315b8-a425-4292-b4d3-89cd4df3c71e"
+          ],
+          "source_dates": [
+            "2026-07-02"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 50.47,
+            "materiaal": 25.18
+          }
+        },
+        {
+          "bank_transaction_id": "6a2c7845-1f08-4ecc-995a-cd903d4c44ac",
+          "date": "2026-07-01",
+          "supplier": "Bouwmaat Haarlem",
+          "amount_incl": 314.43,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "1043facc-1d9b-46c4-834b-1100c02e1cd6",
+            "a60ab592-c3ab-4206-8b3c-62468be8ae0d"
+          ],
+          "source_dates": [
+            "2026-07-01"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 314.21,
+            "materiaal": 0.22
+          }
+        },
+        {
+          "bank_transaction_id": "dc81791d-4e81-43a3-9b01-dae11291b139",
+          "date": "2026-07-01",
+          "supplier": "Bouwmaat Haarlem",
+          "amount_incl": 327.69,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "gereedschap",
+            "materiaal"
+          ],
+          "source_cost_ids": [
+            "30e9c6c0-91e8-4064-9854-83e76fc3087d",
+            "e7306770-f1a0-4759-a7e5-f6b67bb8788d"
+          ],
+          "source_dates": [
+            "2026-07-01"
+          ],
+          "effective_override": null,
+          "source_breakdown": {
+            "gereedschap": 32.19,
+            "materiaal": 295.5
+          }
+        }
+      ],
+      "effective_overrides": [
+        {
+          "bank_transaction_id": "997b69c9-5cee-481a-9613-8733b44a65d5",
+          "date": "2026-07-30",
+          "supplier": "BCK*GSSP RIJSWIJK",
+          "amount_incl": 171.36,
+          "display_category": "brandstof",
+          "bank_category": "brandstof",
+          "has_supporting_document": true,
+          "source_categories": [
+            "brandstof"
+          ],
+          "source_cost_ids": [
+            "96021e04-9967-4894-930e-592fe1c6ad3e"
+          ],
+          "source_dates": [
+            "2026-07-30"
+          ],
+          "effective_override": "brandstof"
+        },
+        {
+          "bank_transaction_id": "9f3f5c61-6a98-4ed9-a19f-2374671de62b",
+          "date": "2026-07-21",
+          "supplier": "Stichting Derdengelden Creman via S",
+          "amount_incl": 727.73,
+          "display_category": "schulden",
+          "bank_category": "schulden",
+          "has_supporting_document": false,
+          "source_categories": [
+            "schulden"
+          ],
+          "source_cost_ids": [
+            "65a772af-288a-41f9-8bd0-988dc26b4ee1"
+          ],
+          "source_dates": [
+            "2026-07-21"
+          ],
+          "effective_override": "schulden"
+        },
+        {
+          "bank_transaction_id": "0b46f5b2-2c1e-4107-9a17-11199e2d3d2c",
+          "date": "2026-07-14",
+          "supplier": "PIVADA verhuur",
+          "amount_incl": 211.5,
+          "display_category": "materiaal",
+          "bank_category": "materiaal",
+          "has_supporting_document": true,
+          "source_categories": [
+            "overig"
+          ],
+          "source_cost_ids": [
+            "1f7196ea-b851-4cea-b426-9e5b2565d213"
+          ],
+          "source_dates": [
+            "2026-07-14"
+          ],
+          "effective_override": "materiaal"
+        }
+      ]
+    },
+    "display_summary": {
+      "no_document_fallback_rows": 9,
+      "no_document_fallback_total": 3008.46,
+      "mixed_category_payments": 13,
+      "bouwmaat_mixed_payments": 11,
+      "toolstation_mixed_payments": 2,
+      "tools_displayed_with_materials": 1900.72,
+      "materials_displayed_with_tools": 45.77,
+      "fuel_private_review_rows": 1,
+      "effective_bank_override_rows": 3
+    },
+    "code_references": {
+      "document_fallback": "/Users/dylanvroegop/Documents/studio/src/lib/knab-cost-list.ts:170",
+      "mixed_category_inference": "/Users/dylanvroegop/Documents/studio/src/lib/finance-bank-ledger.ts:148",
+      "product_rules": "/Users/dylanvroegop/Documents/studio/src/lib/purchase-product-category.ts:6"
+    },
+    "duplicate_reconciliation_note": "Root confirmed Toolstation OWW209336679 duplicate PDF+photo representations, XXL full+split representations, and OCG211000767 stray voucher row. Parent owns that reconciliation; no records changed."
+  },
+  "supplementary_findings": {
+    "period": "2026-07",
+    "read_only": true,
+    "confirmed_duplicate_sources": [
+      {
+        "supplier": "Toolstation",
+        "invoice_number": "OWW209336679",
+        "document_date": "2026-07-02",
+        "invoice_gross": 75.65,
+        "primary_ids": [
+          "6fc81746-8986-42f4-8bbe-310723ae3f35",
+          "b42315b8-a425-4292-b4d3-89cd4df3c71e"
+        ],
+        "duplicate_ids": [
+          "808024d3-229d-4500-8e4e-020a20f36ad7",
+          "75bb6a2b-55c4-467a-98b0-4d66bbdbf15d"
+        ],
+        "stored_gross_all_representations": 151.3,
+        "duplicate_gross": 75.65,
+        "evidence": "Both PDF and original attached screenshot explicitly show OWW209336679, 2026-07-02 09:53:53, same five product lines and 75.65 total. Both stored representations repeat tools50.47+materials25.18.",
+        "source_pdf": "/tmp/studio-july-audit/OWW209336679.pdf",
+        "source_image": "/tmp/studio-july-audit/toolstation-july2-existing.png",
+        "bank_display": {
+          "gross": 75.65,
+          "category": "gereedschap",
+          "repeats_payment": false
+        },
+        "action": "Review redundant source rows and preserve quote links before any later correction; no deletion performed.",
+        "pdf_relative": "sources/OWW209336679.pdf",
+        "image_relative": "sources/toolstation-july2-existing.png"
+      }
+    ],
+    "confirmed_residual_discount": [
+      {
+        "supplier": "Toolstation",
+        "invoice_number": "OCG211000767",
+        "document_date": "2026-07-24",
+        "invoice_gross": 36.63,
+        "correct_cost_id": "a29bb4fb-9832-41f8-a369-e57eb81ab629",
+        "residual_cost_id": "3f852730-326e-4a4b-b5ec-add7fb247f07",
+        "residual_gross": -2.34,
+        "combined_stored_gross": 34.29,
+        "evidence": "PDF shows voucher discount -1.93 INCLUDING VAT and final36.63. Correct invoice row already incorporates -1.93; separate overig row misreads -1.93 as net and deducts another2.34 gross.",
+        "source_pdf": "/tmp/studio-july-audit/OCG211000767.pdf",
+        "bank_display": {
+          "gross": 36.63,
+          "correct": true
+        },
+        "action": "Review extra discount row; main invoice amount and bank amount are already correct.",
+        "pdf_relative": "sources/OCG211000767.pdf"
+      }
+    ],
+    "suspected_duplicate_sources": [
+      {
+        "supplier": "XXL Direct",
+        "invoice_number": "32531138",
+        "document_date": "2026-07-25",
+        "invoice_gross": 313.28,
+        "full_record": "36fd7d39-cb45-4cef-9f26-6f1e6e0e21ea",
+        "split_records": [
+          "d1a05d54-3cbb-4ee8-9159-72fcc6ffc198",
+          "e72c5e74-2bcc-4291-b2b5-87bfc2430d68"
+        ],
+        "split_gross": [
+          278.31,
+          34.97
+        ],
+        "stored_gross_all_representations": 626.56,
+        "evidence": "Full invoice and older split records repeat same EPDM/glue product lines and shipping; old split description explicitly says together313.28 matches same bank payment. Split rows have no remaining original attachments.",
+        "bank_display": {
+          "gross": 313.28,
+          "category": "materiaal",
+          "repeats_payment": false
+        },
+        "status": "manual_review_preserve_project_links"
+      }
+    ]
+  },
+  "scope": {
+    "all_cost_records": 328,
+    "july_cost_records": 106,
+    "all_archives": 284,
+    "all_pending": 47,
+    "all_claims": 129,
+    "july_bank_rows": 91
+  },
+  "queries": {
+    "business": [
+      {
+        "query": "in:anywhere after:2026/07/01 before:2026/08/01 -in:sent",
+        "pages": [
+          41,
+          19
+        ],
+        "unique_messages": 60,
+        "next_page_token": null,
+        "returned_pages_exhausted": true
+      },
+      {
+        "query": "in:anywhere after:2026/07/01 before:2026/08/01 {factuur invoice receipt aankoopbon creditnota}",
+        "pages": [
+          43
+        ],
+        "unique_messages": 43,
+        "next_page_token": null,
+        "returned_pages_exhausted": true
+      },
+      {
+        "query": "in:anywhere after:2026/07/01 before:2026/08/01",
+        "pages": [
+          97,
+          19
+        ],
+        "unique_messages": 116,
+        "next_page_token": null,
+        "returned_pages_exhausted": true
+      },
+      {
+        "query": "in:anywhere after:2026/08/01 before:2026/08/10 {factuur invoice receipt aankoopbon creditnota}",
+        "pages": [
+          10
+        ],
+        "unique_messages": 10,
+        "next_page_token": null,
+        "returned_pages_exhausted": true
+      },
+      {
+        "query": "in:anywhere has:attachment {\"juli 2026\" \"July 2026\" \"07-2026\" \"2026-07\"}",
+        "pages": [
+          58
+        ],
+        "unique_messages": 58,
+        "next_page_token": null,
+        "returned_pages_exhausted": true
+      },
+      {
+        "query": "in:anywhere after:2026/06/30 before:2026/07/02",
+        "pages": [
+          6
+        ],
+        "unique_messages": 6,
+        "next_page_token": null,
+        "returned_pages_exhausted": true
+      }
+    ],
+    "invoice": [
+      {
+        "query": "in:anywhere after:2026/05/31 before:2026/07/02",
+        "purpose": "Reused June audit boundary search supplies fullJuly1 coverage",
+        "completed": true,
+        "next_page_token": null
+      },
+      {
+        "query": "in:anywhere after:2026/07/01 before:2026/08/01",
+        "message_count": 24,
+        "next_page_token": null,
+        "completed": true
+      },
+      {
+        "query": "in:anywhere after:2026/07/31 before:2026/08/16",
+        "message_count": 14,
+        "next_page_token": null,
+        "completed": true
+      },
+      {
+        "query": "in:anywhere has:attachment {\"juli 2026\" \"07-2026\" \"07/2026\" \"July 2026\"}",
+        "message_count": 9,
+        "next_page_token": null,
+        "completed": true
+      },
+      {
+        "query": "in:anywhere has:attachment {\"2026-07\" \"juli\" \"july\"}",
+        "message_count": 31,
+        "next_page_token": null,
+        "completed": true
+      }
+    ]
+  },
+  "limits": [
+    "No app, Gmail or n8n data changed.",
+    "Invoice presence verified against live stored data across all dates, with PDFs read for invoice identity, amount and categories.",
+    "Current bank display reconstructed from local app code and live data; deployed browser view not checked.",
+    "Full pagination for documented searches; targeted historic forward searches do not guarantee every unindexed historical scanned attachment was found.",
+    "Overlapping HomingXL invoice versions are shown separately but not added together as separate expenditure.",
+    "Amounts in redundant source rows do not imply bank cash totals are duplicated.",
+    "No historical n8n execution review; cannot attribute every discrepancy to importer."
+  ],
+  "service_period_documents_outside_invoice_month": [
+    {
+      "message_id": "1a0334108576d688",
+      "gmail_url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/1a0334108576d688",
+      "filename": "c3bb3419-6c77-4467-a10d-6aed5aca0d28 2.pdf",
+      "invoice_number": "NL26-65423",
+      "invoice_date": "2026-08-01",
+      "net": 191,
+      "vat": 40.11,
+      "gross": 231.11,
+      "currency": "EUR",
+      "supplier": "Werkspot",
+      "document_type": "invoice",
+      "include_in_final_document_count": false,
+      "category_recommendation": [
+        "leadkosten"
+      ],
+      "app_matches": [
+        "8b7a7446-a1f7-4f2c-b8aa-6c691f9945c4"
+      ],
+      "app_rows": [
+        {
+          "id": "8b7a7446-a1f7-4f2c-b8aa-6c691f9945c4",
+          "date": "2026-08-01",
+          "category": "leadkosten",
+          "amount_excl_btw": "191.00",
+          "btw_amount": "40.11",
+          "amount_incl_btw": "231.11",
+          "supplier_invoice_number": null,
+          "source_filename": "c3bb3419-6c77-4467-a10d-6aed5aca0d28-2.pdf",
+          "paid_bank_transaction_id": "1da68ec2-2793-4afd-8f6e-e2fccb3e5c80"
+        }
+      ],
+      "result": "outside_invoice_month_present_correct",
+      "issues": [],
+      "evidence_verified": "Complete original PDF text",
+      "source": "Gmail PDF attachment",
+      "service_period": "2026-07-01 through 2026-07-31",
+      "pdf_relative": "sources/werkspot-NL26-65423-2026-08-01.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/werkspot-NL26-65423-2026-08-01.pdf"
+    },
+    {
+      "message_id": "19fc95a2121e9458",
+      "gmail_url": "https://mail.google.com/mail/u/?authuser=vroegoptimmerwerken%40gmail.com#all/19fc95a2121e9458",
+      "filename": "1027338366.pdf",
+      "invoice_number": "1027338366",
+      "invoice_date": "2026-08-03",
+      "net": 230.68,
+      "vat": 48.44,
+      "gross": 279.12,
+      "currency": "EUR",
+      "supplier": "Boels",
+      "document_type": "invoice",
+      "include_in_final_document_count": false,
+      "category_recommendation": [
+        "gereedschap",
+        "overig"
+      ],
+      "app_matches": [
+        "5d13aa1b-8f68-4992-b5dc-da3a65d2ecbd",
+        "7a98b8de-837a-4267-93c3-5ee001a8fda4"
+      ],
+      "app_rows": [
+        {
+          "id": "5d13aa1b-8f68-4992-b5dc-da3a65d2ecbd",
+          "date": "2026-08-03",
+          "category": "gereedschap",
+          "amount_excl_btw": "202.00",
+          "btw_amount": "42.42",
+          "amount_incl_btw": "244.42",
+          "supplier_invoice_number": null,
+          "source_filename": null,
+          "paid_bank_transaction_id": null
+        },
+        {
+          "id": "7a98b8de-837a-4267-93c3-5ee001a8fda4",
+          "date": "2026-08-03",
+          "category": "materiaal",
+          "amount_excl_btw": "28.68",
+          "btw_amount": "6.02",
+          "amount_incl_btw": "34.70",
+          "supplier_invoice_number": null,
+          "source_filename": null,
+          "paid_bank_transaction_id": null
+        }
+      ],
+      "result": "outside_invoice_month_present_with_category_review",
+      "issues": [
+        "Rolling scaffold rental 202.00 net is gereedschap; damage waiver 20.20 and fire/theft waiver 8.48 net are stored as materiaal, a questionable allocation. Full gross amount 279.12 is present. Outside July invoice-date scope."
+      ],
+      "evidence_verified": "Complete original PDF text",
+      "source": "Gmail PDF attachment",
+      "service_period": "2026-07-21 through 2026-08-03",
+      "pdf_relative": "sources/boels-1027338366-2026-08-03.pdf",
+      "source_pdf": "/Users/dylanvroegop/Documents/studio/outputs/july-invoice-audit-2026-10-24/sources/boels-1027338366-2026-08-03.pdf"
+    }
+  ],
+  "workflow_error_evidence": [
+    {
+      "message_id": "19f9b47603f3379a",
+      "date": "2026-07-25",
+      "execution": "1142",
+      "workflow": "Gmail Kosten Auto Import (Final)",
+      "error": "Geen PDF-bijlage gevonden in deze Gmail-melding. [line 10]",
+      "interpretation": "Historical importer error evidence; no missing July invoice demonstrated by this message."
+    },
+    {
+      "message_id": "19f9891f90a76a5e",
+      "date": "2026-07-25",
+      "error": "the message did not continue",
+      "interpretation": "Generic failure notice; associated purchase invoices present."
+    }
+  ]
+}

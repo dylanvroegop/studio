@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { COST_ARCHIVE_VISIBILITY } from '@/lib/cost-archive-visibility';
 
 export const TAX_DOCUMENT_BUCKET = 'tax-documents';
 export const TAX_DOCUMENT_MAX_BYTES = 15 * 1024 * 1024;
@@ -132,7 +133,10 @@ export async function archiveTaxDocument(params: {
       size_bytes: params.bytes.byteLength,
       sha256: digest,
       source: params.source,
-      metadata: params.metadata || {},
+      metadata: {
+        ...params.metadata,
+        finance_visibility: COST_ARCHIVE_VISIBILITY,
+      },
     })
     .select('*')
     .single();
