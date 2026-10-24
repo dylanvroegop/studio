@@ -51,6 +51,7 @@ interface FuelDay {
 }
 
 interface FinanceFuelRow {
+  category_allocations?: Array<{ category: string; amount_incl_btw: number }>;
   date?: string | null;
   category?: string | null;
   bank_category?: string | null;
@@ -126,6 +127,10 @@ function formatSignedCurrency(value: number): string {
 }
 
 function financeFuelAmount(row: FinanceFuelRow): number {
+  if (row.category_allocations?.length) {
+    return row.category_allocations.filter((part) => part.category === 'brandstof')
+      .reduce((sum, part) => sum + Number(part.amount_incl_btw || 0), 0);
+  }
   const value = Number(row.amount_incl_btw ?? row.amount ?? 0);
   return Number.isFinite(value) ? value : 0;
 }
@@ -133,8 +138,10 @@ function financeFuelAmount(row: FinanceFuelRow): number {
 function financeFuelRows(rows: FinanceFuelRow[]): FinanceFuelRow[] {
   return rows.filter((row) => (
     // De factuurregel in Kosten verandert de herkenning van tankbetalingen niet.
-    normalizeProjectCostCategory(row.bank_category ?? row.category) === 'brandstof'
-    || String(row.categoryLabel || '').trim().toLowerCase() === 'benzine'
+    row.category_allocations?.length
+      ? row.category_allocations.some((part) => part.category === 'brandstof')
+      : normalizeProjectCostCategory(row.bank_category ?? row.category) === 'brandstof'
+        || String(row.categoryLabel || '').trim().toLowerCase() === 'benzine'
   ) && validDate(String(row.date || '').slice(0, 10)));
 }
 

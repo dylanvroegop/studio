@@ -20,9 +20,12 @@ export function summarizeBankCostRows(rows: ProjectCostRow[], privateCredits: Pr
   for (const row of rows) {
     const amount = Math.round(row.amount_incl_btw * 100);
     cents.alle += amount;
-    cents[row.category] += amount;
     counts.alle += 1;
-    counts[row.category] += 1;
+    const parts = row.category_allocations?.length ? row.category_allocations : [row];
+    for (const part of parts) {
+      cents[part.category] += Math.round(part.amount_incl_btw * 100);
+      counts[part.category] += 1;
+    }
   }
   const withdrawalCents = cents.eigen_verbruik;
   const withdrawalCount = counts.eigen_verbruik;

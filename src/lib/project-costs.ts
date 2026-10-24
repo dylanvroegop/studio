@@ -59,7 +59,19 @@ export function isSupportingProjectCostReceipt(file: ProjectCostReceiptFile): bo
     && (!documentType || ['invoice', 'receipt', 'credit_note'].includes(documentType)));
 }
 
+export interface ProjectCostCategoryAllocation {
+  category: ProjectCostCategory;
+  amount_incl_btw: number;
+  amount_excl_btw: number;
+  btw_amount: number;
+  vat_known: boolean;
+  source_cost_ids: string[];
+  offerte_id: string | null;
+}
+
 export interface ProjectCostRow {
+  /** Onderbouwde categoriebedragen binnen één bankafschrijving; geen extra kosten. */
+  category_allocations?: ProjectCostCategoryAllocation[];
   /** False for bank rows without verified VAT source data. */
   vat_known?: boolean;
   id: string;

@@ -1,5 +1,6 @@
 'use client';
 
+import { isCostWithoutDocument } from '@/lib/cost-document-filter';
 import { isReviewSourceCost, isConfirmedCashCost } from '@/lib/finance-cost-visibility';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -47,7 +48,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -76,8 +76,10 @@ import type { InvoiceStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { deduplicateRequest } from '@/lib/deduplicate-request';
 import { summarizeBankCostRows } from '@/lib/bank-cost-summary';
+import { costForCategory, originalBankCost } from '@/lib/bank-cost-allocation';
 import type { KnabBankCostRow } from '@/lib/knab-cost-list';
 
+const KostenTotalenTab = dynamic(() => import('@/components/kosten/KostenTotalenTab').then((module) => module.KostenTotalenTab));
 const KostenPdfTab = dynamic(() => import('@/components/kosten/KostenPdfTab').then((module) => module.KostenPdfTab));
 const BankOverzichtContent = dynamic(() => import('@/components/finance/BankOverzichtContent').then((module) => module.BankOverzichtContent), {
   loading: () => <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>,
@@ -90,6 +92,7 @@ type KostenViewMode =
   | 'quick-add'
   | 'kosten'
   | 'pdfs'
+  | 'totalen'
   | 'overview'
   | 'finance-costs'
   | 'invoices'
@@ -102,19 +105,20 @@ type KostenViewMode =
 
 const QUICK_ADD_TAB_ID: KostenViewMode = 'quick-add';
 
-const KOSTEN_PAGE_TABS: Array<{ value: KostenViewMode; label: string; financeTab?: string }> = [
+const KOSTEN_PAGE_TABS: Array<{ value: KostenViewMode; label: string; financeTab?: string; hidden?: boolean }> = [
   { value: QUICK_ADD_TAB_ID, label: 'Snel toevoegen' },
   { value: 'kosten', label: 'Kosten' },
   { value: 'pdfs', label: 'PDF-bestanden' },
-  { value: 'overview', label: 'Overzicht', financeTab: 'overview' },
-  { value: 'finance-costs', label: 'Bankuitgaven', financeTab: 'costs' },
-  { value: 'invoices', label: 'Facturen', financeTab: 'invoices' },
-  { value: 'quotes', label: 'Offertes', financeTab: 'quotes' },
-  { value: 'projects', label: 'Projecten', financeTab: 'projects' },
-  { value: 'analysis', label: 'Analyse', financeTab: 'analysis' },
-  { value: 'bouwmaat', label: 'Bouwmaat', financeTab: 'bouwmaat' },
-  { value: 'knab-account', label: 'Vroegop Timmerwerken', financeTab: 'knab-account' },
-  { value: 'bunq-personal', label: 'bunq personal', financeTab: 'bunq-personal' },
+  { value: 'totalen', label: 'Totalen' },
+  { value: 'overview', label: 'Overzicht', financeTab: 'overview', hidden: true },
+  { value: 'finance-costs', label: 'Bankuitgaven', financeTab: 'costs', hidden: true },
+  { value: 'invoices', label: 'Facturen', financeTab: 'invoices', hidden: true },
+  { value: 'quotes', label: 'Offertes', financeTab: 'quotes', hidden: true },
+  { value: 'projects', label: 'Projecten', financeTab: 'projects', hidden: true },
+  { value: 'analysis', label: 'Analyse', financeTab: 'analysis', hidden: true },
+  { value: 'bouwmaat', label: 'Bouwmaat', financeTab: 'bouwmaat', hidden: true },
+  { value: 'knab-account', label: 'Vroegop Timmerwerken', financeTab: 'knab-account', hidden: true },
+  { value: 'bunq-personal', label: 'bunq personal', financeTab: 'bunq-personal', hidden: true },
 ];
 
 function isKostenViewMode(value: string | null): value is KostenViewMode {
@@ -193,7 +197,8 @@ function formatCurrency(amount: number): string {
 }
 
 function getCostAmountSearchText(cost: ProjectCostRow): string {
-  return [cost.amount_excl_btw, cost.btw_amount, cost.amount_incl_btw]
+  return [cost.amount_excl_btw, cost.btw_amount, cost.amount_incl_btw,
+    ...(cost.category_allocations || []).flatMap((part) => [part.amount_excl_btw, part.btw_amount, part.amount_incl_btw])]
     .flatMap((amount) => {
       const value = safeNumber(amount);
       return [
@@ -221,15 +226,21 @@ function matchingCostRows(rows: ProjectCostRow[], month: string, search: string,
   return rows.filter((cost) => {
     if (month !== 'all' && !cost.date.startsWith(month)) return false;
     if (!term) return true;
-    const quote = cost.offerte_id ? quoteById.get(cost.offerte_id) : null;
+    const quoteIds = new Set([cost.offerte_id, ...(cost.category_allocations || []).map((part) => part.offerte_id)]);
+    const quoteSearchText = [...quoteIds].flatMap((id) => {
+      const quote = id ? quoteById.get(id) : null;
+      return [quote?.offerteNummer || '', quote?.label || ''];
+    }).join(' ');
     const receiptFilenames = (cost.receipt_files || []).map((file) => file.filename).join(' ');
-    const target = `${cost.supplier_name} ${cost.description} ${cost.supplier_invoice_number || ''} ${cost.source_filename || ''} ${receiptFilenames} ${quote?.offerteNummer || ''} ${quote?.label || ''} ${getCostAmountSearchText(cost)}`.toLowerCase();
+    const target = `${cost.supplier_name} ${cost.description} ${cost.supplier_invoice_number || ''} ${cost.source_filename || ''} ${receiptFilenames} ${quoteSearchText} ${getCostAmountSearchText(cost)}`.toLowerCase();
     return target.includes(term);
   });
 }
 
 function costRowsForFilter(matchingCosts: ProjectCostRow[], matchingPrivateCredits: ProjectCostRow[], filter: CostFilterMode): ProjectCostRow[] {
-  const rows = matchingCosts.filter(cost => filter === 'alle' || cost.category === filter);
+  const rows = filter === 'alle' ? matchingCosts : matchingCosts
+    .map((cost) => costForCategory(cost, filter))
+    .filter((cost): cost is ProjectCostRow => cost !== null);
   if (filter !== 'eigen_verbruik') return rows;
   return [...rows, ...matchingPrivateCredits].sort((left, right) =>
     (right.date || right.created_at).localeCompare(left.date || left.created_at) || left.id.localeCompare(right.id));
@@ -607,6 +618,7 @@ function KostenPageContent() {
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CostFilterMode>('alle');
+  const [onlyWithoutDocument, setOnlyWithoutDocument] = useState(false);
   const [viewMode, setViewMode] = useState<KostenViewMode>(() => {
     const requestedTab = searchParams?.get('tab') || null;
     return isKostenViewMode(requestedTab) ? requestedTab : QUICK_ADD_TAB_ID;
@@ -626,7 +638,7 @@ function KostenPageContent() {
   const [quoteSearchOpen, setQuoteSearchOpen] = useState(false);
   const [editingCostId, setEditingCostId] = useState<string | null>(null);
   const [selectedBankCost, setSelectedBankCost] = useState<(ProjectCostRow & Partial<KnabBankCostRow>) | null>(null);
-  const [bankCategoryDraft, setBankCategoryDraft] = useState<ProjectCostCategory>('overig');
+  const [bankCategoryDraft, setBankCategoryDraft] = useState<ProjectCostCategory | 'split'>('overig');
   const [savingBankCategory, setSavingBankCategory] = useState(false);
   const [bankOfferteDraft, setBankOfferteDraft] = useState('');
   const [savingBankOfferte, setSavingBankOfferte] = useState(false);
@@ -949,8 +961,10 @@ function KostenPageContent() {
   const availableMonths = useMemo(() => availableCostMonths(costs, privateCredits), [costs, privateCredits]);
   const matchingCosts = useMemo(() => matchingCostRows(costs, costMonth, search, quoteById), [costs, costMonth, quoteById, search]);
   const matchingPrivateCredits = useMemo(() => matchingCostRows(privateCredits, costMonth, search, quoteById), [privateCredits, costMonth, quoteById, search]);
-  const filteredCosts = useMemo(() => costRowsForFilter(matchingCosts, matchingPrivateCredits, filter), [matchingCosts, matchingPrivateCredits, filter]);
+  const withoutDocumentCosts = useMemo(() => matchingCosts.filter(isCostWithoutDocument), [matchingCosts]);
+  const filteredCosts = useMemo(() => onlyWithoutDocument ? withoutDocumentCosts : costRowsForFilter(matchingCosts, matchingPrivateCredits, filter), [onlyWithoutDocument, withoutDocumentCosts, matchingCosts, matchingPrivateCredits, filter]);
   const { totals: tabTotals, counts: tabLineCounts, privateSummary } = useMemo(() => summarizeBankCostRows(matchingCosts, matchingPrivateCredits), [matchingCosts, matchingPrivateCredits]);
+  const visibleTotal = onlyWithoutDocument ? summarizeBankCostRows(withoutDocumentCosts).totals.alle : tabTotals[filter];
   const isPrivateView = filter === 'eigen_verbruik';
 
   const filteredQuotesForPicker = useMemo(() => {
@@ -1397,9 +1411,11 @@ function KostenPageContent() {
 
   const handleOpenCost = (cost: ProjectCostRow) => {
     if (isBankTransactionCost(cost)) {
-      setBankCategoryDraft(cost.category);
-      setBankOfferteDraft(safeString(cost.offerte_id));
-      setSelectedBankCost(cost);
+      const payment = originalBankCost(cost, [...costs, ...privateCredits]);
+      if (!payment) return;
+      setBankCategoryDraft(payment.category_allocations?.length ? 'split' : payment.category);
+      setBankOfferteDraft(safeString(payment.offerte_id));
+      setSelectedBankCost(payment);
       return;
     }
     const rowCategory = normalizeProjectCostCategory(cost.category);
@@ -1456,12 +1472,11 @@ function KostenPageContent() {
   };
 
   const canEditBankCategory = Boolean(selectedBankCost
-    && (selectedBankCost.has_supporting_document || selectedBankCost.is_fuel_payment)
     && !selectedBankCost.is_creman_debt && !selectedBankCost.is_bunq_topup
     && !selectedBankCost.is_internal_transfer && !selectedBankCost.is_private_deposit && selectedBankCost.payment_type !== 'private');
 
   const handleSaveBankCategory = async (): Promise<void> => {
-    if (!user || !selectedBankCost?.paid_bank_transaction_id || savingBankCategory || !canEditBankCategory) return;
+    if (!user || !selectedBankCost?.paid_bank_transaction_id || savingBankCategory || !canEditBankCategory || bankCategoryDraft === 'split') return;
 
     setSavingBankCategory(true);
     try {
@@ -1665,7 +1680,7 @@ function KostenPageContent() {
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
         <div className="w-full max-w-7xl space-y-5">
           <div className="flex overflow-x-auto border-b border-border" role="tablist" aria-label="Kosten en financiën">
-            {KOSTEN_PAGE_TABS.map((tab) => (
+            {KOSTEN_PAGE_TABS.filter((tab) => !tab.hidden).map((tab) => (
               <button
                 key={tab.value}
                 type="button"
@@ -1683,6 +1698,8 @@ function KostenPageContent() {
               </button>
             ))}
           </div>
+
+          {viewMode === 'totalen' ? <KostenTotalenTab costs={costs} privateCredits={privateCredits} categories={filterOptions} loading={loading} error={error} /> : null}
 
           <input
             ref={quickPhotoInputRef}
@@ -1769,16 +1786,16 @@ function KostenPageContent() {
                   />
                 </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 shrink-0 gap-2 border-emerald-500/40 px-4 text-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-100"
-                  onClick={() => quickPhotoInputRef.current?.click()}
-                  disabled={extracting || saving}
-                >
-                  {extracting || saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                  {saving ? 'Foto importeren...' : extracting ? 'Foto uitlezen...' : 'Foto maken'}
-                </Button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Label htmlFor="cost-month" className="text-xs text-muted-foreground">Maand</Label>
+                  <Select value={costMonth} onValueChange={setCostMonth}>
+                    <SelectTrigger id="cost-month" className="h-10 w-[190px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle maanden</SelectItem>
+                      {availableMonths.map((month) => <SelectItem key={month} value={month}>{new Intl.DateTimeFormat('nl-NL', { month: 'long', year: 'numeric' }).format(new Date(`${month}-01T12:00:00`))}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <Dialog
                   open={createOpen}
@@ -1787,17 +1804,6 @@ function KostenPageContent() {
                     if (!open) void closeCreateDialog();
                   }}
                 >
-                  <DialogTrigger asChild>
-                    <Button
-                      type="button"
-                      className="h-10 shrink-0 gap-2 px-4 hidden sm:inline-flex"
-                      onClick={openCreateDialog}
-                      disabled={extracting || saving}
-                    >
-                      <Plus className="h-4 w-4" />
-                      Nieuwe kost
-                    </Button>
-                  </DialogTrigger>
                   <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden p-0">
                     <div className="flex max-h-[90vh] flex-col">
                       <DialogHeader className="px-6 pt-6 pb-2">
@@ -2334,32 +2340,16 @@ function KostenPageContent() {
                 </Dialog>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Label htmlFor="cost-month" className="text-xs text-muted-foreground">Maand</Label>
-                  <Select value={costMonth} onValueChange={setCostMonth}>
-                    <SelectTrigger id="cost-month" className="h-8 w-[190px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Alle maanden</SelectItem>
-                      {availableMonths.map((month) => <SelectItem key={month} value={month}>{new Intl.DateTimeFormat('nl-NL', { month: 'long', year: 'numeric' }).format(new Date(`${month}-01T12:00:00`))}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  ‘Alle’ toont Knab-afschrijvingen, inclusief privé en eigen overboekingen. Privé-opnames verrekent bevestigde privéstortingen. Automatisch: bunq-top-ups → Privé-opnames, Creman → Schulden, herkenbare tankstations → Brandstof. Zonder bon blijft de btw onbekend. Overig is je controlelijst.
-                  {' '}Bankperiode: {costs.map((cost) => cost.date).sort()[0] || 'onbekend'} t/m {costs.map((cost) => cost.date).sort().at(-1) || 'onbekend'}.
-                </p>
-              </div>
               <div className="flex flex-wrap gap-2.5">
                 {filterOptions.map((option) => (
                   <Button
                     key={option.value}
                     type="button"
-                    variant={filter === option.value ? 'default' : 'ghost'}
-                    onClick={() => setFilter(option.value)}
+                    variant={!onlyWithoutDocument && filter === option.value ? 'default' : 'ghost'}
+                    onClick={() => { setOnlyWithoutDocument(false); setFilter(option.value); }}
                     className={cn(
                       'h-9 rounded-full px-4 transition-all duration-200',
-                      filter === option.value
+                      !onlyWithoutDocument && filter === option.value
                         ? 'bg-emerald-500 text-white hover:bg-emerald-400'
                         : 'border border-border/70 bg-transparent text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-200'
                     )}
@@ -2381,6 +2371,11 @@ function KostenPageContent() {
                     </span>
                   </Button>
                 ))}
+                <Button type="button" variant="ghost" aria-pressed={onlyWithoutDocument}
+                  onClick={() => { setFilter('alle'); setOnlyWithoutDocument((value) => !value); }}
+                  className={cn('h-9 rounded-full border px-4', onlyWithoutDocument ? 'border-amber-500 bg-amber-500/15 text-amber-300' : 'border-border/70 text-muted-foreground')}>
+                  Zonder factuur
+                </Button>
               </div>
               {isPrivateView && (
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm tabular-nums" aria-label="Overzicht privé-opnames">
@@ -2404,15 +2399,6 @@ function KostenPageContent() {
                 <div className="text-sm text-muted-foreground">
                   {isPrivateView ? 'Geen privé-opnames of bevestigde privéstortingen voor deze maand of zoekopdracht.' : 'Geen Knab-afschrijvingen voor deze maand of zoekopdracht. Losse facturen staan bij PDF-bestanden.'}
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="mt-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-200 dark:hover:text-emerald-100"
-                  onClick={openCreateDialog}
-                  disabled={extracting || saving}
-                >
-                  Nieuwe kost
-                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -2459,8 +2445,13 @@ function KostenPageContent() {
                             </td>
                             <td className="px-3 py-2.5">
                               <Badge variant="outline" className="rounded px-1.5 py-0 text-[11px] font-medium">
-                                {isPrivateDeposit(cost) ? 'Privéstorting' : BANK_CATEGORY_LABELS[cost.category]}
+                                {isPrivateDeposit(cost) ? 'Privéstorting' : filter === 'alle' && cost.category_allocations?.length ? 'Verdeeld' : BANK_CATEGORY_LABELS[cost.category]}
                               </Badge>
+                              {filter === 'alle' && cost.category_allocations?.map((part) => (
+                                <div key={part.category} className="mt-1 whitespace-nowrap text-xs text-muted-foreground">
+                                  {BANK_CATEGORY_LABELS[part.category]} {formatCurrency(part.amount_incl_btw)}
+                                </div>
+                              ))}
                             </td>
                             <td className="max-w-[280px] px-3 py-2.5">
                               <div className="truncate text-foreground">{linkedLabel}</div>
@@ -2492,6 +2483,7 @@ function KostenPageContent() {
                                   {deletingCostId === cost.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                                 </Button> : <Badge variant="outline" className="text-[10px] text-muted-foreground">Bank</Badge>}
                               </div>
+                              {filter !== 'alle' && cost.category_allocations?.length ? <div className="mt-1 text-xs font-normal text-muted-foreground">Deel van {formatCurrency(cost.category_allocations.reduce((sum, part) => sum + part.amount_incl_btw, 0))}</div> : null}
                             </td>
                           </tr>
                         );
@@ -2501,7 +2493,7 @@ function KostenPageContent() {
                 </div>
                 <div className="flex items-center justify-between border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
                   <span>{filteredCosts.length} {isPrivateView ? filteredCosts.length === 1 ? 'boeking' : 'boekingen' : filteredCosts.length === 1 ? 'afschrijving' : 'afschrijvingen'}</span>
-                  <span className="font-semibold tabular-nums text-foreground">{isPrivateView ? 'Netto privé-opnames' : 'Totaal getoonde afschrijvingen'}: {formatCurrency(tabTotals[filter])}</span>
+                  <span className="font-semibold tabular-nums text-foreground">{isPrivateView ? 'Netto privé-opnames' : 'Totaal getoonde afschrijvingen'}: {formatCurrency(visibleTotal)}</span>
                 </div>
               </div>
 
@@ -2536,8 +2528,11 @@ function KostenPageContent() {
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                           <Badge variant="outline" className={categoryBadgeClass(cost.category)}>
-                            {isPrivateDeposit(cost) ? 'Privéstorting' : BANK_CATEGORY_LABELS[cost.category]}
+                            {isPrivateDeposit(cost) ? 'Privéstorting' : filter === 'alle' && cost.category_allocations?.length ? 'Verdeeld' : BANK_CATEGORY_LABELS[cost.category]}
                           </Badge>
+                          {filter === 'alle' && cost.category_allocations?.map((part) => (
+                            <span key={part.category} className="text-muted-foreground">{BANK_CATEGORY_LABELS[part.category]} {formatCurrency(part.amount_incl_btw)}</span>
+                          ))}
                           {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Betaling controleren</Badge> : null}
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
                             <Link2 className="h-3.5 w-3.5" />
@@ -2566,10 +2561,11 @@ function KostenPageContent() {
 
                       <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
                         <div className="text-right">
-                          <div className="text-xs uppercase tracking-wide text-muted-foreground">{isPrivateDeposit(cost) ? 'Bijgeschreven' : 'Afgeschreven'}</div>
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground">{isPrivateDeposit(cost) ? 'Bijgeschreven' : filter !== 'alle' && cost.category_allocations?.length ? 'Categoriebedrag' : 'Afgeschreven'}</div>
                           <div className={cn('text-2xl font-bold tabular-nums', isPrivateView && !isPrivateDeposit(cost) ? 'text-foreground' : 'text-emerald-300')}>
                             {formatBankRowAmount(cost, isPrivateView)}
                           </div>
+                          {filter !== 'alle' && cost.category_allocations?.length ? <div className="mt-1 text-xs text-muted-foreground">Deel van {formatCurrency(cost.category_allocations.reduce((sum, part) => sum + part.amount_incl_btw, 0))}</div> : null}
                         </div>
                         {!isBankTransactionCost(cost) ? <div className="flex items-center gap-1">
                           <Button
@@ -2640,23 +2636,25 @@ function KostenPageContent() {
                   <div className={cn('mt-1 text-xl font-semibold tabular-nums', selectedBankCost.is_private_deposit && 'text-emerald-300')}>{formatBankRowAmount(selectedBankCost, Boolean(selectedBankCost.is_private_deposit) || isPrivateView)}</div>
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 p-3">
-                  <Label htmlFor="bank-cost-category" className="text-xs font-normal text-muted-foreground">Categorie</Label>
+                  <Label htmlFor="bank-cost-category" className="text-xs font-normal text-muted-foreground">{selectedBankCost.category_allocations?.length ? 'Categorie voor hele afschrijving' : 'Categorie'}</Label>
                   {selectedBankCost.is_private_deposit ? (
                     <div className="mt-1 font-medium">Privéstorting</div>
                   ) : <Select
                     value={bankCategoryDraft}
-                    onValueChange={(value) => setBankCategoryDraft(normalizeProjectCostCategory(value))}
+                    onValueChange={(value) => setBankCategoryDraft(value === 'split' ? 'split' : normalizeProjectCostCategory(value))}
                     disabled={savingBankCategory || !canEditBankCategory}
                   >
                     <SelectTrigger id="bank-cost-category" className="mt-1 h-9 bg-background">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      {selectedBankCost.category_allocations?.length ? <SelectItem value="split">Volgens broncategorieën</SelectItem> : null}
                       {Object.entries(BANK_CATEGORY_LABELS).filter(([value]) => value !== 'profit').map(([value, label]) => (
                         <SelectItem key={value} value={value}>{label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>}
+                  {selectedBankCost.category_allocations?.length ? <p className="mt-1 text-xs text-muted-foreground">Een keuze hier vervangt de verdeling hieronder voor deze hele afschrijving.</p> : null}
                   {!selectedBankCost.has_supporting_document && !selectedBankCost.is_private_deposit ? (
                     <p className="mt-1 text-xs text-muted-foreground">{selectedBankCost.is_creman_debt
                       ? 'Door jou bevestigd als betaling op de totale schuld bij Creman. Een losse factuur per betaling is niet nodig voor deze categorie.'
@@ -2666,7 +2664,9 @@ function KostenPageContent() {
                           ? selectedBankCost.fuel_needs_review
                             ? 'Tankstation herkend, maar de bestaande bron bevat een privé-aanduiding. Controleer de categorie; btw blijft onbekend zonder bon.'
                             : 'Tankstation herkend aan de banknaam. Je kunt de categorie corrigeren; btw blijft onbekend zonder bon.'
-                          : 'Nog niet onderbouwd of herkend. Deze afschrijving blijft in Overig om te controleren.'}</p>
+                          : selectedBankCost.category_override
+                            ? 'De categorie is handmatig bevestigd. Btw blijft onbekend zonder factuur of bon.'
+                            : 'Je kunt de categorie kiezen zonder factuur of bon. Btw blijft onbekend.'}</p>
                   ) : null}
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 p-3">
@@ -2678,7 +2678,7 @@ function KostenPageContent() {
                   <div className="mt-1 font-medium tabular-nums">{selectedBankCost.vat_known === false ? 'n.b.' : formatCurrency(selectedBankCost.btw_amount)}</div>
                 </div>
                 {!selectedBankCost.is_private_deposit && <div className="rounded-md border border-border bg-muted/20 p-3 sm:col-span-2">
-                  <Label htmlFor="bank-cost-offerte" className="text-xs font-normal text-muted-foreground">Klant / offerte</Label>
+                  <Label htmlFor="bank-cost-offerte" className="text-xs font-normal text-muted-foreground">{selectedBankCost.category_allocations?.length ? 'Klant / offerte voor hele afschrijving' : 'Klant / offerte'}</Label>
                   <Select
                     value={bankOfferteDraft || 'none'}
                     onValueChange={(value) => setBankOfferteDraft(value === 'none' ? '' : value)}
@@ -2697,6 +2697,20 @@ function KostenPageContent() {
                   <p className="mt-1 text-xs text-muted-foreground">{selectedBankCost.is_internal_transfer ? 'Een overboeking tussen eigen rekeningen hoort niet bij een klant.' : 'De gekozen klant komt uit de gekoppelde offerte. De bankafschrijving blijft één keer meetellen.'}</p>
                 </div>}
               </div>
+
+              {selectedBankCost.category_allocations?.length ? (
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold">Verdeling</div>
+                  <div className="divide-y divide-border rounded-md border border-border">
+                    {selectedBankCost.category_allocations.map((part) => (
+                      <div key={part.category} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <span>{BANK_CATEGORY_LABELS[part.category]}</span>
+                        <span className="tabular-nums">{formatCurrency(part.amount_incl_btw)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="space-y-1 rounded-md border border-border p-3">
                 <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Bankomschrijving</div>
@@ -2782,7 +2796,7 @@ function KostenPageContent() {
                 <Button
                   type="button"
                   onClick={() => void handleSaveBankCategory()}
-                  disabled={savingBankCategory || !canEditBankCategory || bankCategoryDraft === selectedBankCost.category}
+                  disabled={savingBankCategory || !canEditBankCategory || bankCategoryDraft === 'split' || (!selectedBankCost.category_allocations?.length && bankCategoryDraft === selectedBankCost.category)}
                 >
                   {savingBankCategory ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Categorie opslaan
@@ -2824,26 +2838,6 @@ function KostenPageContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className={cn('fixed bottom-5 right-4 z-40 gap-2 sm:hidden', viewMode === 'kosten' ? 'flex' : 'hidden')}>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-12 gap-2 rounded-full border-emerald-500/50 bg-card px-4 text-emerald-200 shadow-lg shadow-emerald-900/20 hover:bg-emerald-500/10 hover:text-emerald-100"
-          onClick={() => quickPhotoInputRef.current?.click()}
-        >
-          <Camera className="h-4 w-4" />
-          Foto
-        </Button>
-        <Button
-          type="button"
-          className="h-12 gap-2 rounded-full px-4 shadow-lg shadow-emerald-900/30"
-          onClick={openCreateDialog}
-          disabled={extracting || saving}
-        >
-          <Plus className="h-4 w-4" />
-          Nieuwe kost
-        </Button>
-      </div>
     </div>
   );
 }

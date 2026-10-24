@@ -243,12 +243,12 @@ function LoginPageContent() {
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex justify-center">
             <Image
-              src="/logo_calvora_clean.svg"
-              alt="Calvora"
-              width={800}
-              height={224}
+              src="/logo-vroegop.png"
+              alt="Vroegop Timmerwerken"
+              width={1774}
+              height={887}
               priority
-              className="h-56 w-auto object-contain"
+              className="h-auto w-72 max-w-full rounded-sm object-contain"
               unoptimized
             />
           </div>

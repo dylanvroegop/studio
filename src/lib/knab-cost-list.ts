@@ -2,6 +2,7 @@ import type { FinanceBankCostLedgerRow, FinanceBankTransaction } from './finance
 import { isSupportingProjectCostReceipt, mapProjectCostRow, roundEuro, type ProjectCostCategory, type ProjectCostRow } from './project-costs';
 import { isFinalCostDocumentType } from './cost-document-policy';
 import { categoryOverrideForTransaction, isCremanCounterparty, isFuelCounterparty } from './confirmed-bank-categories';
+import { buildBankCostAllocations } from './bank-cost-allocation';
 
 export interface KnabCostReconciliation {
   transactionCount: number;
@@ -20,6 +21,7 @@ export interface KnabBankCostRow extends ProjectCostRow {
   is_creman_debt: boolean;
   is_fuel_payment: boolean;
   fuel_needs_review: boolean;
+  category_override?: ProjectCostCategory;
   is_private_deposit?: boolean;
 }
 
@@ -149,14 +151,15 @@ export function buildKnabCostList(params: BuildKnabCostListParams): {
     const vatAmount = vatKnown ? sourceVat : 0;
     const isInternal = params.internalTransferIds.has(transaction.id);
     const isPrivate = ledgerRow?.is_private === true;
+    const categoryOverride = ledgerRow?.category_override || categoryOverrideForTransaction(transaction, params.categoryOverrides);
     const isBunqTopUp = /top-?up\s+via\s+bunq/i.test(`${transaction.counterparty_name || ''} ${transaction.description || ''}`);
     const isCremanDebt = isCremanCounterparty(transaction.counterparty_name);
     const isFuelPayment = !isInternal && !isPrivate && (
       isFuelCounterparty(transaction.counterparty_name, transaction.description)
-      || ledgerRow?.category_override === 'brandstof'
+      || categoryOverride === 'brandstof'
     );
     // Oude privé-aanduidingen niet stilzwijgend door een merknaam overschrijven.
-    const fuelNeedsReview = isFuelPayment && !ledgerRow?.category_override && sources.some((cost) =>
+    const fuelNeedsReview = isFuelPayment && !categoryOverride && sources.some((cost) =>
       cost.payment_type === 'private' || cost.category === 'eigen_verbruik'
       || cost.line_items.some((item) => item.category === 'eigen_verbruik'));
     const receiptFiles = Array.from(new Map(sources.flatMap((cost) => cost.receipt_files || [])
@@ -170,9 +173,13 @@ export function buildKnabCostList(params: BuildKnabCostListParams): {
     const bankCategory = isInternal ? 'profit' : isPrivate ? 'eigen_verbruik' : ledgerRow?.category || 'overig';
     const category = isBunqTopUp ? 'eigen_verbruik'
       : isCremanDebt ? 'schulden'
-        : hasDocument ? bankCategory
-          : isFuelPayment ? ledgerRow?.category_override || (fuelNeedsReview ? 'overig' : 'brandstof')
+        : !isInternal && !isPrivate && categoryOverride ? categoryOverride
+          : hasDocument ? bankCategory
+          : isFuelPayment ? (fuelNeedsReview ? 'overig' : 'brandstof')
             : 'overig';
+    const categoryAllocations = !categoryOverride && !isInternal && !isPrivate && !isBunqTopUp && !isCremanDebt
+      && !fuelNeedsReview && sources.every(hasReceipt)
+      ? buildBankCostAllocations(sources, amount, vatKnown) : [];
 
     return { ...mapProjectCostRow({
       id: `bank-knab-${transaction.id}`,
@@ -203,10 +210,12 @@ export function buildKnabCostList(params: BuildKnabCostListParams): {
     }),
       // De bronmapper mag de documentregel of bevestigde uitzonderingen niet overschrijven.
       category,
+      ...(categoryAllocations.length ? { category_allocations: categoryAllocations } : {}),
+      ...(categoryOverride ? { category_override: categoryOverride } : {}),
       source_cost_ids: sources.map((cost) => cost.id),
       is_internal_transfer: isInternal,
       has_supporting_document: hasDocument,
-      bank_category: isFuelPayment ? category : bankCategory,
+      bank_category: isFuelPayment || categoryOverride ? category : bankCategory,
       is_bunq_topup: isBunqTopUp,
       is_creman_debt: isCremanDebt,
       is_fuel_payment: isFuelPayment,

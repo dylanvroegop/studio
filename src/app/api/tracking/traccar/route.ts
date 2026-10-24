@@ -74,6 +74,7 @@ async function traccarGet<T>(serverUrl: string, apiToken: string, path: string):
       Authorization: `Bearer ${apiToken}`,
     },
     cache: 'no-store',
+    signal: AbortSignal.timeout(45000),
   });
 
   if (!response.ok) {

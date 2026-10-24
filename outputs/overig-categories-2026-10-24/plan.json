@@ -1,0 +1,233 @@
+[
+  {
+    "id": "5c5a5e9d-ddc6-4ed5-a69a-14c6b5c870bb",
+    "name": "CCV*ALLSAFE Group B.V.",
+    "amount": 15.49,
+    "category": "storage",
+    "date": "2026-10-20"
+  },
+  {
+    "id": "2e9a0ab2-e6ef-4bfc-9c75-bbf5c7b75234",
+    "name": "Park. Lelystad 316",
+    "amount": 0.5,
+    "category": "autokosten",
+    "date": "2026-10-16"
+  },
+  {
+    "id": "4529fc6a-4ffd-44d7-8d5f-be4f41bc0028",
+    "name": "Gamma De Meern",
+    "amount": 9.49,
+    "category": "materiaal",
+    "date": "2026-10-14"
+  },
+  {
+    "id": "83e3b786-17be-4fb8-aa95-2967cbb1871a",
+    "name": "Gamma De Meern",
+    "amount": 3.67,
+    "category": "materiaal",
+    "date": "2026-10-14"
+  },
+  {
+    "id": "9a439811-a833-404e-a922-b4917742c38e",
+    "name": "Gamma De Meern",
+    "amount": 17.58,
+    "category": "materiaal",
+    "date": "2026-10-13"
+  },
+  {
+    "id": "e0cec79d-f8a9-4f98-b6ea-6c01596f9492",
+    "name": "Karwei Overvecht",
+    "amount": 16.99,
+    "category": "materiaal",
+    "date": "2026-10-13"
+  },
+  {
+    "id": "127707dc-2e6e-453e-86f0-65ebb981308d",
+    "name": "Gamma Almere Poort",
+    "amount": 78.35,
+    "category": "materiaal",
+    "date": "2026-10-12"
+  },
+  {
+    "id": "25d24062-a31c-4ba0-ae16-0a0bcff13d4e",
+    "name": "KPN - Mobiel",
+    "amount": 73.56,
+    "category": "telefoon",
+    "date": "2026-10-12"
+  },
+  {
+    "id": "9534ac3d-4674-4c5f-a669-0ace9c82a40f",
+    "name": "KARWEI",
+    "amount": 128,
+    "category": "materiaal",
+    "date": "2026-10-12"
+  },
+  {
+    "id": "6768a3b4-1a75-460f-9915-1de1b6eadd30",
+    "name": "DERDENGELDEN BOUWMAAT",
+    "amount": 275.5,
+    "category": "materiaal",
+    "date": "2026-10-06"
+  },
+  {
+    "id": "9b1a1460-042a-408a-ba73-7944cc60fe1b",
+    "name": "DSG Bouwmaten B.V.",
+    "amount": 1351.15,
+    "category": "materiaal",
+    "date": "2026-09-25"
+  },
+  {
+    "id": "9d242c62-44f2-4d80-8e21-9b5b0cdca16a",
+    "name": "Park. Lelystad 316",
+    "amount": 0.5,
+    "category": "autokosten",
+    "date": "2026-09-16"
+  },
+  {
+    "id": "25c2a393-23e9-487b-8772-ab886ec3fd0d",
+    "name": "Park. Lelystad 316",
+    "amount": 0.5,
+    "category": "autokosten",
+    "date": "2026-09-15"
+  },
+  {
+    "id": "f9f58356-b095-4628-8359-71dfa6759565",
+    "name": "DERDENGELDEN BOUWMAAT",
+    "amount": 480.05,
+    "category": "materiaal",
+    "date": "2026-09-15"
+  },
+  {
+    "id": "44fe1108-d26e-4cde-8cc2-d8f674518148",
+    "name": "Park. Lelystad 316",
+    "amount": 0.5,
+    "category": "autokosten",
+    "date": "2026-09-11"
+  },
+  {
+    "id": "65841d61-7a3a-4625-8e5f-f7d90876f734",
+    "name": "KPN - Mobiel",
+    "amount": 138.46,
+    "category": "telefoon",
+    "date": "2026-09-09"
+  },
+  {
+    "id": "4eaacd72-7c82-4e50-80eb-eb6d19c92f44",
+    "name": "GC RE WERKSPOT",
+    "amount": 16.94,
+    "category": "leadkosten",
+    "date": "2026-09-03"
+  },
+  {
+    "id": "9d0560da-7f8a-489a-998b-56d8ee0d0e7b",
+    "name": "KPN",
+    "amount": 0.01,
+    "category": "telefoon",
+    "date": "2026-09-03"
+  },
+  {
+    "id": "caddf794-feb2-4ba4-88e1-ddad6a88c045",
+    "name": "BCK*Praxis",
+    "amount": 11.8,
+    "category": "materiaal",
+    "date": "2026-09-01"
+  },
+  {
+    "id": "87bb9a95-9583-41c8-b3ac-85cb72600987",
+    "name": "Booking",
+    "amount": 19.68,
+    "category": "hotel",
+    "date": "2026-08-24"
+  },
+  {
+    "id": "9b053a13-5513-40c6-92d8-b69697ea8d1a",
+    "name": "BCK*Praxis Huizen 052",
+    "amount": 21.86,
+    "category": "materiaal",
+    "date": "2026-08-24"
+  },
+  {
+    "id": "4c21d4ea-343d-4832-ae31-58a097354eb9",
+    "name": "TMC*P-DORDRECHT-11020",
+    "amount": 1.1,
+    "category": "autokosten",
+    "date": "2026-08-14"
+  },
+  {
+    "id": "b42f914d-bca8-408a-a363-12ccab420d70",
+    "name": "Praxis Dordrecht",
+    "amount": 14.4,
+    "category": "materiaal",
+    "date": "2026-08-13"
+  },
+  {
+    "id": "97585e2a-5862-4876-8e28-8b35a4622b3b",
+    "name": "KPN Den Haag",
+    "amount": 53.98,
+    "category": "telefoon",
+    "date": "2026-08-06"
+  },
+  {
+    "id": "f8135e74-3d8f-4b0d-97f9-b661c400be8c",
+    "name": "BCK*Bouwmaat Amstel",
+    "amount": 77.3,
+    "category": "materiaal",
+    "date": "2026-08-03"
+  },
+  {
+    "id": "d390f7d8-7ab6-4781-a162-3efbc30428aa",
+    "name": "Parkeren A'dam 15504",
+    "amount": 2.69,
+    "category": "autokosten",
+    "date": "2026-07-24"
+  },
+  {
+    "id": "0c89472f-3f88-4bc6-b5e3-677d8778a359",
+    "name": "DSG Bouwmaten B.V.",
+    "amount": 2831.83,
+    "category": "materiaal",
+    "date": "2026-07-23"
+  },
+  {
+    "id": "13273ecf-98d9-4abc-8874-5fa6e39eba46",
+    "name": "KARWEI BARENDRECHT",
+    "amount": 37.06,
+    "category": "materiaal",
+    "date": "2026-07-13"
+  },
+  {
+    "id": "c780535c-4e58-4aed-a36d-8f1e06531d4e",
+    "name": "Booking",
+    "amount": 15.31,
+    "category": "hotel",
+    "date": "2026-07-13"
+  },
+  {
+    "id": "442b8aee-a4d7-44e3-8d70-9593c194b306",
+    "name": "BCK*Praxis 2271 Vianen",
+    "amount": 41.99,
+    "category": "materiaal",
+    "date": "2026-07-06"
+  },
+  {
+    "id": "85cc4748-fbd6-4140-8e1d-d0f081e5f110",
+    "name": "KPN",
+    "amount": 39,
+    "category": "telefoon",
+    "date": "2026-06-29"
+  },
+  {
+    "id": "979a2e4a-0193-4c76-90cb-4a9a6b38acb6",
+    "name": "Booking",
+    "amount": 21.87,
+    "category": "hotel",
+    "date": "2026-06-26"
+  },
+  {
+    "id": "ce0c04b5-f2ce-4a0e-8b4c-dd74c701d848",
+    "name": "Booking",
+    "amount": 21.87,
+    "category": "hotel",
+    "date": "2026-06-25"
+  }
+]

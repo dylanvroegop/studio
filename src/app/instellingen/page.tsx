@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react/no-unescaped-entities, react-hooks/exhaustive-deps */
 'use client';
 
+import { signOut } from 'firebase/auth';
+import { disableDevicePush } from '@/lib/push-client';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useAuth } from '@/firebase';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { DashboardHeader } from '@/components/DashboardHeader';
@@ -17,7 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users, Palette, MoonStar, Sun, ReceiptText, BellRing } from 'lucide-react';
+import { LogOut, Loader2, Save, Building2, Coins, FileText, HardHat, Plus, Trash2, Edit2, X, MoreHorizontal, CalendarDays, Users, Palette, MoonStar, Sun, ReceiptText, BellRing } from 'lucide-react';
 import {
     UserSettings,
     DEFAULT_USER_SETTINGS,
@@ -60,6 +62,8 @@ function InstellingenPageContent() {
     const showEmployeesInSettings = false;
     const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
+    const auth = useAuth();
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
     const { toast } = useToast();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -73,6 +77,38 @@ function InstellingenPageContent() {
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
     const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
     const { mode: currentThemeMode, setMode: setThemeMode, isThemeReady } = useThemeMode();
+
+    const handleLogout = async () => {
+      if (!auth) {
+        toast({
+          variant: 'destructive',
+          title: 'Fout',
+          description: 'Authenticatie is nog niet beschikbaar.',
+        });
+        return;
+      }
+
+      setIsLoggingOut(true);
+      try {
+        await fetch('/api/auth/session', {
+          method: 'DELETE',
+          credentials: 'include',
+        }).catch(() => null);
+        await disableDevicePush(auth.currentUser);
+        await signOut(auth);
+        toast({ title: 'Succes', description: 'U bent uitgelogd.' });
+        router.push('/login');
+      } catch (error) {
+        console.error('Logout fout:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Fout',
+          description: 'Uitloggen mislukt.',
+        });
+      } finally {
+        setIsLoggingOut(false);
+      }
+    };
 
     const composeAddress = (straat: string, huisnummer: string): string =>
         `${straat || ''} ${huisnummer || ''}`.trim();
@@ -615,6 +651,12 @@ function InstellingenPageContent() {
             <DashboardHeader user={user} title="Instellingen" />
 
             <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+                <div className="flex justify-end">
+                    <Button variant="outline" onClick={handleLogout} disabled={isLoggingOut}>
+                        {isLoggingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />}
+                        Uitloggen
+                    </Button>
+                </div>
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                     <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto p-1 gap-1">
                         <TabsTrigger value="meldingen" className="py-2.5"><BellRing className="mr-2 h-4 w-4" />Meldingen</TabsTrigger>

@@ -5,6 +5,7 @@ const path = require('node:path');
 const ts = require('typescript');
 require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'commonjs', moduleResolution: 'node' } });
 const { summarizeBankCostRows } = require('../src/lib/bank-cost-summary');
+const { costForCategory } = require('../src/lib/bank-cost-allocation');
 
 // Test de echte selectiefuncties uit de pagina, zonder nieuwe productie-exports
 // of Firebase/browserinitialisatie voor deze zuivere weergaveregels.
@@ -17,7 +18,7 @@ assert.equal(functions.length, names.length);
 const code = ts.transpileModule(functions.map(node => node.getText(parsedPage)).join('\n'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const ui = new Function(`${code}\nreturn { ${names.join(', ')} };`)();
+const ui = new Function('costForCategory', `${code}\nreturn { ${names.join(', ')} };`)(costForCategory);
 
 function row(id, amount, category = 'eigen_verbruik', extra = {}) {
   return { id, category, amount_incl_btw: amount, amount_excl_btw: amount, btw_amount: 0,
@@ -95,4 +96,53 @@ test('privéstortingen krijgen een plus en opnames een min, andere tabs behouden
   assert.equal(ui.formatBankRowAmount(withdrawal, false), ui.formatCurrency(300));
   assert.equal(credit.amount_incl_btw, 200); assert.equal(withdrawal.amount_incl_btw, 300);
   assert.equal(credit.vat_known, false); assert.equal(credit.btw_amount, 0);
+});
+
+test('categorietab en zoekbedrag tonen alleen het brondeel terwijl Alle de hele betaling houdt', () => {
+  const costs = [row('mixed', 513.71, 'materiaal', { category_allocations: [
+    { category: 'materiaal', amount_incl_btw: 0.22, amount_excl_btw: 0.18, btw_amount: 0.04, vat_known: true, offerte_id: 'work' },
+    { category: 'gereedschap', amount_incl_btw: 513.49, amount_excl_btw: 424.37, btw_amount: 89.12, vat_known: true, offerte_id: null },
+  ] })];
+  const matches = ui.matchingCostRows(costs, '2026-09', '513,49', new Map());
+  assert.equal(matches.length, 1);
+  const tools = ui.costRowsForFilter(matches, [], 'gereedschap');
+  assert.equal(tools.length, 1);
+  assert.equal(tools[0].amount_incl_btw, 513.49);
+  assert.equal(tools[0].id, costs[0].id);
+  assert.equal(tools[0].offerte_id, null);
+  assert.equal(ui.costRowsForFilter(matches, [], 'materiaal')[0].amount_incl_btw, 0.22);
+  assert.equal(ui.costRowsForFilter(matches, [], 'alle')[0].amount_incl_btw, 513.71);
+  assert.equal(summarizeBankCostRows(matches).totals.gereedschap, 513.49);
+});
+
+test('verdeelde betaling blijft vindbaar op nummer en klant van elke gekoppelde offerte', () => {
+  const mixed = row('mixed-quotes', 121, 'materiaal', { category_allocations: [
+    { category: 'materiaal', amount_incl_btw: 60.5, amount_excl_btw: 50, btw_amount: 10.5, vat_known: true, offerte_id: 'quote-a' },
+    { category: 'gereedschap', amount_incl_btw: 60.5, amount_excl_btw: 50, btw_amount: 10.5, vat_known: true, offerte_id: 'quote-b' },
+  ] });
+  const direct = row('direct-quote', 25, 'materiaal', { offerte_id: 'quote-c' });
+  const costs = [mixed, direct];
+  const before = structuredClone(costs);
+  const quotes = new Map([
+    ['quote-a', { offerteNummer: '260101', label: 'Dakwerk Jansen' }],
+    ['quote-b', { offerteNummer: '260202', label: 'Badkamer De Vries' }],
+    ['quote-c', { offerteNummer: '260303', label: 'Zolder Bakker' }],
+  ]);
+  for (const [search, category, quoteId] of [
+    ['260101', 'materiaal', 'quote-a'], ['JANSEN', 'materiaal', 'quote-a'],
+    ['260202', 'gereedschap', 'quote-b'], ['de vries', 'gereedschap', 'quote-b'],
+  ]) {
+    const matches = ui.matchingCostRows(costs, '2026-09', search, quotes);
+    assert.deepEqual(matches.map(item => item.id), ['mixed-quotes']);
+    const projected = ui.costRowsForFilter(matches, [], category);
+    assert.equal(projected.length, 1);
+    assert.equal(projected[0].offerte_id, quoteId);
+    assert.equal(projected[0].amount_incl_btw, 60.5);
+    assert.equal(ui.costRowsForFilter(matches, [], 'alle')[0].amount_incl_btw, 121);
+  }
+  assert.deepEqual(ui.matchingCostRows(costs, 'all', '260303', quotes).map(item => item.id), ['direct-quote']);
+  assert.equal(ui.matchingCostRows(costs, '2026-08', 'Jansen', quotes).length, 0);
+  assert.equal(ui.matchingCostRows(costs, 'all', 'niet gekoppeld', quotes).length, 0);
+  assert.equal(ui.matchingCostRows(costs, 'all', 'Jansen', new Map()).length, 0);
+  assert.deepEqual(costs, before);
 });

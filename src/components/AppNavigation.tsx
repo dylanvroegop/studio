@@ -174,11 +174,11 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                 )}
                 <div className="flex items-center">
                     <Image
-                        src="/logo_calvora_clean.svg"
-                        alt="Calvora Logo"
-                        width={200}
-                        height={60}
-                        className="h-10 w-auto object-contain"
+                        src="/logo-vroegop.png"
+                        alt="Vroegop Timmerwerken"
+                        width={1774}
+                        height={887}
+                        className="h-auto w-36 rounded-sm object-contain"
                         priority
                     />
                 </div>

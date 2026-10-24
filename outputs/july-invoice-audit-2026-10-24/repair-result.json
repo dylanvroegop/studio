@@ -1,0 +1,797 @@
+{
+  "period": "2026-07",
+  "repaired_at": "2026-10-24",
+  "database_status": "applied_and_independently_verified",
+  "code_status": "implemented_and_verified_in_authenticated_local_browser_not_deployed",
+  "category_split_july_payments": 13,
+  "category_split_all_payments": 36,
+  "changes": [
+    "Category tabs use source portions; Alle retains one bank payment.",
+    "Explicit licence-plate category set to autokosten on source and lines; order evidence and unknown displayed VAT preserved.",
+    "Derks July lease line category corrected from brandstof to autokosten.",
+    "Deleted two duplicate Toolstation75.65 cost rows after preserving screenshot and project link.",
+    "Deleted two redundant XXL313.28 split rows, retaining PDF-backed full invoice and project link.",
+    "Deleted stale Toolstation-2.34 discount row; correct36.63 invoice already includes gross1.93 voucher.",
+    "Updated affected quote receipt and resolved pending-import references."
+  ],
+  "stored_cost_row_count": 323,
+  "stored_cost_total_reduction_gross": 386.59,
+  "july_bank_total_unchanged": 23651.58,
+  "july_category_totals": {
+    "alle": 23651.58,
+    "materiaal": 10630.89,
+    "autokosten": 1311.7,
+    "boetes": 492.65,
+    "schulden": 727.73,
+    "afval": 204.75,
+    "brandstof": 869.79,
+    "gereedschap": 2222.75,
+    "eigen_verbruik": 2950,
+    "hotel": 0,
+    "telefoon": 0,
+    "leadkosten": 1028.5,
+    "storage": 0,
+    "profit": 0,
+    "overig": 3212.82
+  },
+  "validation": {
+    "regression_tests_passed": 72,
+    "typecheck": "passed",
+    "production_build": "passed",
+    "database_independent_checks_passed": 34,
+    "authenticated_local_browser": "July material portions, full-payment modal and licence plate verified",
+    "production_deployment": "not performed"
+  },
+  "backup_path": "/Users/dylanvroegop/.codex/backups/studio-july-repair-2026-10-24T16-08-36-475Z",
+  "live_verification": {
+    "costCount": 323,
+    "allBankPayments": 335,
+    "allGross": 79401.38,
+    "allMixedPayments": 36,
+    "julyBankPayments": 91,
+    "julyMixedPayments": 13,
+    "julyCategoryTotals": {
+      "alle": 23651.58,
+      "materiaal": 10630.89,
+      "autokosten": 1311.7,
+      "boetes": 492.65,
+      "schulden": 727.73,
+      "afval": 204.75,
+      "brandstof": 869.79,
+      "gereedschap": 2222.75,
+      "eigen_verbruik": 2950,
+      "hotel": 0,
+      "telefoon": 0,
+      "leadkosten": 1028.5,
+      "storage": 0,
+      "profit": 0,
+      "overig": 3212.82
+    },
+    "plate": {
+      "category": "autokosten",
+      "amount": 16.94,
+      "vat_known": false,
+      "has_supporting_document": false
+    },
+    "july": [
+      {
+        "id": "bank-knab-76a690b5-9efb-4a70-8dff-bfaf93e38f47",
+        "date": "2026-07-31",
+        "amount": 137.84,
+        "allocations": [
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 19.03,
+            "amount_excl_btw": 15.73,
+            "btw_amount": 3.3,
+            "vat_known": true,
+            "source_cost_ids": [
+              "e3c32ffe-91fa-4e9d-9b2d-3313ee46a50b"
+            ],
+            "offerte_id": "ERYzkVOGY7SecCsPHmoi"
+          },
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 118.81,
+            "amount_excl_btw": 98.19,
+            "btw_amount": 20.62,
+            "vat_known": true,
+            "source_cost_ids": [
+              "b95a8854-932f-4080-a40c-15b37eb04773"
+            ],
+            "offerte_id": "ERYzkVOGY7SecCsPHmoi"
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-141d6a6a-0adf-4ec9-a13c-6ed937e0974c",
+        "date": "2026-07-28",
+        "amount": 194.58,
+        "allocations": [
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 185.37,
+            "amount_excl_btw": 153.2,
+            "btw_amount": 32.17,
+            "vat_known": true,
+            "source_cost_ids": [
+              "29990f13-6ec4-4a4f-af57-6d7070978f60"
+            ],
+            "offerte_id": "kGEOXxbULmKcDwuBHDGH"
+          },
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 9.21,
+            "amount_excl_btw": 7.61,
+            "btw_amount": 1.6,
+            "vat_known": true,
+            "source_cost_ids": [
+              "4503b68c-1cf2-491f-8047-03dea0536d6e"
+            ],
+            "offerte_id": "kGEOXxbULmKcDwuBHDGH"
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-d2d59248-3d02-4991-b61d-7377bf3252f6",
+        "date": "2026-07-20",
+        "amount": 241.66,
+        "allocations": [
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 20.59,
+            "amount_excl_btw": 17.02,
+            "btw_amount": 3.57,
+            "vat_known": true,
+            "source_cost_ids": [
+              "956faf9e-36c6-4f3b-94d8-b0d51378e63e"
+            ],
+            "offerte_id": null
+          },
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 221.07,
+            "amount_excl_btw": 182.7,
+            "btw_amount": 38.37,
+            "vat_known": true,
+            "source_cost_ids": [
+              "6514af44-ffd4-4150-b71a-fa2098cf40c2"
+            ],
+            "offerte_id": null
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-70482c91-740a-496b-a058-5567f57cf04b",
+        "date": "2026-07-13",
+        "amount": 125.39,
+        "allocations": [
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 114.38,
+            "amount_excl_btw": 94.53,
+            "btw_amount": 19.85,
+            "vat_known": true,
+            "source_cost_ids": [
+              "37e0d63c-0300-4e8f-8210-673e7f6e7283"
+            ],
+            "offerte_id": "ERYzkVOGY7SecCsPHmoi"
+          },
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 11.01,
+            "amount_excl_btw": 9.1,
+            "btw_amount": 1.91,
+            "vat_known": true,
+            "source_cost_ids": [
+              "1b208ec9-c99e-44e0-92e0-aa6fcd394da0"
+            ],
+            "offerte_id": "ERYzkVOGY7SecCsPHmoi"
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-9b68439c-1925-4110-8d4c-b453c61a0011",
+        "date": "2026-07-13",
+        "amount": 1017.76,
+        "allocations": [
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 307.49,
+            "amount_excl_btw": 254.12,
+            "btw_amount": 53.37,
+            "vat_known": true,
+            "source_cost_ids": [
+              "997d7455-05cb-46f6-910d-56fa190a28e3"
+            ],
+            "offerte_id": "FcWNfjONZVDxxJ8PBMtS"
+          },
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 710.27,
+            "amount_excl_btw": 587,
+            "btw_amount": 123.27,
+            "vat_known": true,
+            "source_cost_ids": [
+              "96ae8025-8598-47ea-bc44-e1d5b34beb89"
+            ],
+            "offerte_id": "FcWNfjONZVDxxJ8PBMtS"
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-7f16b300-a6f0-47a3-92ce-a43645befdee",
+        "date": "2026-07-10",
+        "amount": 459.41,
+        "allocations": [
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 6.87,
+            "amount_excl_btw": 5.68,
+            "btw_amount": 1.19,
+            "vat_known": true,
+            "source_cost_ids": [
+              "d4679b0f-466f-4221-bbeb-13e6f362405c"
+            ],
+            "offerte_id": "FcWNfjONZVDxxJ8PBMtS"
+          },
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 452.54,
+            "amount_excl_btw": 374,
+            "btw_amount": 78.54,
+            "vat_known": true,
+            "source_cost_ids": [
+              "ca432d73-cca3-4572-b250-98f693f1c448"
+            ],
+            "offerte_id": "FcWNfjONZVDxxJ8PBMtS"
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-867b52af-d485-4388-b689-3e235c2860b9",
+        "date": "2026-07-10",
+        "amount": 360.02,
+        "allocations": [
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 349.25,
+            "amount_excl_btw": 288.64,
+            "btw_amount": 60.61,
+            "vat_known": true,
+            "source_cost_ids": [
+              "387cb547-393d-407a-88af-5c9ee87d59b4"
+            ],
+            "offerte_id": "FcWNfjONZVDxxJ8PBMtS"
+          },
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 10.77,
+            "amount_excl_btw": 8.9,
+            "btw_amount": 1.87,
+            "vat_known": true,
+            "source_cost_ids": [
+              "6a06386e-2027-41f0-b43a-d4c212ef64ab"
+            ],
+            "offerte_id": "FcWNfjONZVDxxJ8PBMtS"
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-ca28542a-9c74-4218-9b5b-f2c961b16c54",
+        "date": "2026-07-09",
+        "amount": 513.71,
+        "allocations": [
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 513.49,
+            "amount_excl_btw": 424.37,
+            "btw_amount": 89.12,
+            "vat_known": true,
+            "source_cost_ids": [
+              "a0a73949-8c0d-4430-a8d8-215c5350a25e"
+            ],
+            "offerte_id": null
+          },
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 0.22,
+            "amount_excl_btw": 0.18,
+            "btw_amount": 0.04,
+            "vat_known": true,
+            "source_cost_ids": [
+              "0fddd40f-dfa0-4b55-be91-31b9b3b3161c"
+            ],
+            "offerte_id": null
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-cf45a7f7-86fb-468e-8a9b-a534650984c2",
+        "date": "2026-07-06",
+        "amount": 109.19,
+        "allocations": [
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 86.43,
+            "amount_excl_btw": 71.43,
+            "btw_amount": 15,
+            "vat_known": true,
+            "source_cost_ids": [
+              "b8084939-2f28-4341-91ea-a96b860d628f"
+            ],
+            "offerte_id": "dUkWStrknLDlOSVl1Lc1"
+          },
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 22.76,
+            "amount_excl_btw": 18.81,
+            "btw_amount": 3.95,
+            "vat_known": true,
+            "source_cost_ids": [
+              "4904f1e9-917e-4091-b4af-66b89e18a659"
+            ],
+            "offerte_id": "dUkWStrknLDlOSVl1Lc1"
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-66dd313d-6d56-4580-89a9-58fa4239ca39",
+        "date": "2026-07-03",
+        "amount": 215.73,
+        "allocations": [
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 64.6,
+            "amount_excl_btw": 53.39,
+            "btw_amount": 11.21,
+            "vat_known": true,
+            "source_cost_ids": [
+              "0f4a3afa-af9e-499b-8dac-cf6160cb4bbb",
+              "32f57d1b-6cf0-4aa8-8b53-1ed795e61dbc",
+              "0be48c52-16d8-4e75-8b30-558be71539f4"
+            ],
+            "offerte_id": null
+          },
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 151.13,
+            "amount_excl_btw": 124.9,
+            "btw_amount": 26.23,
+            "vat_known": true,
+            "source_cost_ids": [
+              "fb6c5007-298d-410d-9ce2-f75d7fcfaa5c"
+            ],
+            "offerte_id": "dUkWStrknLDlOSVl1Lc1"
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-3ca42849-62f6-48ff-9bc6-c30ba5ec399c",
+        "date": "2026-07-02",
+        "amount": 75.65,
+        "allocations": [
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 25.18,
+            "amount_excl_btw": 20.81,
+            "btw_amount": 4.37,
+            "vat_known": true,
+            "source_cost_ids": [
+              "b42315b8-a425-4292-b4d3-89cd4df3c71e"
+            ],
+            "offerte_id": "ZomgHV4Q5h02ZGxsbnZv"
+          },
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 50.47,
+            "amount_excl_btw": 41.71,
+            "btw_amount": 8.76,
+            "vat_known": true,
+            "source_cost_ids": [
+              "6fc81746-8986-42f4-8bbe-310723ae3f35"
+            ],
+            "offerte_id": null
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-6a2c7845-1f08-4ecc-995a-cd903d4c44ac",
+        "date": "2026-07-01",
+        "amount": 314.43,
+        "allocations": [
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 0.22,
+            "amount_excl_btw": 0.18,
+            "btw_amount": 0.04,
+            "vat_known": true,
+            "source_cost_ids": [
+              "1043facc-1d9b-46c4-834b-1100c02e1cd6"
+            ],
+            "offerte_id": null
+          },
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 314.21,
+            "amount_excl_btw": 259.68,
+            "btw_amount": 54.53,
+            "vat_known": true,
+            "source_cost_ids": [
+              "a60ab592-c3ab-4206-8b3c-62468be8ae0d"
+            ],
+            "offerte_id": null
+          }
+        ]
+      },
+      {
+        "id": "bank-knab-dc81791d-4e81-43a3-9b01-dae11291b139",
+        "date": "2026-07-01",
+        "amount": 327.69,
+        "allocations": [
+          {
+            "category": "gereedschap",
+            "amount_incl_btw": 32.19,
+            "amount_excl_btw": 26.6,
+            "btw_amount": 5.59,
+            "vat_known": true,
+            "source_cost_ids": [
+              "30e9c6c0-91e8-4064-9854-83e76fc3087d"
+            ],
+            "offerte_id": null
+          },
+          {
+            "category": "materiaal",
+            "amount_incl_btw": 295.5,
+            "amount_excl_btw": 244.22,
+            "btw_amount": 51.28,
+            "vat_known": true,
+            "source_cost_ids": [
+              "e7306770-f1a0-4759-a7e5-f6b67bb8788d"
+            ],
+            "offerte_id": "ZomgHV4Q5h02ZGxsbnZv"
+          }
+        ]
+      }
+    ]
+  },
+  "independent_verification": {
+    "checkedAt": "2026-10-24T16:11:23.320Z",
+    "readOnly": true,
+    "backup": "/Users/dylanvroegop/.codex/backups/studio-july-repair-2026-10-24T16-08-36-475Z",
+    "checks": {
+      "exact_five_deletions": {
+        "pass": true,
+        "detail": {
+          "before": 328,
+          "after": 323,
+          "deletedIds": [
+            "808024d3-229d-4500-8e4e-020a20f36ad7",
+            "75bb6a2b-55c4-467a-98b0-4d66bbdbf15d",
+            "d1a05d54-3cbb-4ee8-9159-72fcc6ffc198",
+            "e72c5e74-2bcc-4291-b2b5-87bfc2430d68",
+            "3f852730-326e-4a4b-b5ec-add7fb247f07"
+          ]
+        }
+      },
+      "no_new_project_cost_rows": {
+        "pass": true
+      },
+      "all_six_survivors_exist": {
+        "pass": true
+      },
+      "all_317_project_cost_rows_outside_target_unchanged": {
+        "pass": true,
+        "detail": {
+          "count": 317,
+          "changedIds": []
+        }
+      },
+      "survivor_integrity_6fc81746-8986-42f4-8bbe-310723ae3f35": {
+        "pass": true
+      },
+      "survivor_integrity_b42315b8-a425-4292-b4d3-89cd4df3c71e": {
+        "pass": true
+      },
+      "survivor_integrity_36fd7d39-cb45-4cef-9f26-6f1e6e0e21ea": {
+        "pass": true
+      },
+      "survivor_integrity_a29bb4fb-9832-41f8-a369-e57eb81ab629": {
+        "pass": true
+      },
+      "survivor_integrity_dee5f041-b060-4738-b531-8a0dac7f891e": {
+        "pass": true
+      },
+      "survivor_integrity_9f233815-3cb7-4dce-ae7a-e3a64a07ccfc": {
+        "pass": true
+      },
+      "legacy_receipts_preserved_6fc81746-8986-42f4-8bbe-310723ae3f35": {
+        "pass": true
+      },
+      "legacy_receipts_preserved_b42315b8-a425-4292-b4d3-89cd4df3c71e": {
+        "pass": true
+      },
+      "toolstation_material_project_preserved": {
+        "pass": true
+      },
+      "toolstation_nonzero_line_financials_preserved": {
+        "pass": true
+      },
+      "legacy_zero_line_preserved": {
+        "pass": true
+      },
+      "xxl_project_lines_preserved": {
+        "pass": true
+      },
+      "license_plate_autokosten": {
+        "pass": true
+      },
+      "lease_line_autokosten": {
+        "pass": true
+      },
+      "category_only_line_change_dee5f041-b060-4738-b531-8a0dac7f891e": {
+        "pass": true
+      },
+      "category_only_line_change_9f233815-3cb7-4dce-ae7a-e3a64a07ccfc": {
+        "pass": true
+      },
+      "cost_document_archives_only_authorized_changes": {
+        "pass": true
+      },
+      "finance_bank_costs_only_authorized_changes": {
+        "pass": true
+      },
+      "bank_transaction_category_overrides_only_authorized_changes": {
+        "pass": true
+      },
+      "expected_totals_delta": {
+        "pass": true
+      },
+      "no_deleted_refs_cost_document_archives": {
+        "pass": true
+      },
+      "no_deleted_refs_finance_bank_costs": {
+        "pass": true
+      },
+      "no_deleted_refs_pending_cost_imports": {
+        "pass": true
+      },
+      "no_deleted_refs_cost_import_claims": {
+        "pass": true
+      },
+      "no_deleted_refs_quotes": {
+        "pass": true
+      },
+      "quote_screenshot_remap_exact": {
+        "pass": true
+      },
+      "pending_link_repair_exact": {
+        "pass": true
+      },
+      "other_pending_cost_imports_unchanged": {
+        "pass": true
+      },
+      "other_cost_import_claims_unchanged": {
+        "pass": true
+      },
+      "no_deleted_refs_rebuilt_bank_ledger": {
+        "pass": true
+      }
+    },
+    "survivors": [
+      {
+        "id": "6fc81746-8986-42f4-8bbe-310723ae3f35",
+        "changedFields": [
+          "updated_at",
+          "receipt_files",
+          "supplier_invoice_number"
+        ],
+        "onlyExpectedFieldsChanged": true,
+        "financialFieldsUnchanged": true,
+        "bankFieldsUnchanged": true,
+        "allOriginalReceiptsPreserved": true,
+        "beforeReceiptCount": 1,
+        "afterReceiptCount": 2
+      },
+      {
+        "id": "b42315b8-a425-4292-b4d3-89cd4df3c71e",
+        "changedFields": [
+          "offerte_id",
+          "line_items",
+          "updated_at",
+          "receipt_files",
+          "supplier_invoice_number"
+        ],
+        "onlyExpectedFieldsChanged": true,
+        "financialFieldsUnchanged": true,
+        "bankFieldsUnchanged": true,
+        "allOriginalReceiptsPreserved": true,
+        "beforeReceiptCount": 1,
+        "afterReceiptCount": 2
+      },
+      {
+        "id": "36fd7d39-cb45-4cef-9f26-6f1e6e0e21ea",
+        "changedFields": [
+          "line_items",
+          "updated_at"
+        ],
+        "onlyExpectedFieldsChanged": true,
+        "financialFieldsUnchanged": true,
+        "bankFieldsUnchanged": true,
+        "allOriginalReceiptsPreserved": true,
+        "beforeReceiptCount": 1,
+        "afterReceiptCount": 1
+      },
+      {
+        "id": "a29bb4fb-9832-41f8-a369-e57eb81ab629",
+        "changedFields": [
+          "updated_at",
+          "supplier_invoice_number"
+        ],
+        "onlyExpectedFieldsChanged": true,
+        "financialFieldsUnchanged": true,
+        "bankFieldsUnchanged": true,
+        "allOriginalReceiptsPreserved": true,
+        "beforeReceiptCount": 1,
+        "afterReceiptCount": 1
+      },
+      {
+        "id": "dee5f041-b060-4738-b531-8a0dac7f891e",
+        "changedFields": [
+          "line_items",
+          "category",
+          "updated_at"
+        ],
+        "onlyExpectedFieldsChanged": true,
+        "financialFieldsUnchanged": true,
+        "bankFieldsUnchanged": true,
+        "allOriginalReceiptsPreserved": true,
+        "beforeReceiptCount": 1,
+        "afterReceiptCount": 1
+      },
+      {
+        "id": "9f233815-3cb7-4dce-ae7a-e3a64a07ccfc",
+        "changedFields": [
+          "line_items",
+          "updated_at"
+        ],
+        "onlyExpectedFieldsChanged": true,
+        "financialFieldsUnchanged": true,
+        "bankFieldsUnchanged": true,
+        "allOriginalReceiptsPreserved": true,
+        "beforeReceiptCount": 2,
+        "afterReceiptCount": 2
+      }
+    ],
+    "tableComparisons": {
+      "cost_document_archives": {
+        "before": 284,
+        "after": 284,
+        "added": [],
+        "removed": [],
+        "changed": []
+      },
+      "finance_bank_costs": {
+        "before": 205,
+        "after": 205,
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "id": "b180876a-7529-4a53-b61d-e370c917f346",
+            "bankTransactionId": "abfd9a98-cd46-450d-a962-3fc53053809e",
+            "fields": [
+              "category",
+              "updated_at"
+            ],
+            "category": "autokosten"
+          }
+        ]
+      },
+      "bank_transaction_category_overrides": {
+        "before": 43,
+        "after": 44,
+        "added": [
+          {
+            "id": "2152bd37-c050-4c48-91e6-2abea4e75cfc",
+            "bankTransactionId": "2152bd37-c050-4c48-91e6-2abea4e75cfc",
+            "category": "autokosten"
+          }
+        ],
+        "removed": [],
+        "changed": []
+      }
+    },
+    "referenceScans": {
+      "cost_document_archives": {
+        "count": 284,
+        "matches": []
+      },
+      "finance_bank_costs": {
+        "count": 205,
+        "matches": []
+      },
+      "pending_cost_imports": {
+        "count": 47,
+        "matches": []
+      },
+      "cost_import_claims": {
+        "count": 129,
+        "matches": []
+      },
+      "quotes": {
+        "count": 299,
+        "matches": []
+      },
+      "rebuilt_bank_ledger": {
+        "count": 332,
+        "matches": []
+      }
+    },
+    "failures": [],
+    "financialDelta": {
+      "amount_excl_btw": -319.5,
+      "btw_amount": -67.09,
+      "amount_incl_btw": -386.59
+    },
+    "rebuiltBankInvoiceLinks": [
+      {
+        "bankTransactionId": "e43db21c-66a0-414e-b9f5-2c977a86ef29",
+        "sourceCostIds": [
+          "36fd7d39-cb45-4cef-9f26-6f1e6e0e21ea"
+        ],
+        "amount": 313.28,
+        "sourceAmount": 313.28,
+        "sourceDelta": 0,
+        "category": "materiaal",
+        "matchStatus": "matched"
+      },
+      {
+        "bankTransactionId": "b9c91582-2a6a-40e2-9996-8c04c4e42ecc",
+        "sourceCostIds": [
+          "a29bb4fb-9832-41f8-a369-e57eb81ab629"
+        ],
+        "amount": 36.63,
+        "sourceAmount": 36.63,
+        "sourceDelta": 0,
+        "category": "gereedschap",
+        "matchStatus": "matched"
+      },
+      {
+        "bankTransactionId": "2152bd37-c050-4c48-91e6-2abea4e75cfc",
+        "sourceCostIds": [
+          "dee5f041-b060-4738-b531-8a0dac7f891e"
+        ],
+        "amount": 16.94,
+        "sourceAmount": 16.94,
+        "sourceDelta": 0,
+        "category": "autokosten",
+        "matchStatus": "matched"
+      },
+      {
+        "bankTransactionId": "3ca42849-62f6-48ff-9bc6-c30ba5ec399c",
+        "sourceCostIds": [
+          "6fc81746-8986-42f4-8bbe-310723ae3f35",
+          "b42315b8-a425-4292-b4d3-89cd4df3c71e"
+        ],
+        "amount": 75.65,
+        "sourceAmount": 75.65,
+        "sourceDelta": 0,
+        "category": "gereedschap",
+        "matchStatus": "matched"
+      },
+      {
+        "bankTransactionId": "fe0a9b51-895d-48b5-a3be-c13ebc1eea18",
+        "sourceCostIds": [
+          "9f233815-3cb7-4dce-ae7a-e3a64a07ccfc"
+        ],
+        "amount": 1294.76,
+        "sourceAmount": 1294.76,
+        "sourceDelta": 0,
+        "category": "autokosten",
+        "matchStatus": "matched"
+      }
+    ],
+    "pass": true
+  }
+}
