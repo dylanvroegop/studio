@@ -1,0 +1,20 @@
+{
+  "changed": 33,
+  "laterChanges": [
+    {
+      "id": "5c5a5e9d-ddc6-4ed5-a69a-14c6b5c870bb",
+      "name": "CCV*ALLSAFE Group B.V.",
+      "amount": 15.49,
+      "category": "storage",
+      "date": "2026-10-20"
+    }
+  ],
+  "total": 79401.38,
+  "count": 335,
+  "overigBefore": 12881.71,
+  "overigAfter": 7059.13,
+  "overigCountBefore": 75,
+  "overigCountAfter": 41,
+  "reclassified": 5822.58,
+  "amountsAndDocumentsUnchanged": true
+}

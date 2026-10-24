@@ -174,7 +174,7 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                 )}
                 <div className="flex items-center">
                     <Image
-                        src="/logo-vroegop.png"
+                        src="/logo-vroegop-transparent.png"
                         alt="Vroegop Timmerwerken"
                         width={1774}
                         height={887}

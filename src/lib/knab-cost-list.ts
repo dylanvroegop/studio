@@ -120,6 +120,9 @@ export function buildKnabCostList(params: BuildKnabCostListParams): {
     if (!transaction.id || !Number.isFinite(Number(transaction.amount))) {
       throw new Error('Knab-afschrijving heeft geen geldig transactienummer of bedrag.');
     }
+    // Expliciet bevestigde spaaroverboekingen zijn geen kosten. De bankbron blijft bestaan.
+    if (params.internalTransferIds.has(transaction.id)
+      && categoryOverrideForTransaction(transaction, params.categoryOverrides) === 'profit') continue;
     const previous = debitById.get(transaction.id);
     if (previous && (roundEuro(previous.amount) !== roundEuro(transaction.amount)
       || previous.booking_date !== transaction.booking_date)) {

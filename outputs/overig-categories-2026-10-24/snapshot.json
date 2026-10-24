@@ -359,6 +359,294 @@
       "category": "storage",
       "created_at": "2026-10-24T16:40:06.111749+00:00",
       "updated_at": "2026-10-24T16:40:24.894+00:00"
+    },
+    {
+      "id": "03375f7a-6e39-4fd3-9e80-37650c12acdb",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "2e9a0ab2-e6ef-4bfc-9c75-bbf5c7b75234",
+      "category": "autokosten",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "0b14988f-c4a9-4411-9a96-51e2656f817d",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "4529fc6a-4ffd-44d7-8d5f-be4f41bc0028",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "a1537e15-c47f-43ca-b111-833a2c3ea0a2",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "83e3b786-17be-4fb8-aa95-2967cbb1871a",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "483bd464-e0ee-48bf-9b92-625f6acfa271",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "9a439811-a833-404e-a922-b4917742c38e",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "f5d862d6-f405-44e6-9b77-6d8c17320653",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "e0cec79d-f8a9-4f98-b6ea-6c01596f9492",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "384c4531-b976-480f-bfe8-081735504bbc",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "127707dc-2e6e-453e-86f0-65ebb981308d",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "2f26d951-3a50-41ba-9fa6-5cad90355f83",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "25d24062-a31c-4ba0-ae16-0a0bcff13d4e",
+      "category": "telefoon",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "7b7ff98e-d7c6-4efb-b206-458b20527b0e",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "9534ac3d-4674-4c5f-a669-0ace9c82a40f",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "0133d36b-91a3-4456-b043-6f24f48c62cd",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "6768a3b4-1a75-460f-9915-1de1b6eadd30",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "67b91fb2-d4b4-4114-ac89-6cfd69980745",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "9b1a1460-042a-408a-ba73-7944cc60fe1b",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "20aa706e-1f0b-42d6-8017-02f830ef6d5d",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "9d242c62-44f2-4d80-8e21-9b5b0cdca16a",
+      "category": "autokosten",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "f958bc54-e962-46a0-8e06-00d8aae64bc1",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "25c2a393-23e9-487b-8772-ab886ec3fd0d",
+      "category": "autokosten",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "189377d7-239d-4976-a047-9f1d54e01984",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "f9f58356-b095-4628-8359-71dfa6759565",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "4319acc8-5678-4a46-b433-ea94d11e871a",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "44fe1108-d26e-4cde-8cc2-d8f674518148",
+      "category": "autokosten",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "acbda410-4421-4a17-a7b4-ea1fffdb9b5c",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "65841d61-7a3a-4625-8e5f-f7d90876f734",
+      "category": "telefoon",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "8c079a99-6f39-4623-b735-3bad0aa0215e",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "4eaacd72-7c82-4e50-80eb-eb6d19c92f44",
+      "category": "leadkosten",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "6d293baf-bf7a-49d4-8e28-9ee7e94ccd66",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "9d0560da-7f8a-489a-998b-56d8ee0d0e7b",
+      "category": "telefoon",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "f2d4ea1b-ddfa-4190-bd68-4d14901db7a6",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "caddf794-feb2-4ba4-88e1-ddad6a88c045",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "0620dfe6-9571-4872-92df-e3d722e2b296",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "87bb9a95-9583-41c8-b3ac-85cb72600987",
+      "category": "hotel",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "013a9356-8b75-4834-acab-e57dec50c7fe",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "9b053a13-5513-40c6-92d8-b69697ea8d1a",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "6be60fcc-ece8-42be-8559-175138c24f7f",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "4c21d4ea-343d-4832-ae31-58a097354eb9",
+      "category": "autokosten",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "907872bc-d35f-4676-9d7f-afa4cee7f9b2",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "b42f914d-bca8-408a-a363-12ccab420d70",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "8a64839a-c8ee-4580-acb1-c815e8656458",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "5c5a5e9d-ddc6-4ed5-a69a-14c6b5c870bb",
+      "category": "gereedschap",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:42:08.106+00:00"
+    },
+    {
+      "id": "360dafec-a082-4581-803e-8ee6ac521b7e",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "97585e2a-5862-4876-8e28-8b35a4622b3b",
+      "category": "telefoon",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "779c8a79-f55b-43ad-a284-93748d4c2de9",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "f8135e74-3d8f-4b0d-97f9-b661c400be8c",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "2f930b54-0764-43af-9733-957dc1e8ec17",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "d390f7d8-7ab6-4781-a162-3efbc30428aa",
+      "category": "autokosten",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "727972d0-b6ac-4b1b-b6a3-e0d9f55b8024",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "0c89472f-3f88-4bc6-b5e3-677d8778a359",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "ec809b3e-66ea-43b4-af09-c09cbbf5cdda",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "13273ecf-98d9-4abc-8874-5fa6e39eba46",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "8ecf2ae3-eb2b-47ce-bd29-f156acd120d1",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "c780535c-4e58-4aed-a36d-8f1e06531d4e",
+      "category": "hotel",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "e9f29e59-f917-4f5a-932a-e02cea50aa94",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "442b8aee-a4d7-44e3-8d70-9593c194b306",
+      "category": "materiaal",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "76e03cde-6ec5-45a0-af17-bd3ae745a9f4",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "85cc4748-fbd6-4140-8e1d-d0f081e5f110",
+      "category": "telefoon",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "ea8ce30d-a355-46eb-9668-61813fa53a00",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "979a2e4a-0193-4c76-90cb-4a9a6b38acb6",
+      "category": "hotel",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "9b2c8664-942d-4127-aaec-4946530a5245",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "ce0c04b5-f2ce-4a0e-8b4c-dd74c701d848",
+      "category": "hotel",
+      "created_at": "2026-10-24T16:41:40.232898+00:00",
+      "updated_at": "2026-10-24T16:41:40.232898+00:00"
+    },
+    {
+      "id": "36c6b839-186f-4fb5-8a22-4b2c0ff499b3",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "acabbd36-b547-4836-90fd-538227e5d542",
+      "category": "brandstof",
+      "created_at": "2026-10-24T16:42:37.031199+00:00",
+      "updated_at": "2026-10-24T16:42:37.068+00:00"
+    },
+    {
+      "id": "43bf4e7b-2f6a-4c9d-8f1a-e996f1c544f5",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "4a483eae-3a9b-46ec-a096-0e5ca49746d0",
+      "category": "profit",
+      "created_at": "2026-10-24T16:58:41.856655+00:00",
+      "updated_at": "2026-10-24T16:58:41.856655+00:00"
+    },
+    {
+      "id": "cf75231f-63f6-4487-ae27-f9c740f37956",
+      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
+      "bank_transaction_id": "5aa44ec3-88ba-426c-bd03-fee55d96cbb5",
+      "category": "profit",
+      "created_at": "2026-10-24T16:58:41.856655+00:00",
+      "updated_at": "2026-10-24T16:58:41.856655+00:00"
     }
   ],
   "data": [
@@ -738,7 +1026,7 @@
       "id": "bank-knab-5c5a5e9d-ddc6-4ed5-a69a-14c6b5c870bb",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "gereedschap",
       "supplier_name": "CCV*ALLSAFE Group B.V.",
       "description": "LELYSTAD 20-10-2026 17:50 Pas: 3789",
       "line_items": [],
@@ -763,10 +1051,11 @@
       "source_filename": null,
       "created_at": "2026-10-20T00:00:00.000Z",
       "updated_at": "2026-10-20T00:00:00.000Z",
+      "category_override": "gereedschap",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
-      "bank_category": "storage",
+      "bank_category": "gereedschap",
       "is_bunq_topup": false,
       "is_creman_debt": false,
       "is_fuel_payment": false,
@@ -777,7 +1066,7 @@
       "id": "bank-knab-2e9a0ab2-e6ef-4bfc-9c75-bbf5c7b75234",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "autokosten",
       "supplier_name": "Park. Lelystad 316",
       "description": "LELYSTAD 16-10-2026 12:02 Pas: 3789",
       "line_items": [],
@@ -802,10 +1091,11 @@
       "source_filename": null,
       "created_at": "2026-10-16T00:00:00.000Z",
       "updated_at": "2026-10-16T00:00:00.000Z",
+      "category_override": "autokosten",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
-      "bank_category": "overig",
+      "bank_category": "autokosten",
       "is_bunq_topup": false,
       "is_creman_debt": false,
       "is_fuel_payment": false,
@@ -1226,7 +1516,7 @@
       "id": "bank-knab-4529fc6a-4ffd-44d7-8d5f-be4f41bc0028",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "Gamma De Meern",
       "description": "DE MEERN 14-10-2026 19:30 Pas: 3789",
       "line_items": [],
@@ -1251,6 +1541,7 @@
       "source_filename": null,
       "created_at": "2026-10-14T00:00:00.000Z",
       "updated_at": "2026-10-14T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -1265,7 +1556,7 @@
       "id": "bank-knab-83e3b786-17be-4fb8-aa95-2967cbb1871a",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "Gamma De Meern",
       "description": "DE MEERN 14-10-2026 19:25 Pas: 3789",
       "line_items": [],
@@ -1290,6 +1581,7 @@
       "source_filename": null,
       "created_at": "2026-10-14T00:00:00.000Z",
       "updated_at": "2026-10-14T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -1438,7 +1730,7 @@
       "id": "bank-knab-9a439811-a833-404e-a922-b4917742c38e",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "Gamma De Meern",
       "description": "DE MEERN 13-10-2026 16:15 Pas: 3789",
       "line_items": [],
@@ -1463,6 +1755,7 @@
       "source_filename": null,
       "created_at": "2026-10-13T00:00:00.000Z",
       "updated_at": "2026-10-13T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -1477,7 +1770,7 @@
       "id": "bank-knab-e0cec79d-f8a9-4f98-b6ea-6c01596f9492",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "Karwei Overvecht",
       "description": "UTRECHT 13-10-2026 15:28 Pas: 3789",
       "line_items": [],
@@ -1502,6 +1795,7 @@
       "source_filename": null,
       "created_at": "2026-10-13T00:00:00.000Z",
       "updated_at": "2026-10-13T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -1621,7 +1915,7 @@
       "id": "bank-knab-127707dc-2e6e-453e-86f0-65ebb981308d",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "Gamma Almere Poort",
       "description": "ALMERE 12-10-2026 10:53 Pas: 3789",
       "line_items": [],
@@ -1646,6 +1940,7 @@
       "source_filename": null,
       "created_at": "2026-10-12T00:00:00.000Z",
       "updated_at": "2026-10-12T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -1699,7 +1994,7 @@
       "id": "bank-knab-25d24062-a31c-4ba0-ae16-0a0bcff13d4e",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "telefoon",
       "supplier_name": "KPN - Mobiel",
       "description": "Factuur 02-10-2026, klantnummer 40107744806, kpn.com/mobielefactuur.",
       "line_items": [],
@@ -1724,6 +2019,7 @@
       "source_filename": null,
       "created_at": "2026-10-12T00:00:00.000Z",
       "updated_at": "2026-10-12T00:00:00.000Z",
+      "category_override": "telefoon",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -1937,7 +2233,7 @@
       "id": "bank-knab-9534ac3d-4674-4c5f-a669-0ace9c82a40f",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "KARWEI",
       "description": "B6NRW6CSWQW63RX32KTJ0 7180894112424745 620003096130",
       "line_items": [],
@@ -1962,6 +2258,7 @@
       "source_filename": null,
       "created_at": "2026-10-12T00:00:00.000Z",
       "updated_at": "2026-10-12T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -2343,30 +2640,7 @@
       "source_filename": null,
       "created_at": "2026-10-07T00:00:00.000Z",
       "updated_at": "2026-10-07T00:00:00.000Z",
-      "category_allocations": [
-        {
-          "category": "overig",
-          "amount_incl_btw": 3.6,
-          "amount_excl_btw": 3.3,
-          "btw_amount": 0.3,
-          "vat_known": true,
-          "source_cost_ids": [
-            "cb6a209b-e830-4e0d-b525-eddca3c59250"
-          ],
-          "offerte_id": null
-        },
-        {
-          "category": "brandstof",
-          "amount_incl_btw": 50.14,
-          "amount_excl_btw": 41.44,
-          "btw_amount": 8.7,
-          "vat_known": true,
-          "source_cost_ids": [
-            "fa503602-592b-451a-b1a8-d3105a1cc07a"
-          ],
-          "offerte_id": null
-        }
-      ],
+      "category_override": "brandstof",
       "source_cost_ids": [
         "cb6a209b-e830-4e0d-b525-eddca3c59250",
         "fa503602-592b-451a-b1a8-d3105a1cc07a"
@@ -2709,7 +2983,7 @@
       "id": "bank-knab-6768a3b4-1a75-460f-9915-1de1b6eadd30",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "DERDENGELDEN BOUWMAAT",
       "description": "5000VF002079095",
       "line_items": [],
@@ -2734,6 +3008,7 @@
       "source_filename": null,
       "created_at": "2026-10-06T00:00:00.000Z",
       "updated_at": "2026-10-06T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -5494,7 +5769,7 @@
       "id": "bank-knab-9b1a1460-042a-408a-ba73-7944cc60fe1b",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": "MVdR5R7eueqB0xMurGE3",
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "DSG Bouwmaten B.V.",
       "description": "44925125083X11dd 7370404092073009 Uw betalingsopdracht voor order",
       "line_items": [
@@ -5612,6 +5887,7 @@
       "source_filename": "Betalingsopdracht-92848.pdf",
       "created_at": "2026-09-25T00:00:00.000Z",
       "updated_at": "2026-09-25T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [
         "c35aeb27-0b6b-4d13-aff8-ad037b531c5b"
       ],
@@ -7763,7 +8039,7 @@
       "id": "bank-knab-9d242c62-44f2-4d80-8e21-9b5b0cdca16a",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "autokosten",
       "supplier_name": "Park. Lelystad 316",
       "description": "LELYSTAD 16-09-2026 14:20 Pas: 3789",
       "line_items": [],
@@ -7788,10 +8064,11 @@
       "source_filename": null,
       "created_at": "2026-09-16T00:00:00.000Z",
       "updated_at": "2026-09-16T00:00:00.000Z",
+      "category_override": "autokosten",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
-      "bank_category": "overig",
+      "bank_category": "autokosten",
       "is_bunq_topup": false,
       "is_creman_debt": false,
       "is_fuel_payment": false,
@@ -7802,7 +8079,7 @@
       "id": "bank-knab-25c2a393-23e9-487b-8772-ab886ec3fd0d",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "autokosten",
       "supplier_name": "Park. Lelystad 316",
       "description": "LELYSTAD 15-09-2026 14:08 Pas: 3789",
       "line_items": [],
@@ -7827,10 +8104,11 @@
       "source_filename": null,
       "created_at": "2026-09-15T00:00:00.000Z",
       "updated_at": "2026-09-15T00:00:00.000Z",
+      "category_override": "autokosten",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
-      "bank_category": "overig",
+      "bank_category": "autokosten",
       "is_bunq_topup": false,
       "is_creman_debt": false,
       "is_fuel_payment": false,
@@ -7945,7 +8223,7 @@
       "id": "bank-knab-f9f58356-b095-4628-8359-71dfa6759565",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "DERDENGELDEN BOUWMAAT",
       "description": "1000VF003517679",
       "line_items": [
@@ -8052,12 +8330,13 @@
       "source_filename": "1000VF003517679.pdf",
       "created_at": "2026-09-15T00:00:00.000Z",
       "updated_at": "2026-09-15T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [
         "63d57c51-35cb-5be2-8e32-c35b869787d4"
       ],
       "is_internal_transfer": false,
       "has_supporting_document": true,
-      "bank_category": "overig",
+      "bank_category": "materiaal",
       "is_bunq_topup": false,
       "is_creman_debt": false,
       "is_fuel_payment": false,
@@ -8225,7 +8504,7 @@
       "id": "bank-knab-44fe1108-d26e-4cde-8cc2-d8f674518148",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "autokosten",
       "supplier_name": "Park. Lelystad 316",
       "description": "LELYSTAD 11-09-2026 13:41 Pas: 3789",
       "line_items": [],
@@ -8250,10 +8529,11 @@
       "source_filename": null,
       "created_at": "2026-09-11T00:00:00.000Z",
       "updated_at": "2026-09-11T00:00:00.000Z",
+      "category_override": "autokosten",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
-      "bank_category": "overig",
+      "bank_category": "autokosten",
       "is_bunq_topup": false,
       "is_creman_debt": false,
       "is_fuel_payment": false,
@@ -8371,7 +8651,7 @@
       "id": "bank-knab-65841d61-7a3a-4625-8e5f-f7d90876f734",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "telefoon",
       "supplier_name": "KPN - Mobiel",
       "description": "Factuur 02-09-2026, klantnummer 40107744806, kpn.com/mobielefactuur.",
       "line_items": [],
@@ -8396,6 +8676,7 @@
       "source_filename": null,
       "created_at": "2026-09-09T00:00:00.000Z",
       "updated_at": "2026-09-09T00:00:00.000Z",
+      "category_override": "telefoon",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -9588,7 +9869,7 @@
       "id": "bank-knab-4eaacd72-7c82-4e50-80eb-eb6d19c92f44",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "leadkosten",
       "supplier_name": "GC RE WERKSPOT",
       "description": "1099581",
       "line_items": [],
@@ -9613,10 +9894,11 @@
       "source_filename": null,
       "created_at": "2026-09-03T00:00:00.000Z",
       "updated_at": "2026-09-03T00:00:00.000Z",
+      "category_override": "leadkosten",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
-      "bank_category": "overig",
+      "bank_category": "leadkosten",
       "is_bunq_topup": false,
       "is_creman_debt": false,
       "is_fuel_payment": false,
@@ -9666,7 +9948,7 @@
       "id": "bank-knab-9d0560da-7f8a-489a-998b-56d8ee0d0e7b",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "telefoon",
       "supplier_name": "KPN",
       "description": "20260903182724 7051346492410503 Controle nieuw rekeningnummer",
       "line_items": [],
@@ -9691,6 +9973,7 @@
       "source_filename": null,
       "created_at": "2026-09-03T00:00:00.000Z",
       "updated_at": "2026-09-03T00:00:00.000Z",
+      "category_override": "telefoon",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -9835,7 +10118,7 @@
       "id": "bank-knab-caddf794-feb2-4ba4-88e1-ddad6a88c045",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "BCK*Praxis",
       "description": "AMERSFOORT 01-09-2026 16:11 Pas: 3789",
       "line_items": [],
@@ -9860,6 +10143,7 @@
       "source_filename": null,
       "created_at": "2026-09-01T00:00:00.000Z",
       "updated_at": "2026-09-01T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -10365,84 +10649,6 @@
       "is_bunq_topup": false,
       "is_creman_debt": false,
       "is_fuel_payment": true,
-      "fuel_needs_review": false
-    },
-    {
-      "vat_known": false,
-      "id": "bank-knab-4a483eae-3a9b-46ec-a096-0e5ca49746d0",
-      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
-      "offerte_id": null,
-      "category": "overig",
-      "supplier_name": "Vroegop Timmerwerken",
-      "description": "8192ed0f-1693-5a59-a8d5-c81d14521376",
-      "line_items": [],
-      "amount_excl_btw": 3000,
-      "btw_percentage": 0,
-      "btw_amount": 0,
-      "amount_incl_btw": 3000,
-      "date": "2026-08-27",
-      "receipt_url": null,
-      "receipt_files": [],
-      "status": "bank_transaction",
-      "payment_type": "unknown",
-      "payment_status": "paid",
-      "due_date": null,
-      "supplier_order_number": null,
-      "supplier_invoice_number": null,
-      "reconciliation_group_id": null,
-      "reconciliation_status": "not_applicable",
-      "paid_bank_transaction_id": "4a483eae-3a9b-46ec-a096-0e5ca49746d0",
-      "paid_at": "2026-08-27",
-      "source_email": null,
-      "source_filename": null,
-      "created_at": "2026-08-27T00:00:00.000Z",
-      "updated_at": "2026-08-27T00:00:00.000Z",
-      "source_cost_ids": [],
-      "is_internal_transfer": true,
-      "has_supporting_document": false,
-      "bank_category": "profit",
-      "is_bunq_topup": false,
-      "is_creman_debt": false,
-      "is_fuel_payment": false,
-      "fuel_needs_review": false
-    },
-    {
-      "vat_known": false,
-      "id": "bank-knab-5aa44ec3-88ba-426c-bd03-fee55d96cbb5",
-      "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
-      "offerte_id": null,
-      "category": "overig",
-      "supplier_name": "Vroegop Timmerwerken",
-      "description": "66255dc4-7daa-569a-911a-e89c511d6de6",
-      "line_items": [],
-      "amount_excl_btw": 2000,
-      "btw_percentage": 0,
-      "btw_amount": 0,
-      "amount_incl_btw": 2000,
-      "date": "2026-08-27",
-      "receipt_url": null,
-      "receipt_files": [],
-      "status": "bank_transaction",
-      "payment_type": "unknown",
-      "payment_status": "paid",
-      "due_date": null,
-      "supplier_order_number": null,
-      "supplier_invoice_number": null,
-      "reconciliation_group_id": null,
-      "reconciliation_status": "not_applicable",
-      "paid_bank_transaction_id": "5aa44ec3-88ba-426c-bd03-fee55d96cbb5",
-      "paid_at": "2026-08-27",
-      "source_email": null,
-      "source_filename": null,
-      "created_at": "2026-08-27T00:00:00.000Z",
-      "updated_at": "2026-08-27T00:00:00.000Z",
-      "source_cost_ids": [],
-      "is_internal_transfer": true,
-      "has_supporting_document": false,
-      "bank_category": "profit",
-      "is_bunq_topup": false,
-      "is_creman_debt": false,
-      "is_fuel_payment": false,
       "fuel_needs_review": false
     },
     {
@@ -11495,7 +11701,7 @@
       "id": "bank-knab-87bb9a95-9583-41c8-b3ac-85cb72600987",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "hotel",
       "supplier_name": "Booking",
       "description": "HJKQ84TD7J88F8X32I2M1 7180424416861004 Hotel at Booking.com",
       "line_items": [],
@@ -11520,6 +11726,7 @@
       "source_filename": null,
       "created_at": "2026-08-24T00:00:00.000Z",
       "updated_at": "2026-08-24T00:00:00.000Z",
+      "category_override": "hotel",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -11573,7 +11780,7 @@
       "id": "bank-knab-9b053a13-5513-40c6-92d8-b69697ea8d1a",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "BCK*Praxis Huizen 052",
       "description": "HUIZEN 23-08-2026 15:55 Pas: 3789",
       "line_items": [
@@ -11610,6 +11817,7 @@
       "source_filename": null,
       "created_at": "2026-08-24T00:00:00.000Z",
       "updated_at": "2026-08-24T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [
         "983d4d48-e59e-47a3-ab8f-8c1e5fa4488b"
       ],
@@ -13201,7 +13409,7 @@
       "id": "bank-knab-4c21d4ea-343d-4832-ae31-58a097354eb9",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "autokosten",
       "supplier_name": "TMC*P-DORDRECHT-11020",
       "description": "DORDRECHT 14-08-2026 16:43 Pas: 3789",
       "line_items": [
@@ -13238,12 +13446,13 @@
       "source_filename": null,
       "created_at": "2026-08-14T00:00:00.000Z",
       "updated_at": "2026-08-14T00:00:00.000Z",
+      "category_override": "autokosten",
       "source_cost_ids": [
         "1a6e23c7-765a-4035-8909-a181de937b6a"
       ],
       "is_internal_transfer": false,
       "has_supporting_document": false,
-      "bank_category": "overig",
+      "bank_category": "autokosten",
       "is_bunq_topup": false,
       "is_creman_debt": false,
       "is_fuel_payment": false,
@@ -13686,7 +13895,7 @@
       "id": "bank-knab-b42f914d-bca8-408a-a363-12ccab420d70",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "Praxis Dordrecht",
       "description": "DORDRECHT 13-08-2026 17:24 Pas: 3789",
       "line_items": [
@@ -13723,6 +13932,7 @@
       "source_filename": null,
       "created_at": "2026-08-13T00:00:00.000Z",
       "updated_at": "2026-08-13T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [
         "89964c3c-7676-4d44-9ab2-eb95f180d9a3"
       ],
@@ -14721,7 +14931,7 @@
       "id": "bank-knab-97585e2a-5862-4876-8e28-8b35a4622b3b",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "telefoon",
       "supplier_name": "KPN Den Haag",
       "description": "'S-GRAVENHAG 06-08-2026 10:45 Pas: 3789",
       "line_items": [
@@ -14758,6 +14968,7 @@
       "source_filename": null,
       "created_at": "2026-08-06T00:00:00.000Z",
       "updated_at": "2026-08-06T00:00:00.000Z",
+      "category_override": "telefoon",
       "source_cost_ids": [
         "c52e2e0d-3aab-4778-8f95-e51232772981"
       ],
@@ -15802,7 +16013,7 @@
       "id": "bank-knab-f8135e74-3d8f-4b0d-97f9-b661c400be8c",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "BCK*Bouwmaat Amstel",
       "description": "AMSTERDAM 01-08-2026 09:50 Pas: 3789",
       "line_items": [
@@ -15838,6 +16049,7 @@
       "source_filename": null,
       "created_at": "2026-08-03T00:00:00.000Z",
       "updated_at": "2026-08-03T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [
         "63f7e676-aa32-427b-88d7-62648ea5855a"
       ],
@@ -17649,7 +17861,7 @@
       "id": "bank-knab-d390f7d8-7ab6-4781-a162-3efbc30428aa",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "autokosten",
       "supplier_name": "Parkeren A'dam 15504",
       "description": "AMSTERDAM 24-07-2026 12:56 Pas: 3789",
       "line_items": [],
@@ -17674,6 +17886,7 @@
       "source_filename": null,
       "created_at": "2026-07-24T00:00:00.000Z",
       "updated_at": "2026-07-24T00:00:00.000Z",
+      "category_override": "autokosten",
       "source_cost_ids": [],
       "is_internal_transfer": false,
       "has_supporting_document": false,
@@ -17727,7 +17940,7 @@
       "id": "bank-knab-0c89472f-3f88-4bc6-b5e3-677d8778a359",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": "ERYzkVOGY7SecCsPHmoi",
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "DSG Bouwmaten B.V.",
       "description": "47214592052X44b7 7370405632707214 Uw betalingsopdracht voor order",
       "line_items": [
@@ -17801,6 +18014,7 @@
       "source_filename": "betalingsopdracht-91079.pdf",
       "created_at": "2026-07-23T00:00:00.000Z",
       "updated_at": "2026-07-23T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [
         "ae322122-ac56-4957-938b-94f6915d36c8"
       ],
@@ -19338,7 +19552,7 @@
       "id": "bank-knab-13273ecf-98d9-4abc-8874-5fa6e39eba46",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": "sU8Gl91na8Hh6Kujyp1n",
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "KARWEI BARENDRECHT",
       "description": "BARENDRECHT 11-07-2026 17:22 Pas: 3789",
       "line_items": [
@@ -19374,6 +19588,7 @@
       "source_filename": null,
       "created_at": "2026-07-13T00:00:00.000Z",
       "updated_at": "2026-07-13T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [
         "5237478f-befc-4c9f-ae31-14bb7ca27da6"
       ],
@@ -20043,7 +20258,7 @@
       "id": "bank-knab-c780535c-4e58-4aed-a36d-8f1e06531d4e",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "hotel",
       "supplier_name": "Booking",
       "description": "S7GZ9Q6KXV4ZQ4G62I2M1 7180154441980973 Hotel at Booking.com",
       "line_items": [
@@ -20079,6 +20294,7 @@
       "source_filename": null,
       "created_at": "2026-07-13T00:00:00.000Z",
       "updated_at": "2026-07-13T00:00:00.000Z",
+      "category_override": "hotel",
       "source_cost_ids": [
         "9413297a-4b74-4c66-9935-6f5768c26e66"
       ],
@@ -21232,7 +21448,7 @@
       "id": "bank-knab-442b8aee-a4d7-44e3-8d70-9593c194b306",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": "sU8Gl91na8Hh6Kujyp1n",
-      "category": "overig",
+      "category": "materiaal",
       "supplier_name": "BCK*Praxis 2271 Vianen",
       "description": "VIANEN UT 06-07-2026 15:11 Pas: 3789",
       "line_items": [
@@ -21268,6 +21484,7 @@
       "source_filename": null,
       "created_at": "2026-07-06T00:00:00.000Z",
       "updated_at": "2026-07-06T00:00:00.000Z",
+      "category_override": "materiaal",
       "source_cost_ids": [
         "1ed80ffb-dd52-4b26-ad93-08370a2b12d0"
       ],
@@ -23213,7 +23430,7 @@
       "id": "bank-knab-85cc4748-fbd6-4140-8e1d-d0f081e5f110",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "telefoon",
       "supplier_name": "KPN",
       "description": "0000001380184748 7051194742318767 Facturen KPN",
       "line_items": [
@@ -23248,6 +23465,7 @@
       "source_filename": null,
       "created_at": "2026-06-29T00:00:00.000Z",
       "updated_at": "2026-06-29T00:00:00.000Z",
+      "category_override": "telefoon",
       "source_cost_ids": [
         "034eeb42-3d51-4528-8cc5-6be1100c52ef"
       ],
@@ -23585,7 +23803,7 @@
       "id": "bank-knab-979a2e4a-0193-4c76-90cb-4a9a6b38acb6",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "hotel",
       "supplier_name": "Booking",
       "description": "KLJ52Z26LRVQCWX32I2M1 7180144121536399 Hotel at Booking.com",
       "line_items": [
@@ -23620,6 +23838,7 @@
       "source_filename": null,
       "created_at": "2026-06-26T00:00:00.000Z",
       "updated_at": "2026-06-26T00:00:00.000Z",
+      "category_override": "hotel",
       "source_cost_ids": [
         "446f43e1-f9cb-4a48-8bb6-dc04daded836"
       ],
@@ -23869,7 +24088,7 @@
       "id": "bank-knab-ce0c04b5-f2ce-4a0e-8b4c-dd74c701d848",
       "user_id": "C29EkAPLJzQSQgv7nwm6Uwj6agv2",
       "offerte_id": null,
-      "category": "overig",
+      "category": "hotel",
       "supplier_name": "Booking",
       "description": "RGDGS29BFJ8XQQF32I2M1 7180016533720317 Hotel at Booking.com",
       "line_items": [
@@ -23904,6 +24123,7 @@
       "source_filename": null,
       "created_at": "2026-06-25T00:00:00.000Z",
       "updated_at": "2026-06-25T00:00:00.000Z",
+      "category_override": "hotel",
       "source_cost_ids": [
         "2be3b584-ef76-4fe3-901f-87554b9600d6"
       ],
@@ -26244,8 +26464,8 @@
     }
   ],
   "bankReconciliation": {
-    "transactionCount": 335,
-    "debitTotal": 79401.38,
+    "transactionCount": 333,
+    "debitTotal": 74401.38,
     "earliestBookingDate": "2026-06-10",
     "latestBookingDate": "2026-10-26",
     "unmatchedSourceCount": 28

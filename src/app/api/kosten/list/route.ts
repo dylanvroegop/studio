@@ -123,6 +123,7 @@ async function handleList(request: Request) {
     const knabTransactions = knabHistory.transactions;
     const projectCosts = rows.map((row) => ({
       ...mapProjectCostRow(row),
+      vat_known: (row as Record<string, unknown>)?.amount_excl_btw != null && (row as Record<string, unknown>)?.btw_amount != null,
       document_type: safeString((row as Record<string, unknown>)?.document_type) || null,
     }));
     const categoryOverrides = new Map(
@@ -148,7 +149,9 @@ async function handleList(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      data,
+      // Handmatig toegevoegde cashregels staan los van de Knab-reconciliatie.
+      data: [...data, ...projectCosts.filter((cost) => cost.status === 'paid_cash'
+        && cost.supplier_order_number?.startsWith('manual-cash-'))],
       privateCredits,
       sourceCosts: projectCosts,
       bankReconciliation,

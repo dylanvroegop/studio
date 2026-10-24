@@ -415,3 +415,16 @@ test('een privestorting krijgt geen factuur, btw of gekoppelde bronkosten uit ee
   assert.equal(result.bankReconciliation.earliestBookingDate, null);
   assert.equal(result.bankReconciliation.latestBookingDate, null);
 });
+
+test('bevestigde spaaroverboekingen verdwijnen uit kosten en aantallen, bankbron blijft intact', () => {
+  const rows = [transaction('savings-2', -2000), transaction('savings-3', -3000), transaction('purchase', -121)];
+  const copy = JSON.stringify(rows);
+  const result = build(rows, [], [], new Set(['savings-2', 'savings-3']), new Map([['savings-2', 'profit'], ['savings-3', 'profit']]));
+  assert.equal(result.data.length, 1);
+  assert.equal(result.bankReconciliation.debitTotal, 121);
+  assert.equal(JSON.stringify(rows), copy);
+});
+test('zonder bevestiging blijven andere eigen overboekingen zichtbaar', () => {
+  assert.equal(build([transaction('own', -100)], [], [], new Set(['own'])).data.length, 1);
+  assert.equal(build([transaction('external', -100)], [], [], new Set(), new Map([['external', 'profit']])).data.length, 1);
+});

@@ -1,0 +1,372 @@
+[
+  {
+    "id": "19207bd6-84e4-4032-a995-af624f053927",
+    "name": "CCV*A1 Verhuur B.V. EM",
+    "desc": "NYKERK GLD 08-10-2026 10:31 Pas: 3789",
+    "amount": 1000,
+    "private": "unknown"
+  },
+  {
+    "id": "0e0e2e02-cac2-4550-8a7f-96558346f643",
+    "name": "Gamma Markerkant",
+    "desc": "ALMERE 03-10-2026 12:53 Pas: 3789",
+    "amount": 11.87,
+    "split": [
+      {
+        "category": "overig",
+        "amount_incl_btw": 3.38,
+        "amount_excl_btw": 3.1,
+        "btw_amount": 0.28,
+        "vat_known": true,
+        "source_cost_ids": [
+          "980ce414-1fbf-48ce-acf7-c4c05f4da1f5"
+        ],
+        "offerte_id": null
+      },
+      {
+        "category": "materiaal",
+        "amount_incl_btw": 8.49,
+        "amount_excl_btw": 7.02,
+        "btw_amount": 1.47,
+        "vat_known": true,
+        "source_cost_ids": [
+          "d2b67453-f106-4c7c-993f-802957f68ebf"
+        ],
+        "offerte_id": null
+      }
+    ],
+    "private": "unknown"
+  },
+  {
+    "id": "81c60795-351c-4e81-848b-62520f5be29f",
+    "name": "BNG*GEMEENTE UTRECHT",
+    "desc": "UTRECHT 05-10-2026 19:03 Pas: 3789",
+    "amount": 4.01,
+    "private": "unknown"
+  },
+  {
+    "id": "f950a54d-d868-46ca-b35e-f4d6f78c1248",
+    "name": "Moment 102604000052984",
+    "desc": "EEMNES 04-10-2026 08:53 Pas: 3789",
+    "amount": 3.3,
+    "private": "unknown"
+  },
+  {
+    "id": "3a602995-28e1-498b-85fb-3e8ddd676d2e",
+    "name": "KNAB",
+    "desc": "Kosten betaalverzoek september 2026",
+    "amount": 2.7,
+    "private": "unknown"
+  },
+  {
+    "id": "87e43e7e-9351-4f2d-b64c-c93e8a9dc93a",
+    "name": "BCK*Toolstation BQ",
+    "desc": "ALMERE 29-09-2026 10:47 Pas: 3789",
+    "amount": 312.94,
+    "private": "unknown"
+  },
+  {
+    "id": "2fadbc84-de1d-408f-9821-387f87a89a5d",
+    "name": "BCK*Toolstation BB",
+    "desc": "ALKMAAR 26-09-2026 15:10 Pas: 3789",
+    "amount": 61.38,
+    "private": "unknown"
+  },
+  {
+    "id": "6fbc37a8-1275-417f-9bf3-4aa7747f4312",
+    "name": "BCK*Toolstation BQ",
+    "desc": "ALMERE 28-09-2026 13:05 Pas: 3789",
+    "amount": 144.55,
+    "private": "unknown"
+  },
+  {
+    "id": "58b1be00-d66b-4c32-aa95-9869c5859dac",
+    "name": "Mollie B.V.",
+    "desc": "M01842781MSBKB9W 0380205318884162 Verify account ID 19625055 (NL94KNA",
+    "amount": 0.01,
+    "private": "unknown"
+  },
+  {
+    "id": "6e808eb0-f773-42e7-8824-93a8c61075a2",
+    "name": "Ed04 via Tikkie Zakelijk",
+    "desc": "001298209042 0031266212944837 Payment Verification Ed04",
+    "amount": 0.01,
+    "private": "unknown"
+  },
+  {
+    "id": "8a561c80-b20a-4c2e-bd0c-c45f8b824ec0",
+    "name": "Batavia stad",
+    "desc": "LELYSTAD 18-09-2026 15:37 Pas: 3789",
+    "amount": 4.5,
+    "private": "unknown"
+  },
+  {
+    "id": "596ea5e9-1fcc-4c61-86e8-a43a142aa562",
+    "name": "Batavia Stad",
+    "desc": "LELYSTAD 17-09-2026 15:51 Pas: 3789",
+    "amount": 4.5,
+    "private": "unknown"
+  },
+  {
+    "id": "9b6b51ef-62e2-49a0-adc4-1f9e52774d2a",
+    "name": "Batavia Stad",
+    "desc": "LELYSTAD 15-09-2026 16:54 Pas: 3789",
+    "amount": 4.5,
+    "private": "unknown"
+  },
+  {
+    "id": "bf14d604-eaea-4d6f-bcf1-8d627ee63687",
+    "name": "BNG*Gemeente Diemen",
+    "desc": "DIEMEN 04-09-2026 13:36 Pas: 3789",
+    "amount": 6.5,
+    "private": "unknown"
+  },
+  {
+    "id": "e2188baa-1923-415c-b5cf-e54cc64629fd",
+    "name": "KNAB",
+    "desc": "Kosten betaalverzoek augustus 2026",
+    "amount": 1.2,
+    "private": "unknown"
+  },
+  {
+    "id": "4a483eae-3a9b-46ec-a096-0e5ca49746d0",
+    "name": "Vroegop Timmerwerken",
+    "desc": "8192ed0f-1693-5a59-a8d5-c81d14521376",
+    "amount": 3000,
+    "private": "unknown"
+  },
+  {
+    "id": "5aa44ec3-88ba-426c-bd03-fee55d96cbb5",
+    "name": "Vroegop Timmerwerken",
+    "desc": "66255dc4-7daa-569a-911a-e89c511d6de6",
+    "amount": 2000,
+    "private": "unknown"
+  },
+  {
+    "id": "97e246e3-0095-4651-b19a-b0534f196470",
+    "name": "DERDENGELDEN BOUWMAAT",
+    "desc": "1000VF003451655",
+    "amount": 187.7,
+    "split": [
+      {
+        "category": "materiaal",
+        "amount_incl_btw": 181.01,
+        "amount_excl_btw": 149.6,
+        "btw_amount": 31.41,
+        "vat_known": true,
+        "source_cost_ids": [
+          "8c819db0-74d8-4e86-a705-4218df9d074b"
+        ],
+        "offerte_id": "Qaw3XfLbFLqslJELcQhY"
+      },
+      {
+        "category": "gereedschap",
+        "amount_incl_btw": 4.07,
+        "amount_excl_btw": 3.36,
+        "btw_amount": 0.71,
+        "vat_known": true,
+        "source_cost_ids": [
+          "ef0a8479-27f6-4f8a-8d9e-23444a9446ef"
+        ],
+        "offerte_id": "Qaw3XfLbFLqslJELcQhY"
+      },
+      {
+        "category": "overig",
+        "amount_incl_btw": 2.62,
+        "amount_excl_btw": 2.4,
+        "btw_amount": 0.22,
+        "vat_known": true,
+        "source_cost_ids": [
+          "f2002abf-dc48-4a70-8a27-9ad06e3084b5"
+        ],
+        "offerte_id": "Qaw3XfLbFLqslJELcQhY"
+      }
+    ],
+    "private": "unknown"
+  },
+  {
+    "id": "f3b6a150-56ff-4b06-b57d-08cfd47c6e9b",
+    "name": "BNG*Gemeente Diemen",
+    "desc": "DIEMEN 26-08-2026 18:50 Pas: 3789",
+    "amount": 0.2,
+    "private": "unknown"
+  },
+  {
+    "id": "3e232e51-25ec-4613-8d85-5ac3e6c03f88",
+    "name": "MS* VIAAMSTERDAM",
+    "desc": "AMSTERDAM 24-08-2026 08:04 Pas: 3789",
+    "amount": 3.39,
+    "private": "unknown"
+  },
+  {
+    "id": "bb433cb3-6cf3-463d-841c-006ea02b5e67",
+    "name": "BNG*Gemeente Diemen",
+    "desc": "DIEMEN 24-08-2026 16:50 Pas: 3789",
+    "amount": 2.62,
+    "private": "unknown"
+  },
+  {
+    "id": "bf502460-5fea-44e8-a173-63897bdaa9a1",
+    "name": "CCV*Van Brenen Transpo",
+    "desc": "DOORN 19-08-2026 16:22 Pas: 3789",
+    "amount": 101.25,
+    "private": "unknown"
+  },
+  {
+    "id": "b3054f7d-a45c-4a82-8052-92750e983677",
+    "name": "Moments&More Veentje",
+    "desc": "EEMNES 11-08-2026 07:31 Pas: 3789",
+    "amount": 6.95,
+    "private": "unknown"
+  },
+  {
+    "id": "e23fed24-9e8c-446c-9df3-70d614423e1a",
+    "name": "HP2101Gamma K. ad Z",
+    "desc": "KOOG AAN DE 09-08-2026 15:30 Pas: 3789",
+    "amount": 49.12,
+    "split": [
+      {
+        "category": "gereedschap",
+        "amount_incl_btw": 45.98,
+        "amount_excl_btw": 38,
+        "btw_amount": 7.98,
+        "vat_known": true,
+        "source_cost_ids": [
+          "75fafd11-1ec0-414c-9c74-0feb94252623"
+        ],
+        "offerte_id": null
+      },
+      {
+        "category": "overig",
+        "amount_incl_btw": 3.14,
+        "amount_excl_btw": 2.89,
+        "btw_amount": 0.25,
+        "vat_known": true,
+        "source_cost_ids": [
+          "aac15872-8dcb-467c-8cad-783171377439"
+        ],
+        "offerte_id": null
+      }
+    ],
+    "private": "unknown"
+  },
+  {
+    "id": "8f6b20ce-2e64-4686-a411-816776521302",
+    "name": "KNAB",
+    "desc": "Kosten betaalverzoek juli 2026",
+    "amount": 1.8,
+    "private": "unknown"
+  },
+  {
+    "id": "5e0c9612-37a9-4aaf-b54f-c0ccac86808c",
+    "name": "Selecta Netherlands B",
+    "desc": "Dordrecht 20-07-2026 10:33 Pas: 3789",
+    "amount": 3.65,
+    "private": "unknown"
+  },
+  {
+    "id": "c0b1e0b1-5b59-4da9-b141-30ec9d7f0153",
+    "name": "Vroegop Timmerwerken",
+    "desc": "tanken geld",
+    "amount": 200,
+    "private": "unknown"
+  },
+  {
+    "id": "14fbdbda-d06f-4be5-902d-dd45e9afb1bb",
+    "name": "BCK*Toolstation NL B.V",
+    "desc": "LEIDERDORP 14-07-2026 14:19 Pas: 3789",
+    "amount": 43.29,
+    "private": "unknown"
+  },
+  {
+    "id": "667b4960-e1c9-45b5-bd3e-33e4fb61cfbb",
+    "name": "MS* VIAAMSTERDAM",
+    "desc": "AMSTERDAM 12-07-2026 10:06 Pas: 3789",
+    "amount": 3.39,
+    "private": "unknown"
+  },
+  {
+    "id": "4173d8d9-8fe8-4b4d-95d0-1da13405e8ec",
+    "name": "Taffne Bv",
+    "desc": "BEVERWIJK 04-07-2026 18:43 Pas: 3789",
+    "amount": 15,
+    "private": "unknown"
+  },
+  {
+    "id": "8e6b0783-ad88-4804-8c8e-f56689b605d0",
+    "name": "BCK*SHELL HAARRIJN",
+    "desc": "BREUKELEN UT 04-07-2026 13:11 Pas: 3789",
+    "amount": 15.31,
+    "private": "unknown"
+  },
+  {
+    "id": "1c5d6a85-25f7-4931-9cce-bb1bad2a0a66",
+    "name": "KNAB",
+    "desc": "Kosten betaalverzoek juni 2026",
+    "amount": 3.3,
+    "private": "unknown"
+  },
+  {
+    "id": "4b51951b-31e2-40f3-beeb-824c3ebca847",
+    "name": "MS* VIAAMSTERDAM",
+    "desc": "AMSTERDAM 26-06-2026 06:43 Pas: 3789",
+    "amount": 3.39,
+    "private": "unknown"
+  },
+  {
+    "id": "21aed3d9-33e1-4062-95da-f80e96b8a855",
+    "name": "BNG*Gemeente Diemen",
+    "desc": "DIEMEN 25-06-2026 14:29 Pas: 3789",
+    "amount": 1.5,
+    "private": "unknown"
+  },
+  {
+    "id": "7b82b7c1-7ec5-4c05-ba1f-89f128e8e3bd",
+    "name": "Total Vissers De Ijsse",
+    "desc": "NIEUWEGEIN 25-06-2026 17:55 Pas: 3789",
+    "amount": 19.81,
+    "private": "unknown"
+  },
+  {
+    "id": "cf3f1456-7ac2-4016-9613-a952d9c4a035",
+    "name": "BNG*Gemeente Diemen",
+    "desc": "DIEMEN 25-06-2026 13:57 Pas: 3789",
+    "amount": 0.7,
+    "private": "unknown"
+  },
+  {
+    "id": "fbe36f0a-b090-4e55-9c10-9c8bfc85ba0a",
+    "name": "MS* VIAAMSTERDAM",
+    "desc": "AMSTERDAM 25-06-2026 06:35 Pas: 3789",
+    "amount": 3.39,
+    "private": "unknown"
+  },
+  {
+    "id": "99073bf3-efd2-4ffa-ab41-4cb02d6833b6",
+    "name": "GoCardless Ltd",
+    "desc": "GC2BWBD",
+    "amount": 0.01,
+    "private": "unknown"
+  },
+  {
+    "id": "13c7aad8-4c78-4a68-a00d-05d72e65bf41",
+    "name": "MS* VIAAMSTERDAM",
+    "desc": "AMSTERDAM 20-06-2026 03:56 Pas: 3789",
+    "amount": 3.3,
+    "private": "unknown"
+  },
+  {
+    "id": "1b7fe770-7cac-465f-bfba-3459d106604e",
+    "name": "PayPal Topup via Online Payments St",
+    "desc": "tra62b17b246a11 8152644143071020 PayPal Opwaarderen NL PayPal Topup",
+    "amount": 50,
+    "private": "private"
+  },
+  {
+    "id": "18556e8b-c3d9-4f02-82c9-206558792d23",
+    "name": "BCK*Toolstation CG",
+    "desc": "BEVERWIJK 15-06-2026 11:45 Pas: 3789",
+    "amount": 17.64,
+    "private": "unknown"
+  }
+]

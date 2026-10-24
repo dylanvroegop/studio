@@ -243,7 +243,7 @@ function LoginPageContent() {
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex justify-center">
             <Image
-              src="/logo-vroegop.png"
+              src="/logo-vroegop-transparent.png"
               alt="Vroegop Timmerwerken"
               width={1774}
               height={887}

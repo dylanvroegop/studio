@@ -2366,7 +2366,7 @@ function KostenPageContent() {
                         {option.value === 'eigen_verbruik' ? ' netto' : ''}
                         {` · ${tabLineCounts[option.value]} ${option.value === 'eigen_verbruik'
                           ? tabLineCounts[option.value] === 1 ? 'boeking' : 'boekingen'
-                          : tabLineCounts[option.value] === 1 ? 'afschrijving' : 'afschrijvingen'}`}
+                          : tabLineCounts[option.value] === 1 ? 'boeking' : 'boekingen'}`}
                       </span>
                     </span>
                   </Button>
@@ -2415,7 +2415,7 @@ function KostenPageContent() {
                         <th className="w-[70px] px-3 py-2.5 text-center">Bon</th>
                         <th className="w-[120px] px-3 py-2.5 text-right">Excl. BTW</th>
                         <th className="w-[105px] px-3 py-2.5 text-right">BTW</th>
-                        <th className="w-[150px] px-3 py-2.5 text-right">{isPrivateView ? 'Bedrag' : 'Afgeschreven'}</th>
+                        <th className="w-[150px] px-3 py-2.5 text-right">{isPrivateView ? 'Bedrag' : 'Betaald'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/70">
@@ -2465,7 +2465,7 @@ function KostenPageContent() {
                             <td className={cn('whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums', isPrivateDeposit(cost) ? 'text-emerald-300' : 'text-foreground')}>
                               <div className="flex items-center justify-end gap-1.5">
                                 <span>{formatBankRowAmount(cost, isPrivateView)}</span>
-                                {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Betaling controleren</Badge> : isHistoricalSourceCost(cost) ? (
+                                {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant gekocht</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Betaling controleren</Badge> : isHistoricalSourceCost(cost) ? (
                                   <Badge variant="outline" className="text-[10px] text-muted-foreground">Bron vóór Knab</Badge>
                                 ) : !isBankTransactionCost(cost) ? <Button
                                   type="button"
@@ -2492,8 +2492,8 @@ function KostenPageContent() {
                   </table>
                 </div>
                 <div className="flex items-center justify-between border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                  <span>{filteredCosts.length} {isPrivateView ? filteredCosts.length === 1 ? 'boeking' : 'boekingen' : filteredCosts.length === 1 ? 'afschrijving' : 'afschrijvingen'}</span>
-                  <span className="font-semibold tabular-nums text-foreground">{isPrivateView ? 'Netto privé-opnames' : 'Totaal getoonde afschrijvingen'}: {formatCurrency(visibleTotal)}</span>
+                  <span>{filteredCosts.length} {isPrivateView ? filteredCosts.length === 1 ? 'boeking' : 'boekingen' : filteredCosts.length === 1 ? 'boeking' : 'boekingen'}</span>
+                  <span className="font-semibold tabular-nums text-foreground">{isPrivateView ? 'Netto privé-opnames' : 'Totaal getoonde uitgaven'}: {formatCurrency(visibleTotal)}</span>
                 </div>
               </div>
 
@@ -2533,7 +2533,7 @@ function KostenPageContent() {
                           {filter === 'alle' && cost.category_allocations?.map((part) => (
                             <span key={part.category} className="text-muted-foreground">{BANK_CATEGORY_LABELS[part.category]} {formatCurrency(part.amount_incl_btw)}</span>
                           ))}
-                          {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Betaling controleren</Badge> : null}
+                          {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant gekocht</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Betaling controleren</Badge> : null}
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
                             <Link2 className="h-3.5 w-3.5" />
                             {linkedLabel}

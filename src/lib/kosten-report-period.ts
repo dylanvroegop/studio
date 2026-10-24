@@ -1,4 +1,4 @@
-export const KOSTEN_REPORT_START = '2026-06-22';
+export const KOSTEN_REPORT_START = '2026-06-10';
 
 export function reportMonths(today: string): string[] {
   const end = today.slice(0, 7);

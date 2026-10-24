@@ -7,7 +7,7 @@ import { PROJECT_COST_CATEGORIES, type ProjectCostCategory, type ProjectCostRow 
 import { summarizeTimeEntries, type TimeTotals } from '@/lib/time-entry-totals';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-import { isReportDate, reportMonths, reportEarnings, reportElapsed } from '@/lib/kosten-report-period';
+import { KOSTEN_REPORT_START, isReportDate, reportMonths, reportEarnings, reportElapsed } from '@/lib/kosten-report-period';
 import { KostenAfstandRow } from './KostenAfstandRow';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { BankAccountView } from '@/lib/bank-overzicht';
@@ -30,6 +30,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
   const { user } = useUser();
   const [month, setMonth] = useState('all');
   const [reductions, setReductions] = useState<Partial<Record<ProjectCostCategory, string>>>({});
+  const [cash, setCash] = useState('');
   const [bankBalance, setBankBalance] = useState<number | null>(null);
   const [bankLoading, setBankLoading] = useState(true);
   const [bankError, setBankError] = useState<string | null>(null);
@@ -42,12 +43,14 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
     setRestoredKey(null);
     setMonth('all');
     setReductions({});
+    setCash('');
     setStorageError(false);
     if (!storageKey) return;
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
       if (saved && typeof saved === 'object') {
-        if (typeof saved.month === 'string' && /^(all|\d{4}-(0[1-9]|1[0-2]))$/.test(saved.month) && (saved.month === 'all' || saved.month >= '2026-06')) setMonth(saved.month);
+        if (typeof saved.cash === 'string') setCash(saved.cash);
+        if (typeof saved.month === 'string' && /^(all|\d{4}-(0[1-9]|1[0-2]))$/.test(saved.month) && (saved.month === 'all' || saved.month >= KOSTEN_REPORT_START.slice(0, 7))) setMonth(saved.month);
         if (saved.reductions && typeof saved.reductions === 'object') {
           setReductions(Object.fromEntries(PROJECT_COST_CATEGORIES
             .filter((category) => typeof saved.reductions[category] === 'string')
@@ -64,12 +67,12 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
     // Eerst herstellen: standaardwaarden mogen een opgeslagen scenario niet overschrijven.
     if (!storageKey || restoredKey !== storageKey) return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ month, reductions }));
+      localStorage.setItem(storageKey, JSON.stringify({ month, reductions, cash }));
       setStorageError(false);
     } catch {
       setStorageError(true);
     }
-  }, [storageKey, restoredKey, month, reductions]);
+  }, [storageKey, restoredKey, month, reductions, cash]);
 
   const loadBankBalance = useCallback(async (sync = false, signal?: AbortSignal) => {
     if (!user) return;
@@ -151,7 +154,11 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
     const amount = parseScenarioAmount(raw);
     return amount === null || amount < 0 || amount > Math.max(0, summary.totals[category as ProjectCostCategory]);
   });
-  const scenario = calculateBankCostScenario(summary.totals, requestedReductions, bankLoading ? null : bankBalance);
+  const cashAmount = cash.trim() ? parseScenarioAmount(cash) : 0;
+  const invalidCash = cashAmount === null || cashAmount < 0;
+  const availableBalance = bankLoading || bankBalance === null || invalidCash ? null
+    : (Math.round(bankBalance * 100) + Math.round(cashAmount! * 100)) / 100;
+  const scenario = calculateBankCostScenario(summary.totals, requestedReductions, availableBalance);
   const duration = time ? (month === 'all' ? time.all : time.months[month] || summarizeTimeEntries([])) : null;
   const totalMinutes = duration ? duration.workMinutes + (duration.supplierMinutes ?? 0) + (duration.driveMinutes ?? 0) : null;
   const earnings = reportEarnings(loading || error || invalidReduction ? null : scenario.balanceWithoutCosts, timeError ? null : totalMinutes, monthCount);
@@ -161,7 +168,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
   return <div className="space-y-4">
     {storageError ? <p role="alert" className="text-sm text-destructive">Je keuzes konden niet op dit apparaat worden opgeslagen.</p> : null}
     <div className="flex flex-wrap items-center gap-3">
-      <div className="text-sm text-muted-foreground"><span>Vanaf 22 juni 2026</span><span className="block text-xs">{elapsed.days} dagen · {elapsed.months} maanden en {elapsed.remainingDays} dagen verstreken</span></div>
+      <div className="text-sm text-muted-foreground"><span>Vanaf {new Date(`${KOSTEN_REPORT_START}T12:00:00Z`).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Amsterdam' })}</span><span className="block text-xs">{elapsed.days} dagen · {elapsed.months} maanden en {elapsed.remainingDays} dagen verstreken</span></div>
       <Select value={month} onValueChange={setMonth}>
         <SelectTrigger className="h-9 w-48" aria-label="Periode totalen"><SelectValue /></SelectTrigger>
         <SelectContent><SelectItem value="all">Alle maanden ({months.length})</SelectItem>{months.map((value) => <SelectItem key={value} value={value}>{new Date(`${value}-01T12:00:00`).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })}</SelectItem>)}</SelectContent>
@@ -176,9 +183,9 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
         <h2 className="mb-2 text-sm font-semibold">Kosten</h2>
         {loading ? <p className="text-sm text-muted-foreground">Kosten laden…</p> : error ? <p role="alert" className="text-sm text-destructive">Kosten konden niet worden geladen.</p> : <>
           <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="border-b text-muted-foreground"><tr><th className="px-2 py-2 text-center text-xs font-normal">Hele bedrag</th><th className="px-3 py-2 text-left font-normal">Categorie</th><th className={`${cell} font-normal`}>Bedrag</th><th className={`${cell} font-normal`}>Aantal</th><th className={`${cell} font-normal`}>Minder (€)</th></tr></thead>
-            <tbody>{categories.map(({ value, label }) => <tr key={value} className={`border-b border-border/50 ${value === 'alle' ? 'font-semibold' : reductions[value] === 'all' ? 'text-red-400' : ''}`}><td className="px-2 py-2 text-center">{value !== 'alle' ? <Checkbox aria-label={`${label} helemaal weglaten`} disabled={summary.totals[value] <= 0} checked={reductions[value] === 'all'} onCheckedChange={(checked) => setReductions((current) => ({ ...current, [value]: checked === true ? 'all' : '' }))} /> : null}</td><td className="px-3 py-2">{value === 'alle' ? 'Totaal afgeschreven' : value === 'eigen_verbruik' ? 'Privé-opnames (netto)' : label}</td><td className={cell}>{euro(summary.totals[value])}</td><td className={cell}>{summary.counts[value]}</td><td className="px-2 py-2">{value !== 'alle' ? <Input type="text" inputMode="decimal" aria-label={`${label} minder in euro`} placeholder="0,00" value={reductions[value] === 'all' ? Math.max(0, summary.totals[value]).toFixed(2).replace('.', ',') : reductions[value] || ''} onChange={(event) => setReductions((current) => ({ ...current, [value]: event.target.value }))} className={`h-8 w-28 text-right tabular-nums ${reductions[value] === 'all' ? 'text-red-400' : ''}`} /> : null}</td></tr>)}</tbody>
+            <tbody>{categories.map(({ value, label }) => <tr key={value} className={`border-b border-border/50 ${value === 'alle' ? 'font-semibold' : reductions[value] === 'all' ? 'text-red-400' : ''}`}><td className="px-2 py-2 text-center">{value !== 'alle' ? <Checkbox aria-label={`${label} helemaal weglaten`} disabled={summary.totals[value] <= 0} checked={reductions[value] === 'all'} onCheckedChange={(checked) => setReductions((current) => ({ ...current, [value]: checked === true ? 'all' : '' }))} /> : null}</td><td className="px-3 py-2">{value === 'alle' ? 'Totaal uitgaven' : value === 'eigen_verbruik' ? 'Privé-opnames (netto)' : label}</td><td className={cell}>{euro(summary.totals[value])}</td><td className={cell}>{summary.counts[value]}</td><td className="px-2 py-2">{value !== 'alle' ? <Input type="text" inputMode="decimal" aria-label={`${label} minder in euro`} placeholder="0,00" value={reductions[value] === 'all' ? Math.max(0, summary.totals[value]).toFixed(2).replace('.', ',') : reductions[value] || ''} onChange={(event) => setReductions((current) => ({ ...current, [value]: event.target.value }))} className={`h-8 w-28 text-right tabular-nums ${reductions[value] === 'all' ? 'text-red-400' : ''}`} /> : null}</td></tr>)}</tbody>
           </table></div>
-          <p className="mt-2 text-xs text-muted-foreground">Aantal afschrijvingen; privé inclusief terugstortingen. Een verdeelde afschrijving telt bij meerdere categorieën.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Bankbetalingen en handmatig toegevoegde cashaankopen; privé inclusief terugstortingen. Een verdeelde betaling telt bij meerdere categorieën.</p>
         </>}
       </section>
       <section className="min-w-0">
@@ -188,6 +195,14 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
             <span className="text-sm">Banksaldo Knab</span>
             <span className="text-sm tabular-nums">{bankLoading ? 'Laden…' : bankBalance === null ? 'n.b.' : euro(bankBalance)}</span>
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3">
+            <label htmlFor="kosten-cash" className="text-sm">Cash</label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">€</span>
+              <Input id="kosten-cash" type="text" inputMode="decimal" placeholder="0,00" value={cash} onChange={(event) => setCash(event.target.value)} aria-invalid={invalidCash} aria-describedby={invalidCash ? 'kosten-cash-error' : undefined} className="h-8 w-28 text-right tabular-nums" />
+            </div>
+          </div>
+          {invalidCash ? <p id="kosten-cash-error" role="alert" className="text-xs text-destructive">Vul een cashbedrag van € 0,00 of hoger in.</p> : null}
           {bankError ? <p role="alert" className="text-xs text-destructive">{bankError}</p> : null}
           <table className="w-full text-sm"><tbody>
             <tr className="border-b border-border/50"><td className="px-3 py-2">Extra overgehouden</td><td className={cell}>{loading ? 'Laden…' : error || invalidReduction ? 'n.b.' : euro(scenario.saved)}</td></tr>
