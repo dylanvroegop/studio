@@ -1,5 +1,7 @@
 'use client';
 
+import { KostenStartDate } from '@/components/kosten/KostenStartDate';
+import { KOSTEN_REPORT_START, isValidReportStart, isReportDate } from '@/lib/kosten-report-period';
 import { isCostWithoutDocument } from '@/lib/cost-document-filter';
 import { isReviewSourceCost, isConfirmedCashCost } from '@/lib/finance-cost-visibility';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -108,7 +110,7 @@ const QUICK_ADD_TAB_ID: KostenViewMode = 'quick-add';
 const KOSTEN_PAGE_TABS: Array<{ value: KostenViewMode; label: string; financeTab?: string; hidden?: boolean }> = [
   { value: QUICK_ADD_TAB_ID, label: 'Snel toevoegen' },
   { value: 'kosten', label: 'Kosten' },
-  { value: 'pdfs', label: 'PDF-bestanden' },
+  { value: 'pdfs', label: 'PDF-bestanden', hidden: true },
   { value: 'totalen', label: 'Totalen' },
   { value: 'overview', label: 'Overzicht', financeTab: 'overview', hidden: true },
   { value: 'finance-costs', label: 'Bankuitgaven', financeTab: 'costs', hidden: true },
@@ -613,6 +615,23 @@ function KostenPageContent() {
   const [privateCredits, setPrivateCredits] = useState<KnabBankCostRow[]>([]);
   const [sourceCosts, setSourceCosts] = useState<ProjectCostRow[]>([]);
   const [costMonth, setCostMonth] = useState('all');
+  const reportToday = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Amsterdam' }).format(new Date());
+  const [reportStart, setReportStart] = useState<{ uid: string; date: string } | null>(null);
+  const startDate = reportStart && reportStart.uid === user?.uid ? reportStart.date : KOSTEN_REPORT_START;
+  useEffect(() => {
+    if (!user) { setReportStart(null); return; }
+    try {
+      const saved = localStorage.getItem(`kosten-begindatum-v1:${user.uid}`);
+      setReportStart({ uid: user.uid, date: isValidReportStart(saved, reportToday) ? saved : KOSTEN_REPORT_START });
+    } catch { setReportStart({ uid: user.uid, date: KOSTEN_REPORT_START }); }
+  }, [user?.uid, reportToday]);
+  const changeStartDate = (date: string) => {
+    if (!user || !isValidReportStart(date, reportToday)) return;
+    setReportStart({ uid: user.uid, date });
+    setCostMonth('all');
+    try { localStorage.setItem(`kosten-begindatum-v1:${user.uid}`, date); }
+    catch { toast({ title: 'Begindatum niet opgeslagen', description: 'De datum geldt alleen zolang deze pagina open is.', variant: 'destructive' }); }
+  };
   const [quotes, setQuotes] = useState<QuoteOption[]>([]);
   const [quotesError, setQuotesError] = useState<string | null>(null);
 
@@ -958,9 +977,9 @@ function KostenPageContent() {
     { value: 'overig', label: 'Overig' },
   ];
 
-  const availableMonths = useMemo(() => availableCostMonths(costs, privateCredits), [costs, privateCredits]);
-  const matchingCosts = useMemo(() => matchingCostRows(costs, costMonth, search, quoteById), [costs, costMonth, quoteById, search]);
-  const matchingPrivateCredits = useMemo(() => matchingCostRows(privateCredits, costMonth, search, quoteById), [privateCredits, costMonth, quoteById, search]);
+  const availableMonths = useMemo(() => availableCostMonths(costs, privateCredits).filter((month) => month >= startDate.slice(0, 7) && month <= reportToday.slice(0, 7)), [costs, privateCredits, startDate, reportToday]);
+  const matchingCosts = useMemo(() => matchingCostRows(costs.filter((row) => isReportDate(row.date, 'all', reportToday, startDate)), costMonth, search, quoteById), [costs, costMonth, quoteById, search, reportToday, startDate]);
+  const matchingPrivateCredits = useMemo(() => matchingCostRows(privateCredits.filter((row) => isReportDate(row.date, 'all', reportToday, startDate)), costMonth, search, quoteById), [privateCredits, costMonth, quoteById, search, reportToday, startDate]);
   const withoutDocumentCosts = useMemo(() => matchingCosts.filter(isCostWithoutDocument), [matchingCosts]);
   const filteredCosts = useMemo(() => onlyWithoutDocument ? withoutDocumentCosts : costRowsForFilter(matchingCosts, matchingPrivateCredits, filter), [onlyWithoutDocument, withoutDocumentCosts, matchingCosts, matchingPrivateCredits, filter]);
   const { totals: tabTotals, counts: tabLineCounts, privateSummary } = useMemo(() => summarizeBankCostRows(matchingCosts, matchingPrivateCredits), [matchingCosts, matchingPrivateCredits]);
@@ -1685,11 +1704,11 @@ function KostenPageContent() {
                 key={tab.value}
                 type="button"
                 role="tab"
-                aria-selected={viewMode === tab.value}
+                aria-selected={viewMode === tab.value || (tab.value === 'kosten' && viewMode === 'pdfs')}
                 onClick={() => setViewMode(tab.value)}
                 className={cn(
                   'shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition-colors',
-                  viewMode === tab.value
+                  (viewMode === tab.value || (tab.value === 'kosten' && viewMode === 'pdfs'))
                     ? 'border-emerald-500 text-foreground'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 )}
@@ -1699,7 +1718,9 @@ function KostenPageContent() {
             ))}
           </div>
 
-          {viewMode === 'totalen' ? <KostenTotalenTab costs={costs} privateCredits={privateCredits} categories={filterOptions} loading={loading} error={error} /> : null}
+          {viewMode === 'pdfs' ? <div className="flex items-center gap-3"><Button type="button" variant="outline" size="sm" onClick={() => setViewMode('kosten')}>Terug naar kosten</Button><h2 className="text-sm font-semibold">PDF-bestanden</h2></div> : null}
+
+          {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} categories={filterOptions} loading={loading} error={error} /> : null}
 
           <input
             ref={quickPhotoInputRef}
@@ -1775,7 +1796,7 @@ function KostenPageContent() {
           {viewMode === 'kosten' || createOpen ? (
           <Card className={cn((viewMode !== 'kosten' || Boolean(error) || loading) && 'hidden')}>
             <CardContent className="space-y-4 pt-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -1786,6 +1807,8 @@ function KostenPageContent() {
                   />
                 </div>
 
+                <Button type="button" variant="outline" className="shrink-0 gap-2" onClick={() => setViewMode('pdfs')}><Receipt className="h-4 w-4" />PDF-bestanden</Button>
+                <KostenStartDate value={startDate} onChange={changeStartDate} />
                 <div className="flex shrink-0 items-center gap-2">
                   <Label htmlFor="cost-month" className="text-xs text-muted-foreground">Maand</Label>
                   <Select value={costMonth} onValueChange={setCostMonth}>
