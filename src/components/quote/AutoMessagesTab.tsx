@@ -128,7 +128,7 @@ export function AutoMessagesTab() {
 
                 const planningEntries: AppointmentPlanningEntry[] = planningSnapshot.docs.flatMap((planningDoc) => {
                     const planningData = planningDoc.data() as Record<string, unknown>;
-                    if (planningData.status === 'cancelled') return [];
+                    if (planningData.status === 'cancelled' || planningData.isGoogleCalendarHistory === true) return [];
 
                     const startDate = getQuoteDate(planningData.startDate);
                     if (!startDate) return [];

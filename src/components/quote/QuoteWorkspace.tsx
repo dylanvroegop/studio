@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuoteSendSelection } from '@/hooks/useQuoteSendSelection';
 import { loadQuotePdfData } from '@/lib/load-quote-pdf-data';
+import { bindSharedQuoteAmount, sharedAmountsForFiles } from '@/lib/quote-shared-amount';
 import { markQuoteSelectionAsSent } from '@/lib/quote-send-status';
 import { useQuoteData } from '@/hooks/useQuoteData';
 import { getCalculationProgress, resolveCalculationStart } from '@/lib/calculation-progress';
@@ -22,7 +23,10 @@ import {
     type WorkDescriptionStructured,
 } from '@/lib/quote-calculations';
 import { calculateJointFinishingCost } from '@/lib/joint-finishing-cost';
-import { collectNoteSurfaces, noteSurfaceArea, noteSurfaceJobs } from '@/lib/note-surfaces';
+import { collectNoteSurfaces, noteSurfaceJobs, noteShapeFields, formatNoteShape, parseNoteShape, type NoteMeasurement } from '@/lib/note-surfaces';
+import { formatNoteMeasurementTexts } from '@/lib/note-measurement-text';
+import { restoreCalculationNoteShapes } from '@/lib/calculation-note-assignment';
+import { NoteMeasurementRow } from './NoteMeasurementRow';
 import { useNoteSurfaceResolver } from '@/components/quote/NoteSurfaceResolver';
 import { calculateScaffoldCost, getScopeCosts, getMissingScopeCosts, setScopeCost, SCOPE_COST_LABELS, type ScopeCostKey } from '@/lib/quote-scope-costs';
 import { PaymentRequestDialog } from '@/components/quote/PaymentRequestDialog';
@@ -345,14 +349,7 @@ interface QuoteNoteSection {
         title: string;
         url: string;
     }>;
-    maatwerkLines: Array<{
-        id: string;
-        title: string;
-        length: string;
-        width: string;
-        height: string;
-        thickness: string;
-    }>;
+    maatwerkLines: Array<NoteMeasurement & { id: string }>;
     notes: string;
 }
 
@@ -377,6 +374,7 @@ function createQuoteNoteMaatwerkLine(overrides?: Partial<QuoteNoteSection['maatw
         width: overrides?.width ?? '',
         height: overrides?.height ?? '',
         thickness: overrides?.thickness ?? '',
+        ...noteShapeFields(overrides || {}),
     };
 }
 
@@ -409,9 +407,10 @@ function extractMaatwerkDimensionFromTitle(title: string, label: 'hoogte' | 'bre
     return { title: nextTitle, value: extractedValue };
 }
 
-function getQuoteNoteMaatwerkLineIdentity(line: Pick<QuoteNoteSection['maatwerkLines'][number], 'title' | 'length' | 'width' | 'height' | 'thickness'>): string {
+function getQuoteNoteMaatwerkLineIdentity(line: NoteMeasurement): string {
     return [
         line.title,
+        formatNoteShape(line),
         normalizeMaatwerkDimension(line.length),
         normalizeMaatwerkDimension(line.width),
         normalizeMaatwerkDimension(line.height),
@@ -459,15 +458,16 @@ function parseQuoteNoteMaatwerkLine(line: string): QuoteNoteSection['maatwerkLin
     let title = titleMatch ? titleMatch[1].trim() : '';
     const dimensionText = titleMatch ? titleMatch[2].trim() : cleaned;
 
-    const lengthMatch = dimensionText.match(/(?:^|[|,;])\s*lengte\s*:?\s*([^|,;]+)/i);
+    const lengthMatch = dimensionText.match(/(?:^|[|,;])\s*lengte\b(?!\s*[123]\b)\s*:?\s*([^|,;]+)/i);
     const widthMatch = dimensionText.match(/(?:^|[|,;])\s*breedte\s*:?\s*([^|,;]+)/i);
-    const heightMatch = dimensionText.match(/(?:^|[|,;])\s*hoogte\s*:?\s*([^|,;]+)/i);
+    const heightMatch = dimensionText.match(/(?:^|[|,;])\s*hoogte\b(?!\s*(?:links|rechts|top|[123])\b)\s*:?\s*([^|,;]+)/i);
     const thicknessMatch = dimensionText.match(/(?:^|[|,;])\s*dikte\s*:?\s*([^|,;]+)/i);
     if (lengthMatch || widthMatch || heightMatch || thicknessMatch) {
         const embeddedHeight = extractMaatwerkDimensionFromTitle(title, 'hoogte');
         title = embeddedHeight.title;
         return createQuoteNoteMaatwerkLine({
             title,
+            ...parseNoteShape(dimensionText),
             length: normalizeMaatwerkDimension(lengthMatch?.[1] || ''),
             width: normalizeMaatwerkDimension(widthMatch?.[1] || ''),
             height: normalizeMaatwerkDimension(heightMatch?.[1] || embeddedHeight.value || ''),
@@ -772,6 +772,15 @@ function parseQuoteNotesToSections(rawValue: string): QuoteNoteSection[] {
     return mapped.length > 0 ? mapped : [createQuoteNoteSection(0)];
 }
 
+function restoreQuoteNoteSectionShapes(sections: QuoteNoteSection[], jobs: unknown): QuoteNoteSection[] {
+    const nextSections = sections.map(section => {
+        const maatwerkLines = restoreCalculationNoteShapes(section.maatwerkLines, jobs);
+        if (maatwerkLines.every((line, index) => line === section.maatwerkLines[index])) return section;
+        return { ...section, maatwerkLines };
+    });
+    return nextSections.every((section, index) => section === sections[index]) ? sections : nextSections;
+}
+
 function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
     const normalizedSections = sections.reduce<QuoteNoteSection[]>((result, section) => {
         const auxiliaryTitle = getQuoteNoteAuxiliaryTitle(section.title);
@@ -825,6 +834,7 @@ function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
                 .filter((link) => link.title.length > 0 || link.url.length > 0),
             maatwerkLines: deduplicateQuoteNoteMaatwerkLines(section.maatwerkLines)
                 .map((maatwerkLine) => ({
+                    ...noteShapeFields(maatwerkLine),
                     title: maatwerkLine.title.trim(),
                     length: normalizeMaatwerkDimension(maatwerkLine.length),
                     width: normalizeMaatwerkDimension(maatwerkLine.width),
@@ -854,7 +864,7 @@ function serializeQuoteNoteSections(sections: QuoteNoteSection[]): string {
                 blockLines.push('#### Maatwerk');
                 for (const maatwerkLine of section.maatwerkLines) {
                     const prefix = maatwerkLine.title ? `${maatwerkLine.title} = ` : '';
-                    blockLines.push(`- ${prefix}Lengte: ${maatwerkLine.length} mm | Breedte: ${maatwerkLine.width} mm | Hoogte: ${maatwerkLine.height} mm | Dikte: ${maatwerkLine.thickness} mm`);
+                    blockLines.push(`- ${prefix}Lengte: ${maatwerkLine.length} mm | Breedte: ${maatwerkLine.width} mm | Hoogte: ${maatwerkLine.height} mm | Dikte: ${maatwerkLine.thickness} mm${formatNoteShape(maatwerkLine) ? ` | ${formatNoteShape(maatwerkLine)}` : ''}`);
                 }
             }
 
@@ -891,6 +901,7 @@ function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): strin
             notes: section.notes.trim(),
             maatwerkLines: section.maatwerkLines
                 .map((maatwerkLine) => ({
+                    ...noteShapeFields(maatwerkLine),
                     title: maatwerkLine.title.trim(),
                     length: normalizeMaatwerkDimension(maatwerkLine.length),
                     width: normalizeMaatwerkDimension(maatwerkLine.width),
@@ -914,10 +925,7 @@ function buildQuoteNotesContextWithoutLinks(sections: QuoteNoteSection[]): strin
             if (section.notes.length > 0) lines.push(section.notes);
             if (section.maatwerkLines.length > 0) {
                 lines.push('Maatwerk:');
-                for (const maatwerkLine of section.maatwerkLines) {
-                    const prefix = maatwerkLine.title ? `${maatwerkLine.title}: ` : '';
-                    lines.push(`- ${prefix}lengte ${maatwerkLine.length} mm, breedte ${maatwerkLine.width} mm, hoogte ${maatwerkLine.height} mm, dikte ${maatwerkLine.thickness} mm`);
-                }
+                lines.push(...formatNoteMeasurementTexts(section.maatwerkLines).map(line => `- ${line}`));
             }
             return lines.join('\n');
         })
@@ -930,24 +938,13 @@ function buildWorkDescriptionNoteJobs(sections: QuoteNoteSection[]): WorkDescrip
         const title = section.title.trim().replace(/^#+\s*/, '').trim();
         return /^links?\b/i.test(title);
     };
-    const formatDimension = (line: QuoteNoteSection['maatwerkLines'][number]): string => {
-        const values = [
-            line.length ? `Lengte = ${normalizeMaatwerkDimension(line.length)} mm` : '',
-            line.width ? `Breedte = ${normalizeMaatwerkDimension(line.width)} mm` : '',
-            line.height ? `Hoogte = ${normalizeMaatwerkDimension(line.height)} mm` : '',
-            line.thickness ? `Dikte = ${normalizeMaatwerkDimension(line.thickness)} mm` : '',
-        ].filter(Boolean);
-        return values.length > 0 ? `${line.title || 'Maatwerk'}: | ${values.join(' | ')} |` : '';
-    };
     const getSectionDimensions = (section: QuoteNoteSection): string[] => {
-        const structured = section.maatwerkLines.map(formatDimension).filter(Boolean);
+        const structured = formatNoteMeasurementTexts(section.maatwerkLines);
         const legacy = section.notes
             .split(/\r?\n/)
             .map(parseQuoteNoteMaatwerkLine)
-            .filter((line): line is QuoteNoteSection['maatwerkLines'][number] => line !== null)
-            .map(formatDimension)
-            .filter(Boolean);
-        return deduplicateMeasurementRows([...structured, ...legacy]);
+            .filter((line): line is QuoteNoteSection['maatwerkLines'][number] => line !== null);
+        return deduplicateMeasurementRows([...structured, ...formatNoteMeasurementTexts(legacy)]);
     };
     const getInlineDimensions = (value: string): string[] => {
         const rows: string[] = [];
@@ -1252,6 +1249,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
     const quoteNotesSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSyncedQuoteNotesRef = useRef('');
     const lastSerializedQuoteNoteSectionsRef = useRef('');
+    const lastNoteShapeJobsRef = useRef<string | undefined>(undefined);
     const quoteNotesLastEditAtRef = useRef<number>(0);
     const quoteNotesDirtyRef = useRef<boolean>(false);
 
@@ -2114,7 +2112,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
     const handleQuoteNoteMaatwerkLineChange = useCallback((
         sectionId: string,
         lineId: string,
-        field: 'length' | 'width' | 'height' | 'thickness',
+        field: Exclude<keyof NoteMeasurement, 'title'>,
         value: string,
     ) => {
         const nextSections = quoteNoteSections.map((section) => {
@@ -2210,6 +2208,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                 if (!row || typeof row !== 'object') return [];
                 const item = row as Record<string, unknown>;
                 const line = createQuoteNoteMaatwerkLine({
+                    ...noteShapeFields(item),
                     title: typeof item.title === 'string' ? item.title.trim() : '',
                     length: normalizeMaatwerkDimension(typeof item.length === 'string' ? item.length : ''),
                     width: normalizeMaatwerkDimension(typeof item.width === 'string' ? item.width : ''),
@@ -2306,13 +2305,25 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         syncQuoteNoteSectionsToQuoteNotes(nextSections);
     }, [quoteNoteSections, syncQuoteNoteSectionsToQuoteNotes]);
 
+    const noteShapeCalculationJobs = (quote as (Quote & { klussen?: unknown }) | null)?.klussen;
+    const noteShapeSourceKey = useMemo(() => JSON.stringify(noteShapeCalculationJobs), [noteShapeCalculationJobs]);
     useEffect(() => {
-        if (quoteNotes === lastSerializedQuoteNoteSectionsRef.current) return;
+        if (quoteNotes === lastSerializedQuoteNoteSectionsRef.current && noteShapeSourceKey === lastNoteShapeJobsRef.current) return;
+        lastNoteShapeJobsRef.current = noteShapeSourceKey;
 
-        const parsedSections = parseQuoteNotesToSections(quoteNotes);
-        setQuoteNoteSections(parsedSections);
+        // Een offerte-snapshot kan de calculatiebron veranderen tijdens het opslaan.
+        // Behoud dan de bestaande veld-ID's en onbewerkte invoer, zodat de cursor blijft staan.
+        if (quoteNotes === lastSerializedQuoteNoteSectionsRef.current) {
+            setQuoteNoteSections(current => restoreQuoteNoteSectionShapes(current, noteShapeCalculationJobs));
+            return;
+        }
+
+        setQuoteNoteSections(restoreQuoteNoteSectionShapes(
+            parseQuoteNotesToSections(quoteNotes),
+            noteShapeCalculationJobs,
+        ));
         lastSerializedQuoteNoteSectionsRef.current = quoteNotes;
-    }, [quoteNotes]);
+    }, [quoteNotes, noteShapeCalculationJobs, noteShapeSourceKey]);
 
     const handleSetQuoteNoteLinksSectionOpen = useCallback((sectionId: string, isOpen: boolean) => {
         setOpenQuoteNoteLinkSections((current) => {
@@ -5420,21 +5431,22 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
     const prepareSelectedQuoteFiles = async (selectedIds: string[] = [id]): Promise<File[]> => {
         if (!quote || !user || !firestore || selectedIds.length === 0) throw new Error('Selecteer minimaal één offerte.');
         const token = await user.getIdToken();
-        const files: Array<{ fileName: string; blob: Blob }> = [];
+        const files: File[] = [];
         for (const quoteId of [...new Set(selectedIds)]) {
             const data = quoteId === id ? buildPDFData() : await loadQuotePdfData({
                 firestore, token, quoteId, currentQuote: quote, userProfile, businessData,
                 userEmail: user.email, pdfSettings,
             });
             const blob = quoteId === id ? await getOfficialQuotePdf(data) : await generateQuotePDF(data);
-            files.push({ fileName: getQuotePdfFileName(data.klant.naam, data.offerteNummer), blob });
+            const file = new File([blob], getQuotePdfFileName(data.klant.naam, data.offerteNummer), { type: 'application/pdf' });
+            files.push(bindSharedQuoteAmount(file, quoteId, data.totals.totaalInclBtw));
         }
-        return files.map((file) => new File([file.blob], file.fileName, { type: 'application/pdf' }));
+        return files;
     };
 
-    const handleMarkSelectedQuotesAsSent = async (selectedIds: string[] = [id]): Promise<void> => {
+    const handleMarkSelectedQuotesAsSent = async (selectedIds: string[] = [id], files: File[] = []): Promise<void> => {
         if (!firestore || !user || !quote || selectedIds.length === 0) throw new Error('Selecteer minimaal één offerte.');
-        await markQuoteSelectionAsSent({ firestore, userId: user.uid, currentQuote: quote, selectedIds, currentTotal: effectiveQuoteTotalInclBtw });
+        await markQuoteSelectionAsSent({ firestore, userId: user.uid, currentQuote: quote, selectedIds, currentTotal: effectiveQuoteTotalInclBtw, sharedAmounts: sharedAmountsForFiles(files, selectedIds) });
     };
 
     const handleRecordPriceChange = async (): Promise<void> => {
@@ -7055,20 +7067,22 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                     <div data-quote-header-actions className="hidden w-full gap-4 overflow-x-auto pb-1 sm:flex sm:w-auto sm:overflow-visible sm:pb-0">
                         {!loading && (
                             <>
-                                <Button
+                                <Button data-quote-header-action
                                     variant="outline"
                                     size="icon"
                                     className="h-9 w-9 shrink-0"
                                     asChild
                                 >
                                     <Link href={`/facturen/nieuw?quoteId=${encodeURIComponent(id)}`} prefetch aria-label="Maak factuur" title="Maak factuur">
+                                        <span data-quote-header-action-label>Maak factuur</span>
                                         <ReceiptText size={16} />
                                     </Link>
                                 </Button>
-                                <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setIsPaymentRequestOpen(true)} aria-label="Betaalverzoek" title="Betaalverzoek">
+                                <Button data-quote-header-action variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setIsPaymentRequestOpen(true)} aria-label="Betaalverzoek" title="Betaalverzoek">
+                                    <span data-quote-header-action-label>Betaalverzoek</span>
                                     <Link2 size={16} />
                                 </Button>
-                                <Button
+                                <Button data-quote-header-action
                                     variant="outline"
                                     size="icon"
                                     className="h-9 w-9 shrink-0"
@@ -7077,9 +7091,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                     aria-label="Splits offerte"
                                     title="Splits offerte"
                                 >
+                                    <span data-quote-header-action-label>Splits offerte</span>
                                     <Scissors size={16} />
                                 </Button>
-                                <Button
+                                <Button data-quote-header-action
                                     variant="outline"
                                     size="icon"
                                     className="h-9 w-9 shrink-0"
@@ -7088,10 +7103,11 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                     aria-label="Kopieer offerte"
                                     title="Kopieer offerte"
                                 >
+                                    <span data-quote-header-action-label>Kopieer offerte</span>
                                     {isDuplicatingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy size={16} />}
                                 </Button>
                                 {routeMapsUrl && (
-                                    <Button
+                                    <Button data-quote-header-action
                                         variant="outline"
                                         size="icon"
                                         className="h-9 w-9 shrink-0"
@@ -7101,10 +7117,11 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                         aria-label="Route"
                                         title={`Route naar ${routeDestinationAddress}`}
                                     >
+                                        <span data-quote-header-action-label>Route openen</span>
                                         <Navigation size={16} />
                                     </Button>
                                 )}
-                                <Button
+                                <Button data-quote-header-action
                                     variant="outline"
                                     size="icon"
                                     className="h-9 w-9 shrink-0"
@@ -7112,9 +7129,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                     aria-label="Inplannen"
                                     title="Inplannen"
                                 >
+                                    <span data-quote-header-action-label>Inplannen</span>
                                     <CalendarDays size={16} />
                                 </Button>
-                                <Button
+                                <Button data-quote-header-action
                                     variant="outline"
                                     size="icon"
                                     className="h-9 w-9 shrink-0"
@@ -7122,9 +7140,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                     aria-label="Calculatie"
                                     title="Calculatie"
                                 >
+                                    <span data-quote-header-action-label>Calculatie</span>
                                     <PenTool size={16} />
                                 </Button>
-                                <Button
+                                <Button data-quote-header-action
                                     variant="success"
                                     size="icon"
                                     className="h-9 w-9 shrink-0"
@@ -7133,18 +7152,20 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                     aria-label="Meerwerkbon maken"
                                     title="Meerwerkbon maken"
                                 >
+                                    <span data-quote-header-action-label>Meerwerkbon maken</span>
                                     {isCreatingMeerwerkbon ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSignature size={16} />}
                                 </Button>
-                                <Button
+                                <Button data-quote-header-action
                                     variant="outline"
                                     className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
                                     aria-label="PDF instellingen"
                                     title="PDF instellingen"
                                     onClick={() => setIsPdfSettingsOpen(true)}
                                 >
+                                    <span data-quote-header-action-label>PDF instellingen</span>
                                     <Settings size={16} />
                                 </Button>
-                                <Button
+                                <Button data-quote-header-action
                                     type="button"
                                     variant="success"
                                     onClick={() => {
@@ -7155,6 +7176,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                     aria-label="Download"
                                     title="Download"
                                 >
+                                    <span data-quote-header-action-label>Download PDF</span>
                                     {isGeneratingPDF ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
@@ -7162,26 +7184,28 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                     )}
                                 </Button>
                                 {user && (
-                                    <Button
+                                    <Button data-quote-header-action
                                         variant="success"
                                         className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
                                         onClick={() => setIsWhatsAppModalOpen(true)}
                                         aria-label="WhatsApp"
                                         title="WhatsApp"
                                     >
+                                        <span data-quote-header-action-label>WhatsApp</span>
                                         <MessageCircle size={16} />
                                     </Button>
                                 )}
-                                <Button
+                                <Button data-quote-header-action
                                     variant="success"
                                     className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
                                     onClick={() => { setIsSupplierQuestionMode(true); setIsMaterialExportOpen(true); }}
                                     aria-label="Leveranciersvraag"
                                     title="Leveranciersvraag"
                                 >
+                                    <span data-quote-header-action-label>Leveranciersvraag</span>
                                     <MessageSquare size={16} />
                                 </Button>
-                                <Button
+                                <Button data-quote-header-action
                                     variant="success"
                                     className="flex h-10 w-10 items-center justify-center p-0 sm:h-9 sm:w-9"
                                     onClick={() => {
@@ -7190,6 +7214,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                     aria-label="Versturen"
                                     title="Versturen"
                                 >
+                                    <span data-quote-header-action-label>Versturen per e-mail</span>
                                     <Mail size={16} />
                                 </Button>
                             </>
@@ -8014,6 +8039,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                             ) : (
                                 <div className="space-y-6">
                                     <CostSummaryCard
+                                        sharedQuoteAmount={quote?.whatsappQuoteSnapshot}
                                         totals={totals}
                                         settings={quoteSettings}
                                         totalUren={(calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0}
@@ -8978,6 +9004,22 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                             <MessageSquare className="w-4 h-4" /> Notities bij deze offerte
                                         </h3>
                                     </div>
+                                    <details className="rounded-lg border border-border/60 p-3">
+                                        <summary className="cursor-pointer text-sm font-medium">Privé notities</summary>
+                                        {typeof quote?.privateNotities === 'string' ? (
+                                            <div className="mt-3 space-y-2">
+                                                <p className="text-xs text-muted-foreground">Herstelkopie vóór het eerste overschrijven vanuit de calculatie. Wordt niet gebruikt voor calculaties of Werk &amp; Levering.</p>
+                                                <textarea
+                                                    aria-label="Privé notities — herstelkopie"
+                                                    readOnly
+                                                    value={quote.privateNotities}
+                                                    className="min-h-[240px] w-full rounded-lg border border-border/60 bg-background p-3 text-sm"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <p className="mt-3 text-xs text-muted-foreground">Bij het eerste overschrijven vanuit gekoppelde calculatiematen wordt hier automatisch een volledige herstelkopie bewaard.</p>
+                                        )}
+                                    </details>
                                     <div className="space-y-3">
                                         {quoteNoteSections.map((section, index) => {
                                             const hasLinkContent = section.linksTitle.trim().length > 0
@@ -9046,76 +9088,15 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                                     {section.maatwerkLines.length > 0 && (
                                                         <div className="space-y-2">
                                                             {section.maatwerkLines.map((maatwerkLine, maatwerkIndex) => (
-                                                                <div key={maatwerkLine.id} className="grid gap-2 sm:grid-cols-[1.2fr_1fr_1fr_1fr_1fr_0.7fr_auto]">
-                                                                    <div className="space-y-1">
-                                                                        <Label className="text-[11px] text-muted-foreground">Titel</Label>
-                                                                        <Input
-                                                                            value={maatwerkLine.title}
-                                                                            onChange={(e) => handleQuoteNoteMaatwerkTitleChange(section.id, maatwerkLine.id, e.target.value)}
-                                                                            placeholder="bijv. Lood"
-                                                                            className="h-9"
-                                                                        />
-                                                                    </div>
-                                                                    <div className="space-y-1">
-                                                                        <Label className="text-[11px] text-muted-foreground">Lengte</Label>
-                                                                        <Input
-                                                                            value={maatwerkLine.length}
-                                                                            onChange={(e) => handleQuoteNoteMaatwerkLineChange(section.id, maatwerkLine.id, 'length', e.target.value)}
-                                                                            placeholder="mm"
-                                                                            inputMode="decimal"
-                                                                            className="h-9"
-                                                                        />
-                                                                    </div>
-                                                                    <div className="space-y-1">
-                                                                        <Label className="text-[11px] text-muted-foreground">Breedte</Label>
-                                                                        <Input
-                                                                            value={maatwerkLine.width}
-                                                                            onChange={(e) => handleQuoteNoteMaatwerkLineChange(section.id, maatwerkLine.id, 'width', e.target.value)}
-                                                                            placeholder="mm"
-                                                                            inputMode="decimal"
-                                                                            className="h-9"
-                                                                        />
-                                                                    </div>
-                                                                    <div className="space-y-1">
-                                                                        <Label className="text-[11px] text-muted-foreground">Hoogte</Label>
-                                                                        <Input
-                                                                            value={maatwerkLine.height}
-                                                                            onChange={(e) => handleQuoteNoteMaatwerkLineChange(section.id, maatwerkLine.id, 'height', e.target.value)}
-                                                                            placeholder="mm"
-                                                                            inputMode="decimal"
-                                                                            className="h-9"
-                                                                        />
-                                                                    </div>
-                                                                    <div className="space-y-1">
-                                                                        <Label className="text-[11px] text-muted-foreground">Dikte</Label>
-                                                                        <Input
-                                                                            value={maatwerkLine.thickness}
-                                                                            onChange={(e) => handleQuoteNoteMaatwerkLineChange(section.id, maatwerkLine.id, 'thickness', e.target.value)}
-                                                                            placeholder="mm"
-                                                                            inputMode="decimal"
-                                                                            className="h-9"
-                                                                        />
-                                                                    </div>
-                                                                    <div className="space-y-1">
-                                                                        <Label className="text-[11px] text-muted-foreground">Oppervlakte</Label>
-                                                                        <div className="flex h-9 items-center text-sm">
-                                                                            {noteSurfaceArea(maatwerkLine, noteSurfaceSelection?.surfaces.find(surface => surface.key === `${index}:${maatwerkIndex}`)?.kind || (/plafond/i.test(maatwerkLine.title) ? 'plafond' : 'wand')) > 0
-                                                                                ? `${noteSurfaceArea(maatwerkLine, noteSurfaceSelection?.surfaces.find(surface => surface.key === `${index}:${maatwerkIndex}`)?.kind || (/plafond/i.test(maatwerkLine.title) ? 'plafond' : 'wand')).toLocaleString('nl-NL', { maximumFractionDigits: 2 })} m²`
-                                                                                : '— m²'}
-                                                                        </div>
-                                                                    </div>
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        className="mt-5 h-9 w-9 sm:self-end"
-                                                                        onClick={() => handleRemoveQuoteNoteMaatwerkLine(section.id, maatwerkLine.id)}
-                                                                        aria-label="Verwijder maatwerkregel"
-                                                                        title="Verwijder maatwerkregel"
-                                                                    >
-                                                                        <Trash2 className="h-4 w-4" />
-                                                                    </Button>
-                                                                </div>
+                                                                <NoteMeasurementRow
+                                                                    key={maatwerkLine.id}
+                                                                    row={maatwerkLine}
+                                                                    kind={noteSurfaceSelection?.surfaces.find(surface => surface.key === `${index}:${maatwerkIndex}`)?.kind || (/plafond/i.test(maatwerkLine.title || section.title) ? 'plafond' : 'wand')}
+                                                                    onChange={(field, value) => field === 'title'
+                                                                        ? handleQuoteNoteMaatwerkTitleChange(section.id, maatwerkLine.id, value)
+                                                                        : handleQuoteNoteMaatwerkLineChange(section.id, maatwerkLine.id, field, value)}
+                                                                    onRemove={() => handleRemoveQuoteNoteMaatwerkLine(section.id, maatwerkLine.id)}
+                                                                />
                                                             ))}
                                                         </div>
                                                     )}

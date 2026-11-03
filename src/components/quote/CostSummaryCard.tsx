@@ -2,11 +2,13 @@
 
 import { CalculationResult, QuoteSettings, formatCurrency } from '@/lib/quote-calculations';
 import { Euro, Minus, Plus } from 'lucide-react';
+import { SharedQuoteAmountBar } from './SharedQuoteAmountBar';
 import styles from './CostSummaryCard.module.css';
 import type { ScopeCostKey } from '@/lib/quote-scope-costs';
 import { Switch } from '@/components/ui/switch';
 
 interface CostSummaryCardProps {
+    sharedQuoteAmount?: unknown;
     jointFinishingError?: string;
     onSelectNoteSurfaces?: () => void;
     isResolvingNoteSurfaces?: boolean;
@@ -57,6 +59,7 @@ type AdditiveAmountField =
     | 'totaalIncl';
 
 export function CostSummaryCard({
+    sharedQuoteAmount,
     totals,
     settings,
     jointFinishingError,
@@ -1002,6 +1005,7 @@ export function CostSummaryCard({
                 </div>
             </div>
             </div>
+                <div className="min-w-0">
                 <div className={`${styles.profitPanel} rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3`}>
                     <div className="mb-2 flex items-center justify-between gap-4">
                         <span className="font-medium text-foreground">Verwachte winst (incl. btw)</span>
@@ -1041,6 +1045,8 @@ export function CostSummaryCard({
                             <span className="font-medium text-emerald-500">{formatCurrency(winstPerWerkdag)}</span>
                         </div>
                     </div>
+                </div>
+                <SharedQuoteAmountBar snapshot={sharedQuoteAmount} currentAmount={totals.totaalInclBtw} />
                 </div>
             </div>
         </div>

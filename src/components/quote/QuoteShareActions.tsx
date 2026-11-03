@@ -17,7 +17,7 @@ interface QuoteShareActionsProps {
   message: string;
   phone: string;
   prepareFiles: (ids: string[]) => Promise<File[]>;
-  markSent?: (ids?: string[]) => Promise<void> | void;
+  markSent?: (ids?: string[], files?: File[]) => Promise<void> | void;
   onClose: () => void;
   onBusyChange: (busy: boolean) => void;
   messageEditor?: ReactNode;
@@ -114,12 +114,12 @@ export function QuoteShareActions({ compact = false, open, selectedIds, blocked,
 
   const updateSentStatus = async (instruction = 'Controleer in WhatsApp of je de offerte hebt verstuurd.'): Promise<void> => {
     try {
-      await markSent?.(selectedIds);
+      await markSent?.(selectedIds, files || []);
       setStatusFailed(false);
       setNotice(compact ? '' : (markSent ? 'Status bijgewerkt naar Verzonden. ' : '') + instruction);
     } catch {
       setStatusFailed(true);
-      setNotice('WhatsApp is geopend, maar de offertestatus kon niet worden bijgewerkt. Probeer de status opnieuw op te slaan.');
+      setNotice('WhatsApp is geopend, maar de offertestatus en het gedeelde bedrag konden niet worden opgeslagen. Probeer de status opnieuw op te slaan.');
     }
   };
 

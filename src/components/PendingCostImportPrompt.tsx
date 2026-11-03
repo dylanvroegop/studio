@@ -512,6 +512,7 @@ export function PendingCostImportPrompt() {
                         <SelectItem value="telefoon">Telefoon</SelectItem>
                         <SelectItem value="leadkosten">Leadkosten</SelectItem>
                         <SelectItem value="storage">Storage</SelectItem>
+                        <SelectItem value="huur">Huur</SelectItem>
                         <SelectItem value="overig">Overig</SelectItem>
                       </SelectContent>
                     </Select>
@@ -576,7 +577,7 @@ export function PendingCostImportPrompt() {
                           <Select value={item.category || 'materiaal'} onValueChange={(value) => updateLineItem(index, { category: normalizeProjectCostCategory(value), offerte_id: null })}>
                             <SelectTrigger aria-label={`Categorie regel ${index + 1}`} className="w-44"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              {['materiaal', 'gereedschap', 'autokosten', 'boetes', 'schulden', 'afval', 'brandstof', 'eigen_verbruik', 'hotel', 'telefoon', 'leadkosten', 'storage', 'overig'].map((category) => (
+                              {['materiaal', 'gereedschap', 'autokosten', 'boetes', 'schulden', 'afval', 'brandstof', 'eigen_verbruik', 'hotel', 'telefoon', 'leadkosten', 'storage', 'huur', 'overig'].map((category) => (
                                 <SelectItem key={category} value={category}>{PROJECT_COST_CATEGORY_LABELS[normalizeProjectCostCategory(category)]}</SelectItem>
                               ))}
                             </SelectContent>

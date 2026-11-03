@@ -977,6 +977,7 @@ export default function OffertesPage() {
 
         snapshot.docs.forEach((docSnap) => {
           const raw = docSnap.data() as Record<string, unknown>;
+          if (raw.isGoogleCalendarHistory === true) return;
           const quoteId = cleanDisplayText(raw.quoteId);
           const cache = isPlainObject(raw.cache) ? raw.cache : null;
 

@@ -5,7 +5,7 @@ import React, { useEffect, useState, useTransition, useRef, useCallback, useMemo
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, PlusCircle, Trash2, AlertCircle, Maximize2, Square, Slash, Triangle, CornerDownRight, ArrowDownToLine, Info, X, Search, ChevronDown, ChevronUp, Eye, EyeOff, ArrowDownUp, Copy } from 'lucide-react';
-import { doc, getDoc, updateDoc, setDoc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, serverTimestamp, deleteField, runTransaction } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import html2canvas from 'html2canvas';
@@ -69,9 +69,13 @@ import {
 import {
   assignCalculationMeasurementsToNoteJob,
   buildCalculationMeasurementAssignments,
+  syncImportedCalculationMeasurements,
+  importedQuoteNotesUpdate,
   getQuoteNoteJobTitles,
 } from '@/lib/calculation-note-assignment';
 import { saveQuoteBackup } from '@/lib/quote-backup';
+import { NoteMeasurementImportDialog } from '@/components/quote/NoteMeasurementImportDialog';
+import { applyNoteImportPatches, parseNoteImportRows, type NoteImportRow, type NoteImportPatch } from '@/lib/note-measurement-import';
 
 
 interface VakInputCardProps {
@@ -358,6 +362,7 @@ export default function GenericMeasurementPage() {
   const [measurementAssignmentOptions, setMeasurementAssignmentOptions] = useState<string[]>([]);
   const [pendingMeasurementLines, setPendingMeasurementLines] = useState<string[]>([]);
   const [pendingQuoteNotes, setPendingQuoteNotes] = useState('');
+  const [noteImportRows, setNoteImportRows] = useState<NoteImportRow[] | null>(null);
   const [isPending, startTransition] = useTransition();
   const AUTOSAVE_DEBOUNCE_MS = 9000;
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2795,9 +2800,12 @@ export default function GenericMeasurementPage() {
       const clones = selectedIndexes
         .map((index) => prev[index])
         .filter(Boolean)
-        .map((source) => typeof structuredClone === 'function'
-          ? structuredClone(source)
-          : JSON.parse(JSON.stringify(source)));
+        .map((source) => {
+          const clone = typeof structuredClone === 'function' ? structuredClone(source) : JSON.parse(JSON.stringify(source));
+          // Een echte kopie is een nieuw onderdeel, geen tweede eigenaar van de bronmaat.
+          delete clone.noteImportSource;
+          return clone;
+        });
       return clones.length > 0 ? [...prev, ...clones] : prev;
     });
     setIsCopyItemDialogOpen(false);
@@ -4628,9 +4636,35 @@ export default function GenericMeasurementPage() {
           return;
         }
 
-        const quoteNotes = String(latestQuote.data()?.notities || '');
+        const storedNotes = String(latestQuote.data()?.notities || '');
+        const imported = syncImportedCalculationMeasurements(storedNotes, assignments);
+        const quoteNotes = imported.notes;
+        if (imported.sources.size > 0) {
+          // Werk de bronverwijzingen tegelijk met Notes bij; een volgende opslag
+          // vervangt daardoor dezelfde regels, ook nadat de maten zijn aangepast.
+          const linkedItems = processedItems.map((item, index) => imported.sources.has(index)
+            ? { ...item, noteImportSource: imported.sources.get(index) }
+            : item);
+          await saveQuoteBackup({ user, quoteId, kind: 'notes', notes: quoteNotes, source: 'calculation-imported-measurements-update' });
+          await runTransaction(firestore, async transaction => {
+            const currentQuote = await transaction.get(quoteRef);
+            if (String(currentQuote.data()?.notities || '') !== storedNotes) {
+              throw new Error('De notities zijn intussen gewijzigd. Sla opnieuw op om de nieuwste maten te gebruiken.');
+            }
+            transaction.update(quoteRef, {
+              ...importedQuoteNotesUpdate(storedNotes, quoteNotes, currentQuote.data()?.privateNotities),
+              [`klussen.${klusId}.maatwerk.basis`]: cleanFirestoreData(linkedItems, { allowEmptyArrays: true }),
+              updatedAt: serverTimestamp(),
+            });
+          });
+          setItems(linkedItems);
+        }
         const noteJobTitles = getQuoteNoteJobTitles(quoteNotes);
-        const assignmentLines = assignments.map((assignment) => assignment.line);
+        const assignmentLines = assignments.filter(assignment => !assignment.source).map(assignment => assignment.line);
+        if (assignmentLines.length === 0) {
+          router.push(`/offertes/${quoteId}/overzicht`);
+          return;
+        }
 
         if (noteJobTitles.length === 1) {
           const assignedNotes = assignCalculationMeasurementsToNoteJob(quoteNotes, noteJobTitles[0], assignmentLines);
@@ -4706,64 +4740,23 @@ export default function GenericMeasurementPage() {
   };
 
   const applyNoteToCalculation = useCallback((note: { title?: string; content: string }) => {
-    const content = String(note.content || '').trim();
-    const readDimensionValues = (label: 'Lengte' | 'Hoogte'): string[] => {
-      const values: string[] = [];
-      const matcher = new RegExp(`${label}\\s*[:=]\\s*([^|;\\n]+)`, 'gi');
-      for (const match of content.matchAll(matcher)) {
-        const value = String(match[1] || '').replace(/\\s*mm\\b/gi, '').trim();
-        if (value && !values.includes(value)) values.push(value);
-      }
-      return values;
-    };
-
-    const lengths = readDimensionValues('Lengte');
-    const heights = readDimensionValues('Hoogte');
-    const pairs = Array.from({ length: Math.max(lengths.length, heights.length) }, (_, index) => ({
-      lengte: lengths[index] || lengths[0] || '',
-      hoogte: heights[index] || heights[0] || '',
-    })).filter((pair) => pair.lengte || pair.hoogte);
-    const uniquePairs = pairs.filter((pair, index, all) => (
-      all.findIndex((candidate) => candidate.lengte === pair.lengte && candidate.hoogte === pair.hoogte) === index
-    ));
-
-    if (uniquePairs.length === 0) {
-      toast({
-        title: 'Geen lengte en hoogte gevonden',
-        description: 'Deze notitie bevat geen ingevulde maatvoering.',
-        variant: 'destructive',
-      });
+    const rows = parseNoteImportRows(note.content || '', note.title?.trim() || '');
+    if (!rows.length) {
+      toast({ title: 'Geen maten gevonden', description: 'Deze notitie bevat geen geldige ingevulde maatvoering.', variant: 'destructive' });
       return;
     }
-
-    const firstPair = uniquePairs[0];
-    setItems((previousItems) => {
-      const nextItems = previousItems.length > 0 ? [...previousItems] : [createEmptyItem()];
-      uniquePairs.forEach((pair, pairIndex) => {
-        const targetIndex = pairIndex === 0 ? 0 : nextItems.length;
-        if (targetIndex === nextItems.length) nextItems.push(createEmptyItem());
-        nextItems[targetIndex] = {
-          ...nextItems[targetIndex],
-          ...(pair.lengte ? { lengte: pair.lengte } : {}),
-          ...(pair.hoogte ? { hoogte: pair.hoogte } : {}),
-        };
-      });
-      return nextItems;
-    });
-
-    const copiedMeasurements = [
-      firstPair.lengte ? `Lengte: ${firstPair.lengte} mm` : '',
-      firstPair.hoogte ? `Hoogte: ${firstPair.hoogte} mm` : '',
-    ].filter(Boolean).join('\n');
-    void navigator.clipboard?.writeText(copiedMeasurements).catch(() => undefined);
-    toast({
-      title: 'Maten in calculatie gezet',
-      description: `${uniquePairs.length > 1 ? `${uniquePairs.length} maatregels zijn` : 'Lengte en hoogte zijn'} ingevuld en gekopieerd.`,
-    });
-    window.setTimeout(() => {
-      document.querySelector('[data-calculation-measurements]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 0);
+    setNoteImportRows(rows);
   }, [toast]);
+
+  const applyNoteImport = (patches: NoteImportPatch[]): void => {
+    try {
+      setItems(applyNoteImportPatches(items, patches, createEmptyItem, noteImportRows || undefined));
+      setNoteImportRows(null);
+      toast({ title: 'Maten overgenomen', description: 'De gekoppelde notitiematen worden bij opslaan bijgewerkt.' });
+    } catch (error) {
+      toast({ title: 'Maten niet overgenomen', description: error instanceof Error ? error.message : 'Controleer de gekozen onderdelen.', variant: 'destructive' });
+    }
+  };
 
   if (!isMounted) return null;
 
@@ -4806,6 +4799,10 @@ export default function GenericMeasurementPage() {
 
   return (
     <main className="mobile-calm relative min-h-screen bg-background text-foreground">
+      {noteImportRows && <NoteMeasurementImportDialog
+        rows={noteImportRows} fields={fields} items={items} itemLabel={itemLabel}
+        onCancel={() => setNoteImportRows(null)} onApply={applyNoteImport}
+      />}
       <WizardHeader
         title={jobConfig.title}
         backLink={backUrl}

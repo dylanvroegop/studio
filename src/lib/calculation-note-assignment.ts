@@ -1,8 +1,12 @@
+import { noteMeasurementIdentity, type NoteImportSource } from './note-measurement-import';
 import type { MeasurementField } from '@/lib/job-registry';
+import { formatNoteShape, noteShapeFields, type NoteMeasurement } from './note-surfaces';
 
 export interface CalculationMeasurementAssignment {
   label: string;
   line: string;
+  itemIndex?: number;
+  source?: NoteImportSource;
 }
 
 const MAATWERK_TITLE_RE = /^#*\s*maatwerk\b/i;
@@ -85,7 +89,7 @@ export function buildCalculationMeasurementAssignments(
   return items.flatMap((item, index) => {
     const length = getFieldValue(item, lengthField);
     const width = getFieldValue(item, widthField);
-    const height = getFieldValue(item, heightField);
+    const height = item.shape === 'gable' ? displayValue(item.hoogte, 'mm') : getFieldValue(item, heightField);
     const thickness = getFieldValue(item, thicknessField);
     const extras = fields
       .filter((field) => field.type === 'number' && !primaryKeys.has(field.key))
@@ -97,10 +101,42 @@ export function buildCalculationMeasurementAssignments(
 
     if (!length && !width && !height && !thickness && extras.length === 0) return [];
 
+    const source = item.noteImportSource as NoteImportSource | undefined;
     const itemTitle = `${itemLabel || 'Onderdeel'} ${index + 1}`;
-    const baseLabel = sourceJobLabel ? `${sourceJobLabel} — ${itemTitle}` : itemTitle;
-    const label = extras.length > 0 ? `${baseLabel} (${extras.join('; ')})` : baseLabel;
+    const baseLabel = source?.title || (sourceJobLabel ? `${sourceJobLabel} — ${itemTitle}` : itemTitle);
+    // Een boeiboord heeft twee onafhankelijke vlakken, met elk een eigen lengte.
+    // Exporteer die apart, zodat Notes geen lengte × hoogte óf breedte hoeft te raden.
+    if (fields.some(field => field.key === 'lengte_onderzijde')) {
+      const number = (value: unknown): number => {
+        const parsed = Number(String(value ?? '').replace(',', '.'));
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+      };
+      const frontLength = number(item.lengte);
+      const frontHeight = number(item.hoogte);
+      const bottomLength = number(item.lengte_onderzijde);
+      const bottomWidth = number(item.breedte);
+      const count = item.boeiboord_mirror ? 2 : 1;
+      const result: CalculationMeasurementAssignment[] = [];
+      for (let copy = 1; copy <= count; copy++) {
+        const suffix = count > 1 ? ` ${copy}` : '';
+        if (frontLength && frontHeight) {
+          const label = `${baseLabel} — Voorzijde${suffix}`;
+          const shape = item.shape === 'slope' || item.shape === 'gable'
+            ? `Vorm: slope | Hoogte links: 0 mm | Hoogte rechts: ${frontHeight} mm`
+            : `Vorm: rectangle | Hoogte: ${frontHeight} mm`;
+          result.push({ label, line: `- ${label} = Lengte: ${frontLength} mm | ${shape}`, itemIndex: index, ...(source ? { source } : {}) });
+        }
+        if (bottomLength && bottomWidth) {
+          const label = `${baseLabel} — Onderzijde${suffix}`;
+          result.push({ label, line: `- ${label} = Vorm: rectangle | Lengte: ${bottomLength} mm | Breedte: ${bottomWidth} mm`, itemIndex: index, ...(source ? { source } : {}) });
+        }
+      }
+      if (!result.length && source) throw new Error(`Vul voor "${source.title}" minimaal één volledige voorzijde of onderzijde in.`);
+      return result;
+    }
+    const label = extras.length > 0 && !source ? `${baseLabel} (${extras.join('; ')})` : baseLabel;
     const dimensions = [
+      formatNoteShape({ ...noteShapeFields(item), shape: String(item.shape || 'rectangle') }),
       length ? `Lengte: ${length}` : '',
       width ? `Breedte: ${width}` : '',
       height ? `Hoogte: ${height}` : '',
@@ -112,7 +148,35 @@ export function buildCalculationMeasurementAssignments(
     return [{
       label,
       line: `- ${label} = ${dimensions.join(' | ')}`,
+      itemIndex: index,
+      ...(source ? { source } : {}),
     }];
+  });
+}
+
+// Oude automatisch gekopieerde regels missen de vorm. Vul alleen aan bij een
+// unieke bronregel met dezelfde titel en ongewijzigde, reeds ingevulde maten.
+export function restoreCalculationNoteShapes<T extends NoteMeasurement>(rows: T[], jobs: unknown): T[] {
+  if (!jobs || typeof jobs !== 'object') return rows;
+  const sources = Object.values(jobs).flatMap((job: any, jobIndex) => {
+    const title = job?.maatwerk?.meta?.title;
+    if (!title || !Array.isArray(job?.maatwerk?.basis)) return [];
+    return job.maatwerk.basis.map((item: Record<string, unknown>, itemIndex: number) => ({
+      prefix: `${title} ${jobIndex + 1} — `, index: itemIndex + 1, item,
+    }));
+  });
+  return rows.map(row => {
+    if (row.shape) return row;
+    const matches = sources.filter(({ prefix, index, item }) => {
+      if (!row.title.startsWith(prefix)) return false;
+      const itemTitle = row.title.slice(prefix.length).split(' (')[0];
+      if (!itemTitle.endsWith(` ${index}`)) return false;
+      return ([['length', 'lengte'], ['width', 'breedte'], ['height', 'hoogte'], ['thickness', 'dikte']] as const)
+        .every(([noteKey, sourceKey]) => !row[noteKey].trim() || row[noteKey].trim() === String(item[sourceKey] ?? '').trim());
+    });
+    return matches.length === 1
+      ? { ...row, ...noteShapeFields(matches[0].item), shape: String(matches[0].item.shape || 'rectangle') }
+      : row;
   });
 }
 
@@ -159,7 +223,19 @@ export function assignCalculationMeasurementsToNoteJob(
       if (/^####\s+/.test(lines[index])) break;
       const trimmed = lines[index].trim();
       if (!trimmed || !/^[-*•]\s*/.test(trimmed)) continue;
-      existingMeasurementIdentities.add(normalizeMeasurementLineIdentity(trimmed));
+      // Verrijk dezelfde oude automatische regel in plaats van de vorm als
+      // extra oppervlak toe te voegen. Gewijzigde maten blijven aparte regels.
+      if (!/\bVorm:/.test(trimmed)) {
+        const upgraded = uniqueIncomingLines.find(incoming => {
+          const split = incoming.indexOf('=');
+          const legacy = `${incoming.slice(0, split + 1)} ${incoming.slice(split + 1).split('|')
+            .filter(part => !/^\s*(?:Vorm|Hoogte (?:links|rechts|top|[123])|Lengte [12]):/i.test(part))
+            .map(part => part.trim()).join(' | ')}`;
+          return normalizeMeasurementLineIdentity(legacy) === normalizeMeasurementLineIdentity(trimmed);
+        });
+        if (upgraded) lines[index] = upgraded;
+      }
+      existingMeasurementIdentities.add(normalizeMeasurementLineIdentity(lines[index]));
     }
   }
 
@@ -185,4 +261,49 @@ export function assignCalculationMeasurementsToNoteJob(
   }
 
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** De herstelkopie blijft apart van de actieve notities en wordt nooit vernieuwd. */
+export function importedQuoteNotesUpdate(notesBefore: string, notesAfter: string, privateNotes?: string): { notities: string; privateNotities: string } {
+  return { notities: notesAfter, privateNotities: privateNotes ?? notesBefore };
+}
+
+/** Alleen expliciet uit het koppelscherm geïmporteerde regels worden vervangen. */
+export function syncImportedCalculationMeasurements(
+  rawNotes: string,
+  assignments: CalculationMeasurementAssignment[],
+): { notes: string; sources: Map<number, NoteImportSource> } {
+  const sources = new Map<number, NoteImportSource>();
+  let lines = rawNotes.replace(/\r\n/g, '\n').split('\n');
+  const groups = new Map<number, CalculationMeasurementAssignment[]>();
+  for (const assignment of assignments) {
+    if (!assignment.source || assignment.itemIndex === undefined) continue;
+    groups.set(assignment.itemIndex, [...(groups.get(assignment.itemIndex) || []), assignment]);
+  }
+  for (const [itemIndex, group] of groups) {
+    const source = group[0].source!;
+    const headings = lines.flatMap((line, index) => line.match(/^###(?!#)\s*(.*)$/)?.[1]?.trim() === source.sectionTitle ? [index] : []);
+    if ((source.sectionTitle && headings.length !== 1) || (!source.sectionTitle && headings.length > 1)) {
+      throw new Error(`Notitieblok "${source.sectionTitle}" is gewijzigd. Koppel de maten opnieuw via Maten naar calculatie zetten.`);
+    }
+    const start = headings[0] ?? -1;
+    const nextHeading = lines.findIndex((line, index) => index > start && /^###\s/.test(line));
+    const end = nextHeading < 0 ? lines.length : nextHeading;
+    const indexes = new Set<number>();
+    for (const original of source.lines) {
+      const identity = noteMeasurementIdentity(original);
+      const lineCount = original.split('\n').length;
+      const matches = lines.flatMap((line, index) => index > start && index + lineCount <= end && line.trim()
+        && noteMeasurementIdentity(lines.slice(index, index + lineCount).join('\n')) === identity ? [index] : []);
+      if (matches.length !== 1 || Array.from({ length: lineCount }, (_, offset) => matches[0] + offset).some(index => indexes.has(index))) {
+        throw new Error(`De bronmaat "${source.title}" is gewijzigd of komt dubbel voor. Koppel deze opnieuw via Maten naar calculatie zetten.`);
+      }
+      for (let offset = 0; offset < lineCount; offset++) indexes.add(matches[0] + offset);
+    }
+    const first = Math.min(...indexes);
+    const replacement = group.map(assignment => assignment.line);
+    lines = lines.flatMap((line, index) => index === first ? replacement : indexes.has(index) ? [] : [line]);
+    sources.set(itemIndex, { ...source, lines: replacement });
+  }
+  return { notes: lines.join('\n'), sources };
 }

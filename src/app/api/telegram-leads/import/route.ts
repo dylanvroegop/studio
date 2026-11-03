@@ -482,7 +482,7 @@ export async function POST(request: Request) {
       // verwijderde blijven gereserveerd tot expliciete bevestiging/verwijdering.
       for (const document of importSnapshot.docs) {
         const data = document.data();
-        if (document.id === importRef.id || data.appointment_status !== 'pending' || planningIds.has(data.appointment_id)
+        if (document.id === importRef.id || data.appointment_id === ownEntryId || data.appointment_status !== 'pending' || planningIds.has(data.appointment_id)
           || data.calendarSyncState === 'cancelled' || data.cancelledInGoogle) continue;
         const date = data.appointment_date || data.suggested_appointment_date;
         const time = data.appointment_time || data.suggested_appointment_time;
@@ -513,7 +513,35 @@ export async function POST(request: Request) {
       let appointmentJobTitle = jobTitle;
       let legacyAppointment: { date: string; time: string; startDate: Date; status: 'pending' | 'scheduled'; googleEventId: string | null } | null = null;
 
-      const duplicate = await transaction.get(importRef);
+      let duplicate = await transaction.get(importRef);
+      let aliasImport = false;
+      // n8n kan voor een vervolgscreenshot een nieuwe sessie aanmaken. Alleen
+      // dezelfde gecontroleerde klant én exact hetzelfde moment mogen dan de
+      // bestaande reservering hergebruiken; naam alleen is geen afspraakkoppeling.
+      if (!duplicate.exists && matchedClient && appointmentStart) {
+        const candidates = importSnapshot.docs.filter(document => {
+          const imported = document.data();
+          if (imported.source !== SOURCE || imported.client_id !== matchedClient.ref.id
+            || !imported.project_id || !imported.appointment_id) return false;
+          const savedEntry = planningSnapshot.docs.find(entry => entry.id === imported.appointment_id);
+          const entryData = savedEntry ? reconciledData.get(savedEntry.id) || savedEntry.data() : null;
+          const status = entryData?.status || imported.appointment_status;
+          if (!['pending', 'scheduled', 'confirmed'].includes(status)
+            || entryData?.calendarSyncState === 'cancelled' || imported.cancelledInGoogle) return false;
+          const date = imported.appointment_date || imported.suggested_appointment_date;
+          const time = imported.appointment_time || imported.suggested_appointment_time;
+          const start = entryData ? firestoreDate(entryData.startDate) : date && time ? amsterdamDateTime(date, time) : null;
+          return start?.getTime() === appointmentStart!.getTime();
+        });
+        const appointments = new Set(candidates.map(document => JSON.stringify([
+          document.data().project_id, document.data().appointment_id,
+        ])));
+        if (appointments.size > 1) throw new TelegramIdentityConflict();
+        if (candidates[0]) {
+          duplicate = candidates[0];
+          aliasImport = true;
+        }
+      }
       if (duplicate.exists) {
         const data = duplicate.data() as ExistingImportResult;
         const existingClient = clients.find(client => client.ref.id === data.client_id);
@@ -665,8 +693,12 @@ export async function POST(request: Request) {
             JSON.stringify(data[key as keyof ImportResult]) !== JSON.stringify(value));
           const cachedOptionsChanged = JSON.stringify(existingAppointmentData?.cache?.suggestedAppointmentOptions)
             !== JSON.stringify(reused.suggested_appointment_options);
-          if (cachedResponseChanged || (existingSuggestion && cachedOptionsChanged)) {
-            transaction.set(importRef, { ...reused, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          if (aliasImport || cachedResponseChanged || (existingSuggestion && cachedOptionsChanged)) {
+            transaction.set(importRef, {
+              ...reused,
+              ...(aliasImport ? { userId: uid, source: SOURCE, lead_key: input.lead_key, createdAt: FieldValue.serverTimestamp() } : {}),
+              updatedAt: FieldValue.serverTimestamp(),
+            }, { merge: true });
             if (appointmentIsReusable && duplicateAppointmentRef) {
               transaction.set(duplicateAppointmentRef, { cache: { suggestedAppointmentOptions: reused.suggested_appointment_options } }, { merge: true });
             }
@@ -852,7 +884,9 @@ export async function POST(request: Request) {
         transaction.set(transactionAppointmentRef, {
           userId: uid,
           quoteId: transactionProjectRef.id,
-          leadKey: input.lead_key,
+          leadKey: reuseAppointment
+            ? planningSnapshot.docs.find(document => document.id === transactionAppointmentRef.id)?.data().leadKey || input.lead_key
+            : input.lead_key,
           source: SOURCE,
           startDate: Timestamp.fromDate(plannedAppointment),
           endDate: Timestamp.fromDate(appointmentEnd),
@@ -941,7 +975,7 @@ export async function POST(request: Request) {
         const range = planningEntry(entryData);
         if (!range) throw new Error('De opgeslagen afspraak mist een geldige datum.');
         const eventId = await syncTelegramAppointmentCalendar(calendar, {
-          entryId: entryRef.id, quoteId: result.project_id, leadKey: input.lead_key,
+          entryId: entryRef.id, quoteId: result.project_id, leadKey: entryData.leadKey || input.lead_key,
           status: entryData.status === 'scheduled' || entryData.status === 'confirmed' ? 'scheduled' : 'pending', ...range,
           clientName: entryData.cache?.clientName || clientInput.client_name || '',
           projectTitle: entryData.cache?.projectTitle || jobTitle,

@@ -121,3 +121,10 @@ test('normale statuswijziging voor niet-Telegram planning blijft werken', async 
   assert.equal(s.stored().status, 'scheduled');
   assert.equal(s.requests.length, 1);
 });
+
+test('Google-historie kan geen nieuwe werkplanning of uren krijgen via de edit-hook', async () => {
+  const s = scenario({ stored: { ...baseEntry(), source: 'google', isGoogleCalendarHistory: true, status: 'completed' } });
+  await assert.rejects(s.update({ status: 'scheduled', scheduledHours: 8 }), /alleen-lezen/);
+  assert.equal(s.writes.length, 0);
+  assert.equal(s.requests.length, 0);
+});

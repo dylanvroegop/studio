@@ -36,3 +36,38 @@ assert.ok(calculateJointFinishingCost({ a: job('wanden', 'AK2', [{
     shape: 'gable', lengte: 6600, hoogte: 800,
 }]) }).errors.length, 'Ontbrekende nokhoogte niet verzinnen');
 console.log('Nadenraming geslaagd: wand, plafond, gekozen kant, gemengde offerte, ontbrekende maten, RK, openingen en twee zijden.');
+
+// Regressie: de opgeslagen plafondmaten uit de melding van 3 november.
+const ceilingBasis = [
+    { lengte: 7250, breedte: 3200 },
+    { shape: 'slope', lengte: 3800, hoogteLinks: 0, hoogteRechts: 1750 },
+    { lengte: 1400, breedte: 1650 },
+];
+const ceilingResult = calculateJointFinishingCost({ a: job('plafonds', 'AK2', ceilingBasis) });
+assert.deepEqual(ceilingResult.errors, []);
+assert.equal(ceilingResult.area, 28.835);
+assert.match(ceilingResult.detail, /28,84 m²/);
+assert.equal(ceilingResult.amount, 22.20);
+assert.equal(calculateJointFinishingCost({ a: job('plafonds', 'AK2', [ceilingBasis[1]]) }).area, 3.325);
+assert.equal(calculateJointFinishingCost({ a: job('plafonds', 'AK2', [{
+    ...ceilingBasis[1], hoogteLinks: 1750, hoogteRechts: 0,
+}]) }).area, 3.325, 'Gespiegelde driehoek');
+assert.ok(calculateJointFinishingCost({ a: job('plafonds', 'AK2', [{
+    shape: 'slope', lengte: 3800, hoogteRechts: 1750,
+}]) }).errors.length, 'Ontbrekend is geen expliciete nul');
+assert.equal(calculateJointFinishingCost({ a: job('plafonds', 'AK2', [{
+    ...ceilingBasis[1], openings: [{ width: 500, length: 1000 }],
+}]) }).area, 2.825, 'Plafondopening gebruikt lengte');
+assert.equal(calculateJointFinishingCost({ a: job('plafonds', 'AK2', [{
+    shape: 'gable', lengte: 4000, hoogte: 0, hoogteNok: 2000,
+}]) }).area, 4, 'Puntvorm met zijhoogte nul');
+assert.equal(calculateJointFinishingCost({ a: job('plafonds', 'AK2', [{
+    shape: 'l-shape', lengte: 6000, lengte1: 2000, hoogte1: 4000, hoogte2: 2000,
+}]) }).area, 16);
+assert.equal(calculateJointFinishingCost({ a: job('plafonds', 'AK2', [{
+    shape: 'u-shape', lengte: 6000, lengte1: 2000, lengte2: 2000, hoogte1: 4000, hoogte2: 2000, hoogte3: 4000,
+}]) }).area, 20);
+assert.ok(calculateJointFinishingCost({ a: job('plafonds', 'AK2', [{
+    shape: 'l-shape', lengte: 6000, lengte1: 7000, hoogte1: 4000, hoogte2: 2000,
+}]) }).errors.length, 'Ongeldige deelmaten niet optellen');
+console.log('Vormmaten geslaagd: driehoek 3,325 m²; totaal 28,835 m² en € 22,20; punt-, L- en U-vorm.');

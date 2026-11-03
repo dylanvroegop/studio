@@ -93,7 +93,9 @@ function eventDateRange(event: {
 }
 
 function overlapsRange(startDate: Date, endDate: Date, rangeStart: Date, rangeEnd: Date): boolean {
-  return startDate.getTime() <= rangeEnd.getTime() && endDate.getTime() >= rangeStart.getTime();
+  // Google timeMin/timeMax sluiten gebeurtenissen uit die precies op de grens
+  // eindigen/beginnen. Verwijder ook lokaal uitsluitend dit opgehaalde bereik.
+  return startDate.getTime() < rangeEnd.getTime() && endDate.getTime() > rangeStart.getTime();
 }
 
 function googleEventDocId(eventId: string): string {
@@ -146,6 +148,7 @@ interface GoogleCalendarEvent {
   status?: string | null;
   summary?: string | null;
   description?: string | null;
+  location?: string | null;
   colorId?: string | null;
   htmlLink?: string | null;
   start?: { dateTime?: string | null; date?: string | null } | null;
@@ -261,13 +264,6 @@ export async function POST(request: Request) {
       for (const event of events) {
         const eventId = event.id?.trim();
         if (!eventId || event.status === 'cancelled') continue;
-        // Completed GPS work is exported for historical reference only. It
-        // must not be imported back as a new planning item.
-        if (event.extendedProperties?.private?.calvoraType === 'worked-hours') {
-          skipped += 1;
-          continue;
-        }
-
         const parsedRange = eventDateRange(event);
         if (!parsedRange || !overlapsRange(parsedRange.startDate, parsedRange.endDate, rangeStart, rangeEnd)) {
           skipped += 1;
@@ -323,14 +319,15 @@ export async function POST(request: Request) {
     const writes: Array<{ ref: FirebaseFirestore.DocumentReference; data: Record<string, unknown> }> = [];
 
     for (const { eventId, event, parsedRange } of googleEventsInRange) {
-      const markedEntryId = event.extendedProperties?.private?.calvoraPlanningEntryId;
+      const isHistory = event.extendedProperties?.private?.calvoraType === 'worked-hours';
+      const markedEntryId = !isHistory && event.extendedProperties?.private?.calvoraPlanningEntryId;
       const markedEntry = markedEntryId ? planningSnapshot.docs.find(document => document.id === markedEntryId) : undefined;
       const markedReservation = markedEntry && markedEntry.data().userId === decoded.uid
         && isTelegramReservation(markedEntry.data()) ? markedEntry : undefined;
       const directMatch = markedReservation || localEntriesByGoogleId.get(eventId);
       const summary = event.summary?.trim() || 'Google Calendar';
       const description = event.description?.trim() || '';
-      const scheduledHours = Math.max(
+      const scheduledHours = isHistory ? 0 : Math.max(
         0,
         (parsedRange.endDate.getTime() - parsedRange.startDate.getTime()) / 3_600_000,
       );
@@ -338,7 +335,7 @@ export async function POST(request: Request) {
       // Older rows may have been created before the Google event ID was saved.
       // Reuse one exact date match when possible so quote links and financial
       // metadata are not lost during the authoritative replacement.
-      const fallbackMatch = !directMatch
+      const fallbackMatch = !directMatch && !isHistory
         ? localEntriesToReplace.find((planningDoc) => {
             if (usedFallbackDocs.has(planningDoc.id)) return false;
             const data = planningDoc.data() as {
@@ -368,7 +365,7 @@ export async function POST(request: Request) {
         notes?: string;
         createdAt?: unknown;
       } | undefined;
-      const importedStatus = googleAppointmentStatus(event, existing?.status);
+      const importedStatus = isHistory ? 'completed' : googleAppointmentStatus(event, existing?.status);
       const targetRef = existingDoc?.ref || firestore.collection('planning_entries').doc(googleEventDocId(eventId));
       targetDocs.add(targetRef.path);
 
@@ -379,7 +376,8 @@ export async function POST(request: Request) {
       }
 
       const sameDates = existingDoc && samePlanningRange(existingDoc.data(), parsedRange.startDate, parsedRange.endDate);
-      const sameTitle = existingDoc?.data().cache?.clientName === summary
+      const sameTitle = existingDoc?.data().googleCalendarSummary === summary
+        && existingDoc?.data().isGoogleCalendarHistory === isHistory
         && existingDoc?.data().status === importedStatus;
       if (!existingDoc) imported += 1;
       else if (sameDates && sameTitle) unchanged += 1;
@@ -389,37 +387,40 @@ export async function POST(request: Request) {
         ref: targetRef,
         data: {
           userId: decoded.uid,
-          quoteId: existing?.quoteId || '',
+          quoteId: isHistory ? '' : existing?.quoteId || '',
           googleCalendarEventId: eventId,
           googleCalendarColorId: event.colorId || null,
+          googleCalendarSummary: summary,
+          isGoogleCalendarHistory: isHistory,
           googleCalendarHtmlLink: event.htmlLink || null,
           isAllDay: parsedRange.allDay,
           // Keep Calvora ownership for entries that were created locally so
           // later edits can continue to update their Google event. Standalone
           // Google events remain Google-owned and are overwritten on refresh.
-          source: existing?.source || (existingDoc ? 'calvora' : 'google'),
+          source: isHistory ? 'google' : existing?.source || (existingDoc ? 'calvora' : 'google'),
           startDate: Timestamp.fromDate(parsedRange.startDate),
           endDate: Timestamp.fromDate(parsedRange.endDate),
           scheduledHours,
-          planningType: existing?.planningType === 'werkbespreking'
-            || event.colorId === GOOGLE_CALENDAR_RED_COLOR_ID
+          planningType: !isHistory && (existing?.planningType === 'werkbespreking'
+            || event.colorId === GOOGLE_CALENDAR_RED_COLOR_ID)
             ? 'werkbespreking'
             : 'job',
-          isAutoSplit: existing?.isAutoSplit || false,
-          parentEntryId: existing?.parentEntryId || null,
+          isAutoSplit: isHistory ? false : existing?.isAutoSplit || false,
+          parentEntryId: isHistory ? null : existing?.parentEntryId || null,
           status: importedStatus,
           ...(existingDoc && isTelegramReservation(existingDoc.data()) ? {
             appointmentState: importedStatus,
             calendarSyncState: 'synced',
           } : {}),
-          notes: description || existing?.notes || '',
+          notes: isHistory ? description : description || existing?.notes || '',
           cache: {
-            clientName: existingDoc && isTelegramReservation(existingDoc.data()) ? existing?.cache?.clientName || summary : summary,
-            projectTitle: existing?.cache?.projectTitle || summary,
-            projectAddress: existing?.cache?.projectAddress || '',
+            clientName: !isHistory && (existing?.quoteId || (existingDoc && isTelegramReservation(existingDoc.data())))
+              ? existing?.cache?.clientName || summary : summary,
+            projectTitle: isHistory ? summary : existing?.cache?.projectTitle || summary,
+            projectAddress: event.location?.trim() || (isHistory ? '' : existing?.cache?.projectAddress || ''),
             totalQuoteHours: scheduledHours,
-            totalQuoteAmount: existing?.cache?.totalQuoteAmount || 0,
-            totalQuoteEarnings: existing?.cache?.totalQuoteEarnings || 0,
+            totalQuoteAmount: isHistory ? 0 : existing?.cache?.totalQuoteAmount || 0,
+            totalQuoteEarnings: isHistory ? 0 : existing?.cache?.totalQuoteEarnings || 0,
           },
           updatedAt: new Date(),
           createdAt: existing?.createdAt || new Date(),

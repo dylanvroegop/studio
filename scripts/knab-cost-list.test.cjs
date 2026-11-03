@@ -428,3 +428,19 @@ test('zonder bevestiging blijven andere eigen overboekingen zichtbaar', () => {
   assert.equal(build([transaction('own', -100)], [], [], new Set(['own'])).data.length, 1);
   assert.equal(build([transaction('external', -100)], [], [], new Set(), new Map([['external', 'profit']])).data.length, 1);
 });
+
+test('huurleveranciers krijgen Huur met behoud van bedrag en handmatige keuzes', () => {
+  for (const name of ['Boels Verhuur B.V.', 'PIVADA verhuur']) {
+    const tx = transaction('rental', -121, { counterparty_name: name });
+    const result = build([tx], [source('rent', 121, { category: 'gereedschap' })], [ledger('rental', ['rent'])]);
+    assert.equal(result.data[0].category, 'huur');
+    assert.equal(result.data[0].amount_incl_btw, 121);
+    assert.equal(result.data[0].btw_amount, 21);
+    const manual = build([tx], [], [], new Set(), new Map([['rental', 'overig']]));
+    assert.equal(manual.data[0].category, 'overig');
+  }
+  const { inferProjectCostCategory } = require('../src/lib/project-costs');
+  assert.equal(inferProjectCostCategory({ supplierName: 'ALLSAFE' }), 'storage');
+  assert.equal(inferProjectCostCategory({ supplierName: 'Boels Verhuur B.V.' }), 'huur');
+  assert.equal(inferProjectCostCategory({ supplierName: 'PIVADA verhuur' }), 'huur');
+});

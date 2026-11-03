@@ -86,7 +86,7 @@ function parseQuoteNotitiesToNotes(rawValue: string): Note[] {
   let activeSection: { title: string; notesLines: string[] } | null = null;
 
   for (const line of lines) {
-    const titleMatch = line.match(/^###\s*(.*)$/);
+    const titleMatch = line.match(/^###(?!#)\s*(.*)$/);
     if (titleMatch) {
       activeSection = { title: titleMatch[1].trim(), notesLines: [] };
       sections.push(activeSection);
@@ -589,7 +589,7 @@ export function PersonalNotes({ quoteId, jobId, context, onApplyToCalculation }:
                                   size="icon"
                                   variant="ghost"
                                   className="h-7 w-7 text-emerald-600 hover:text-emerald-700"
-                                  onClick={() => onApplyToCalculation(note)}
+                                  onClick={() => { setIsOpen(false); onApplyToCalculation(note); }}
                                   aria-label="Maten naar calculatie zetten"
                                   title="Maten naar calculatie zetten"
                                 >

@@ -24,6 +24,9 @@ export interface PlanningEntry {
     notes?: string;
     googleCalendarEventId?: string | null;
     googleCalendarColorId?: string | null;
+    googleCalendarSummary?: string | null;
+    /** Alleen een weergave van de GPS-historie in Google; geen nieuwe werkplanning. */
+    isGoogleCalendarHistory?: boolean;
     source?: 'calvora' | 'google';
     googleCalendarHtmlLink?: string | null;
     isAllDay?: boolean;

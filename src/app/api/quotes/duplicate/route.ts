@@ -58,6 +58,8 @@ function buildDuplicateQuotePayload(
   // quote, so copying their references would make delete actions unsafe.
   [
     'sentAt',
+    'whatsappQuoteSnapshot',
+    'whatsappQuoteSnapshotHistory',
     'acceptedAt',
     'rejectedAt',
     'expiredAt',

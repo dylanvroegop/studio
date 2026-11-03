@@ -57,6 +57,7 @@ interface StoredPlanningEntry {
   planningType?: string;
   status?: string;
   source?: string;
+  isGoogleCalendarHistory?: boolean;
   leadKey?: string;
   googleCalendarEventId?: string;
   googleCalendarColorId?: string | null;
@@ -117,6 +118,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, action: 'delete', alreadyDeleted: true });
       }
 
+      if (entrySnap.data()?.isGoogleCalendarHistory === true) {
+        return NextResponse.json({ error: 'Deze Google Agenda-historie is alleen-lezen.' }, { status: 409 });
+      }
+
       // Google Calendar is the external source of truth for synced planning.
       // Deleting a Calvora planning row must never delete the Google event.
       await entryRef.update({ googleCalendarEventId: null, updatedAt: new Date() });
@@ -131,6 +136,9 @@ export async function POST(request: Request) {
     let entryData = entrySnap.data() as StoredPlanningEntry;
     if (entryData.userId !== decoded.uid) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (entryData.isGoogleCalendarHistory === true) {
+      return NextResponse.json({ error: 'Deze Google Agenda-historie is alleen-lezen.' }, { status: 409 });
     }
     if (entryData.status === 'completed' || entryData.status === 'cancelled' || entryData.calendarSyncState === 'cancelled') {
       return NextResponse.json({ error: 'Deze afspraak is verwijderd uit Google Calendar.', code: 'calendar_event_deleted' }, { status: 409 });

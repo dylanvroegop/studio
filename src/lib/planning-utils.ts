@@ -134,7 +134,7 @@ export function getDateRangeForView(view: TimelineView, currentDate: Date): { st
             // Similar to Google Calendar approach
             const monthStart = startOfMonth(currentDate);
             const start = startOfWeek(monthStart, { weekStartsOn: 1 });
-            const end = addDays(start, 41); // Exactly 6 weeks (42 days)
+            const end = endOfDay(addDays(start, 41)); // Inclusief de volledige laatste zichtbare dag.
             return {
                 start,
                 end

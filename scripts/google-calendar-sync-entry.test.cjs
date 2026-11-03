@@ -248,3 +248,14 @@ test('Calvora verwijderen blijft uitsluitend ontkoppelen', async () => {
   assert.equal(s.calls.calendar.length, 0);
   assert.equal(s.rows.get('planning_entries/entry').googleCalendarEventId, null);
 });
+
+test('Google-historie wordt nooit via planning teruggeschreven of losgekoppeld', async () => {
+  for (const action of ['upsert', 'delete']) {
+    const s = scenario({ entry: { ...baseEntry, source: 'google', isGoogleCalendarHistory: true, status: 'completed' } });
+    const response = await s.post({ action });
+    assert.equal(response.status, 409);
+    assert.match(response.body.error, /alleen-lezen/);
+    assert.equal(s.calls.calendar.length, 0);
+    assert.equal(s.calls.writes.length, 0);
+  }
+});

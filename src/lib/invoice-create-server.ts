@@ -1,3 +1,4 @@
+import { compareSharedQuoteAmount, isQuoteAmountConfirmed } from '@/lib/quote-shared-amount';
 import { createHash } from 'node:crypto';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { buildInvoiceDocument, type CreateInvoiceParams } from '@/lib/invoice-document';
@@ -117,6 +118,11 @@ export async function createInvoiceAtomically(
     if (input.handmatigEindbedrag && !input.opmerking?.trim()) {
       throw new InvoiceCreationError('Vul een reden voor het aangepaste eindbedrag in.', 400);
     }
+    const sharedAmountCheck = !combinedId && input.invoiceType === 'eind'
+      ? compareSharedQuoteAmount(quote.whatsappQuoteSnapshot, requested, deduction) : null;
+    if (sharedAmountCheck?.differenceCents && !isQuoteAmountConfirmed(sharedAmountCheck, input.sharedQuoteAmountConfirmation)) {
+      throw new InvoiceCreationError('Het bedrag wijkt af van de via WhatsApp gedeelde offerte. Bevestig het verschil of pas het eindbedrag aan.');
+    }
     const snapshots = billing.issuedAdvances.map((row) => ({
       id: row.id, invoiceNumberLabel: row.invoiceNumberLabel || '', status: row.status || '',
       totaalInclBtw: row.totalsSnapshot?.totaalInclBtw || 0,
@@ -135,6 +141,12 @@ export async function createInvoiceAtomically(
       combinedContext: combinedContext || null, combinedQuoteIds,
       linkedMeerwerkbonIds: combinedId ? [combinedId] : null,
     }, invoiceNumber, timestamp);
+    if (sharedAmountCheck) payload.sharedQuoteAmountCheck = {
+      ...sharedAmountCheck,
+      confirmedDifference: sharedAmountCheck.differenceCents !== 0,
+      checkedAt: timestamp,
+      checkedBy: uid,
+    };
     if (frozenCalculation) payload.invoiceSnapshotVersion = 1;
     if (snapshots.length > 1) payload.financialAdjustments.voorschotFacturen = snapshots;
 

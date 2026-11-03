@@ -180,6 +180,98 @@ test('bevestiging mag niet over een andere gereserveerde afspraak heen schrijven
   assert.equal(route.events.get(first.body.google_calendar_event_id).status, 'tentative');
   assert.equal(route.events.size, 2);
 });
+test('nieuwe Telegram-sessie bevestigt dezelfde klant en hetzelfde moment zonder duplicaten', async () => {
+  const route = makeRoute();
+  const proposed = await route.post();
+  successful(proposed);
+  const incoming = {
+    client_name: client.client_name, city: client.city, phone: null, email: null,
+    address: 'Teststraat 14', appointment_date: proposed.body.appointment_date,
+    appointment_time: proposed.body.appointment_time, appointment_status: 'confirmed',
+  };
+  const confirmed = await route.post(incoming, 'new-session');
+  successful(confirmed);
+  for (const key of ['client_id', 'project_id', 'appointment_id', 'google_calendar_event_id']) {
+    assert.equal(confirmed.body[key], proposed.body[key]);
+  }
+  assert.equal(confirmed.body.appointment_status, 'scheduled');
+  assert.equal(route.events.size, 1);
+  const event = route.events.get(confirmed.body.google_calendar_event_id);
+  assert.equal(event.status, 'confirmed');
+  assert.doesNotMatch(event.summary, /PENDING/);
+  assert.match(event.description, /Telegram-sessie: test-session/);
+  assert.match(event.description, /Teststraat 14/);
+  assert.match(event.description, new RegExp(client.phone.replace('+', '\\+')));
+  const stored = route.rows.get('clients/' + confirmed.body.client_id);
+  assert.equal(stored.telefoonnummer, client.phone);
+  assert.equal(stored.emailadres, client.email);
+  const alias = route.rows.get('telegram_lead_imports/' + importId('new-session'));
+  assert.equal(alias.userId, 'owner');
+  assert.equal(alias.lead_key, 'new-session');
+  for (const session of ['test-session', 'new-session', 'third-session']) {
+    const retry = await route.post(incoming, session);
+    successful(retry);
+    assert.equal(retry.body.appointment_id, proposed.body.appointment_id);
+  }
+  assert.equal(route.calendarCalls.filter(call => call.action === 'insert').length, 1);
+  assert.equal(route.writes.filter(write => write.path.startsWith('quotes/') && !write.options?.merge).length, 1);
+});
+test('nieuwe sessie bewaart pending en hergebruikt de afspraak ook bij herhaling zonder datum', async () => {
+  const route = makeRoute();
+  const proposed = await route.post();
+  const repeated = await route.post({ ...client, appointment_date: proposed.body.appointment_date,
+    appointment_time: proposed.body.appointment_time, appointment_status: 'pending' }, 'new-session');
+  successful(repeated);
+  assert.equal(repeated.body.appointment_id, proposed.body.appointment_id);
+  assert.equal(repeated.body.appointment_status, 'pending');
+  const alias = route.rows.get('telegram_lead_imports/' + importId('new-session'));
+  assert.equal(alias.userId, 'owner');
+  assert.equal(alias.source, 'telegram_werkspot');
+  const retry = await route.post(client, 'new-session');
+  successful(retry);
+  assert.equal(retry.body.appointment_id, proposed.body.appointment_id);
+  assert.equal(route.events.size, 1);
+});
+test('andere klant op hetzelfde moment blijft ook met nieuwe sessie een conflict', async () => {
+  const route = makeRoute();
+  const proposed = await route.post();
+  const writes = route.writes.length;
+  const conflict = await route.post({ ...other(1), appointment_date: proposed.body.appointment_date,
+    appointment_time: proposed.body.appointment_time, appointment_status: 'confirmed' }, 'new-session');
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.body.code, 'APPOINTMENT_SLOT_CONFLICT');
+  assert.equal(route.writes.length, writes);
+  assert.equal(route.events.size, 1);
+});
+test('tegenstrijdige contactgegevens koppelen nooit aan een reservering via een nieuwe sessie', async () => {
+  const route = makeRoute();
+  const proposed = await route.post();
+  const writes = route.writes.length;
+  const conflict = await route.post({ ...client, phone: '+31699999999', appointment_date: proposed.body.appointment_date,
+    appointment_time: proposed.body.appointment_time, appointment_status: 'confirmed' }, 'new-session');
+  assert.equal(conflict.body.code, 'CLIENT_IDENTITY_CONFLICT');
+  assert.equal(route.writes.length, writes);
+});
+test('meerdere afspraken voor dezelfde klant op hetzelfde moment worden niet willekeurig gekoppeld', async () => {
+  const route = makeRoute();
+  const proposed = await route.post();
+  const imported = route.rows.get('telegram_lead_imports/' + importId('test-session'));
+  route.rows.set('telegram_lead_imports/' + importId('ambiguous'), { ...imported, appointment_id: 'other-appointment' });
+  const writes = route.writes.length;
+  const conflict = await route.post({ ...client, appointment_date: proposed.body.appointment_date,
+    appointment_time: proposed.body.appointment_time, appointment_status: 'confirmed' }, 'new-session');
+  assert.equal(conflict.body.code, 'CLIENT_IDENTITY_CONFLICT');
+  assert.equal(route.writes.length, writes);
+});
+test('nieuwe sessie herstelt dezelfde oude reservering als de planningrij ontbreekt', async () => {
+  const route = makeRoute({ duplicate: { ...cached, source: 'telegram_werkspot' } });
+  const confirmed = await route.post({ ...client, appointment_date: cached.appointment_date,
+    appointment_time: cached.appointment_time, appointment_status: 'confirmed' }, 'new-session');
+  successful(confirmed);
+  assert.equal(confirmed.body.project_id, cached.project_id);
+  assert.equal(confirmed.body.appointment_id, cached.appointment_id);
+  assert.equal(confirmed.body.appointment_status, 'scheduled');
+});
 test('Google-verwijdering maakt het moment vrij; een nieuwe import plant opnieuw op dezelfde offerte', async () => {
   const route = makeRoute();
   const first = await route.post();

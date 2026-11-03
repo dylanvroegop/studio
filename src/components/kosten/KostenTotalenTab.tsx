@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 import { ReisbudgetBox } from './ReisbudgetBox';
 import { KostenStartDate } from './KostenStartDate';
-import { isReportDate, reportPeriodMonths, reportOverlapFraction, reportMonths, reportEarnings, reportElapsed } from '@/lib/kosten-report-period';
+import { isReportDate, reportDayCounts, reportPeriodMonths, reportOverlapFraction, reportMonths, reportEarnings, reportElapsed } from '@/lib/kosten-report-period';
 import { KostenAfstandRow } from './KostenAfstandRow';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { BankAccountView } from '@/lib/bank-overzicht';
@@ -36,6 +36,8 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
   const [reductions, setReductions] = useState<Partial<Record<ProjectCostCategory, string>>>({});
   const [cash, setCash] = useState('');
   const [potentialHoursInput, setPotentialHoursInput] = useState('');
+  const [potentialMonthlyHoursInput, setPotentialMonthlyHoursInput] = useState('');
+  const [potentialHoursMode, setPotentialHoursMode] = useState<'total' | 'monthly'>('total');
   const [extraMonthlyFixed, setExtraMonthlyFixed] = useState('');
   const [bankBalance, setBankBalance] = useState<number | null>(null);
   const [bankLoading, setBankLoading] = useState(true);
@@ -52,11 +54,15 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
     setCash('');
     setExtraMonthlyFixed('');
     setPotentialHoursInput('');
+    setPotentialMonthlyHoursInput('');
+    setPotentialHoursMode('total');
     setStorageError(false);
     if (!storageKey) return;
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
       if (saved && typeof saved === 'object') {
+        if (saved.potentialHoursMode === 'monthly') setPotentialHoursMode('monthly');
+        if (typeof saved.potentialMonthlyHoursInput === 'string') setPotentialMonthlyHoursInput(saved.potentialMonthlyHoursInput);
         if (typeof saved.potentialHoursInput === 'string') setPotentialHoursInput(saved.potentialHoursInput);
         if (typeof saved.extraMonthlyFixed === 'string') setExtraMonthlyFixed(saved.extraMonthlyFixed);
         if (typeof saved.cash === 'string') setCash(saved.cash);
@@ -77,12 +83,12 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
     // Eerst herstellen: standaardwaarden mogen een opgeslagen scenario niet overschrijven.
     if (!storageKey || restoredKey !== storageKey) return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ month, reductions, cash, extraMonthlyFixed, potentialHoursInput }));
+      localStorage.setItem(storageKey, JSON.stringify({ month, reductions, cash, extraMonthlyFixed, potentialHoursInput, potentialMonthlyHoursInput, potentialHoursMode }));
       setStorageError(false);
     } catch {
       setStorageError(true);
     }
-  }, [storageKey, restoredKey, month, reductions, cash, extraMonthlyFixed, potentialHoursInput]);
+  }, [storageKey, restoredKey, month, reductions, cash, extraMonthlyFixed, potentialHoursInput, potentialMonthlyHoursInput, potentialHoursMode]);
 
   const loadBankBalance = useCallback(async (sync = false, signal?: AbortSignal) => {
     if (!user) return;
@@ -188,12 +194,17 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
   const workedDayCount = !workedDates || adjustments.some((row) => row.worked_days === null) ? null
     : workedDates.filter((date) => !adjustments.some((row) => date >= row.start_date && date <= row.end_date)).length
       + adjustments.reduce((sum, row) => sum + (row.worked_days ?? 0) * reportOverlapFraction(row.start_date, row.end_date, periodStart, periodEnd), 0);
+  const dayCounts = reportDayCounts(periodStart, periodEnd, workedDayCount);
   const addedMinutes = adjustments.reduce((sum, row) => sum + row.minutes * reportOverlapFraction(row.start_date, row.end_date, periodStart, periodEnd), 0);
   const totalMinutes = duration ? duration.workMinutes + (duration.supplierMinutes ?? 0) + (duration.driveMinutes ?? 0) + duration.unsplitMinutes + addedMinutes : null;
   const fixedCosts = remainingFixedCosts(summary.totals, requestedReductions) + extraFixedCosts;
-  const potentialHoursValue = potentialHoursInput.trim() ? parseScenarioAmount(potentialHoursInput) : undefined;
+  const activePotentialHoursInput = potentialHoursMode === 'monthly' ? potentialMonthlyHoursInput : potentialHoursInput;
+  const enteredPotentialHours = activePotentialHoursInput.trim() ? parseScenarioAmount(activePotentialHoursInput) : undefined;
+  const potentialHoursValue = typeof enteredPotentialHours === 'number' && potentialHoursMode === 'monthly'
+    ? enteredPotentialHours * monthCount : enteredPotentialHours;
   const invalidPotentialHours = potentialHoursValue === null || (potentialHoursValue !== undefined && potentialHoursValue < 0);
   const earnings = reportEarnings(loading || error || invalidScenario ? null : scenario.balanceWithoutCosts, timeError ? null : totalMinutes, monthCount, fixedCosts, invalidPotentialHours ? null : potentialHoursValue);
+  const potentialThreeMonths = earnings.potentialMonthly === null ? null : earnings.potentialMonthly * 3;
   const money = (value: number | null) => value === null ? 'n.b.' : euro(value);
   const cell = 'px-3 py-2 text-right tabular-nums whitespace-nowrap';
   if (!storageKey || restoredKey !== storageKey) return <p className="text-sm text-muted-foreground">Totalen laden…</p>;
@@ -215,7 +226,13 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
         <h2 className="mb-2 text-sm font-semibold">Kosten</h2>
         {loading ? <p className="text-sm text-muted-foreground">Kosten laden…</p> : error ? <p role="alert" className="text-sm text-destructive">Kosten konden niet worden geladen.</p> : <>
           <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="border-b text-muted-foreground"><tr><th className="px-2 py-2 text-center text-xs font-normal">Hele bedrag</th><th className="px-3 py-2 text-left font-normal">Categorie</th><th className={`${cell} font-normal`}>Bedrag</th><th className={`${cell} font-normal`}>Aantal</th><th className={`${cell} font-normal`}>Minder (€)</th></tr></thead>
-            <tbody>{categories.map(({ value, label }) => <tr key={value} className={`border-b border-border/50 ${value === 'alle' ? 'font-semibold' : reductions[value] === 'all' ? 'text-red-400' : ''}`}><td className="px-2 py-2 text-center">{value !== 'alle' ? <Checkbox aria-label={`${label} helemaal weglaten`} disabled={summary.totals[value] <= 0} checked={reductions[value] === 'all'} onCheckedChange={(checked) => setReductions((current) => ({ ...current, [value]: checked === true ? 'all' : '' }))} /> : null}</td><td className="px-3 py-2">{value === 'alle' ? 'Totaal uitgaven' : value === 'eigen_verbruik' ? 'Privé-opnames (netto)' : label}</td><td className={cell}>{euro(summary.totals[value])}</td><td className={cell}>{summary.counts[value]}</td><td className="px-2 py-2">{value !== 'alle' ? <Input type="text" inputMode="decimal" aria-label={`${label} minder in euro`} placeholder="0,00" value={reductions[value] === 'all' ? Math.max(0, summary.totals[value]).toFixed(2).replace('.', ',') : reductions[value] || ''} onChange={(event) => setReductions((current) => ({ ...current, [value]: event.target.value }))} className={`h-8 w-28 text-right tabular-nums ${reductions[value] === 'all' ? 'text-red-400' : ''}`} /> : null}</td></tr>)}</tbody>
+            <tbody>{categories.map(({ value, label }) => {
+              const totalCents = Math.round(summary.totals[value] * 100);
+              const reductionCents = value === 'alle' ? 0 : Math.round((requestedReductions[value] || 0) * 100);
+              const costColor = value === 'alle' || totalCents <= 0 ? ''
+                : reductionCents === totalCents ? 'text-emerald-400' : 'text-red-400';
+              return <tr key={value} className={`border-b border-border/50 ${value === 'alle' ? 'font-semibold' : costColor}`}><td className="px-2 py-2 text-center">{value !== 'alle' ? <Checkbox aria-label={`${label} helemaal weglaten`} className={costColor === 'text-red-400' ? 'border-red-400' : undefined} disabled={summary.totals[value] <= 0} checked={reductions[value] === 'all'} onCheckedChange={(checked) => setReductions((current) => ({ ...current, [value]: checked === true ? 'all' : '' }))} /> : null}</td><td className="px-3 py-2">{value === 'alle' ? 'Totaal uitgaven' : value === 'eigen_verbruik' ? 'Privé-opnames (netto)' : label}</td><td className={cell}>{euro(summary.totals[value])}</td><td className={cell}>{summary.counts[value]}</td><td className="px-2 py-2">{value !== 'alle' ? <Input type="text" inputMode="decimal" aria-label={`${label} minder in euro`} placeholder="0,00" value={reductions[value] === 'all' ? Math.max(0, summary.totals[value]).toFixed(2).replace('.', ',') : reductions[value] || ''} onChange={(event) => setReductions((current) => ({ ...current, [value]: event.target.value }))} className={`h-8 w-28 text-right tabular-nums ${costColor}`} /> : null}</td></tr>;
+            })}</tbody>
           </table></div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
             <label htmlFor="extra-monthly-fixed" className="text-sm">Extra vaste lasten per maand</label>
@@ -258,9 +275,15 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
       <section className="min-w-0 rounded-lg border border-border bg-card p-4">
         <div className="space-y-3">
           <h2 className="text-sm font-semibold">Potentieel</h2>
-          <div className="flex items-center justify-between gap-3">
-            <label htmlFor="potential-hours" className="text-sm">Potentieel totaal uren</label>
-            <Input id="potential-hours" type="text" inputMode="decimal" value={potentialHoursInput} placeholder={(240 * monthCount).toLocaleString('nl-NL', { maximumFractionDigits: 1, useGrouping: false })} onChange={(event) => setPotentialHoursInput(event.target.value)} aria-invalid={invalidPotentialHours} className="h-8 w-28 text-right tabular-nums" />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Select value={potentialHoursMode} onValueChange={(value) => setPotentialHoursMode(value === 'monthly' ? 'monthly' : 'total')}>
+              <SelectTrigger aria-label="Uren invullen voor" className="h-8 w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="total">Totaal uren</SelectItem>
+                <SelectItem value="monthly">Uren per maand</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input id="potential-hours" aria-label={potentialHoursMode === 'monthly' ? 'Potentieel uren per maand' : 'Potentieel totaal uren'} type="text" inputMode="decimal" value={activePotentialHoursInput} placeholder={(potentialHoursMode === 'monthly' ? 240 : 240 * monthCount).toLocaleString('nl-NL', { maximumFractionDigits: 1, useGrouping: false })} onChange={(event) => potentialHoursMode === 'monthly' ? setPotentialMonthlyHoursInput(event.target.value) : setPotentialHoursInput(event.target.value)} aria-invalid={invalidPotentialHours} className="h-8 w-28 text-right tabular-nums" />
           </div>
           {invalidPotentialHours ? <p role="alert" className="text-xs text-destructive">Vul een geldig aantal uren van 0 of meer in.</p> : null}
           <table className="w-full text-sm"><tbody>
@@ -268,6 +291,8 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
               ['Vaste lasten per maand · na besparing', money(loading || error || invalidScenario ? null : fixedCosts / monthCount)],
               [`Potentieel per maand · ${invalidPotentialHours ? '—' : (earnings.potentialHours / monthCount).toLocaleString('nl-NL', { maximumFractionDigits: 1 })} uur`, money(earnings.potentialMonthly)],
               ['Potentieel per maand excl. 21% btw', money(earnings.potentialMonthly === null ? null : earnings.potentialMonthly / 1.21)],
+              [`Potentieel per 3 maanden · ${invalidPotentialHours ? '—' : (earnings.potentialHours / monthCount * 3).toLocaleString('nl-NL', { maximumFractionDigits: 1 })} uur`, money(potentialThreeMonths)],
+              ['Potentieel per 3 maanden excl. 21% btw', money(potentialThreeMonths === null ? null : potentialThreeMonths / 1.21)],
               [`Potentieel totaal · ${invalidPotentialHours ? '—' : earnings.potentialHours.toLocaleString('nl-NL', { maximumFractionDigits: 1 })} uur`, money(earnings.potentialTotal)],
               ['Potentieel totaal excl. 21% btw', money(earnings.potentialTotal === null ? null : earnings.potentialTotal / 1.21)],
               ['Potentieel per uur', money(earnings.potentialHourly)],
@@ -278,8 +303,10 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
       <section className="min-w-0 rounded-lg border border-border bg-card p-4">
         <h2 className="mb-2 text-sm font-semibold">Tijd</h2>
         <table className="w-full text-sm"><tbody>
+          <tr className="border-b border-border/50"><td className="px-3 py-2">Dagen verstreken</td><td className={cell}>{dayCounts.days.toLocaleString('nl-NL')}</td></tr>
           {[
             ['Dagen gewerkt', workedDayCount === null ? 'n.b.' : `${partialAdjustment ? '≈ ' : ''}${workedDayCount.toLocaleString('nl-NL', { maximumFractionDigits: 1 })}`],
+            ['Dagen niet gewerkt', dayCounts.daysOff === null ? 'n.b.' : `${partialAdjustment ? '≈ ' : ''}${dayCounts.daysOff.toLocaleString('nl-NL', { maximumFractionDigits: 1 })}`],
             ['Gewerkt op locatie', duration?.entries ? hours(duration.workMinutes || (duration.unsplitMinutes > 0 ? null : 0)) : 'n.b.'],
             ['Gemiddeld gewerkt per dag', hours(totalMinutes !== null && workedDayCount ? totalMinutes / workedDayCount : null)],
             ...(duration?.unsplitMinutes || addedMinutes ? [['Uren zonder GPS', `${partialAdjustment ? '≈ ' : ''}${hours((duration?.unsplitMinutes ?? 0) + addedMinutes)}`]] : []),
@@ -289,6 +316,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
           <tr className="border-b border-border/50 font-semibold"><td className="px-3 py-2">Totaal geregistreerd</td><td className={cell}>{timeError ? 'n.b.' : !duration ? 'Laden…' : hours(totalMinutes)}</td></tr>
           <tr className="border-b border-border/50"><td className="px-3 py-2">Gemiddeld per maand ({monthLabel} maanden)</td><td className={cell}>{timeError ? 'n.b.' : !duration ? 'Laden…' : hours(totalMinutes !== null && monthCount > 0 ? totalMinutes / monthCount : null)}</td></tr>
         </tbody></table>
+        <p className="mt-2 text-xs text-muted-foreground">Dagen inclusief begin- en einddatum en weekenden. Niet gewerkt = dagen zonder geregistreerd werk.</p>
         {partialAdjustment ? <p className="mt-2 text-xs text-muted-foreground">Uren en werkdagen zonder GPS zijn naar verhouding geschat.</p> : null}
         {timeError ? <p role="alert" className="mt-2 text-xs text-destructive">Uren konden niet worden geladen.</p> : null}
       </section>

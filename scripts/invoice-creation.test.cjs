@@ -276,3 +276,67 @@ test('create API verwerpt ongeldige gecombineerde context; hiermee kan actuele c
   }
   assert.equal(reads, 0);
 });
+
+const sharedSnapshot = (overrides = {}) => ({ id: 'pdf-957', quoteId: 'quote', amountCents: 95700, currency: 'EUR', fileName: 'Offerte.pdf', sharedAt: '2026-11-03T10:00:00.000Z', ...overrides });
+function withShared(h, snapshot = sharedSnapshot()) {
+  h.quote.whatsappQuoteSnapshot = snapshot;
+  h.params.expectedQuoteSignature = invoiceQuoteSignature(h.quote);
+  return h;
+}
+
+test('€984,94 tegenover gedeelde €957 wordt geblokkeerd vóór factuur en nummer; voorschot telt mee', async () => {
+  const h = withShared(harness({ total: 984.94, rows: [advance('first', 478.50, 'betaald', 478.50)] }));
+  assert.equal(h.params.totalsInclBtw, 506.44000000000005);
+  await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', h.params, null), /via WhatsApp gedeelde offerte/);
+  assert.equal(h.commits.length, 0);
+  assert.equal(h.documents.has('counters/invoiceNumber_owner'), false);
+});
+
+test('expliciet ja legt exact bevestigd verschil van €27,94 vast in de nieuwe factuur', async () => {
+  const h = withShared(harness({ total: 984.94, rows: [advance('first', 478.50)] }));
+  const sharedQuoteAmountConfirmation = { snapshotId: 'pdf-957', sharedAmountCents: 95700, invoiceTotalCents: 98494 };
+  const id = await createInvoiceAtomically(h.firestore, 'owner', { ...h.params, sharedQuoteAmountConfirmation }, null);
+  const invoice = h.documents.get(`invoices/${id}`);
+  assert.equal(invoice.totalsSnapshot.totaalInclBtw, 506.44);
+  assert.deepEqual(invoice.sharedQuoteAmountCheck, { ...sharedQuoteAmountConfirmation, differenceCents: 2794, confirmedDifference: true, checkedAt: 'server-time', checkedBy: 'owner' });
+});
+
+test('aanpassen naar €478,50 + voorschot €478,50 klopt met €957 en vereist geen afwijkingsakkoord', async () => {
+  const h = withShared(harness({ total: 984.94, rows: [advance('first', 478.50)] }));
+  const id = await createInvoiceAtomically(h.firestore, 'owner', { ...h.params, totalsInclBtw: 478.50, handmatigEindbedrag: true, opmerking: 'Volgens gedeelde offerte' }, null);
+  const invoice = h.documents.get(`invoices/${id}`);
+  assert.equal(invoice.totalsSnapshot.totaalInclBtw, 478.50);
+  assert.equal(invoice.sharedQuoteAmountCheck.differenceCents, 0);
+  assert.equal(invoice.sharedQuoteAmountCheck.confirmedDifference, false);
+});
+
+test('oude bevestiging is ongeldig na gewijzigde PDF of gewijzigd bedrag; ook verlaging vraagt akkoord', async () => {
+  for (const confirmation of [undefined,
+    { snapshotId: 'old-pdf', sharedAmountCents: 95700, invoiceTotalCents: 90000 },
+    { snapshotId: 'pdf-957', sharedAmountCents: 95700, invoiceTotalCents: 98494 },
+    { snapshotId: 'pdf-957', sharedAmountCents: 99900, invoiceTotalCents: 90000 },
+  ]) {
+    const h = withShared(harness({ total: 900 }));
+    await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', { ...h.params, sharedQuoteAmountConfirmation: confirmation }, null), /via WhatsApp gedeelde offerte/);
+    assert.equal(h.commits.length, 0);
+  }
+});
+
+test('gelijke prijs, ontbrekende historische snapshot en voorschot worden niet als afwijkend eindtotaal behandeld', async () => {
+  const equal = withShared(harness({ total: 957, rows: [advance('first', 478.50)] }));
+  const equalId = await createInvoiceAtomically(equal.firestore, 'owner', equal.params, null);
+  assert.equal(equal.documents.get(`invoices/${equalId}`).sharedQuoteAmountCheck.differenceCents, 0);
+  const old = harness({ total: 957 });
+  const oldId = await createInvoiceAtomically(old.firestore, 'owner', old.params, null);
+  assert.equal(old.documents.get(`invoices/${oldId}`).sharedQuoteAmountCheck, undefined);
+  const pre = withShared(harness({ total: 984.94 }));
+  const preId = await createInvoiceAtomically(pre.firestore, 'owner', { ...pre.params, invoiceType: 'voorschot', totalsInclBtw: 492.47 }, null);
+  assert.equal(pre.documents.get(`invoices/${preId}`).sharedQuoteAmountCheck, undefined);
+});
+
+test('nieuwe gedeelde PDF maakt eerder geladen factuurcontrole ongeldig', async () => {
+  const h = withShared(harness({ total: 957 }));
+  h.quote.whatsappQuoteSnapshot = sharedSnapshot({ id: 'new-pdf' });
+  await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', h.params, null), /offerte is gewijzigd/);
+  assert.equal(h.commits.length, 0);
+});

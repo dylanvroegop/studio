@@ -6,6 +6,7 @@ import { JOB_REGISTRY } from '@/lib/job-registry';
 import { getMaterialRule } from '@/lib/klus-regels-static';
 import { buildManualDataJson } from '@/lib/manual-quote-data';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { runMaterialCalculationPreview } from '@/lib/material-calculation-preview-server';
 import { prepareSimpleCalculation } from '@/lib/simple-material-calculation';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
@@ -17,6 +18,7 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 const CALCULATOR_UNAVAILABLE_CODE = 'calculator_unavailable';
 
 type KlusRegelsRow = {
@@ -386,6 +388,7 @@ function isCalculatorUnavailableError(error: unknown): boolean {
  * POST
  */
 export async function POST(req: Request) {
+  let previewOnly = false;
   let db: FirebaseFirestore.Firestore | null = null;
   let quoteIdForError: string | null = null;
   let quotaReservationId: string | null = null;
@@ -396,6 +399,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, message: 'Body is geen geldige JSON' }, { status: 400 });
     }
 
+    previewOnly = body.previewOnly === true;
     const quoteId = body.quoteId;
     if (!quoteId || typeof quoteId !== 'string') {
       return NextResponse.json({ ok: false, message: 'quoteId ontbreekt' }, { status: 400 });
@@ -403,8 +407,8 @@ export async function POST(req: Request) {
     quoteIdForError = quoteId;
     const webhookTarget = resolveWebhookTarget(body.webhookTarget);
 
-    if (!process.env.N8N_WEBHOOK_URL) throw new Error('ENV ontbreekt: N8N_WEBHOOK_URL');
-    if (!process.env.N8N_HEADER_SECRET) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
+    if (!previewOnly && !process.env.N8N_WEBHOOK_URL) throw new Error('ENV ontbreekt: N8N_WEBHOOK_URL');
+    if (!previewOnly && !process.env.N8N_HEADER_SECRET) throw new Error('ENV ontbreekt: N8N_HEADER_SECRET');
 
     const uid = await bepaalUid(req);
     const trialBlockedResponse = await ensureDemoTrialActiveByUid(uid);
@@ -423,69 +427,71 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, message: 'Geen klussen gevonden om te berekenen.' }, { status: 400 });
     }
 
-    const reserveResult = await reserveCalculationQuotaJobs({
-      uid,
-      quoteId,
-      jobsCount: jobCount,
-    });
-    if (!reserveResult.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          code: 'calculation_limit_reached',
-          message: 'Je maandlimiet voor calculaties is bereikt.',
-          plan: reserveResult.status.plan,
-          usedJobs: reserveResult.status.usedJobs,
-          limit: reserveResult.status.limit,
-          remainingJobs: reserveResult.status.remainingJobs,
-          cycleEnd: reserveResult.status.currentCycleEnd.toISOString(),
-          pricingUrl: getPricingUrl(),
-        },
-        { status: 402 }
-      );
-    }
-    quotaReservationId = reserveResult.reservationId || null;
-    quotaReservationUid = uid;
-
-    // Leg invoer vast vóór n8n een lege run aanmaakt. Bij herberekenen blijft
-    // de actuele editor-data staan; nooit een snapshot terugschrijven na afloop.
-    const { data: editableCalculation, error: editableReadError } = await supabaseAdmin
-      .from('quotes_collection').select('id, data_json')
-      .eq('quoteid', quoteId).eq('gebruikerid', uid)
-      .not('data_json', 'is', null).order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (editableReadError) throw editableReadError;
-    if (!editableCalculation) {
-      const { error: seedError } = await supabaseAdmin.from('quotes_collection').insert({
-        quoteid: quoteId,
-        gebruikerid: uid,
-        status: 'completed',
-        data_json: buildManualDataJson(quote),
-      });
-      if (seedError) throw seedError;
-    }
-
-    // Bewaar een losse, onveranderlijke materiaalstand vóór iedere herberekening.
-    // Editor-patches op calculatieregels kunnen deze historie niet overschrijven.
-    if (editableCalculation?.data_json) {
-      const previous = normalizeDataJson(editableCalculation.data_json);
-      await db.collection('quotes').doc(quoteId).collection('materialCalculationHistory').add({
-        savedAt: new Date().toISOString(),
-        sourceCalculationId: editableCalculation.id,
-        materialsJson: JSON.stringify({
-          grootmaterialen: previous.grootmaterialen || [],
-          verbruiksartikelen: previous.verbruiksartikelen || [],
-        }),
-      });
-    }
-
-    // Eén starttijd voor server en browser, vóór de webhook wordt verstuurd.
     const calculationStartedAt = admin.firestore.Timestamp.now();
-    // Set status to in_behandeling while n8n is processing
-    await db.collection('quotes').doc(quoteId).update({
-      status: 'in_behandeling',
-      calculationStartedAt,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    if (!previewOnly) {
+      const reserveResult = await reserveCalculationQuotaJobs({
+        uid,
+        quoteId,
+        jobsCount: jobCount,
+      });
+      if (!reserveResult.ok) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: 'calculation_limit_reached',
+            message: 'Je maandlimiet voor calculaties is bereikt.',
+            plan: reserveResult.status.plan,
+            usedJobs: reserveResult.status.usedJobs,
+            limit: reserveResult.status.limit,
+            remainingJobs: reserveResult.status.remainingJobs,
+            cycleEnd: reserveResult.status.currentCycleEnd.toISOString(),
+            pricingUrl: getPricingUrl(),
+          },
+          { status: 402 }
+        );
+      }
+      quotaReservationId = reserveResult.reservationId || null;
+      quotaReservationUid = uid;
+
+      // Leg invoer vast vóór n8n een lege run aanmaakt. Bij herberekenen blijft
+      // de actuele editor-data staan; nooit een snapshot terugschrijven na afloop.
+      const { data: editableCalculation, error: editableReadError } = await supabaseAdmin
+        .from('quotes_collection').select('id, data_json')
+        .eq('quoteid', quoteId).eq('gebruikerid', uid)
+        .not('data_json', 'is', null).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (editableReadError) throw editableReadError;
+      if (!editableCalculation) {
+        const { error: seedError } = await supabaseAdmin.from('quotes_collection').insert({
+          quoteid: quoteId,
+          gebruikerid: uid,
+          status: 'completed',
+          data_json: buildManualDataJson(quote),
+        });
+        if (seedError) throw seedError;
+      }
+
+      // Bewaar een losse, onveranderlijke materiaalstand vóór iedere herberekening.
+      // Editor-patches op calculatieregels kunnen deze historie niet overschrijven.
+      if (editableCalculation?.data_json) {
+        const previous = normalizeDataJson(editableCalculation.data_json);
+        await db.collection('quotes').doc(quoteId).collection('materialCalculationHistory').add({
+          savedAt: new Date().toISOString(),
+          sourceCalculationId: editableCalculation.id,
+          materialsJson: JSON.stringify({
+            grootmaterialen: previous.grootmaterialen || [],
+            verbruiksartikelen: previous.verbruiksartikelen || [],
+          }),
+        });
+      }
+
+      // Eén starttijd voor server en browser, vóór de webhook wordt verstuurd.
+      // Set status to in_behandeling while n8n is processing
+      await db.collection('quotes').doc(quoteId).update({
+        status: 'in_behandeling',
+        calculationStartedAt,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     try {
       // ─── 1. Collect ALL Material IDs from every source ───
@@ -1366,7 +1372,12 @@ export async function POST(req: Request) {
       bedrijf,
     });
 
-    const webhookResult = await postN8n(payload, process.env.N8N_HEADER_SECRET, webhookTarget);
+    if (previewOnly) {
+      const preview = await runMaterialCalculationPreview(payload, uid, quoteId);
+      return NextResponse.json({ ok: true, ...preview }, { headers: { 'Cache-Control': 'no-store' } });
+    }
+
+    const webhookResult = await postN8n(payload, process.env.N8N_HEADER_SECRET!, webhookTarget);
 
     // Best effort: sync totaal direct to Firestore so quotes list stays up-to-date.
     await syncQuoteTotalsFromSupabase(db, quoteId, uid);
@@ -1401,7 +1412,7 @@ export async function POST(req: Request) {
 
     const rawMessage = String(e?.message || e || 'Onbekende fout');
 
-    if (db && quoteIdForError) {
+    if (!previewOnly && db && quoteIdForError) {
       try {
         await db.collection('quotes').doc(quoteIdForError).update({
           status: 'fout',

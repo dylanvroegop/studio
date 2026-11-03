@@ -2,6 +2,19 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'commonjs', moduleResolution: 'node' } });
 const { reportMonths, isReportDate, isReportTimeEntry, reportEarnings, reportElapsed } = require('../src/lib/kosten-report-period');
+const { reportDayCounts } = require('../src/lib/kosten-report-period');
+test('kalenderdagen en niet-gewerkte dagen gebruiken dezelfde inclusieve periode', () => {
+  assert.deepEqual(reportDayCounts('2026-09-21', '2026-10-25', 28), { days: 35, daysOff: 7 });
+  assert.deepEqual(reportDayCounts('2026-10-25', '2026-10-25', 1), { days: 1, daysOff: 0 });
+  assert.deepEqual(reportDayCounts('2026-10-01', '2026-10-25', 20.5), { days: 25, daysOff: 4.5 });
+  assert.deepEqual(reportDayCounts('2026-03-28', '2026-03-30', 0), { days: 3, daysOff: 3 });
+});
+test('ontbrekende of ongeldige werkdagen leveren geen verzonnen vrije dagen op', () => {
+  for (const worked of [null, NaN, -1, 36]) {
+    assert.equal(reportDayCounts('2026-09-21', '2026-10-25', worked).daysOff, null);
+  }
+  assert.deepEqual(reportDayCounts('2026-10-26', '2026-10-25', 0), { days: 0, daysOff: 0 });
+});
 test('juni tot oktober is vijf maanden, november zes', () => {
   assert.equal(reportMonths('2026-10-24').length, 5);
   assert.equal(reportMonths('2026-11-01').length, 6);

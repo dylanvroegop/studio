@@ -14,17 +14,24 @@ const object = (v: unknown): Row => v && typeof v === 'object' && !Array.isArray
 
 // Gebruik de vormmaten uit de calculatie, net als de wandtekening.
 // Een puntwand bewaart de zijhoogte in hoogte en de top in hoogteNok.
-function grossSurface(row: Row, ceiling: boolean): number {
+export function grossSurface(row: Row, ceiling: boolean): number {
+    // Nul is een geldige zijhoogte; ontbrekende of onleesbare maten zijn dat niet.
+    const relevantKeys = row.shape === 'slope' ? ['lengte', 'hoogteLinks', 'hoogteRechts']
+        : row.shape === 'gable' ? ['lengte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok']
+        : row.shape === 'l-shape' ? ['lengte', 'lengte1', 'hoogte1', 'hoogte2']
+        : row.shape === 'u-shape' ? ['lengte', 'lengte1', 'lengte2', 'hoogte1', 'hoogte2', 'hoogte3']
+        : ['lengte', ceiling ? (row.hoogte != null ? 'hoogte' : 'breedte') : 'hoogte'];
+    if (relevantKeys.some(key => row[key] != null && row[key] !== ''
+        && (!Number.isFinite(Number(String(row[key]).replace(',', '.'))) || Number(String(row[key]).replace(',', '.')) < 0))) return 0;
     const length = number(row.lengte);
-    const height = number(ceiling ? row.breedte : row.hoogte);
+    const height = number(ceiling ? (row.hoogte ?? row.breedte) : row.hoogte);
     const shape = row.shape || 'rectangle';
     if (shape === 'rectangle' || shape === 'rect') return length * height / 1e6;
-    if (ceiling) return 0;
     if (shape === 'gable') {
         if ((row.hoogte == null || row.hoogte === '')
             && (row.hoogteLinks == null || row.hoogteLinks === '' || row.hoogteRechts == null || row.hoogteRechts === '')) return 0;
-        const left = number(row.hoogteLinks) || height;
-        const right = number(row.hoogteRechts) || height;
+        const left = number(row.hoogteLinks ?? row.hoogte);
+        const right = number(row.hoogteRechts ?? row.hoogte);
         const peak = number(row.hoogteNok);
         if (length <= 0 || left < 0 || right < 0 || peak <= 0 || peak < Math.max(left, right)) return 0;
         // Twee trapezia, met de nok halverwege de wand.
@@ -36,6 +43,19 @@ function grossSurface(row: Row, ceiling: boolean): number {
         if (row.hoogteLinks == null || row.hoogteLinks === '' || row.hoogteRechts == null || row.hoogteRechts === '') return 0;
         if (length <= 0 || left < 0 || right < 0) return 0;
         return length * (left + right) / 2e6;
+    }
+    if (shape === 'l-shape' || shape === 'u-shape') {
+        const keys = shape === 'l-shape'
+            ? ['lengte1', 'hoogte1', 'hoogte2']
+            : ['lengte1', 'lengte2', 'hoogte1', 'hoogte2', 'hoogte3'];
+        if (length <= 0 || keys.some(key => row[key] == null || row[key] === '' || number(row[key]) <= 0)) return 0;
+        const firstLength = number(row.lengte1);
+        const secondLength = shape === 'u-shape' ? number(row.lengte2) : 0;
+        const remaining = length - firstLength - secondLength;
+        if (remaining <= 0) return 0;
+        return (firstLength * number(row.hoogte1)
+            + secondLength * number(row.hoogte2)
+            + remaining * number(shape === 'u-shape' ? row.hoogte3 : row.hoogte2)) / 1e6;
     }
     return 0;
 }
@@ -82,7 +102,9 @@ export function calculateJointFinishingCost(jobsInput: unknown): JointFinishingC
                 if (!(surface > 0)) { invalid = true; break; }
                 for (const opening of Array.isArray(row.openings) ? row.openings : []) {
                     const width = number(opening.breedte ?? opening.width ?? opening.openingWidth);
-                    const h = number(opening.hoogte ?? opening.height ?? opening.openingHeight);
+                    const h = number(ceiling
+                        ? (opening.length ?? opening.lengte ?? opening.hoogte ?? opening.height ?? opening.openingHeight)
+                        : (opening.hoogte ?? opening.height ?? opening.openingHeight));
                     if (!width || !h) { invalid = true; break; }
                     surface -= width * h / 1e6;
                 }
@@ -94,11 +116,13 @@ export function calculateJointFinishingCost(jobsInput: unknown): JointFinishingC
             errors.push(`${title}: m² ontbreken of de vorm is niet eenduidig; controleer de maten.`);
             continue;
         }
+        // Voorkom dat 23,2 + 3,325 + 2,31 als 28,834999... verkeerd wordt weergegeven.
+        jobArea = Number(jobArea.toFixed(9));
         area += jobArea;
         amount += jobArea * JOINT_FINISHING_RATES[edge];
         parts.push(`${jobArea.toLocaleString('nl-NL', { maximumFractionDigits: 2 })} m² ${edge} × € ${JOINT_FINISHING_RATES[edge].toFixed(2).replace('.', ',')}`);
     }
     if (!candidates) errors.push('M² van wanden/plafonds ontbreken; voeg een klus met maten toe.');
     // Geen onvolledige totaalprijs presenteren als slechts een deel van de klussen bekend is.
-    return { amount: errors.length ? 0 : Number(amount.toFixed(2)), area, detail: parts.join(' + '), errors };
+    return { amount: errors.length ? 0 : Number(amount.toFixed(2)), area: Number(area.toFixed(9)), detail: parts.join(' + '), errors };
 }

@@ -1,5 +1,13 @@
 export const KOSTEN_REPORT_START = '2026-06-10';
 
+/** Zelfde inclusieve periode als de geregistreerde werkdagen, inclusief weekenden. */
+export function reportDayCounts(start: string, end: string, workedDays: number | null): { days: number; daysOff: number | null } {
+  const days = Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 86400000) + 1);
+  const daysOff = workedDays === null || !Number.isFinite(workedDays) || workedDays < 0 || workedDays > days
+    ? null : days - workedDays;
+  return { days, daysOff };
+}
+
 /** Inclusieve datums: een deel van een kalendermaand telt naar verhouding mee. */
 export function reportPeriodMonths(start: string, end: string): number {
   if (start > end) return 0;

@@ -93,6 +93,7 @@ export function buildProjectAdresSnapshot(quote: any) {
 }
 
 export interface CreateInvoiceParams {
+    sharedQuoteAmountConfirmation?: import('./quote-shared-amount').QuoteAmountConfirmation;
     userId: string;
     quoteId: string;
     quote: any;

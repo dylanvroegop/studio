@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+**/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -65,3 +66,6 @@ package-lock.json
 /outputs/calculator-zero-filter/
 /outputs/finance-repair-2026-10-17/
 /outputs/material-category-simplification/
+
+# Local generated reports, customer documents and verification screenshots
+/outputs/

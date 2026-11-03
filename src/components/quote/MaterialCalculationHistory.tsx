@@ -1,5 +1,6 @@
 'use client';
 
+import { MaterialCalculationTest } from '@/components/quote/MaterialCalculationTest';
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { buildMaterialComparisonRows } from '@/lib/material-comparison';
 import { Calculator, Loader2, Trash2 } from 'lucide-react';
@@ -100,7 +101,8 @@ export function MaterialCalculationHistory({ quoteId, current, running, onCalcul
     };
     const total = (data: DataJson): number => subtotal(data.grootmaterialen) + subtotal(data.verbruiksartikelen);
     return <>
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+            <MaterialCalculationTest key={quoteId} quoteId={quoteId} current={current} disabled={running || starting} />
             <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
                 <Calculator className="mr-2 h-4 w-4" /> Opnieuw calculeren
             </Button>

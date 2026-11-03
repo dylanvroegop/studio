@@ -14,6 +14,7 @@ import { TimelineView, PlanningEntry, PlanningEntryType } from '@/lib/types-plan
 import { getDateRangeForView, autoSplitJob, calculateEndDateFromHours } from '@/lib/planning-utils';
 import { PlanningGrid } from '@/components/planning/PlanningGrid';
 import { ScheduleModal } from '@/components/planning/ScheduleModal';
+import { GoogleCalendarHistoryDialog } from '@/components/planning/GoogleCalendarHistoryDialog';
 import { SchedulingBanner } from '@/components/planning/SchedulingBanner';
 import { MobileMonthCalendar } from '@/components/planning/MobileMonthCalendar';
 import { format, addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, isToday } from 'date-fns';
@@ -102,6 +103,7 @@ function PlanningPageContent() {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<PlanningEntry | null>(null);
+    const [historyEntry, setHistoryEntry] = useState<PlanningEntry | null>(null);
     const [modalPreselectedDate, setModalPreselectedDate] = useState<Date | undefined>(undefined);
     const [modalPreselectedPlanningType, setModalPreselectedPlanningType] = useState<PlanningEntryType>('job');
     const [modalPreselectedStartTime, setModalPreselectedStartTime] = useState<string | undefined>(undefined);
@@ -431,6 +433,7 @@ function PlanningPageContent() {
 
     const hydratedEntries = useMemo(() => {
         return entries.map((entry) => {
+            if (entry.isGoogleCalendarHistory) return entry;
             const quoteFinance = quoteFinanceById[entry.quoteId];
             const existingAmount = Number((entry.cache as any)?.totalQuoteAmount || 0);
             const existingTotalHours = Number((entry.cache as any)?.totalQuoteHours || 0);
@@ -467,8 +470,8 @@ function PlanningPageContent() {
                     entry,
                     start,
                     end,
-                    clientName: entry.cache?.clientName || 'Onbekende klant',
-                    projectTitle: entry.cache?.projectTitle || '',
+                    clientName: entry.googleCalendarSummary || entry.cache?.clientName || 'Onbekende klant',
+                    projectTitle: entry.googleCalendarSummary ? '' : entry.cache?.projectTitle || '',
                 };
             })
             .sort((a, b) => a.start.getTime() - b.start.getTime());
@@ -535,6 +538,10 @@ function PlanningPageContent() {
     ]);
 
     const handleEntryClick = (entry: PlanningEntry) => {
+        if (entry.isGoogleCalendarHistory) {
+            setHistoryEntry(entry);
+            return;
+        }
         setSelectedEntry(entry);
         setModalPreselectedDate(undefined);
         setModalPreselectedStartTime(undefined);
@@ -701,12 +708,12 @@ function PlanningPageContent() {
 
     const handleEntryDrop = async (entryId: string, newStart: Date) => {
         const entry = entries.find(e => e.id === entryId);
-        if (!entry) return;
+        if (!entry || entry.isGoogleCalendarHistory) return;
 
         // If in week/month view, we want to shift the entire schedule for this quote
         if (view === 'week' || view === 'month') {
             // Only shift the entire quote when dragging the earliest entry.
-            const quoteEntries = entries.filter(e => e.quoteId === entry.quoteId);
+            const quoteEntries = entries.filter(e => e.quoteId === entry.quoteId && !e.isGoogleCalendarHistory);
             const earliestEntry = quoteEntries.reduce((earliest, current) => {
                 const earliestDate = earliest.startDate.toDate();
                 const currentDate = current.startDate.toDate();
@@ -759,6 +766,7 @@ function PlanningPageContent() {
     };
 
     const handleEntryResize = async (entryId: string, newStart: Date, newEnd: Date) => {
+        if (entries.find(entry => entry.id === entryId)?.isGoogleCalendarHistory) return;
         await updateEntry(entryId, {
             startDate: newStart,
             endDate: newEnd
@@ -979,14 +987,14 @@ function PlanningPageContent() {
                                                     : "bg-emerald-500/20 text-emerald-300"
                                             )}
                                         >
-                                            {(item.entry.planningType || 'job') === 'werkbespreking' ? 'Werkbespreking' : 'Klus'}
+                                            {item.entry.isGoogleCalendarHistory ? 'Google Agenda · historie' : (item.entry.planningType || 'job') === 'werkbespreking' ? 'Werkbespreking' : 'Klus'}
                                         </span>
                                     </div>
                                     {item.projectTitle ? (
                                         <div className="mt-1 truncate text-xs text-muted-foreground">{item.projectTitle}</div>
                                     ) : null}
                                     <div className="mt-2 text-xs text-muted-foreground">
-                                        {format(item.start, 'EEE d MMM HH:mm', { locale: nl })} - {format(item.end, 'HH:mm', { locale: nl })}
+                                        {item.entry.isAllDay ? 'Hele dag' : `${format(item.start, 'EEE d MMM HH:mm', { locale: nl })} - ${format(item.end, 'HH:mm', { locale: nl })}`}
                                     </div>
                                 </button>
                             ))
@@ -1009,6 +1017,8 @@ function PlanningPageContent() {
                     />
                 )}
             </div>
+
+            <GoogleCalendarHistoryDialog entry={historyEntry} onClose={() => setHistoryEntry(null)} />
 
             <ScheduleModal
                 isOpen={isScheduleModalOpen}

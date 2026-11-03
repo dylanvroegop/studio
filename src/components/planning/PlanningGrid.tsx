@@ -83,9 +83,11 @@ export function PlanningGrid({
                                 <button type="button" className="border-r border-border p-3 text-left text-sm" onClick={() => onEmptyCellClick(day)}>
                                     {format(day, 'EEEE d MMM', { locale: nl })}
                                 </button>
-                                <div className="relative min-h-14" style={{ gridColumn: '2 / -1' }} data-role="day-slot" data-date={day.toISOString()}>
+                                <div className="relative min-h-14 space-y-1 py-1" style={{ gridColumn: '2 / -1' }} data-role="day-slot" data-date={day.toISOString()}>
                                     {dayEntries.map((entry) => (
-                                        <ScheduleBlock key={entry.id} entry={entry} view={view} day={day} pauseMinutes={pauseMinutes} onClick={() => onEntryClick(entry)} onDragStart={onDragStart} />
+                                        <div key={entry.id} className="relative h-10" data-planning-entry-id={entry.id}>
+                                            <ScheduleBlock entry={entry} view={view} day={day} pauseMinutes={pauseMinutes} onClick={() => onEntryClick(entry)} onDragStart={onDragStart} />
+                                        </div>
                                     ))}
                                 </div>
                             </div>

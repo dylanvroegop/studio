@@ -294,6 +294,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             if (!snapshot.exists()) throw new Error('Deze planning bestaat niet meer. Ververs de planning.');
             const current = { ...snapshot.data(), id: snapshot.id } as EditablePlanningEntry;
             if (current.userId !== user.uid) throw new Error('Deze planning hoort bij een andere gebruiker.');
+            if (current.isGoogleCalendarHistory) throw new Error('Deze Google Agenda-historie is alleen-lezen.');
 
             const safeUpdateData = { ...updateData };
             if (current.source === 'telegram_werkspot') {
@@ -348,6 +349,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         if (!user || !firestore) throw new Error('Not authenticated');
 
         const currentEntry = entries.find((entry) => entry.id === entryId) as (PlanningEntry & { googleCalendarEventId?: string | null }) | undefined;
+        if (currentEntry?.isGoogleCalendarHistory) throw new Error('Deze Google Agenda-historie is alleen-lezen.');
         // Removing the local planning row is the user-facing action. Do not
         // block it on the Google Calendar bookkeeping request; a slow or
         // unavailable Calendar API should not leave the delete dialog spinning.
@@ -372,9 +374,10 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
             where('quoteId', '==', quoteId)
         ));
         const batch = writeBatch(firestore);
-        snapshot.docs.forEach((planningDoc) => batch.delete(planningDoc.ref));
+        const editableDocs = snapshot.docs.filter((planningDoc) => planningDoc.data().isGoogleCalendarHistory !== true);
+        editableDocs.forEach((planningDoc) => batch.delete(planningDoc.ref));
 
-        const syncPayloads = snapshot.docs.map((planningDoc) => {
+        const syncPayloads = editableDocs.map((planningDoc) => {
             const data = planningDoc.data() as { googleCalendarEventId?: string | null };
             return {
                 action: 'delete' as const,
@@ -481,6 +484,7 @@ export function usePlanningData(options: UsePlanningDataOptions = {}) {
         }> = [];
 
         snapshot.docs.forEach((doc) => {
+            if (doc.data().isGoogleCalendarHistory === true) return;
             const data = doc.data() as {
                 quoteId: string;
                 planningType?: PlanningEntryType;

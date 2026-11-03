@@ -343,7 +343,9 @@ export async function POST(request: Request) {
     const workedDates = new Set(workedDays.map((item) => item.date));
     const planningToRemove = planningSnapshot.docs.filter((document) => {
       const value = document.data() as Record<string, unknown>;
-      if (value.planningType === 'werkbespreking') return false;
+      // Geïmporteerde historie verwijst naar de uren-events die hierboven zijn bijgewerkt.
+      // Deze mogen niet als oude werkplanning opnieuw uit Google worden verwijderd.
+      if (value.isGoogleCalendarHistory === true || value.planningType === 'werkbespreking') return false;
       if (!String(value.googleCalendarEventId || '').trim()) return false;
       if (!isFullyPast(value, today)) return false;
       return Array.from(workedDates).some((date) => overlapsDate(value, date));

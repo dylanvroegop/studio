@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Loader2, ReceiptText, Share2 } from 'lucide-react';
@@ -17,6 +17,9 @@ import { formatOfferteNummerLabel } from '@/lib/quote-number';
 import { loadInvoicePreparation } from '@/lib/invoice-preparation';
 import { summarizeInvoiceBilling, invoiceBillingSignature, type InvoiceBillingRow } from '@/lib/invoice-billing';
 import { invoiceQuoteSignature } from '@/lib/invoice-quote-signature';
+import { QuoteAmountDifferenceDialog } from '@/components/invoice/QuoteAmountDifferenceDialog';
+import { SharedQuoteAmountBar } from '@/components/quote/SharedQuoteAmountBar';
+import { compareSharedQuoteAmount, isQuoteAmountConfirmed, type QuoteAmountComparison, type QuoteAmountConfirmation } from '@/lib/quote-shared-amount';
 import { resolveInvoiceTotal } from '@/lib/invoice-total';
 
 const formatCurrency = (value: number): string => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value);
@@ -48,6 +51,10 @@ function NieuweFactuurPageContent() {
   const [reason, setReason] = useState('');
   const [adjusting, setAdjusting] = useState(false);
   const [creating, setCreating] = useState(false);
+  const creatingRef = useRef(false);
+  const finalAmountRef = useRef<HTMLInputElement>(null);
+  const [amountWarning, setAmountWarning] = useState<{ comparison: QuoteAmountComparison; share: boolean } | null>(null);
+  useEffect(() => { if (adjusting) finalAmountRef.current?.focus(); }, [adjusting]);
   const billing = useMemo(() => summarizeInvoiceBilling(invoices), [invoices]);
 
   useEffect(() => {
@@ -112,8 +119,16 @@ function NieuweFactuurPageContent() {
   const customer = quote?.klantinformatie;
   const customerName = customer?.bedrijfsnaam || [customer?.voornaam, customer?.achternaam].filter(Boolean).join(' ') || 'Onbekende klant';
 
-  async function handleCreate(share: boolean): Promise<void> {
-    if (!canCreate || creating || !user || !firestore || !quote) return;
+  async function handleCreate(share: boolean, confirmation?: QuoteAmountConfirmation): Promise<void> {
+    if (!canCreate || creatingRef.current || !user || !firestore || !quote) return;
+    const comparison = !existingId && selectedType === 'eind' && newAmount !== null
+      ? compareSharedQuoteAmount(quote.whatsappQuoteSnapshot, newAmount, billing.billedAdvanceAmount) : null;
+    if (comparison?.differenceCents && !isQuoteAmountConfirmed(comparison, confirmation)) {
+      setAmountWarning({ comparison, share });
+      return;
+    }
+    setAmountWarning(null);
+    creatingRef.current = true;
     setCreating(true);
     try {
       const invoiceId = existingId || await createInvoiceFromQuote(firestore, {
@@ -124,6 +139,7 @@ function NieuweFactuurPageContent() {
         voorschotAftrekInclBtw: selectedType === 'eind' ? billing.billedAdvanceAmount : 0,
         handmatigEindbedrag: selectedType === 'eind' && manualFinalAmount !== null,
         opmerking: reason.trim(),
+        sharedQuoteAmountConfirmation: confirmation,
         expectedQuoteSignature: quoteSignature,
         expectedBillingSignature: invoiceBillingSignature(invoices),
       });
@@ -131,7 +147,7 @@ function NieuweFactuurPageContent() {
     } catch (error) {
       toast({ title: 'Factuur niet aangemaakt', description: error instanceof Error ? error.message : 'Probeer opnieuw.', variant: 'destructive' });
       setLoadError(error instanceof Error ? error.message : 'Factuurgegevens opnieuw laden.');
-    } finally { setCreating(false); }
+    } finally { creatingRef.current = false; setCreating(false); }
   }
 
   return (
@@ -165,6 +181,7 @@ function NieuweFactuurPageContent() {
                 </>}
                 <div className="flex justify-between gap-3 border-t pt-3 font-semibold"><dt>Deze factuur incl. btw</dt><dd>{displayedAmount !== null ? formatCurrency(displayedAmount) : 'Vul een bedrag in'}</dd></div>
               </dl>
+              <SharedQuoteAmountBar snapshot={quote.whatsappQuoteSnapshot} currentAmount={total} />
               {existingInvoice && <p className="text-sm text-muted-foreground">{existingInvoice.status === 'concept' ? 'Het bestaande concept wordt geopend.' : 'Deze factuur bestaat al en wordt opnieuw geopend.'}</p>}
               {blockingMessage && <div className="space-y-2 text-sm text-amber-300"><p>{blockingMessage}</p><Link href={`/facturen?quoteId=${encodeURIComponent(quoteId)}`} className="underline">Open facturen</Link>{billing.draftAdvances.length === 1 && <Link href={`/facturen/${billing.draftAdvances[0].id}`} className="ml-3 underline">Open voorschotconcept</Link>}</div>}
               <div className="flex flex-col gap-2">
@@ -178,13 +195,23 @@ function NieuweFactuurPageContent() {
                 <div className="space-y-2"><Label htmlFor="advance-percentage">Voorschot (%)</Label><Input id="advance-percentage" type="number" min="0" max="100" value={advancePercentage} onChange={(event) => { const pct = Math.max(0, Math.min(100, Number(event.target.value) || 0)); setAdvancePercentage(pct); setAdvanceAmount(roundMoney(total * pct / 100).toFixed(2)); }} /></div>
                 <div className="space-y-2"><Label htmlFor="advance-amount">Bedrag incl. btw</Label><Input id="advance-amount" inputMode="decimal" value={advanceAmount} onChange={(event) => { setAdvanceAmount(event.target.value); const value = parseAmount(event.target.value); if (value !== null && total > 0) setAdvancePercentage(value / total * 100); }} /></div>
               </div> : <>
-                <div className="space-y-2"><Label htmlFor="final-amount">Eindbedrag incl. btw</Label><Input id="final-amount" inputMode="decimal" value={manualFinalAmount ?? calculatedFinal.toFixed(2)} onChange={(event) => setManualFinalAmount(event.target.value)} /><p className="text-xs text-muted-foreground">Berekend: {formatCurrency(total)} − {formatCurrency(billing.billedAdvanceAmount)} gefactureerd voorschot = {formatCurrency(calculatedFinal)}.</p></div>
+                <div className="space-y-2"><Label htmlFor="final-amount">Eindbedrag incl. btw</Label><Input ref={finalAmountRef} id="final-amount" inputMode="decimal" value={manualFinalAmount ?? calculatedFinal.toFixed(2)} onChange={(event) => setManualFinalAmount(event.target.value)} /><p className="text-xs text-muted-foreground">Berekend: {formatCurrency(total)} − {formatCurrency(billing.billedAdvanceAmount)} gefactureerd voorschot = {formatCurrency(calculatedFinal)}.</p></div>
                 {manualFinalAmount !== null && <><div className="space-y-2"><Label htmlFor="adjustment-reason">Reden aanpassing</Label><Input id="adjustment-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Bijv. afgesproken korting" /></div><Button variant="ghost" onClick={() => { setManualFinalAmount(null); setReason(''); }}>Gebruik berekend bedrag</Button></>}
               </>}
             </section>}
           </>
         )}
       </main>
+      <QuoteAmountDifferenceDialog
+        comparison={amountWarning?.comparison || null}
+        onCancel={() => setAmountWarning(null)}
+        onConfirm={() => { if (amountWarning) void handleCreate(amountWarning.share, amountWarning.comparison); }}
+        onAdjust={() => {
+          setAmountWarning(null);
+          setAdjusting(true);
+          requestAnimationFrame(() => { finalAmountRef.current?.focus(); finalAmountRef.current?.select(); });
+        }}
+      />
     </div>
   );
 }

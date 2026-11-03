@@ -688,6 +688,10 @@ export async function POST(req: Request) {
         updatedAt: FieldValue.serverTimestamp(),
       });
       const mutableQuotePayload = quotePayload as Record<string, unknown>;
+      if (!isPrimarySplit) {
+        delete mutableQuotePayload.whatsappQuoteSnapshot;
+        delete mutableQuotePayload.whatsappQuoteSnapshotHistory;
+      }
       delete mutableQuotePayload.sentAt;
       delete mutableQuotePayload.pdf_url;
       delete mutableQuotePayload.pdfUrl;

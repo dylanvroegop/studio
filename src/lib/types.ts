@@ -25,6 +25,8 @@ export type Client = {
 };
 
 export type Quote = {
+  whatsappQuoteSnapshot?: import('./quote-shared-amount').SharedQuoteAmount;
+  whatsappQuoteSnapshotHistory?: Record<string, import('./quote-shared-amount').SharedQuoteAmount>;
   pdfLanguage?: 'nl' | 'en';
   pdfEnglishTranslation?: import('./quote-pdf-translation').QuotePdfTranslation;
   id: string;
@@ -39,6 +41,9 @@ export type Quote = {
   // Offerte meta
   werkomschrijving: string;
   titel: string;
+  notities?: string;
+  /** Oorspronkelijke notities vóór het bijwerken vanuit gekoppelde calculatiematen. */
+  privateNotities?: string;
 
   // ✅ Alles klantgericht in 1 map
   klantinformatie: {

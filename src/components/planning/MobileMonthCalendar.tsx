@@ -167,7 +167,7 @@ export function MobileMonthCalendar({
                             <div className="space-y-1">
                                 {dayEntries.slice(0, 2).map((entry) => {
                                     const start = toDate(entry.startDate);
-                                    const label = (entry.cache?.clientName || 'Planning').slice(0, 16);
+                                    const label = entry.googleCalendarSummary || entry.cache?.clientName || 'Planning';
                                     const planningColor = getPlanningColor(entry);
                                     const timeLabel = entry.isAllDay ? 'Hele dag' : format(start, 'HH:mm', { locale: nl });
 

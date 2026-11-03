@@ -37,7 +37,7 @@ export function useDragResize({
 
     const handlePointerDown = (e: React.PointerEvent, entryId: string, type: 'move' | 'resize-start' | 'resize-end') => {
         const entry = entries.find(ent => ent.id === entryId);
-        if (!entry) return;
+        if (!entry || entry.isGoogleCalendarHistory) return;
 
         hasMovedRef.current = false;
         if (suppressClickTimerRef.current !== null) {

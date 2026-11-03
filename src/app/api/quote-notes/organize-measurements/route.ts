@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { noteShapeFields, type NoteMeasurement } from '@/lib/note-surfaces';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
@@ -10,13 +11,7 @@ const OPENAI_MODEL = process.env.OPENAI_WORK_DESCRIPTION_MODEL?.trim()
   || 'gpt-5.5';
 const OPENAI_TIMEOUT_MS = 300_000;
 
-type MeasurementRow = {
-  title: string;
-  length: string;
-  width: string;
-  height: string;
-  thickness: string;
-};
+type MeasurementRow = NoteMeasurement;
 
 type RequestBody = {
   title?: unknown;
@@ -80,6 +75,7 @@ function sanitizeRows(value: unknown): MeasurementRow[] {
     if (!item || typeof item !== 'object') return [];
     const row = item as Record<string, unknown>;
     const measurementRow: MeasurementRow = {
+      ...noteShapeFields(row),
       title: safeString(row.title),
       length: safeString(row.length),
       width: safeString(row.width),
@@ -105,6 +101,10 @@ function buildPrompt(title: string, notes: string): string {
     '- Als tekst een label bevat zoals "voorkant", "zijkant bijkeuken", "achterkant bijkeuken" of "tussen kozijn", gebruik dat als title.',
     '- Als er "hoog" of "hoogte" staat, zet die maat in height.',
     '- Gebruik length, width, height en thickness als vrije stringvelden. Verwijder "mm" als dat logisch is, maar behoud tekst die nodig is om de maat te begrijpen.',
+    '- Bewaar de vorm in shape: rectangle, slope (schuin/rechthoekige driehoek), gable (punt), l-shape of u-shape. Laat shape weg als de vorm onbekend is.',
+    '- Bij slope: length is de basis, hoogteLinks en hoogteRechts zijn de loodrechte zijhoogten. Alleen bij een expliciete rechthoekige driehoek is één zijhoogte 0. Verzin geen nul of rechte hoek bij ontbrekende informatie.',
+    '- Bij gable: length is de basis, height de zijhoogte en hoogteNok de totale hoogte. Bij l-shape/u-shape: bewaar lengte1, lengte2 en hoogte1, hoogte2, hoogte3 zoals opgegeven.',
+    '- Geef vormmaten als strings in millimeters terug, ook een expliciete nul. Reken geen onbekende maten uit.',
     '- Als je niet zeker weet welk veld hoort bij een maat, kies de meest logische bouwkundige kolom en laat onzekere velden leeg.',
     '',
     'Antwoord uitsluitend als geldige JSON, zonder markdown:',

@@ -1,3 +1,4 @@
+import { isRentalSupplier } from './project-costs';
 import type { FinanceBankCostLedgerRow, FinanceBankTransaction } from './finance-bank-ledger';
 import { isSupportingProjectCostReceipt, mapProjectCostRow, roundEuro, type ProjectCostCategory, type ProjectCostRow } from './project-costs';
 import { isFinalCostDocumentType } from './cost-document-policy';
@@ -154,7 +155,8 @@ export function buildKnabCostList(params: BuildKnabCostListParams): {
     const vatAmount = vatKnown ? sourceVat : 0;
     const isInternal = params.internalTransferIds.has(transaction.id);
     const isPrivate = ledgerRow?.is_private === true;
-    const categoryOverride = ledgerRow?.category_override || categoryOverrideForTransaction(transaction, params.categoryOverrides);
+    const categoryOverride = ledgerRow?.category_override || categoryOverrideForTransaction(transaction, params.categoryOverrides)
+      || (isRentalSupplier(transaction.counterparty_name) ? 'huur' : undefined);
     const isBunqTopUp = /top-?up\s+via\s+bunq/i.test(`${transaction.counterparty_name || ''} ${transaction.description || ''}`);
     const isCremanDebt = isCremanCounterparty(transaction.counterparty_name);
     const isFuelPayment = !isInternal && !isPrivate && (

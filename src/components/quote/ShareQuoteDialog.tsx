@@ -28,7 +28,7 @@ interface ShareQuoteDialogProps {
   onTemplateSaved: (template: string) => void;
   quoteSelection: { currentId: string; options: QuoteSendOption[]; loading: boolean; error: string | null };
   prepareFiles: (ids: string[]) => Promise<File[]>;
-  markSent: (ids?: string[]) => Promise<void> | void;
+  markSent: (ids?: string[], files?: File[]) => Promise<void> | void;
   translate?: (source: string) => Promise<string>;
 }
 

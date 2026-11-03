@@ -60,7 +60,7 @@ function mergeData(current, incoming) {
   }
   return result;
 }
-function makeRoute({ entries = { reservation: reservation() }, events = [], getResults = {}, beforeTransaction } = {}) {
+function makeRoute({ entries = { reservation: reservation() }, events = [], getResults = {}, beforeTransaction, range = requestRange } = {}) {
   const trace = [];
   const alerts = [];
   const rows = new Map([
@@ -137,7 +137,7 @@ function makeRoute({ entries = { reservation: reservation() }, events = [], getR
     rows, trace, alerts,
     mutations: () => trace.filter(item => ['set', 'delete'].includes(item.type)
       && (item.path.startsWith('planning_entries/') || item.path.startsWith('telegram_appointment_locks/'))),
-    post: () => route.POST({ headers: new Headers({ authorization: 'Bearer synthetic-id-token' }), json: async () => requestRange }),
+    post: () => route.POST({ headers: new Headers({ authorization: 'Bearer synthetic-id-token' }), json: async () => range }),
   };
 }
 
@@ -325,3 +325,112 @@ for (const [label, linked, marked] of [
     assert.deepEqual(route.trace.filter(item => item.type === 'delete').map(item => item.path), ['planning_entries/google_mirror']);
   });
 }
+
+test('Google GPS-uren, dagtotalen en vrije dagen komen terug als alleen-lezen historie', async () => {
+  const events = ['8,30 Test', '8,30', 'Vrij'].map((summary, index) => event({
+    id: `history${index}`, summary, description: 'GPS-registratie', location: 'Teststraat 1, Utrecht', colorId: '10',
+    start: { date: '2026-10-05' }, end: { date: '2026-10-06' },
+    extendedProperties: { private: { calvoraType: 'worked-hours', calvoraQuoteId: 'quote' } },
+  }));
+  const route = makeRoute({ entries: {}, events });
+  const result = await route.post();
+  assert.equal(result.status, 200);
+  assert.equal(result.body.imported, 3);
+  for (const event of events) {
+    const saved = route.rows.get(`planning_entries/google_${event.id}`);
+    assert.equal(saved.googleCalendarSummary, event.summary);
+    assert.equal(saved.cache.projectTitle, event.summary);
+    assert.equal(saved.cache.projectAddress, event.location);
+    assert.equal(saved.notes, event.description);
+    assert.equal(saved.source, 'google');
+    assert.equal(saved.isGoogleCalendarHistory, true);
+    assert.equal(saved.isAllDay, true);
+    assert.equal(saved.status, 'completed');
+    assert.equal(saved.quoteId, '');
+    assert.equal(saved.scheduledHours, 0);
+    assert.equal(saved.cache.totalQuoteHours, 0);
+    assert.equal(saved.cache.totalQuoteAmount, 0);
+    assert.equal(saved.cache.totalQuoteEarnings, 0);
+    assert.equal(saved.startDate.toDate().toISOString(), '2026-10-04T22:00:00.000Z');
+    assert.equal(saved.endDate.toDate().toISOString(), '2026-10-05T21:59:00.000Z');
+  }
+  const repeated = await route.post();
+  assert.equal(repeated.body.imported, 0);
+  assert.equal(repeated.body.unchanged, 3);
+  assert.equal([...route.rows.keys()].filter(path => path.startsWith('planning_entries/')).length, 3);
+});
+
+test('historie neemt geen offerte-identiteit of financiën over van een oude Google-kopie', async () => {
+  const route = makeRoute({
+    entries: { legacy: reservation({
+      source: 'google', leadKey: null, status: 'scheduled', planningType: 'job',
+      cache: { clientName: 'Test', totalQuoteAmount: 1200, totalQuoteEarnings: 800 },
+    }) },
+    events: [event({ extendedProperties: { private: { calvoraType: 'worked-hours' } } })],
+  });
+  assert.equal((await route.post()).status, 200);
+  const saved = route.rows.get('planning_entries/legacy');
+  assert.equal(saved.isGoogleCalendarHistory, true);
+  assert.equal(saved.quoteId, '');
+  assert.equal(saved.scheduledHours, 0);
+  assert.equal(saved.cache.totalQuoteAmount, 0);
+  assert.equal(saved.cache.totalQuoteEarnings, 0);
+});
+
+test('Google-titel staat los van behouden Telegram-klant en offertenaam', async () => {
+  const route = makeRoute({ events: [event({ summary: 'Test 19:00', location: 'Nieuw adres' })] });
+  assert.equal((await route.post()).status, 200);
+  const saved = route.rows.get('planning_entries/reservation');
+  assert.equal(saved.googleCalendarSummary, 'Test 19:00');
+  assert.equal(saved.cache.clientName, 'Test Klant');
+  assert.equal(saved.cache.projectTitle, 'Werkbespreking');
+  assert.equal(saved.cache.projectAddress, 'Nieuw adres');
+  assert.equal(saved.quoteId, 'quote');
+});
+
+for (const [label, timeMax] of [
+  ['juli / 9 augustus', '2026-08-08T22:00:00.000Z'],
+  ['augustus / 6 september', '2026-09-05T22:00:00.000Z'],
+]) {
+  test(`refresh wist geen historie op exclusieve timeMax-grens ${label}`, async () => {
+    const range = { startDate: new Date(new Date(timeMax).getTime() - 42 * 86_400_000).toISOString(), endDate: timeMax };
+    const original = {
+      userId: 'owner', source: 'google', isGoogleCalendarHistory: true, status: 'completed',
+      googleCalendarEventId: 'outside', quoteId: '', scheduledHours: 0,
+      startDate: timestamp(timeMax), endDate: timestamp(new Date(timeMax).getTime() + 86_400_000 - 60_000),
+      cache: { clientName: 'Vrij' },
+    };
+    const route = makeRoute({ entries: { outside: original }, events: [], range });
+    const response = await route.post();
+    assert.equal(response.status, 200);
+    assert.equal(response.body.removed, 0);
+    assert.deepEqual(route.rows.get('planning_entries/outside'), original);
+    assert.equal(route.mutations().length, 0);
+  });
+}
+
+test('refresh laat een event dat exact op timeMin eindigt buiten het te vervangen bereik', async () => {
+  const original = {
+    userId: 'owner', source: 'google', googleCalendarEventId: 'previous',
+    startDate: timestamp('2026-09-30T23:00:00Z'), endDate: timestamp(requestRange.startDate),
+  };
+  const route = makeRoute({ entries: { previous: original }, events: [] });
+  const response = await route.post();
+  assert.equal(response.body.removed, 0);
+  assert.deepEqual(route.rows.get('planning_entries/previous'), original);
+});
+
+test('de volledige laatste zichtbare dag wordt ingelezen en blijft bij herhaling bestaan', async () => {
+  const range = { startDate: '2026-06-28T22:00:00.000Z', endDate: '2026-08-09T21:59:59.999Z' };
+  const route = makeRoute({ entries: {}, range, events: [event({
+    id: 'last-visible-day', summary: '8,30 Test',
+    start: { date: '2026-08-09' }, end: { date: '2026-08-10' },
+    extendedProperties: { private: { calvoraType: 'worked-hours' } },
+  })] });
+  const first = await route.post();
+  assert.equal(first.body.imported, 1);
+  const repeated = await route.post();
+  assert.equal(repeated.body.unchanged, 1);
+  assert.equal(repeated.body.removed, 0);
+  assert.equal(route.rows.get('planning_entries/google_last-visible-day').googleCalendarSummary, '8,30 Test');
+});

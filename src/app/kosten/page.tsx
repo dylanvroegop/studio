@@ -973,6 +973,7 @@ function KostenPageContent() {
     { value: 'telefoon', label: 'Telefoon' },
     { value: 'leadkosten', label: 'Leadkosten' },
     { value: 'storage', label: 'Storage' },
+    { value: 'huur', label: 'Huur' },
     { value: 'profit', label: 'Eigen overboekingen' },
     { value: 'overig', label: 'Overig' },
   ];
@@ -1965,6 +1966,7 @@ function KostenPageContent() {
                                       <SelectItem value="telefoon">Telefoon</SelectItem>
                                       <SelectItem value="leadkosten">Leadkosten</SelectItem>
                                       <SelectItem value="storage">Storage</SelectItem>
+                        <SelectItem value="huur">Huur</SelectItem>
                                       <SelectItem value="overig">Overig</SelectItem>
                                     </SelectContent>
                                   </Select>
@@ -2150,6 +2152,7 @@ function KostenPageContent() {
                                               <SelectItem value="telefoon">Telefoon</SelectItem>
                                               <SelectItem value="leadkosten">Leadkosten</SelectItem>
                                               <SelectItem value="storage">Storage</SelectItem>
+                        <SelectItem value="huur">Huur</SelectItem>
                                       <SelectItem value="overig">Overig</SelectItem>
                                             </SelectContent>
                                           </Select>

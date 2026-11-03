@@ -43,7 +43,9 @@ export function ScheduleBlock({
 
     const rawDurationMinutes = Math.max(0, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60)));
     const expectedDurationWithPauseMinutes = Math.max(0, Math.round(entry.scheduledHours * 60)) + Math.max(0, pauseMinutes);
-    const displayEndDate = view === 'day' && pauseMinutes > 0 && rawDurationMinutes < expectedDurationWithPauseMinutes
+    // Google levert de volledige agendatijden; de lokale pauze mag die niet verlengen.
+    const hasGoogleCalendarTime = Boolean(entry.googleCalendarEventId || entry.googleCalendarSummary || entry.isGoogleCalendarHistory);
+    const displayEndDate = !hasGoogleCalendarTime && view === 'day' && pauseMinutes > 0 && rawDurationMinutes < expectedDurationWithPauseMinutes
         ? calculateEndDateFromHours(startDate, entry.scheduledHours, pauseMinutes)
         : endDate;
 
@@ -73,7 +75,7 @@ export function ScheduleBlock({
     const planningType = entry.planningType || 'job';
     const isPending = entry.status === 'pending';
 
-    const planningTypeLabel = isPending
+    const planningTypeLabel = entry.isGoogleCalendarHistory ? 'Google Agenda · historie' : isPending
         ? 'Werkbespreking · voorgesteld'
         : planningType === 'werkbespreking' ? 'Werkbespreking' : 'Klus';
     const planningColor = getPlanningColor(entry);
@@ -86,13 +88,13 @@ export function ScheduleBlock({
         : projectTitleRaw;
     const clientName = entry.cache.clientName || '';
     const hasProjectTitle = Boolean(projectTitle && projectTitle !== 'Klus');
-    const displayTitle = planningType === 'werkbespreking' && clientName
+    const displayTitle = entry.googleCalendarSummary || (planningType === 'werkbespreking' && clientName
         ? hasProjectTitle
             ? `${clientName} · ${projectTitle}`
             : clientName
         : hasProjectTitle
             ? projectTitle
-            : clientName;
+            : clientName);
 
     const blendWithBackground = (hex: string, alpha: number, base: string = '#1c1c1f') => {
         const toRgb = (value: string) => {
@@ -118,7 +120,7 @@ export function ScheduleBlock({
     };
 
     const handlePointerDown = (e: React.PointerEvent) => {
-        if (onDragStart) {
+        if (onDragStart && !entry.isGoogleCalendarHistory) {
             e.preventDefault();
             e.stopPropagation();
             onDragStart(e, entry.id, 'move');
@@ -145,7 +147,7 @@ export function ScheduleBlock({
             onPointerDown={handlePointerDown}
         >
             {/* Resize Handles for Day View */}
-            {view === 'day' && onDragStart && (
+            {view === 'day' && onDragStart && !entry.isGoogleCalendarHistory && (
                 <>
                     <div
                         className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize hover:bg-white/20 z-10"
