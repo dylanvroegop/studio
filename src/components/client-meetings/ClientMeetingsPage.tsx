@@ -221,7 +221,6 @@ function ClientMeetingsForUser() {
             <AppNavigation />
             <DashboardHeader user={user} title="Klantgesprekken" />
             <div className="mx-auto max-w-7xl space-y-5 px-3 py-5 sm:px-6">
-                <p className="text-4xl font-bold text-green-500">CODEX TEST</p>
                 {error && <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm"><p>{error}</p><Button variant="ghost" size="sm" onClick={() => { setError(''); void refreshList().then(() => refreshDetail()).catch((cause: Error) => setError(cause.message)); }}>Opnieuw</Button></div>}
                 <section className="rounded-xl border bg-card p-4">
                     <h1 className="mb-4 flex items-center gap-2 text-lg font-semibold"><Mic className="h-5 w-5 text-emerald-400" />Nieuw gesprek</h1>
