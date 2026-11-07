@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@/firebase';
 import { summarizeBankCostRows, type BankCostFilter } from '@/lib/bank-cost-summary';
 import { PROJECT_COST_CATEGORIES, type ProjectCostCategory, type ProjectCostRow } from '@/lib/project-costs';
@@ -14,10 +14,13 @@ import { KostenAfstandRow } from './KostenAfstandRow';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { BankAccountView } from '@/lib/bank-overzicht';
 import { Button } from '@/components/ui/button';
+import { Loader2, RefreshCw } from 'lucide-react';
+import { KnabRequestError, requestKnab } from '@/lib/knab-refresh-client';
 import { Input } from '@/components/ui/input';
 import { calculateBankCostScenario, parseScenarioAmount, remainingFixedCosts } from '@/lib/bank-cost-scenario';
 
 interface Props {
+  onBankSynced: () => Promise<void>;
   startDate: string;
   onStartDateChange: (value: string) => void;
   costs: ProjectCostRow[];
@@ -30,7 +33,7 @@ interface HoursResponse { adjustments: Array<{ start_date: string; end_date: str
 const euro = (value: number): string => value.toLocaleString('nl-NL', { style: 'currency', currency: 'EUR' });
 const hours = (minutes: number | null): string => minutes === null ? 'n.b.' : `${Math.floor(Math.round(minutes) / 60)} u ${Math.round(minutes) % 60} min`;
 
-export function KostenTotalenTab({ costs, privateCredits, categories, loading, error, startDate, onStartDateChange }: Props) {
+export function KostenTotalenTab({ costs, privateCredits, categories, loading, error, startDate, onStartDateChange, onBankSynced }: Props) {
   const { user } = useUser();
   const [month, setMonth] = useState('all');
   const [reductions, setReductions] = useState<Partial<Record<ProjectCostCategory, string>>>({});
@@ -43,6 +46,12 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
   const [bankLoading, setBankLoading] = useState(true);
   const [bankError, setBankError] = useState<string | null>(null);
   const [bankSyncedAt, setBankSyncedAt] = useState<string | null>(null);
+  const [bankReconnectRequired, setBankReconnectRequired] = useState(false);
+  const [bankConnecting, setBankConnecting] = useState(false);
+  const [bankNotice, setBankNotice] = useState<string | null>(null);
+  const bankRequestRef = useRef<AbortController | null>(null);
+  const onBankSyncedRef = useRef(onBankSynced);
+  onBankSyncedRef.current = onBankSynced;
   const storageKey = user?.uid ? `kosten-totalen-scenario-v1:${user.uid}` : null;
   const [restoredKey, setRestoredKey] = useState<string | null>(null);
   const [storageError, setStorageError] = useState(false);
@@ -90,43 +99,108 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
     }
   }, [storageKey, restoredKey, month, reductions, cash, extraMonthlyFixed, potentialHoursInput, potentialMonthlyHoursInput, potentialHoursMode]);
 
-  const loadBankBalance = useCallback(async (sync = false, signal?: AbortSignal) => {
-    if (!user) return;
+  const loadBankBalance = useCallback(async (sync = false) => {
+    if (!user || bankRequestRef.current) return;
+    const controller = new AbortController();
+    bankRequestRef.current = controller;
+    const signal = controller.signal;
     setBankLoading(true);
     setBankError(null);
+    setBankNotice(null);
+    let syncError: unknown = null;
+    let overviewError: unknown = null;
     try {
-      const token = await user.getIdToken();
-      const headers = { Authorization: `Bearer ${token}` };
       if (sync) {
-        const response = await fetch('/api/bank/sync-enablebanking', { method: 'POST', headers, cache: 'no-store', signal });
-        const payload = await response.json();
-        if (!response.ok || !payload.ok || (payload.status && payload.status !== 'connected')) throw new Error('Knab bijwerken is niet gelukt.');
+        try {
+          await requestKnab(user, '/api/bank/sync-enablebanking', { method: 'POST', signal });
+          if (signal.aborted) return;
+          setBankReconnectRequired(false);
+        } catch (error) { syncError = error; }
       }
-      const response = await fetch('/api/bank/overview?provider=enablebanking&profile=personal', { headers, cache: 'no-store', signal });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok || !Array.isArray(payload.data?.accounts)) throw new Error('Knab-saldo kon niet worden geladen.');
-      const accounts = payload.data.accounts as BankAccountView[];
-      if (!accounts.length || accounts.some((account) => account.currency !== 'EUR' || typeof account.latestBalanceAmount !== 'number' || !Number.isFinite(account.latestBalanceAmount))) throw new Error('Geen volledig Knab-saldo beschikbaar.');
-      if (signal?.aborted) return;
-      setBankBalance(accounts.reduce((sum, account) => sum + Math.round(account.latestBalanceAmount! * 100), 0) / 100);
-      setBankSyncedAt(payload.data.connection?.lastSyncedAt || null);
+      // Ook bij een bankstoring het laatst opgeslagen saldo blijven tonen.
+      try {
+        const payload = await requestKnab<{ ok: boolean; data?: { accounts?: BankAccountView[]; connection?: { lastSyncedAt?: string; status?: string } } }>(
+          user, '/api/bank/overview?provider=enablebanking&profile=personal', { signal }, 30_000,
+        );
+        const accounts = payload.data?.accounts;
+        if (!Array.isArray(accounts) || !accounts.length || accounts.some((account) => account.currency !== 'EUR' || typeof account.latestBalanceAmount !== 'number' || !Number.isFinite(account.latestBalanceAmount))) {
+          throw new Error('Geen volledig Knab-saldo beschikbaar.');
+        }
+        if (signal.aborted) return;
+        setBankBalance(accounts.reduce((sum, account) => sum + Math.round(account.latestBalanceAmount! * 100), 0) / 100);
+        setBankSyncedAt(payload.data?.connection?.lastSyncedAt || null);
+        setBankReconnectRequired(Boolean(payload.data?.connection && payload.data.connection.status !== 'connected'));
+      } catch (error) { overviewError = error; }
+      if (signal.aborted) return;
+      if (sync && !syncError) {
+        try { await onBankSyncedRef.current(); }
+        catch { throw new Error('Knab is bijgewerkt, maar de kostentotalen konden niet worden geladen. Probeer het opnieuw.'); }
+      }
+      if (syncError) throw syncError;
+      if (overviewError) throw overviewError;
+      if (sync && !signal.aborted) setBankNotice('Knab-saldo en kosten zijn bijgewerkt.');
     } catch (error) {
-      if (signal?.aborted) return;
-      setBankBalance(null);
-      setBankSyncedAt(null);
-      setBankError(error instanceof Error ? error.message : 'Knab-saldo kon niet worden geladen.');
+      if (signal.aborted) return;
+      if (error instanceof KnabRequestError && error.reconnectRequired) setBankReconnectRequired(true);
+      setBankError(error instanceof Error ? error.message : 'Knab kon niet worden bijgewerkt.');
     } finally {
-      if (!signal?.aborted) setBankLoading(false);
+      if (bankRequestRef.current === controller) bankRequestRef.current = null;
+      if (!signal.aborted) setBankLoading(false);
     }
   }, [user]);
 
   useEffect(() => {
-    const controller = new AbortController();
     setBankBalance(null);
     setBankSyncedAt(null);
-    void loadBankBalance(false, controller.signal);
-    return () => controller.abort();
-  }, [loadBankBalance]);
+    setBankReconnectRequired(false);
+    setBankConnecting(false);
+    if (!user) { setBankLoading(false); return; }
+    void loadBankBalance();
+    return () => {
+      bankRequestRef.current?.abort();
+      bankRequestRef.current = null;
+    };
+  }, [loadBankBalance, user]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const result = url.searchParams.get('bank');
+    if (result === 'connected') setBankNotice('Knab is gekoppeld. De nieuwste gegevens worden geladen.');
+    if (result === 'error') {
+      setBankError(url.searchParams.get('message') || 'Knab koppelen is niet voltooid. Probeer het opnieuw.');
+      setBankReconnectRequired(true);
+    }
+    if (result) {
+      url.searchParams.delete('bank');
+      url.searchParams.delete('message');
+      window.history.replaceState(window.history.state, '', url);
+    }
+  }, []);
+
+  const connectKnab = async () => {
+    if (!user || bankConnecting || bankRequestRef.current) return;
+    const controller = new AbortController();
+    bankRequestRef.current = controller;
+    setBankConnecting(true);
+    setBankError(null);
+    setBankNotice(null);
+    try {
+      const data = await requestKnab(user, '/api/bank/enablebanking/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ institutionId: 'Knab', returnTo: '/kosten?tab=totalen' }),
+        signal: controller.signal,
+      }, 30_000);
+      if (controller.signal.aborted) return;
+      if (!data.link || new URL(data.link).protocol !== 'https:') throw new Error('Knab gaf geen geldige koppellink terug.');
+      window.location.assign(data.link);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setBankError(error instanceof Error ? error.message : 'Knab koppelen is mislukt.');
+      setBankConnecting(false);
+    } finally {
+      if (bankRequestRef.current === controller) bankRequestRef.current = null;
+    }
+  };
 
   const [time, setTime] = useState<HoursResponse | null>(null);
   const [timeError, setTimeError] = useState(false);
@@ -184,7 +258,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
   const invalidScenario = invalidReduction || invalidExtraFixed;
   const cashAmount = cash.trim() ? parseScenarioAmount(cash) : 0;
   const invalidCash = cashAmount === null || cashAmount < 0;
-  const availableBalance = bankLoading || bankBalance === null || invalidCash ? null
+  const availableBalance = bankBalance === null || invalidCash ? null
     : (Math.round(bankBalance * 100) + Math.round(cashAmount! * 100)) / 100;
   const scenario = calculateBankCostScenario(summary.totals, requestedReductions, availableBalance, extraFixedCosts);
   const duration = time ? (month === 'all' ? time.all : time.months[month] || summarizeTimeEntries([])) : null;
@@ -208,7 +282,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
   const money = (value: number | null) => value === null ? 'n.b.' : euro(value);
   const cell = 'px-3 py-2 text-right tabular-nums whitespace-nowrap';
   if (!storageKey || restoredKey !== storageKey) return <p className="text-sm text-muted-foreground">Totalen laden…</p>;
-  return <div className="space-y-4">
+  return <div className="min-w-0 max-w-full space-y-4">
     {storageError ? <p role="alert" className="text-sm text-destructive">Je keuzes konden niet op dit apparaat worden opgeslagen.</p> : null}
     <div className="flex flex-wrap items-center gap-3">
       <div className="space-y-1"><KostenStartDate value={startDate} onChange={onStartDateChange} /><span className="block text-xs text-muted-foreground">{elapsed.days} dagen · {elapsed.months} maanden en {elapsed.remainingDays} dagen verstreken</span></div>
@@ -216,10 +290,19 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
         <SelectTrigger className="h-9 w-48" aria-label="Periode totalen"><SelectValue /></SelectTrigger>
         <SelectContent><SelectItem value="all">Alle maanden ({months.length})</SelectItem>{months.map((value) => <SelectItem key={value} value={value}>{new Date(`${value}-01T12:00:00`).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })}</SelectItem>)}</SelectContent>
       </Select>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">{bankSyncedAt ? `Bijgewerkt: ${new Date(bankSyncedAt).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam', dateStyle: 'short', timeStyle: 'short' })}` : ''}</span>
-            <Button type="button" variant="ghost" size="sm" disabled={bankLoading} onClick={() => void loadBankBalance(true)}>Knab bijwerken</Button>
-          </div>
+    </div>
+    <div className="space-y-2" aria-busy={bankLoading || bankConnecting}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" className="min-h-11 gap-2" disabled={bankLoading || bankConnecting} onClick={() => void loadBankBalance(true)}>
+          {bankLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
+          {bankLoading ? 'Knab bijwerken…' : 'Knab bijwerken'}
+        </Button>
+        {bankReconnectRequired || bankError ? <Button type="button" variant={bankReconnectRequired ? 'default' : 'ghost'} className="min-h-11" disabled={bankLoading || bankConnecting} onClick={() => void connectKnab()}>{bankConnecting ? 'Knab openen…' : 'Knab opnieuw koppelen'}</Button> : null}
+      </div>
+      {bankSyncedAt ? <p className="text-xs text-muted-foreground">Laatst bijgewerkt: {new Date(bankSyncedAt).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam', dateStyle: 'short', timeStyle: 'short' })}</p> : null}
+      {bankReconnectRequired ? <p className="text-sm">Bevestig de Knab-koppeling opnieuw om actuele gegevens op te halen.</p> : null}
+      {bankError ? <p role="alert" className="break-words text-sm text-red-400">{bankError}{bankBalance !== null ? ' Het laatst opgehaalde saldo blijft zichtbaar.' : ''}</p> : null}
+      {bankNotice ? <p role="status" className="text-sm text-emerald-500">{bankNotice}</p> : null}
     </div>
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <section className="min-w-0 rounded-lg border border-border bg-card p-4 lg:row-span-4">
@@ -246,7 +329,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
           <h2 className="text-sm font-semibold">Met lagere uitgaven</h2>
           <div className="flex flex-wrap items-center justify-between gap-2 px-3">
             <span className="text-sm">Banksaldo Knab</span>
-            <span className="text-sm tabular-nums">{bankLoading ? 'Laden…' : bankBalance === null ? 'n.b.' : euro(bankBalance)}</span>
+            <span className="text-sm tabular-nums">{bankBalance !== null ? euro(bankBalance) : bankLoading ? 'Laden…' : 'n.b.'}</span>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 px-3">
             <label htmlFor="kosten-cash" className="text-sm">Cash</label>
@@ -256,13 +339,12 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
             </div>
           </div>
           {invalidCash ? <p id="kosten-cash-error" role="alert" className="text-xs text-destructive">Vul een cashbedrag van € 0,00 of hoger in.</p> : null}
-          {bankError ? <p role="alert" className="text-xs text-destructive">{bankError}</p> : null}
-          <table className="w-full text-sm"><tbody>
+          <table className="w-full table-fixed text-sm [&_td:first-child]:w-[62%] [&_td]:break-words [&_td]:whitespace-normal"><tbody>
             <tr className="border-b border-border/50"><td className="px-3 py-2">Extra overgehouden</td><td className={cell}>{loading ? 'Laden…' : error || invalidScenario ? 'n.b.' : euro(scenario.saved)}</td></tr>
             <tr className="border-b border-border/50 font-semibold"><td className="px-3 py-2">Saldo met besparing</td><td className={`${cell} text-emerald-400`}>{loading ? 'Laden…' : error || invalidScenario || scenario.balanceWithoutCosts === null ? 'n.b.' : euro(scenario.balanceWithoutCosts)}</td></tr>
             <tr className="border-b border-border/50"><td className="px-3 py-2">Saldo met besparing excl. 21% btw</td><td className={cell}>{loading ? 'Laden…' : error || invalidScenario || scenario.balanceWithoutCosts === null ? 'n.b.' : euro(scenario.balanceWithoutCosts / 1.21)}</td></tr>
           </tbody></table>
-          <table className="w-full text-sm"><tbody>
+          <table className="w-full table-fixed text-sm [&_td:first-child]:w-[62%] [&_td]:break-words [&_td]:whitespace-normal"><tbody>
             {[
               ['Per geregistreerd uur', money(earnings.hourly)],
               [`Gemiddeld per maand (${monthLabel} maanden)`, money(earnings.monthly)],
@@ -286,7 +368,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
             <Input id="potential-hours" aria-label={potentialHoursMode === 'monthly' ? 'Potentieel uren per maand' : 'Potentieel totaal uren'} type="text" inputMode="decimal" value={activePotentialHoursInput} placeholder={(potentialHoursMode === 'monthly' ? 240 : 240 * monthCount).toLocaleString('nl-NL', { maximumFractionDigits: 1, useGrouping: false })} onChange={(event) => potentialHoursMode === 'monthly' ? setPotentialMonthlyHoursInput(event.target.value) : setPotentialHoursInput(event.target.value)} aria-invalid={invalidPotentialHours} className="h-8 w-28 text-right tabular-nums" />
           </div>
           {invalidPotentialHours ? <p role="alert" className="text-xs text-destructive">Vul een geldig aantal uren van 0 of meer in.</p> : null}
-          <table className="w-full text-sm"><tbody>
+          <table className="w-full table-fixed text-sm [&_td:first-child]:w-[62%] [&_td]:break-words [&_td]:whitespace-normal"><tbody>
             {[
               ['Vaste lasten per maand · na besparing', money(loading || error || invalidScenario ? null : fixedCosts / monthCount)],
               [`Potentieel per maand · ${invalidPotentialHours ? '—' : (earnings.potentialHours / monthCount).toLocaleString('nl-NL', { maximumFractionDigits: 1 })} uur`, money(earnings.potentialMonthly)],
@@ -302,7 +384,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
       </section>
       <section className="min-w-0 rounded-lg border border-border bg-card p-4">
         <h2 className="mb-2 text-sm font-semibold">Tijd</h2>
-        <table className="w-full text-sm"><tbody>
+        <table className="w-full table-fixed text-sm [&_td:first-child]:w-[62%] [&_td]:break-words [&_td]:whitespace-normal"><tbody>
           <tr className="border-b border-border/50"><td className="px-3 py-2">Dagen verstreken</td><td className={cell}>{dayCounts.days.toLocaleString('nl-NL')}</td></tr>
           {[
             ['Dagen gewerkt', workedDayCount === null ? 'n.b.' : `${partialAdjustment ? '≈ ' : ''}${workedDayCount.toLocaleString('nl-NL', { maximumFractionDigits: 1 })}`],
@@ -322,7 +404,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
       </section>
       <section className="min-w-0 rounded-lg border border-border bg-card p-4">
         <h2 className="mb-2 text-sm font-semibold">Brandstof</h2>
-        <table className="w-full text-sm"><tbody>
+        <table className="w-full table-fixed text-sm [&_td:first-child]:w-[62%] [&_td]:break-words [&_td]:whitespace-normal"><tbody>
           {!timeError ? <KostenAfstandRow dates={time ? time.gpsDates.filter((date) => isReportDate(date, month, today, startDate)) : null} cell={cell} fuelCost={loading || error ? null : summary.totals.brandstof} /> : null}
           <tr className="border-b border-border/50"><td className="px-3 py-2">Brandstof (afgeschreven)</td><td className={cell}>{loading ? 'Laden…' : error ? 'n.b.' : euro(summary.totals.brandstof)}</td></tr>
         </tbody></table>

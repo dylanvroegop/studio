@@ -9,6 +9,7 @@ import { reconcileInvoiceBankPaymentsAfterSync, type InvoiceBankSyncResult } fro
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   try {
@@ -37,12 +38,13 @@ export async function POST(request: Request) {
     }
     const sessionId = typeof connection.data?.requisition_id === 'string' ? connection.data.requisition_id : '';
     if (connection.error || !sessionId || sessionId.startsWith('pending:')) {
-      return NextResponse.json({ ok: false, error: 'Koppel eerst je Knab-rekening.' }, { status: 400, headers: noStoreHeaders() });
+      if (connection.error) throw new Error('De Knab-koppeling kon niet worden geladen. Probeer het opnieuw.');
+      return NextResponse.json({ ok: false, reconnectRequired: true, error: 'Koppel eerst je Knab-rekening.' }, { status: 400, headers: noStoreHeaders() });
     }
     const result = await syncEnableBankingConnection({ bankUserId: identity.bankUserId, sessionId });
     if (result.status !== 'connected') {
       return NextResponse.json(
-        { ok: false, ...result, error: `Enable Banking status: ${result.status}` },
+        { ok: false, ...result, reconnectRequired: true, error: `Enable Banking status: ${result.status}` },
         { status: 409, headers: noStoreHeaders() },
       );
     }

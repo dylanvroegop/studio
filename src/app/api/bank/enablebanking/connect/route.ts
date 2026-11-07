@@ -10,7 +10,10 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const inputSchema = z.object({ institutionId: z.string().min(1).max(200).default('Knab') });
+const inputSchema = z.object({
+  institutionId: z.string().min(1).max(200).default('Knab'),
+  returnTo: z.enum(['/kosten?tab=totalen', '/kosten?tab=overview']).default('/kosten?tab=overview'),
+});
 
 export async function POST(request: Request) {
   try {
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
       status: 'pending',
       accounts: [],
       linked_account_ids: [],
-      metadata: { source: 'enablebanking', bank: parsed.data.institutionId, authorizationId: authorization.authorizationId },
+      metadata: { source: 'enablebanking', bank: parsed.data.institutionId, authorizationId: authorization.authorizationId, returnTo: parsed.data.returnTo },
       updated_at: new Date().toISOString(),
     }).select('id').single();
     if (insertResult.error || !insertResult.data?.id) throw new Error(`Kon Knab-koppeling niet opslaan: ${insertResult.error?.message || 'onbekende fout'}`);

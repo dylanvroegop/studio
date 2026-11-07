@@ -807,6 +807,9 @@ function KostenPageContent() {
       setPrivateCredits(data.privateCredits);
       setSourceCosts(data.sourceCosts);
       setError(null);
+    } catch (error) {
+      if (version === costReadVersionRef.current) setError('Kostentotalen konden niet worden bijgewerkt. Probeer het opnieuw.');
+      throw error;
     } finally {
       if (version === costReadVersionRef.current) setLoading(false);
     }
@@ -1698,7 +1701,7 @@ function KostenPageContent() {
       <DashboardHeader user={user} title="Kosten" />
 
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
-        <div className="w-full max-w-7xl space-y-5">
+        <div className="min-w-0 w-full max-w-7xl space-y-5">
           <div className="flex overflow-x-auto border-b border-border" role="tablist" aria-label="Kosten en financiën">
             {KOSTEN_PAGE_TABS.filter((tab) => !tab.hidden).map((tab) => (
               <button
@@ -1721,7 +1724,7 @@ function KostenPageContent() {
 
           {viewMode === 'pdfs' ? <div className="flex items-center gap-3"><Button type="button" variant="outline" size="sm" onClick={() => setViewMode('kosten')}>Terug naar kosten</Button><h2 className="text-sm font-semibold">PDF-bestanden</h2></div> : null}
 
-          {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} categories={filterOptions} loading={loading} error={error} /> : null}
+          {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} categories={filterOptions} loading={loading} error={error} onBankSynced={refreshCostsAfterChange} /> : null}
 
           <input
             ref={quickPhotoInputRef}
