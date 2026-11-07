@@ -33,7 +33,9 @@ function repairRecovery(original){
  const guarded=['Archive Original PDF in Calvora','Normalize Archived PDF','Upload Invoice PDF','Classify Financial Document','Parse Document Classification','Analyze Invoice PDF','Parse Invoice Analysis','Attach PDF To Cost Data','Maak Kost Aan','Save For Quote Linking','Bevestig geslaagde import','Registreer verwerkt','Skip Non-Financial Attachment'];
  for(const name of guarded){node(name).onError='continueErrorOutput';connect(name,'Bewaar importfout',1);}
  // Onduidelijke classificaties mogen niet definitief als niet-financieel eindigen.
- node('Skip Non-Financial Attachment').parameters.jsCode=`const c=$('Parse Document Classification').item.json.classification;\nif(!c || c.confidence < 0.9 || ['unknown','other'].includes(c.document_type)) throw new Error('Documenttype onduidelijk: '+(c?.reason || 'geen classificatie'));\nreturn [{json:{processing_key:$('Verwerk bijlage').item.json.processing_key},pairedItem:{item:0}}];`;
+ const classifier=node('Classify Financial Document');
+ if(classifier?.parameters?.text) classifier.parameters.text = classifier.parameters.text.replace('quote|other', 'quote|other|unknown').replace('Unreadable, ambiguous or conflicting documents must be other and false.', 'Unreadable, ambiguous or conflicting documents must be unknown and false. Use other only for a clearly identified non-invoice document, such as terms, a contract, a price list, a logo or a fine assessment.');
+ node('Skip Non-Financial Attachment').parameters.jsCode=`const c=$('Parse Document Classification').item.json.classification;\nif(!c || c.confidence < 0.9 || c.document_type === 'unknown') throw new Error('Documenttype onduidelijk: '+(c?.reason || 'geen classificatie'));\nreturn [{json:{processing_key:$('Verwerk bijlage').item.json.processing_key},pairedItem:{item:0}}];`;
  w.settings={...w.settings,timezone:'Europe/Amsterdam',saveDataErrorExecution:'all',saveDataSuccessExecution:'all'};
  w.pinData={};return w;
 }

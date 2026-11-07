@@ -15,3 +15,10 @@ test('hercontrole verdeelt dertig dagen over tien kleine rondes zonder gaten',()
  assert.equal(covered.size,30);
  const w=repairRecovery(fixture());for(let i=1;i<=2;i++){const schedule=w.nodes.find(n=>n.name==='Hercontrole mailbox '+i);assert.equal(schedule.parameters.rule.interval[0].hoursInterval,1);assert.match(w.nodes.find(n=>n.name==='Herlees mailbox '+i).parameters.filters.q,/^=\{\{/);}
 });
+test('duidelijk niet-financiële bijlagen worden afgesloten, onleesbare documenten blijven herhaalbaar',()=>{
+ const w=repairRecovery(fixture()),code=w.nodes.find(n=>n.name==='Skip Non-Financial Attachment').parameters.jsCode;
+ const run=new Function('$',code), lookup=c=>name=>({item:{json:name==='Parse Document Classification'?{classification:c}:{processing_key:'mail-file'}}});
+ assert.throws(()=>run(lookup({document_type:'unknown',confidence:1})),/onduidelijk/);
+ assert.throws(()=>run(lookup({document_type:'other',confidence:.5})),/onduidelijk/);
+ assert.equal(run(lookup({document_type:'other',confidence:.99}))[0].json.processing_key,'mail-file');
+});
