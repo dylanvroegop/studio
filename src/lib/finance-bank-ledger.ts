@@ -164,22 +164,31 @@ function sourceAmount(cost: ProjectCostRow): number {
 }
 
 function documentReferences(value: string): string[] {
-  return Array.from(new Set(
-    normalizedText(value)
+  const normalized = normalizedText(value);
+  const labelled = Array.from(value.toLowerCase().matchAll(/\b(?:nr|factuur|invoice)\s*[:.#-]?\s*((?:[a-z0-9-]{5,})(?:\s*,\s*[a-z0-9-]{5,})*)/g))
+    .flatMap(match => match[1].split(',').filter(part => /\d/.test(part)).map(part => normalizedText(part)));
+  return Array.from(new Set([
+    ...labelled,
+    ...(normalized
       .match(/\b\d{4}\s*vf\s*\d+\b/g)
-      ?.map((item) => item.replace(/\s+/g, '')) || [],
-  ));
+      ?.map((item) => item.replace(/\s+/g, '')) || []),
+  ]));
 }
 
 function costDocumentReferences(cost: ProjectCostRow): string[] {
-  return documentReferences([
+  return Array.from(new Set([
+    ...[cost.supplier_invoice_number, cost.supplier_order_number]
+      .filter((value): value is string => Boolean(value && /^[a-z0-9-]{5,}$/i.test(value) && !value.startsWith('kost-')))
+      .map(value => normalizedText(value)),
+    ...documentReferences([
     cost.supplier_order_number,
     cost.supplier_invoice_number,
     cost.reconciliation_group_id,
     cost.source_filename,
     cost.description,
     ...cost.receipt_files.map((file) => file.filename),
-  ].filter(Boolean).join(' '));
+    ].filter(Boolean).join(' ')),
+  ]));
 }
 
 function costDocumentKey(cost: ProjectCostRow): string | null {

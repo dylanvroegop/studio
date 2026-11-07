@@ -4,6 +4,7 @@ export function productKey(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 const rules: Array<[ProjectCostCategory, RegExp, string]> = [
+  ['autokosten', /(?:lease.*(?:termijn|voertuig|mercedes|sprinter|kenteken)|(?:maandfactuur|termijn).*lease)/, 'Leasetermijn bedrijfsauto'],
   ['materiaal', /tijdelijke toeslag transportkosten|brandstof ?toeslag|grootgoed bezorging|bezorgkosten|transportkosten/, 'Levering van bouwmateriaal'],
   ['afval', /afvalverwerking|bouw.? en sloopafval|stortkosten|residu.*brandbaar|containerafvoer|puinafvoer/, 'Afvalverwerking'],
   ['boetes', /\bcjib\b|bekeuring|verkeersboete|naheffingsaanslag/, 'Boete'],

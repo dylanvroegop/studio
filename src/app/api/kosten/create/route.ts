@@ -7,8 +7,7 @@ import type { DocumentReference } from 'firebase-admin/firestore';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { enrichPurchaseFromGps, purchaseGpsEvidence } from '@/lib/gps-purchase-link-server';
-import { costImportHasTools, costQuoteId } from '@/lib/cost-import-routing';
-import { queuePendingCostImport } from '@/lib/pending-cost-imports';
+import { automaticCostLines, costLineInclusive, costQuoteId } from '@/lib/cost-import-routing';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import { fetchLaborCostsByQuoteId } from '@/lib/labor-costs';
 import {
@@ -602,21 +601,14 @@ export async function POST(request: Request) {
 
     if (!token) {
       const classified = await classifyPurchaseLines(uid, normalizeProjectCostLineItems(input.line_items));
-      input = { ...input, line_items: classified.lines };
-      if (classified.uncertain.length || input.extraction_warning || input.category_review_required === true) {
-        const queued = await queuePendingCostImport(uid, { ...input, review_reason: 'productcategorie',
-          extraction_warning: input.extraction_warning || `Controleer: ${classified.uncertain.join('; ')}` });
-        return NextResponse.json({ ok: true, pending: true, ...queued });
-      }
+      // Een ontbrekende categorie mag een geldige factuur niet tegenhouden.
+      // Document- en bedragcontroles blijven verplicht; alleen de categorie valt terug.
+      input = { ...input, line_items: automaticCostLines(classified.lines, classified.uncertain),
+        category: normalizeProjectCostCategory(input.category || input.suggested_category) };
     }
 
     // Bestaande handmatige/bronreferenties gaan altijd voor GPS.
     input = await enrichPurchaseFromGps(uid, input);
-
-    if (!token && costImportHasTools(input)) {
-      const queued = await queuePendingCostImport(uid, input);
-      return NextResponse.json({ ok: true, pending: true, ...queued });
-    }
 
     const supplierName = safeString(input.supplier_name);
     if (!supplierName) {
@@ -796,11 +788,7 @@ export async function POST(request: Request) {
     // category instead of applying one invoice-wide VAT rate to every group.
     let amountInclPerGroup = groupedArray.map((group, groupIndex) => {
       const inclusiveLineTotal = roundEuro(group.lineItems.reduce((sum, item) => {
-        const explicitInclusive = safeNumber(item.total_incl_btw);
-        if (explicitInclusive !== 0) return sum + explicitInclusive;
-        const exclusive = safeNumber(item.total_price);
-        const lineRate = safeNumber(item.btw_percentage);
-        return sum + roundEuro(exclusive * (1 + lineRate / 100));
+        return sum + costLineInclusive(item, btwPercentage);
       }, 0));
 
       if (inclusiveLineTotal !== 0) return inclusiveLineTotal;

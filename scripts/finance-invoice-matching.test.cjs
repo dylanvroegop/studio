@@ -110,3 +110,15 @@ test('bankhistorie wordt volledig geladen voorbij de database paginalimiet', asy
   assert.equal(result.length, 1201);
   assert.deepEqual(ranges, [[0, 499], [500, 999], [1000, 1499]]);
 });
+
+test('Derks-incasso koppelt meerdere expliciete factuurnummers met hun volledige bedrag', () => {
+  const invoices = ['56264250', '56264266'].map((number, index) => costsModule.mapProjectCostRow({
+    id: number, user_id: 'test-user', supplier_name: 'Derks Lease B.V.', supplier_invoice_number: number,
+    category: 'boetes', date: '2026-10-20', amount_incl_btw: index ? 224.13 : 378.38,
+  }));
+  const bank = { id: 'derks', amount: -602.51, booking_date: '2026-10-27', counterparty_name: 'Derks Lease B.V.', description: 'Nr 56264250,56264266' };
+  const result = buildFinanceBankLedger({ userId: 'test-user', costs: invoices, transactions: [bank] });
+  assert.deepEqual(new Set(result[0].source_cost_ids), new Set(invoices.map(x => x.id)));
+  const missing = buildFinanceBankLedger({ userId: 'test-user', costs: invoices, transactions: [{ ...bank, amount: -378.38, description: 'Nr 56269999' }] });
+  assert.deepEqual(missing[0].source_cost_ids, []);
+});
