@@ -1,5 +1,12 @@
 const {randomUUID}=require('node:crypto');
 const {repairDocumentContract}=require('./gmail-import-document-contract.cjs');
+function recoveryQuery(nowMs) {
+ const day = 86400, hour = 3600000;
+ const offset = (Math.floor(nowMs / hour) % 10) * 3;
+ const today = Math.floor(nowMs / (day * 1000)) * day;
+ return 'has:attachment -in:sent -in:drafts after:' + (today - (offset + 2) * day - 1) + ' before:' + (today + (1 - offset) * day);
+}
+const recoveryQueryExpression = '={{ (' + recoveryQuery.toString() + ')(Date.now()) }}';
 function repairRecovery(original){
  const w=repairDocumentContract(original), node=name=>w.nodes.find(n=>n.name===name);
  const connect=(from,to,output=0)=>{w.connections[from]??={main:[]};w.connections[from].main[output]=[{node:to,type:'main',index:0}];};
@@ -8,9 +15,9 @@ function repairRecovery(original){
  const sources=[];
  for(const [i,mailbox] of mailboxes.entries()){
   node(mailbox).parameters.filters = {...node(mailbox).parameters.filters, q:'has:attachment -in:sent -in:drafts',readStatus:'both'};
-  const schedule='Dagelijkse hercontrole '+(i+1), fetch='Herlees mailbox '+(i+1);
-  add(schedule,'scheduleTrigger',{rule:{interval:[{field:'days',daysInterval:1,triggerAtHour:3,triggerAtMinute:i?45:15}]}},[-200,700+i*250],1.2);
-  add(fetch,'gmail',{resource:'message',operation:'getAll',returnAll:true,simple:false,filters:{q:'has:attachment newer_than:30d -in:sent -in:drafts',readStatus:'both'},options:{downloadAttachments:true,dataPropertyAttachmentsPrefixName:'attachment_'}},[40,700+i*250],2.1,{credentials:node(mailbox).credentials,retryOnFail:true,maxTries:3,waitBetweenTries:5000});
+  const schedule='Hercontrole mailbox '+(i+1), fetch='Herlees mailbox '+(i+1);
+  add(schedule,'scheduleTrigger',{rule:{interval:[{field:'hours',hoursInterval:1,triggerAtMinute:i?45:15}]}},[-200,700+i*250],1.2);
+  add(fetch,'gmail',{resource:'message',operation:'getAll',returnAll:true,simple:false,filters:{q:recoveryQueryExpression,readStatus:'both'},options:{downloadAttachments:true,dataPropertyAttachmentsPrefixName:'attachment_'}},[40,700+i*250],2.1,{credentials:node(mailbox).credentials,retryOnFail:true,maxTries:3,waitBetweenTries:5000});
   connect(schedule,fetch); connect(fetch,'Select Invoice PDF'); sources.push({name:mailbox,mailbox},{name:fetch,mailbox});
  }
  const select=node('Select Invoice PDF');
@@ -30,5 +37,5 @@ function repairRecovery(original){
  w.settings={...w.settings,timezone:'Europe/Amsterdam',saveDataErrorExecution:'all',saveDataSuccessExecution:'all'};
  w.pinData={};return w;
 }
-module.exports={repairRecovery};
+module.exports={repairRecovery,recoveryQuery};
 if(require.main===module){const fs=require('fs');const [input,output]=process.argv.slice(2);fs.writeFileSync(output,JSON.stringify(repairRecovery(JSON.parse(fs.readFileSync(input))),null,2),{mode:0o600});}
