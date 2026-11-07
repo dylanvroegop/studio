@@ -490,7 +490,8 @@ function matchSources(
 
   const transactionDate = dateTime(transaction.booking_date);
   const scoredCosts = costs
-    .filter(({ cost, amount }) => !usedCosts.has(cost.id) && amount > 0)
+    // Kortingsregels horen bij dezelfde factuur en verlagen het te matchen totaal.
+    .filter(({ cost, amount }) => !usedCosts.has(cost.id) && amount !== 0)
     .map((entry) => ({ ...entry, score: supplierScore(entry.supplierTokens, transactionTokens) }))
     .filter(({ score }) => score > 0);
   const candidates = scoredCosts

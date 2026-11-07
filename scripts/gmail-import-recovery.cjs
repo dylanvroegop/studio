@@ -7,9 +7,10 @@ function repairRecovery(original){
  const mailboxes=['vroegoptimmerwerken@gmail.com','facturenvroegoptimmerwerken@gmail.com'];
  const sources=[];
  for(const [i,mailbox] of mailboxes.entries()){
+  node(mailbox).parameters.filters = {...node(mailbox).parameters.filters, q:'has:attachment -in:sent -in:drafts',readStatus:'both'};
   const schedule='Dagelijkse hercontrole '+(i+1), fetch='Herlees mailbox '+(i+1);
   add(schedule,'scheduleTrigger',{rule:{interval:[{field:'days',daysInterval:1,triggerAtHour:3,triggerAtMinute:i?45:15}]}},[-200,700+i*250],1.2);
-  add(fetch,'gmail',{resource:'message',operation:'getAll',returnAll:true,simple:false,filters:{q:'has:attachment newer_than:30d',readStatus:'both'},options:{downloadAttachments:true,dataPropertyAttachmentsPrefixName:'attachment_'}},[40,700+i*250],2.1,{credentials:node(mailbox).credentials,retryOnFail:true,maxTries:3,waitBetweenTries:5000});
+  add(fetch,'gmail',{resource:'message',operation:'getAll',returnAll:true,simple:false,filters:{q:'has:attachment newer_than:30d -in:sent -in:drafts',readStatus:'both'},options:{downloadAttachments:true,dataPropertyAttachmentsPrefixName:'attachment_'}},[40,700+i*250],2.1,{credentials:node(mailbox).credentials,retryOnFail:true,maxTries:3,waitBetweenTries:5000});
   connect(schedule,fetch); connect(fetch,'Select Invoice PDF'); sources.push({name:mailbox,mailbox},{name:fetch,mailbox});
  }
  const select=node('Select Invoice PDF');

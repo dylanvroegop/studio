@@ -73,6 +73,21 @@ test('dezelfde bronkosten tellen bij twee betalingen niet twee keer mee', () => 
   assert.equal(rows.filter((row) => row.match_status === 'matched').length, 1);
 });
 
+test('kortingsregel blijft onderdeel van de Toolstation-factuur bij een pinbetaling', () => {
+  const invoice = [38.94, -8.11].map((amount, i) => costsModule.mapProjectCostRow({
+    id: `toolstation-${i}`, user_id: 'owner', supplier_name: 'Toolstation NL B.V.',
+    supplier_invoice_number: 'OWW218219429', date: '2026-10-28', amount_incl_btw: amount,
+    category: i ? 'overig' : 'materiaal',
+  }));
+  const payment = { id: 'pin', amount: -30.83, booking_date: '2026-10-28',
+    counterparty_name: 'Toolstation via PayPal', description: 'TOOLSTATION Toolstation' };
+  const row = buildFinanceBankLedger({ userId: 'owner', costs: invoice, transactions: [payment] })[0];
+  assert.deepEqual(new Set(row.source_cost_ids), new Set(invoice.map(c => c.id)));
+  assert.equal(row.source_amount, 30.83);
+  const unrelated = [{ ...invoice[1], supplier_invoice_number: 'OTHER-INVOICE' }, invoice[0]];
+  assert.equal(buildFinanceBankLedger({ userId: 'owner', costs: unrelated, transactions: [payment] })[0].match_status, 'unmatched');
+});
+
 const { visibleUnmatchedSources } = loadSource('src/lib/finance-cost-visibility.ts');
 test('contante bon blijft zichtbaar en koppelt niet aan gelijk bankbedrag', () => {
   const cash = { ...costs[0], status: 'paid_cash' };
