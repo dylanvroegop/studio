@@ -787,6 +787,7 @@ export default function FactuurDetailPage() {
         btw: invoicePdfSettings?.showTotalsBreakdown === false ? undefined : invoice.totalsSnapshot?.btw,
         totaalInclBtw: invoice.totalsSnapshot?.totaalInclBtw ?? 0,
       },
+      paidAmount: invoice.paymentSummary?.paidAmount ?? 0,
       financialAdjustments: invoiceType === 'eind' && invoicePdfSettings?.showSpecification !== false
         ? {
           originalTotalInclBtw: Number.isFinite(originalTotalInclBtw) ? originalTotalInclBtw : 0,

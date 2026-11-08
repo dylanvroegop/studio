@@ -48,6 +48,7 @@ export interface PDFInvoiceData {
     btw?: number;
     totaalInclBtw: number;
   };
+  paidAmount?: number;
 
   financialAdjustments?: {
     originalTotalInclBtw: number;
@@ -84,6 +85,7 @@ export type InvoiceCostTable = {
 export type FinancialAdjustmentRow = {
   label: string;
   value: number;
+  bold?: boolean;
 };
 
 function getImageFormatFromDataUrl(dataUrl: string): 'PNG' | 'JPEG' | 'WEBP' {
@@ -98,31 +100,40 @@ function formatCurrency(amount: number) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(amount);
 }
 
-function isPositiveAmount(value: number | undefined | null): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) > 0.004;
-}
-
 export function shouldShowClientTaxNumbers(klanttype?: string | null): boolean {
   return String(klanttype || '').trim().toLowerCase() === 'zakelijk';
 }
 
-export function buildFinancialAdjustmentRows(financialAdjustments?: PDFInvoiceData['financialAdjustments']): FinancialAdjustmentRow[] {
+export function buildFinancialAdjustmentRows(
+  financialAdjustments?: PDFInvoiceData['financialAdjustments'],
+  remainingInclBtw?: number,
+): FinancialAdjustmentRow[] {
   if (!financialAdjustments) return [];
-  const rows: Array<FinancialAdjustmentRow | null> = [
-    isPositiveAmount(financialAdjustments.originalTotalInclBtw)
-      ? { label: 'Origineel totaal (incl. BTW)', value: financialAdjustments.originalTotalInclBtw }
-      : null,
-    isPositiveAmount(financialAdjustments.extraWorkInclBtw)
-      ? { label: 'Meerwerk (incl. BTW)', value: financialAdjustments.extraWorkInclBtw }
-      : null,
-    isPositiveAmount(financialAdjustments.voorschotAftrekInclBtw)
-      ? { label: 'Voorschot in mindering', value: -Math.abs(financialAdjustments.voorschotAftrekInclBtw) }
-      : null,
-    isPositiveAmount(financialAdjustments.voorschotFactuurPaidAmount)
-      ? { label: 'Reeds betaald op voorschot (info)', value: financialAdjustments.voorschotFactuurPaidAmount }
-      : null,
-  ];
-  return rows.filter(Boolean) as FinancialAdjustmentRow[];
+  const original = Math.round(financialAdjustments.originalTotalInclBtw * 100);
+  const advance = Math.round(financialAdjustments.voorschotAftrekInclBtw * 100);
+  const remaining = typeof remainingInclBtw === 'number' && Number.isFinite(remainingInclBtw)
+    ? Math.round(remainingInclBtw * 100) : original - advance;
+  if (!(original > 0) && !(advance > 0)) return [];
+
+  const rows: FinancialAdjustmentRow[] = [];
+  if (original > 0) rows.push({ label: 'Offertebedrag', value: original / 100 });
+  if (advance > 0) rows.push({ label: 'Voorschot in mindering', value: -advance / 100 });
+  const correction = original > 0 ? remaining - (original - advance) : 0;
+  if (correction !== 0) rows.push({ label: 'Bedragcorrectie', value: correction / 100 });
+
+  if (advance > 0 || correction !== 0) {
+    const percentage = original > 0 ? Math.round(remaining / original * 100) : 0;
+    const showPercentage = correction === 0 && percentage > 0 && percentage < 100
+      && Math.abs(Math.round(original * percentage / 100) - remaining) <= 1;
+    rows.push({
+      label: advance > 0
+        ? `Resterende eindtermijn${showPercentage ? ` (${percentage}%)` : ''}`
+        : 'Offertebedrag op deze factuur',
+      value: remaining / 100,
+      bold: true,
+    });
+  }
+  return rows;
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -705,52 +716,6 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   doc.line(margin, y, pageWidth - margin, y);
   y += 10;
 
-  // Specificatie (eindfactuur)
-  if (data.invoiceType === 'eind' && data.financialAdjustments) {
-    const specRows = buildFinancialAdjustmentRows(data.financialAdjustments);
-
-    if (specRows.length > 0) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text('Specificatie', margin, y);
-      y += 6;
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-
-      specRows.forEach((row) => {
-        doc.text(row.label, margin, y);
-        const v = row.value;
-        const formatted = (v < 0 ? '-' : '') + formatCurrency(Math.abs(v));
-        doc.text(formatted, pageWidth - margin, y, { align: 'right' });
-        y += 5;
-      });
-
-      y += 8;
-    }
-  }
-
-  if (data.extraWork?.length) {
-    if (y > 245) { doc.addPage(); y = margin; }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text('Meerwerk (incl. BTW)', margin, y);
-    y += 7;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    for (const item of data.extraWork) {
-      const lines = doc.splitTextToSize(item.description, pageWidth - margin * 2 - 42) as string[];
-      lines.forEach((line, index) => {
-        if (y > 270) { doc.addPage(); y = margin; }
-        doc.text(line, margin, y);
-        if (index === 0) doc.text(formatCurrency(item.amountInclBtw), pageWidth - margin, y, { align: 'right' });
-        y += 5;
-      });
-      y += 3;
-    }
-    y += 5;
-  }
-
   const invoiceCostTable = data.showMaterialLaborBreakdown || data.showTransportBreakdown
     ? buildInvoiceCostTable(data)
     : null;
@@ -813,7 +778,6 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
           : 'BTW',
         value: invoiceCostTable.btw,
       }]),
-      { label: 'Totaal incl. BTW', value: invoiceCostTable.totalInclBtw, bold: true },
     ];
 
     totalRows.forEach((row) => {
@@ -827,31 +791,104 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
     y += 6;
   }
 
-  // Totals
-  if (!hasCostTable) {
-    if (y > 245) { doc.addPage(); y = margin; }
+  // Eén opbouw: offerte - voorschot = eindtermijn, daarna meerwerk en het betaalbedrag.
+  const extraWorkTotal = (data.extraWork ?? []).reduce((sum, item) => sum + Math.round(item.amountInclBtw * 100), 0) / 100;
+  const remainingInclBtw = Math.round((data.totals.totaalInclBtw - extraWorkTotal) * 100) / 100;
+  const settlementRows = data.invoiceType === 'eind'
+    ? buildFinancialAdjustmentRows(data.financialAdjustments, remainingInclBtw)
+    : [];
+  if (settlementRows.length === 0 && data.extraWork?.length) {
+    settlementRows.push({
+      label: isVoorschotInvoice ? 'Voorschot zonder meerwerk' : 'Factuurbedrag zonder meerwerk',
+      value: remainingInclBtw,
+      bold: true,
+    });
+  }
+
+  function ensureSpace(height: number) {
+    if (y + height > 277) { doc.addPage(); y = margin; }
+  }
+
+  function moneyRow(label: string, amount: number, bold = false) {
+    ensureSpace(8);
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.setFontSize(10);
+    doc.text(label, margin, y);
+    doc.text(formatCurrency(amount), pageWidth - margin, y, { align: 'right' });
+    y += 7;
+  }
+
+  if (settlementRows.length > 0) {
+    ensureSpace(18 + settlementRows.length * 7);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text('Totaal', margin, y);
-    y += 6;
+    doc.text(isVoorschotInvoice ? 'Opbouw factuur' : 'Opbouw eindfactuur', margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(95);
+    doc.text('Bedragen inclusief BTW', pageWidth - margin, y, { align: 'right' });
+    doc.setTextColor(0);
+    y += 9;
+    for (const row of settlementRows) {
+      if (row.bold) {
+        doc.setDrawColor(220);
+        doc.line(margin, y - 4, pageWidth - margin, y - 4);
+        y += 2;
+      }
+      moneyRow(row.label, row.value, row.bold);
+    }
+    y += 5;
+  }
 
+  if (data.extraWork?.length) {
+    ensureSpace(22);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Meerwerk (incl. BTW)', margin, y);
+    y += 8;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    const totalRows: Array<{ label: string; value: number | undefined }> = [
-      { label: 'Totaal (excl. BTW)', value: data.totals.totaalExclBtw },
-      { label: 'BTW', value: data.totals.btw },
-      { label: 'Totaal (incl. BTW)', value: data.totals.totaalInclBtw },
-    ];
-
-    totalRows.forEach((row) => {
-      if (row.value === undefined || row.value === null) return;
-      doc.text(row.label, margin, y);
-      doc.text(formatCurrency(row.value), pageWidth - margin, y, { align: 'right' });
-      y += 5;
-    });
-
-    y += 8;
+    for (const item of data.extraWork) {
+      const lines = doc.splitTextToSize(item.description, pageWidth - margin * 2 - 42) as string[];
+      lines.forEach((line, index) => {
+        ensureSpace(7);
+        doc.text(line, margin, y);
+        if (index === 0) doc.text(formatCurrency(item.amountInclBtw), pageWidth - margin, y, { align: 'right' });
+        y += 5;
+      });
+      y += 4;
+    }
+    y += 3;
   }
+
+  // De BTW-specificatie is facultatief; het uiteindelijke betaalbedrag staat altijd één keer onderaan.
+  if (!hasCostTable) {
+    for (const row of [
+      { label: 'Totaal excl. BTW', value: data.totals.totaalExclBtw },
+      { label: 'BTW', value: data.totals.btw },
+    ]) {
+      if (typeof row.value === 'number') moneyRow(row.label, row.value);
+    }
+  }
+  const paidAmount = typeof data.paidAmount === 'number' && Number.isFinite(data.paidAmount)
+    ? Math.max(0, Math.round(data.paidAmount * 100) / 100) : 0;
+  const amountDue = Math.max(0, Math.round((data.totals.totaalInclBtw - paidAmount) * 100) / 100);
+  ensureSpace(paidAmount > data.totals.totaalInclBtw ? 49 : paidAmount > 0 ? 42 : 23);
+  if (paidAmount > 0) {
+    moneyRow('Factuurtotaal (incl. BTW)', data.totals.totaalInclBtw);
+    moneyRow('Ontvangen op deze factuur', -paidAmount);
+    if (paidAmount > data.totals.totaalInclBtw) {
+      moneyRow('Te veel betaald', Math.round((paidAmount - data.totals.totaalInclBtw) * 100) / 100);
+    }
+  }
+  doc.setFillColor(242, 244, 243);
+  doc.roundedRect(margin - 3, y - 3, pageWidth - margin * 2 + 6, 17, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text(paidAmount > 0 ? 'Nog te betalen (incl. BTW)' : 'Totaal te betalen (incl. BTW)', margin, y + 7);
+  doc.setFontSize(14);
+  doc.text(formatCurrency(amountDue), pageWidth - margin, y + 7, { align: 'right' });
+  y += 20;
 
   const invoiceNotes = (data.invoiceNotes || '').trim();
   if (invoiceNotes) {
@@ -888,6 +925,7 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   }
 
   // Payment instructions
+  ensureSpace(25);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Betalingsinformatie', margin, y);
@@ -908,10 +946,7 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   }
 
   paymentLines.forEach((line) => {
-    if (y > 270) {
-      doc.addPage();
-      y = margin;
-    }
+    ensureSpace(5);
     doc.text(line, margin, y);
     y += 5;
   });
