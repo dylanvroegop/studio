@@ -182,4 +182,29 @@ export function runInvoicePdfUnitTests(): void {
   assert.equal(shouldShowClientTaxNumbers('Zakelijk'), true);
   assert.equal(shouldShowClientTaxNumbers('Particulier'), false);
   assert.equal(shouldShowClientTaxNumbers(null), false);
+
+  const extraWork = [
+    { description: 'Extra plint', amountInclBtw: 121, amountExclBtw: 100, vatAmount: 21, vatRate: 21 },
+    { description: 'Schilderwerk', amountInclBtw: 109, amountExclBtw: 100, vatAmount: 9, vatRate: 9 },
+  ];
+  for (const totals of [
+    { totaalInclBtw: 3250.27 },
+    { totaalInclBtw: 3250.27, totaalExclBtw: 2696.09, btw: 554.18 },
+  ]) {
+    const base = buildInvoiceCostTable({ ...baseData(), totals: totals.totaalExclBtw === undefined ? { totaalInclBtw: 3020.27 } : baseData().totals });
+    const withExtraWork = buildInvoiceCostTable({ ...baseData(), totals, extraWork });
+    assert.equal(withExtraWork.totalInclBtw, 3250.27);
+    assert.equal(withExtraWork.subtotalExclBtw, Math.round((base.subtotalExclBtw + 200) * 100) / 100, 'meerwerk niet dubbel tellen bij opgeslagen subtotalen');
+    assert.equal(withExtraWork.btw, Math.round((base.btw + 30) * 100) / 100);
+    assert.equal(withExtraWork.rows.find((row) => row.label === 'Meerwerk')?.amount, 200);
+    assert.equal(Math.round(withExtraWork.btwRows!.reduce((sum, row) => sum + row.value, 0) * 100) / 100, withExtraWork.btw);
+  }
+  const withoutCalculation = buildInvoiceCostTable({
+    totals: { totaalInclBtw: 230, totaalExclBtw: 200, btw: 30 },
+    extraWork: [extraWork[1]],
+  });
+  assert.deepEqual(withoutCalculation.btwRows, [{ label: 'BTW 21%', value: 21 }, { label: 'BTW 9%', value: 9 }]);
+
+  const extraSpec = buildFinancialAdjustmentRows({ originalTotalInclBtw: 1000, voorschotAftrekInclBtw: 500, extraWorkInclBtw: 230 });
+  assert.deepEqual(extraSpec.map((row) => row.value), [1000, 230, -500]);
 }

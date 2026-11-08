@@ -24,7 +24,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -43,12 +42,12 @@ import { getInvoicePdfBlob } from '@/lib/invoice-pdf-client';
 import { SendInvoiceModal } from '@/components/invoice/SendInvoiceModal';
 import { ShareInvoiceDialog } from '@/components/invoice/ShareInvoiceDialog';
 import { InvoiceBankPayments } from '@/components/invoice/InvoiceBankPayments';
+import { InvoiceExtraWork } from '@/components/invoice/InvoiceExtraWork';
 import { downloadInvoiceFile, invoiceShareFilename } from '@/lib/invoice-sharing';
 import { saveInvoiceAmountOverride } from '@/lib/invoice-amount-override';
 import { hasCompleteInvoiceSourceSnapshot, hasFrozenInvoiceSnapshot } from '@/lib/invoice-detail-snapshot';
 import { toast } from '@/hooks/use-toast';
 import {
-  invoiceImpliesAccepted,
   promoteInvoiceRelatedQuotesToAcceptedInTransaction,
 } from '@/lib/quote-status';
 import type { DataJson } from '@/lib/quote-calculations';
@@ -168,13 +167,6 @@ function mergeCalculationSnapshotWithQuote(snapshot: DataJson | null | undefined
       },
     },
   } as DataJson;
-}
-
-function nextStatusAfterPayment(total: number, paidAmount: number, current: InvoiceStatus): InvoiceStatus {
-  const openAmount = Math.max(0, total - paidAmount);
-  if (openAmount === 0) return 'betaald';
-  if (paidAmount > 0 && openAmount > 0) return 'gedeeltelijk_betaald';
-  return current;
 }
 
 type InvoicePdfSettings = {
@@ -301,13 +293,6 @@ export default function FactuurDetailPage() {
   const [invoiceNotes, setInvoiceNotes] = useState<string>('');
   const [notesSaving, setNotesSaving] = useState(false);
 
-  // Payment form
-  const [payAmount, setPayAmount] = useState<string>('');
-  const [payDate, setPayDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
-  const [payMethod, setPayMethod] = useState<InvoicePayment['method']>('bank');
-  const [payReference, setPayReference] = useState<string>('');
-  const [payNote, setPayNote] = useState<string>('');
-  const [paySaving, setPaySaving] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [activeTab, setActiveTab] = useState<'pdf' | 'overzicht' | 'bedrag' | 'notities' | 'betalingen'>('pdf');
   const [pdfSettingsOpen, setPdfSettingsOpen] = useState(false);
@@ -556,7 +541,8 @@ export default function FactuurDetailPage() {
 
   useEffect(() => {
     if (!invoice) return;
-    const originalTotal = Number(invoice.financialAdjustments?.originalTotalInclBtw ?? invoice.totalsSnapshot?.totaalInclBtw ?? 0);
+    const extraWorkTotal = (invoice.extraWork ?? []).reduce((sum, item) => sum + item.amountInclBtw, 0);
+    const originalTotal = Number(invoice.financialAdjustments?.originalTotalInclBtw ?? Math.max(0, (invoice.totalsSnapshot?.totaalInclBtw ?? 0) - extraWorkTotal));
     const voorschotAftrek = Number(invoice.financialAdjustments?.voorschotAftrekInclBtw ?? 0);
     const voorschotPaid = Number(invoice.financialAdjustments?.voorschotFactuur?.paidAmount ?? 0);
     const finalTotal = Number(invoice.totalsSnapshot?.totaalInclBtw ?? 0);
@@ -566,8 +552,14 @@ export default function FactuurDetailPage() {
     setSpecVoorschotPaidInfo(formatAmountInput(voorschotPaid));
     setSpecFinalTotal(formatAmountInput(finalTotal));
     setOverrideReason(getString(invoice.financialAdjustments?.opmerking));
-    setInvoiceNotes(typeof invoice.notes === 'string' ? invoice.notes : '');
-  }, [invoice?.id]);
+  }, [invoice?.id, invoice?.totalsSnapshot?.totaalInclBtw,
+    invoice?.financialAdjustments?.originalTotalInclBtw, invoice?.financialAdjustments?.voorschotAftrekInclBtw,
+    invoice?.financialAdjustments?.voorschotFactuur?.paidAmount, invoice?.financialAdjustments?.opmerking]);
+
+  const savedInvoiceNotes = typeof invoice?.notes === 'string' ? invoice.notes : '';
+  useEffect(() => {
+    setInvoiceNotes(savedInvoiceNotes);
+  }, [invoice?.id, savedInvoiceNotes]);
 
   useEffect(() => {
     if (!invoice || !pdfSourcesReady || pdfSettingsInitialized) return;
@@ -748,7 +740,8 @@ export default function FactuurDetailPage() {
       ? formatOfferteNummerLabel(snapshotOfferteNummer, offerteVersie)
       : formatOfferteNummerLabel(quoteOfferteNummer, offerteVersie);
 
-    const originalTotalInclBtw = Number(invoice.financialAdjustments?.originalTotalInclBtw ?? invoice.totalsSnapshot?.totaalInclBtw ?? 0);
+    const extraWorkInclBtw = (invoice.extraWork ?? []).reduce((sum, item) => sum + item.amountInclBtw, 0);
+    const originalTotalInclBtw = Number(invoice.financialAdjustments?.originalTotalInclBtw ?? Math.max(0, (invoice.totalsSnapshot?.totaalInclBtw ?? 0) - extraWorkInclBtw));
     const voorschotAftrekInclBtw = Number(invoice.financialAdjustments?.voorschotAftrekInclBtw ?? 0);
     const voorschotFactuurPaidAmount = typeof invoice.financialAdjustments?.voorschotFactuur?.paidAmount === 'number'
       ? invoice.financialAdjustments.voorschotFactuur.paidAmount
@@ -799,8 +792,10 @@ export default function FactuurDetailPage() {
           originalTotalInclBtw: Number.isFinite(originalTotalInclBtw) ? originalTotalInclBtw : 0,
           voorschotAftrekInclBtw: Number.isFinite(voorschotAftrekInclBtw) ? voorschotAftrekInclBtw : 0,
           voorschotFactuurPaidAmount,
+          extraWorkInclBtw,
         }
         : undefined,
+      extraWork: invoice.extraWork ?? [],
       showMaterialLaborBreakdown: invoicePdfSettings?.showMaterialLaborBreakdown === true,
       showTransportBreakdown: invoicePdfSettings?.showTransportBreakdown === true,
       showHourlyRateOnInvoice: invoicePdfSettings?.showHourlyRateOnInvoice === true,
@@ -893,76 +888,6 @@ export default function FactuurDetailPage() {
       toast({ title: 'Fout', description: 'Kon status niet bijwerken.', variant: 'destructive' });
     } finally {
       setMarkingPaid(false);
-    }
-  };
-
-  const handleAddPayment = async () => {
-    if (!firestore || !invoice || !invoiceId) return;
-
-    const amount = parsePriceToNumber(payAmount);
-    if (amount === null || !Number.isFinite(amount) || amount <= 0) {
-      toast({ title: 'Ongeldig bedrag', description: 'Vul een geldig bedrag in.', variant: 'destructive' });
-      return;
-    }
-
-    const date = payDate ? new Date(`${payDate}T12:00:00`) : new Date();
-    const paymentDate = Timestamp.fromDate(date);
-
-    setPaySaving(true);
-    try {
-      await runTransaction(firestore, async (tx) => {
-        const invRef = doc(firestore, 'invoices', invoiceId);
-        const snap = await tx.get(invRef);
-        if (!snap.exists()) throw new Error('Factuur niet gevonden');
-
-        const inv = snap.data() as any;
-        const total = Number(inv?.totalsSnapshot?.totaalInclBtw ?? 0) || 0;
-        const paidNow = Number(inv?.paymentSummary?.paidAmount ?? 0) || 0;
-        const newPaid = paidNow + amount;
-        const newOpen = Math.max(0, total - newPaid);
-
-        const currentStatus: InvoiceStatus = inv?.status ?? 'concept';
-        const newStatus = nextStatusAfterPayment(total, newPaid, currentStatus);
-
-        const paymentRef = doc(collection(firestore, 'invoices', invoiceId, 'payments'));
-
-        const update: any = {
-          'paymentSummary.paidAmount': newPaid,
-          'paymentSummary.openAmount': newOpen,
-          'paymentSummary.lastPaymentAt': paymentDate,
-          status: newStatus,
-          updatedAt: serverTimestamp(),
-        };
-
-        if (newStatus === 'betaald') {
-          update.paidAt = inv?.paidAt ?? serverTimestamp();
-        }
-
-        if (invoiceImpliesAccepted(newStatus)) {
-          await promoteInvoiceRelatedQuotesToAcceptedInTransaction(tx, firestore, inv);
-        }
-
-        tx.set(paymentRef, {
-          amount,
-          date: paymentDate,
-          method: payMethod,
-          reference: payReference || '',
-          note: payNote || '',
-          createdAt: serverTimestamp(),
-        });
-
-        tx.update(invRef, update);
-      });
-
-      setPayAmount('');
-      setPayReference('');
-      setPayNote('');
-      toast({ title: 'Opgeslagen', description: 'Betaling toegevoegd.' });
-    } catch (e) {
-      console.error(e);
-      toast({ title: 'Fout', description: 'Kon betaling niet opslaan.', variant: 'destructive' });
-    } finally {
-      setPaySaving(false);
     }
   };
 
@@ -1317,7 +1242,7 @@ export default function FactuurDetailPage() {
                   {(invoice as any).linkedMeerwerkbonIds.join(', ')}
                 </div>
               ) : null}
-              <div className="pt-2 flex gap-2">
+              <div className="pt-2 flex flex-wrap gap-2">
                 <Button asChild variant="outline" className="h-9">
                   <Link href={`/offertes/${invoice.quoteId}`}>Open offerte</Link>
                 </Button>
@@ -1502,104 +1427,35 @@ export default function FactuurDetailPage() {
 
             <TabsContent value="betalingen" className="space-y-4">
               <InvoiceBankPayments invoiceId={invoiceId} refreshKey={`${invoice.status}:${invoice.paymentSummary?.paidAmount ?? 0}:${invoice.totalsSnapshot?.totaalInclBtw ?? 0}`} />
-              <Card>
-                <CardHeader>
-                  <CardTitle>Betaling toevoegen</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Bedrag</Label>
-                    <Input
-                      value={payAmount}
-                      onChange={(e) => setPayAmount(e.target.value)}
-                      placeholder="bijv. 150,00"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Datum</Label>
-                    <Input
-                      type="date"
-                      value={payDate}
-                      onChange={(e) => setPayDate(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Methode</Label>
-                    <Select value={payMethod} onValueChange={(v) => setPayMethod(v as any)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="bank">Bank</SelectItem>
-                        <SelectItem value="pin">Pin</SelectItem>
-                        <SelectItem value="contant">Contant</SelectItem>
-                        <SelectItem value="overig">Overig</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Referentie</Label>
-                    <Input
-                      value={payReference}
-                      onChange={(e) => setPayReference(e.target.value)}
-                      placeholder="bijv. omschrijving / transactie-id"
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Notitie</Label>
-                    <Textarea
-                      value={payNote}
-                      onChange={(e) => setPayNote(e.target.value)}
-                      placeholder="Optioneel"
-                      className="min-h-[90px]"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Button
-                      type="button"
-                      variant="success"
-                      onClick={handleAddPayment}
-                      disabled={paySaving}
-                      className="w-full"
-                    >
-                      {paySaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Betaling opslaan
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <InvoiceExtraWork key={invoiceId} invoice={invoice} />
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Betalingen</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {payments.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">Nog geen betalingen.</div>
-                  ) : (
-                    <div className="space-y-2">
-                      {payments.map((p) => {
-                        const d = naarDate(p.date);
-                        return (
-                          <div key={p.id} className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card/50 p-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-semibold">{formatCurrency(p.amount)}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {d ? d.toLocaleDateString('nl-NL') : '-'} • {p.method}
-                              </div>
-                              {(p.reference || p.note) && (
-                                <div className="text-xs text-muted-foreground mt-1 break-words">
-                                  {[p.reference, p.note].filter(Boolean).join(' — ')}
-                                </div>
-                              )}
+              {payments.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Ontvangen betalingen</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {payments.map((p) => {
+                      const d = naarDate(p.date);
+                      return (
+                        <div key={p.id} className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card/50 p-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold">{formatCurrency(p.amount)}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {d ? d.toLocaleDateString('nl-NL') : '-'} • {p.method}
                             </div>
+                            {(p.reference || p.note) && (
+                              <div className="text-xs text-muted-foreground mt-1 break-words">
+                                {[p.reference, p.note].filter(Boolean).join(' — ')}
+                              </div>
+                            )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              ) : null}
             </TabsContent>
         </div>
         </Tabs>

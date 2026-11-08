@@ -214,6 +214,16 @@ export interface InvoicePayment {
   createdAt: Timestamp;
 }
 
+export interface InvoiceExtraWork {
+  id: string;
+  description: string;
+  amountInclBtw: number;
+  amountExclBtw: number;
+  vatAmount: number;
+  vatRate: number;
+  createdAt: Timestamp;
+}
+
 export interface Invoice {
   id: string;
   userId: string;
@@ -282,6 +292,7 @@ export interface Invoice {
   };
 
   notes?: string;
+  extraWork?: InvoiceExtraWork[];
   sentAt?: Timestamp;
   paidAt?: Timestamp;
 
