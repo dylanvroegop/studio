@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { calculateQuoteTotals } from './quote-calculations';
 import type { DataJson } from './quote-calculations';
-import type { InvoiceType } from './types';
+import type { InvoiceExtraWork, InvoiceType } from './types';
 import { loadPdfImage } from './pdf-image-cache';
 import { invoiceShareFilename } from './invoice-sharing';
 
@@ -53,8 +53,10 @@ export interface PDFInvoiceData {
     originalTotalInclBtw: number;
     voorschotAftrekInclBtw: number;
     voorschotFactuurPaidAmount?: number;
+    extraWorkInclBtw?: number;
   };
 
+  extraWork?: Array<Pick<InvoiceExtraWork, 'description' | 'amountInclBtw' | 'amountExclBtw' | 'vatAmount' | 'vatRate'>>;
   showMaterialLaborBreakdown?: boolean;
   showTransportBreakdown?: boolean;
   showHourlyRateOnInvoice?: boolean;
@@ -109,6 +111,9 @@ export function buildFinancialAdjustmentRows(financialAdjustments?: PDFInvoiceDa
   const rows: Array<FinancialAdjustmentRow | null> = [
     isPositiveAmount(financialAdjustments.originalTotalInclBtw)
       ? { label: 'Origineel totaal (incl. BTW)', value: financialAdjustments.originalTotalInclBtw }
+      : null,
+    isPositiveAmount(financialAdjustments.extraWorkInclBtw)
+      ? { label: 'Meerwerk (incl. BTW)', value: financialAdjustments.extraWorkInclBtw }
       : null,
     isPositiveAmount(financialAdjustments.voorschotAftrekInclBtw)
       ? { label: 'Voorschot in mindering', value: -Math.abs(financialAdjustments.voorschotAftrekInclBtw) }
@@ -489,8 +494,11 @@ function formatHours(hours: number): string {
   return `${formatted} uur`;
 }
 
-export function buildInvoiceCostTable(data: Pick<PDFInvoiceData, 'calculationSnapshot' | 'totals' | 'showMaterialLaborBreakdown' | 'showTransportBreakdown' | 'showHourlyRateOnInvoice' | 'laborHoursPerDay'>): InvoiceCostTable {
+export function buildInvoiceCostTable(data: Pick<PDFInvoiceData, 'calculationSnapshot' | 'totals' | 'showMaterialLaborBreakdown' | 'showTransportBreakdown' | 'showHourlyRateOnInvoice' | 'laborHoursPerDay' | 'extraWork'>): InvoiceCostTable {
   const breakdown = getInvoiceBreakdown(data.calculationSnapshot, data.laborHoursPerDay);
+  const extraWork = data.extraWork ?? [];
+  const extraExcl = Math.round(extraWork.reduce((sum, item) => sum + item.amountExclBtw, 0) * 100) / 100;
+  const extraVat = Math.round(extraWork.reduce((sum, item) => sum + item.vatAmount, 0) * 100) / 100;
   const rows: InvoiceCostTableRow[] = [];
 
   if (breakdown && data.showMaterialLaborBreakdown) {
@@ -532,8 +540,9 @@ export function buildInvoiceCostTable(data: Pick<PDFInvoiceData, 'calculationSna
     rows.push({ label: 'Transport', calculation: breakdown.transportCalculation, amount: breakdown.transport });
   }
 
+  if (extraExcl > 0) rows.push({ label: 'Meerwerk', calculation: '-', amount: extraExcl });
   const rowSubtotal = Math.round(rows.reduce((sum, row) => sum + row.amount, 0) * 100) / 100;
-  const knownSubtotal = data.totals.totaalExclBtw ?? breakdown?.subtotalExclBtw ?? null;
+  const knownSubtotal = data.totals.totaalExclBtw ?? (breakdown?.subtotalExclBtw !== null && breakdown?.subtotalExclBtw !== undefined ? breakdown.subtotalExclBtw + extraExcl : null);
   const marginFromBreakdown = breakdown?.margin ?? 0;
   const missingSubtotal = knownSubtotal !== null ? Math.round((knownSubtotal - rowSubtotal) * 100) / 100 : 0;
   const otherCosts = marginFromBreakdown > 0 ? marginFromBreakdown : (missingSubtotal > 0.01 ? missingSubtotal : 0);
@@ -541,13 +550,13 @@ export function buildInvoiceCostTable(data: Pick<PDFInvoiceData, 'calculationSna
     rows.push({ label: 'Opslag', calculation: '-', amount: Math.round(otherCosts * 100) / 100 });
   }
 
-  const subtotalExclBtw = Math.round((data.totals.totaalExclBtw ?? breakdown?.subtotalExclBtw ?? rows.reduce((sum, row) => sum + row.amount, 0)) * 100) / 100;
+  const subtotalExclBtw = Math.round((knownSubtotal ?? rows.reduce((sum, row) => sum + row.amount, 0)) * 100) / 100;
   const totalInclBtw = Math.round(data.totals.totaalInclBtw * 100) / 100;
-  const btw = Math.round((data.totals.btw ?? breakdown?.btw ?? Math.max(0, totalInclBtw - subtotalExclBtw)) * 100) / 100;
+  const btw = Math.round((data.totals.btw ?? (breakdown?.btw !== null && breakdown?.btw !== undefined ? breakdown.btw + extraVat : null) ?? Math.max(0, totalInclBtw - subtotalExclBtw)) * 100) / 100;
   const btwPercentage = breakdown?.btwPercentage ?? (
     subtotalExclBtw > 0 && btw > 0 ? Math.round((btw / subtotalExclBtw) * 10000) / 100 : null
   );
-  const btwRows = breakdown && breakdown.btwHigh !== null && breakdown.btwLow !== null && breakdown.btwLow > 0
+  let btwRows = breakdown && breakdown.btwHigh !== null && breakdown.btwLow !== null && breakdown.btwLow > 0
     ? [
       {
         label: `BTW ${formatDecimal(breakdown.laborHighVatRate ?? btwPercentage ?? 21, 2)}%`,
@@ -559,6 +568,21 @@ export function buildInvoiceCostTable(data: Pick<PDFInvoiceData, 'calculationSna
       },
     ].filter((row) => row.value > 0)
     : undefined;
+
+  if (extraWork.length > 0) {
+    // De oude calculatie bevat het later toegevoegde meerwerk nog niet.
+    const baseExcl = subtotalExclBtw - extraExcl;
+    const baseVat = Math.round((btw - extraVat) * 100) / 100;
+    const baseRate = breakdown?.btwPercentage ?? (baseExcl > 0 ? Math.round(baseVat / baseExcl * 100) : null);
+    const rows = btwRows ?? [{ label: baseRate !== null ? `BTW ${formatDecimal(baseRate, 2)}%` : 'BTW', value: baseVat }];
+    for (const item of extraWork) {
+      const label = `BTW ${formatDecimal(item.vatRate, 2)}%`;
+      const row = rows.find((candidate) => candidate.label === label);
+      if (row) row.value = Math.round((row.value + item.vatAmount) * 100) / 100;
+      else rows.push({ label, value: item.vatAmount });
+    }
+    btwRows = rows.filter((row) => row.value > 0);
+  }
 
   return {
     rows,
@@ -706,6 +730,27 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
     }
   }
 
+  if (data.extraWork?.length) {
+    if (y > 245) { doc.addPage(); y = margin; }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Meerwerk (incl. BTW)', margin, y);
+    y += 7;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    for (const item of data.extraWork) {
+      const lines = doc.splitTextToSize(item.description, pageWidth - margin * 2 - 42) as string[];
+      lines.forEach((line, index) => {
+        if (y > 270) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        if (index === 0) doc.text(formatCurrency(item.amountInclBtw), pageWidth - margin, y, { align: 'right' });
+        y += 5;
+      });
+      y += 3;
+    }
+    y += 5;
+  }
+
   const invoiceCostTable = data.showMaterialLaborBreakdown || data.showTransportBreakdown
     ? buildInvoiceCostTable(data)
     : null;
@@ -784,6 +829,7 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
 
   // Totals
   if (!hasCostTable) {
+    if (y > 245) { doc.addPage(); y = margin; }
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.text('Totaal', margin, y);
