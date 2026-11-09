@@ -89,3 +89,26 @@ test('lange meerwerkomschrijvingen behouden bedrag en totaal binnen paginamarges
   assert.equal(pdf.text.filter((row) => row.value === money(135.80)).length, 1);
   assert.equal(pdf.text.filter((row) => row.value === money(1613.06)).length, 1);
 });
+
+test('uitsplitsen toont materiaal, uren en reizen zonder eindtermijn, meerwerk of betaalbedrag te wijzigen', async () => {
+  const snapshot = {
+    materialenTotaal: 237.51, arbeidTotaal: 2125, totaal_uren: 42.5,
+    transportTotaal: 133.58, totaalExclBtw: 2496.09, btw: 524.18,
+    instellingen: { uurTariefExclBtw: 50, btwTarief: 21 },
+  };
+  const input = { ...invoice, calculationSnapshot: snapshot };
+  const ordinary = fixture(); await ordinary.render(input);
+  const detailed = fixture(); await detailed.render({
+    ...input, showMaterialLaborBreakdown: true, showTransportBreakdown: true, showHourlyRateOnInvoice: true,
+  });
+  const ordinaryLines = ordinary.text.map((row) => row.value);
+  const detailedLines = detailed.text.map((row) => row.value);
+  for (const label of ['Specificatie kosten', 'Materiaal', 'Arbeid', 'Transport', '42,50 uur × € 50,00']) {
+    assert.equal(ordinaryLines.includes(label), false);
+    assert.ok(detailedLines.includes(label), label);
+  }
+  for (const amount of [1477.26, 135.80, 1613.06]) {
+    assert.equal(detailedLines.filter((line) => line === money(amount)).length, 1);
+    assert.equal(ordinaryLines.filter((line) => line === money(amount)).length, 1);
+  }
+});

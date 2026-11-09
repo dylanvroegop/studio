@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -39,6 +40,11 @@ import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge';
 import { PDFPreviewInvoice } from '@/components/invoice/PDFPreviewInvoice';
 import type { PDFInvoiceData } from '@/lib/generate-invoice-pdf';
 import { getInvoicePdfBlob } from '@/lib/invoice-pdf-client';
+import {
+  buildInvoicePdfDefaultSettings,
+  resolveInvoiceCostBreakdownSettings,
+  type InvoicePdfSettings,
+} from '@/lib/invoice-pdf-settings';
 import { SendInvoiceModal } from '@/components/invoice/SendInvoiceModal';
 import { ShareInvoiceDialog } from '@/components/invoice/ShareInvoiceDialog';
 import { InvoiceBankPayments } from '@/components/invoice/InvoiceBankPayments';
@@ -167,38 +173,6 @@ function mergeCalculationSnapshotWithQuote(snapshot: DataJson | null | undefined
       },
     },
   } as DataJson;
-}
-
-type InvoicePdfSettings = {
-  issueDateISO: string;
-  paymentTermDays: number;
-  invoiceDescription: string;
-  showLogo: boolean;
-  showQuoteReference: boolean;
-  showSpecification: boolean;
-  showTotalsBreakdown: boolean;
-  showMaterialLaborBreakdown: boolean;
-  showTransportBreakdown: boolean;
-  showHourlyRateOnInvoice: boolean;
-  showBankDetails: boolean;
-  customPaymentText: string;
-};
-
-type InvoicePdfDefaultSettings = Omit<InvoicePdfSettings, 'issueDateISO' | 'invoiceDescription'>;
-
-function buildInvoicePdfDefaultSettings(settings: InvoicePdfSettings): InvoicePdfDefaultSettings {
-  return {
-    paymentTermDays: settings.paymentTermDays,
-    showLogo: settings.showLogo,
-    showQuoteReference: settings.showQuoteReference,
-    showSpecification: settings.showSpecification,
-    showTotalsBreakdown: settings.showTotalsBreakdown,
-    showMaterialLaborBreakdown: settings.showMaterialLaborBreakdown,
-    showTransportBreakdown: settings.showTransportBreakdown,
-    showHourlyRateOnInvoice: settings.showHourlyRateOnInvoice,
-    showBankDetails: settings.showBankDetails,
-    customPaymentText: settings.customPaymentText,
-  };
 }
 
 function clampPaymentTermDays(value: number): number {
@@ -599,9 +573,7 @@ export default function FactuurDetailPage() {
       showQuoteReference: stored?.showQuoteReference ?? userPdfDefaults.showQuoteReference ?? true,
       showSpecification: stored?.showSpecification ?? userPdfDefaults.showSpecification ?? true,
       showTotalsBreakdown: stored?.showTotalsBreakdown ?? userPdfDefaults.showTotalsBreakdown ?? true,
-      showMaterialLaborBreakdown: stored?.showMaterialLaborBreakdown ?? userPdfDefaults.showMaterialLaborBreakdown ?? false,
-      showTransportBreakdown: stored?.showTransportBreakdown ?? userPdfDefaults.showTransportBreakdown ?? false,
-      showHourlyRateOnInvoice: stored?.showHourlyRateOnInvoice ?? stored?.showHoursBreakdown ?? userPdfDefaults.showHourlyRateOnInvoice ?? false,
+      ...resolveInvoiceCostBreakdownSettings(stored),
       showBankDetails: stored?.showBankDetails ?? userPdfDefaults.showBankDetails ?? true,
       customPaymentText:
         typeof stored?.customPaymentText === 'string'
@@ -659,6 +631,7 @@ export default function FactuurDetailPage() {
     if (signature === lastSavedPdfSettingsRef.current) return;
 
     setSavingPdfSettings(true);
+    setPdfSettingsSavedAt(null);
     if (pdfSettingsSaveTimerRef.current) {
       clearTimeout(pdfSettingsSaveTimerRef.current);
     }
@@ -692,6 +665,7 @@ export default function FactuurDetailPage() {
         setPdfSettingsSavedAt(Date.now());
       } catch (err) {
         console.error('Kon factuur PDF instellingen niet opslaan:', err);
+        toast({ title: 'PDF instellingen niet opgeslagen', description: 'Controleer je verbinding en probeer de wijziging opnieuw.', variant: 'destructive' });
       } finally {
         setSavingPdfSettings(false);
       }
@@ -1156,7 +1130,7 @@ export default function FactuurDetailPage() {
                           checked={invoicePdfSettings.showHourlyRateOnInvoice}
                           onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showHourlyRateOnInvoice: event.target.checked }) : prev)}
                         />
-                        <span>Toon uurtarief op factuur/offerte</span>
+                        <span>Arbeidsuren en uurtarief tonen</span>
                       </label>
                       <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
                         <input
@@ -1271,6 +1245,30 @@ export default function FactuurDetailPage() {
           </Card>
 
             <TabsContent value="pdf" className="space-y-4">
+              {invoiceType === 'eind' && invoicePdfSettings ? (
+                <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <Label htmlFor="invoice-cost-breakdown" className="cursor-pointer">Alles uitsplitsen op deze factuur</Label>
+                    <Switch
+                      id="invoice-cost-breakdown"
+                      aria-describedby="invoice-cost-breakdown-description"
+                      checked={invoicePdfSettings.showMaterialLaborBreakdown && invoicePdfSettings.showTransportBreakdown && invoicePdfSettings.showHourlyRateOnInvoice}
+                      onCheckedChange={(checked) => setInvoicePdfSettings((prev) => prev ? ({
+                        ...prev,
+                        showMaterialLaborBreakdown: checked,
+                        showTransportBreakdown: checked,
+                        showHourlyRateOnInvoice: checked,
+                      }) : prev)}
+                    />
+                  </div>
+                  <p id="invoice-cost-breakdown-description" className="text-xs text-muted-foreground">
+                    Voor uurbasis of nacalculatie: materiaal, arbeidsuren × uurtarief en reiskosten uit de factuurcalculatie. Standaard uit bij nieuwe facturen.
+                  </p>
+                  <p className="text-xs text-muted-foreground" role="status">
+                    {savingPdfSettings ? 'Opslaan...' : pdfSettingsSavedAt ? 'Opgeslagen voor deze factuur.' : 'Deze keuze geldt alleen voor deze factuur.'}
+                  </p>
+                </div>
+              ) : null}
               <PDFPreviewInvoice pdfData={pdfData} />
             </TabsContent>
 
