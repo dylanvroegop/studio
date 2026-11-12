@@ -30,6 +30,7 @@ import { Switch } from '@/components/ui/switch';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getPlanningQuoteMetrics } from '@/lib/planning-earnings';
 import { resolveQuoteProjectAddress } from '@/lib/maps';
+import { DepartureSettings } from '@/components/planning/DepartureSettings';
 
 interface Quote {
     id: string;
@@ -787,6 +788,7 @@ function PlanningPageContent() {
             <DashboardHeader user={user} title="Planning" />
 
             <div className="flex-1 flex flex-col space-y-4 overflow-hidden p-4 pb-10">
+                <DepartureSettings />
                 {/* Scheduling Mode Banner */}
                 {schedulingMode && schedulingQuote && (
                     <SchedulingBanner
