@@ -89,7 +89,8 @@ import { createMeerwerkbon } from '@/lib/meerwerkbon-actions';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn, parsePriceToNumber, removeEmptyFields } from '@/lib/utils';
-import { buildAddressString, buildGoogleMapsDirectionsUrl, openGoogleMapsDirections, hasMinimalAddress, resolveTransportDestination } from '@/lib/maps';
+import { buildAddressString, buildGoogleMapsDirectionsUrl, hasMinimalAddress, resolveTransportDestination } from '@/lib/maps';
+import { SmartRouteButton } from '@/components/planning/SmartRouteButton';
 import { reportOperationalError } from '@/lib/report-operational-error';
 import { deduplicateMeasurementRows } from '@/lib/work-description-note-coverage';
 import {
@@ -7038,20 +7039,17 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                             >
                                 {isGeneratingPDF ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download size={16} />}
                             </Button>
-                            <Button
+                            <SmartRouteButton
+                                address={routeDestinationAddress}
+                                quoteId={id}
                                 variant="outline"
                                 className="h-11 px-0"
-                                onClick={() => {
-                                    if (routeMapsUrl) {
-                                        openGoogleMapsDirections(routeMapsUrl);
-                                    }
-                                }}
                                 disabled={!routeMapsUrl}
                                 aria-label="Route openen"
                                 title={routeMapsUrl ? routeDestinationAddress : 'Geen adres'}
                             >
                                 <Navigation size={16} />
-                            </Button>
+                            </SmartRouteButton>
                             <Button
                                 variant="outline"
                                 className="h-11 px-0"
@@ -7107,19 +7105,18 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                     {isDuplicatingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy size={16} />}
                                 </Button>
                                 {routeMapsUrl && (
-                                    <Button data-quote-header-action
+                                    <SmartRouteButton data-quote-header-action
+                                        address={routeDestinationAddress}
+                                        quoteId={id}
                                         variant="outline"
                                         size="icon"
                                         className="h-9 w-9 shrink-0"
-                                        onClick={() => {
-                                            openGoogleMapsDirections(routeMapsUrl);
-                                        }}
                                         aria-label="Route"
                                         title={`Route naar ${routeDestinationAddress}`}
                                     >
                                         <span data-quote-header-action-label>Route openen</span>
                                         <Navigation size={16} />
-                                    </Button>
+                                    </SmartRouteButton>
                                 )}
                                 <Button data-quote-header-action
                                     variant="outline"

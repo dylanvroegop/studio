@@ -63,7 +63,8 @@ import { useFirestore, useUser } from '@/firebase';
 import { createEmptyQuote } from '@/lib/firestore-actions';
 import { calculateQuoteTotals, normalizeDataJson, QuoteSettings as QuoteCalculationSettings } from '@/lib/quote-calculations';
 import { getEffectiveQuoteStatus, invoiceImpliesAccepted } from '@/lib/quote-status';
-import { buildGoogleMapsDirectionsUrl, openGoogleMapsDirections, resolveQuoteProjectAddress } from '@/lib/maps';
+import { buildGoogleMapsDirectionsUrl, resolveQuoteProjectAddress } from '@/lib/maps';
+import { SmartRouteButton } from '@/components/planning/SmartRouteButton';
 import { useQuoteWorkedHours } from '@/hooks/useQuoteWorkedHours';
 import { formatHoursCompact } from '@/lib/quote-time-summary';
 import type { QuoteWithAddress } from '@/lib/tracking-analysis';
@@ -2110,7 +2111,9 @@ export default function OffertesPage() {
                           ) : null}
                         </div>
                         <div className="relative z-20 flex items-center gap-1">
-                          <Button
+                          <SmartRouteButton
+                            address={routeDestinationAddress}
+                            quoteId={q.id}
                             type="button"
                             variant="outline"
                             size="sm"
@@ -2118,17 +2121,10 @@ export default function OffertesPage() {
                             className="h-8 gap-1.5 px-2"
                             aria-label={routeMapsUrl ? `Route naar ${routeDestinationAddress}` : 'Geen adres beschikbaar'}
                             title={routeMapsUrl ? `Route naar ${routeDestinationAddress}` : 'Geen adres beschikbaar'}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              if (routeMapsUrl) {
-                                openGoogleMapsDirections(routeMapsUrl);
-                              }
-                            }}
                           >
                             <Navigation className="h-4 w-4" />
                             Route
-                          </Button>
+                          </SmartRouteButton>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button

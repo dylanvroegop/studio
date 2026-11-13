@@ -29,7 +29,8 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { buildGoogleMapsDirectionsUrl, openGoogleMapsDirections, resolveQuoteProjectAddress } from '@/lib/maps';
+import { buildGoogleMapsDirectionsUrl, resolveQuoteProjectAddress } from '@/lib/maps';
+import { SmartRouteButton } from '@/components/planning/SmartRouteButton';
 import { getPlanningQuoteMetrics } from '@/lib/planning-earnings';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
@@ -923,18 +924,19 @@ export function ScheduleModal({
                             </div>
                             {routeMapsUrl && (
                                 <div className="mt-3">
-                                    <Button
+                                    <SmartRouteButton
+                                        address={routeDestinationAddress}
+                                        quoteId={selectedQuoteId}
+                                        entryId={existingEntry?.id}
+                                        allowBouwmaat={selectedPlanningType !== 'werkbespreking'}
                                         type="button"
                                         variant="outline"
                                         className="h-8 gap-2"
-                                        onClick={() => {
-                                            openGoogleMapsDirections(routeMapsUrl);
-                                        }}
                                         title={routeDestinationAddress}
                                     >
                                         <Navigation className="h-4 w-4" />
                                         Route
-                                    </Button>
+                                    </SmartRouteButton>
                                 </div>
                             )}
                         </div>
