@@ -638,10 +638,13 @@ function KostenPageContent() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CostFilterMode>('alle');
   const [onlyWithoutDocument, setOnlyWithoutDocument] = useState(false);
-  const [viewMode, setViewMode] = useState<KostenViewMode>(() => {
-    const requestedTab = searchParams?.get('tab') || null;
-    return isKostenViewMode(requestedTab) ? requestedTab : QUICK_ADD_TAB_ID;
-  });
+  const requestedTab = searchParams?.get('tab') || null;
+  const viewMode: KostenViewMode = isKostenViewMode(requestedTab) ? requestedTab : QUICK_ADD_TAB_ID;
+  const setViewMode = (tab: KostenViewMode) => {
+    const params = new URLSearchParams(searchParams?.toString());
+    params.set('tab', tab);
+    router.replace(`/kosten?${params.toString()}`, { scroll: false });
+  };
 
   const [createOpen, setCreateOpen] = useState(false);
   const [entryMode, setEntryMode] = useState<EntryMode>('upload');
@@ -672,11 +675,6 @@ function KostenPageContent() {
   const initialPendingImportId = safeString(searchParams?.get('pendingId'));
   const shouldOpenCreateFromUrl = safeString(searchParams?.get('open')) === '1';
   const activeFinanceTab = KOSTEN_PAGE_TABS.find((tab) => tab.value === viewMode)?.financeTab || null;
-
-  useEffect(() => {
-    const requestedTab = searchParams?.get('tab') || null;
-    if (isKostenViewMode(requestedTab)) setViewMode(requestedTab);
-  }, [searchParams]);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
@@ -1697,7 +1695,7 @@ function KostenPageContent() {
           </div>
         </div>
       ) : null}
-      <AppNavigation />
+      <AppNavigation financeView={viewMode} />
       <DashboardHeader user={user} title="Kosten" />
 
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
