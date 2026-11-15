@@ -25,7 +25,7 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 export function normalizeMeerwerkbonLineItem(input: Partial<MeerwerkbonLineItem>): MeerwerkbonLineItem {
-  const type: MeerwerkbonLineItem['type'] = input.type === 'materiaal' ? 'materiaal' : 'vrije_post';
+  const type: MeerwerkbonLineItem['type'] = input.type === 'materiaal' || input.type === 'arbeid' ? input.type : 'vrije_post';
   const aantal = Math.max(0, safeNumber(input.aantal, 0));
   const prijsPerEenheidExclBtw = Math.max(0, safeNumber(input.prijsPerEenheidExclBtw, 0));
   const btwTarief = clamp(safeNumber(input.btwTarief, 21), 0, 100);
@@ -47,6 +47,19 @@ export function normalizeMeerwerkbonLineItem(input: Partial<MeerwerkbonLineItem>
     bronMateriaalId: (input.bronMateriaalId || '').toString().trim() || undefined,
     bronRowId: (input.bronRowId || '').toString().trim() || undefined,
   };
+}
+
+export function isMeerwerkbonLaborLine(row: MeerwerkbonLineItem): boolean {
+  return row.type === 'arbeid' || (row.type === 'vrije_post' && (
+    /^(uur|uren|u|h)$/i.test(row.eenheid.trim()) || /^(arbeid|arbeidsuren)$/i.test(row.omschrijving.trim())
+  ));
+}
+
+export function createMeerwerkbonLaborLine(hourlyRate: number, vatRate: number, hours = 1): MeerwerkbonLineItem {
+  return normalizeMeerwerkbonLineItem({
+    type: 'arbeid', omschrijving: 'Arbeidsuren', eenheid: 'uur', aantal: hours,
+    prijsPerEenheidExclBtw: hourlyRate, btwTarief: vatRate,
+  });
 }
 
 export function recalcMeerwerkbonLineItems(lineItems: Partial<MeerwerkbonLineItem>[]): MeerwerkbonLineItem[] {

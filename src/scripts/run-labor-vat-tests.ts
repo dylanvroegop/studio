@@ -54,4 +54,18 @@ assert.equal(invoice.btw, 31.5);
 assert.equal(invoice.totalInclBtw, 681.5);
 assert.equal(invoice.rows.find((row) => row.label === 'Arbeid')?.amount, 500);
 assert.equal(invoice.rows.some((row) => /^Arbeid .*%/.test(row.label)), false);
+const { getQuoteLaborPricing } = require('../lib/quote-labor-pricing') as typeof import('../lib/quote-labor-pricing');
+const { createMeerwerkbonLaborLine, isMeerwerkbonLaborLine, normalizeMeerwerkbonLineItem } = require('../lib/meerwerkbon-utils') as typeof import('../lib/meerwerkbon-utils');
+
+assert.deepEqual(getQuoteLaborPricing({ instellingen: { uurTariefExclBtw: '64,50', btwTarief: 9 },
+    calculationSnapshot: saved }), { hourlyRate: 64.5, vatRate: 0 });
+assert.deepEqual(getQuoteLaborPricing({ instellingen: { arbeidZonderBtw: false }, data_json: saved }),
+    { hourlyRate: 50, vatRate: 21 });
+assert.deepEqual(getQuoteLaborPricing({}, { instellingen: { uurTarief: 72, btwMode: 'materiaal_only' } }),
+    { hourlyRate: 72, vatRate: 0 });
+const laborLine = createMeerwerkbonLaborLine(64.5, 9, 2);
+assert.equal(laborLine.totaalInclBtw, 140.61);
+assert.deepEqual(normalizeMeerwerkbonLineItem(laborLine), laborLine);
+assert.ok(isMeerwerkbonLaborLine({ ...laborLine, type: 'vrije_post', eenheid: 'stuk' }), 'Oude vrije post Arbeidsuren');
+assert.ok(!isMeerwerkbonLaborLine({ ...laborLine, type: 'materiaal', omschrijving: 'Huur materieel' }));
 console.log('Arbeid-btw-controle geslaagd: aan/uit, lage en hoge btw, herladen en factuurtotalen.');

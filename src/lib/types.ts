@@ -341,7 +341,7 @@ export interface MeerwerkbonClientSnapshot {
 
 export interface MeerwerkbonLineItem {
   id: string;
-  type: 'materiaal' | 'vrije_post';
+  type: 'materiaal' | 'vrije_post' | 'arbeid';
   omschrijving: string;
   aantal: number;
   eenheid: string;

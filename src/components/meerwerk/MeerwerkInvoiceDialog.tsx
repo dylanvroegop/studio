@@ -5,7 +5,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { calculateMeerwerkbonTotals, formatCurrency, normalizeMeerwerkbonLineItem } from '@/lib/meerwerkbon-utils';
+import { calculateMeerwerkbonTotals, createMeerwerkbonLaborLine, isMeerwerkbonLaborLine, formatCurrency, normalizeMeerwerkbonLineItem } from '@/lib/meerwerkbon-utils';
 import type { MeerwerkbonLineItem, MeerwerkbonPricingMode } from '@/lib/types';
 
 function editableLine(row: Partial<MeerwerkbonLineItem>, quantity = '') {
@@ -24,20 +24,22 @@ function numberValue(input: string): number {
   return input.trim() ? Number(input.replace(',', '.')) : NaN;
 }
 
-export function MeerwerkInvoiceDialog({ lines, pricingMode, hourlyRate, busy, onClose, onCreate }: {
+export function MeerwerkInvoiceDialog({ lines, pricingMode, hourlyRate, vatRate, busy, onClose, onCreate }: {
   lines: MeerwerkbonLineItem[];
   pricingMode: MeerwerkbonPricingMode;
   hourlyRate: number;
+  vatRate: number;
   busy: boolean;
   onClose: () => void;
   onCreate: (actual: MeerwerkbonLineItem[]) => void;
 }): JSX.Element {
   const [rows, setRows] = useState(() => {
-    const isHour = (unit: string) => /^(uur|uren|u|h)$/i.test(unit.trim());
-    const items = lines.map((row) => editableLine(row,
-      pricingMode === 'uren_nacalculatie' && !isHour(row.eenheid) ? String(row.aantal) : ''));
-    if (!items.some((row) => isHour(row.eenheid))) {
-      items.unshift(editableLine({ omschrijving: 'Arbeid', eenheid: 'uur', prijsPerEenheidExclBtw: hourlyRate }));
+    const items = lines.map((row) => {
+      if (isMeerwerkbonLaborLine(row)) return editableLine({ ...row, eenheid: 'uur' });
+      return editableLine(row, pricingMode === 'uren_nacalculatie' ? String(row.aantal) : '');
+    });
+    if (!lines.some(isMeerwerkbonLaborLine)) {
+      items.unshift(editableLine(createMeerwerkbonLaborLine(hourlyRate, vatRate)));
     }
     return items;
   });
