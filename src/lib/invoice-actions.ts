@@ -10,7 +10,7 @@ function safeNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export async function createInvoiceFromQuote(firestore: Firestore, params: CreateInvoiceParams): Promise<string> {
+export async function createInvoiceFromQuote(firestore: Firestore, params: Omit<CreateInvoiceParams, 'quote' | 'settings'> & Partial<Pick<CreateInvoiceParams, 'quote' | 'settings'>>): Promise<string> {
   const user = getAuth(firestore.app).currentUser;
   if (!user || user.uid !== params.userId) throw new Error('Log opnieuw in om een factuur te maken.');
   const token = await user.getIdToken();

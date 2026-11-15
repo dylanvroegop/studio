@@ -111,6 +111,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       if (data.status !== 'gedeeltelijk_betaald' && data.status !== 'betaald') return;
       const context = data.combinedContext && typeof data.combinedContext === 'object'
         ? data.combinedContext as Record<string, unknown> : {};
+      if (context.type === 'meerwerkbon_only') return;
       const quoteIds = [data.quoteId,
         ...(Array.isArray(data.combinedQuoteIds) ? data.combinedQuoteIds : []),
         ...(Array.isArray(context.quoteIds) ? context.quoteIds : [])];

@@ -22,7 +22,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!input || typeof input.quoteId !== 'string' || !input.quoteId || input.quoteId.includes('/')) {
       throw new InvoiceCreationError('Ongeldige offerte.', 400);
     }
-    if (input.combinedContext && (input.combinedContext.type !== 'meerwerkbon_combined'
+    if (input.combinedContext && (!['meerwerkbon_only', 'meerwerkbon_combined'].includes(input.combinedContext.type)
       || typeof input.combinedContext.meerwerkbonId !== 'string' || !input.combinedContext.meerwerkbonId)) {
       throw new InvoiceCreationError('Ongeldige meerwerkbon.', 400);
     }

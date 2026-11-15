@@ -196,7 +196,7 @@ export interface QuoteFinancialState {
 }
 
 export interface InvoiceCombinedContext {
-  type: 'meerwerkbon_combined';
+  type: 'meerwerkbon_combined' | 'meerwerkbon_only';
   primaryQuoteId: string;
   quoteIds: string[];
   meerwerkbonId: string;
@@ -296,6 +296,7 @@ export interface Invoice {
   sentAt?: Timestamp;
   paidAt?: Timestamp;
 
+  meerwerkbonRegels?: MeerwerkbonLineItem[];
   combinedContext?: InvoiceCombinedContext;
   combinedQuoteIds?: string[];
   linkedMeerwerkbonIds?: string[];

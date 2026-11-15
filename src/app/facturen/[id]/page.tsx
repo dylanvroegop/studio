@@ -334,6 +334,8 @@ export default function FactuurDetailPage() {
     };
   }, [user, firestore, invoiceId]);
 
+  const standalone = invoice?.combinedContext?.type === 'meerwerkbon_only';
+
   useEffect(() => {
     if (!firestore || !invoice?.quoteId) {
       setQuoteClientNumbers({ kvk: '', btw: '' });
@@ -345,7 +347,7 @@ export default function FactuurDetailPage() {
 
     // De factuur bewaart de gecontroleerde calculatie; opnieuw de actuele offerte
     // ophalen vertraagt delen en kan een historische factuur onbedoeld veranderen.
-    if (hasCompleteInvoiceSourceSnapshot(invoice)) {
+    if (standalone || hasCompleteInvoiceSourceSnapshot(invoice)) {
       setQuoteClientNumbers({ kvk: '', btw: '' });
       const quoteNumber = Number(invoice.sourceQuote?.offerteNummer);
       setQuoteOfferteNummer(Number.isFinite(quoteNumber) ? quoteNumber : null);
@@ -420,7 +422,7 @@ export default function FactuurDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [firestore, invoice?.id, invoice?.quoteId, invoice?.calculationSnapshot, invoice?.sourceQuote, user]);
+  }, [firestore, invoice?.id, invoice?.quoteId, invoice?.calculationSnapshot, invoice?.sourceQuote, standalone, user]);
 
   useEffect(() => {
     if (!user || !invoice?.quoteId) {
@@ -428,7 +430,7 @@ export default function FactuurDetailPage() {
       return;
     }
 
-    if (hasFrozenInvoiceSnapshot(invoice)) {
+    if (standalone || hasFrozenInvoiceSnapshot(invoice)) {
       setQuoteCalculationSnapshot(invoice.calculationSnapshot ?? null);
       setCalculationLoadedFor(invoice.id);
       return;
@@ -466,7 +468,7 @@ export default function FactuurDetailPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [invoice?.id, invoice?.quoteId, invoice?.calculationSnapshot, user]);
+  }, [invoice?.id, invoice?.quoteId, invoice?.calculationSnapshot, standalone, user]);
 
   useEffect(() => {
     if (!user || !firestore) return;
@@ -508,7 +510,7 @@ export default function FactuurDetailPage() {
 
   const issueDate = useMemo(() => naarDate(invoice?.issueDate), [invoice?.issueDate]);
   const dueDate = useMemo(() => naarDate(invoice?.dueDate), [invoice?.dueDate]);
-  const invoiceType: 'voorschot' | 'eind' = invoice?.invoiceType === 'voorschot' ? 'voorschot' : 'eind';
+  const invoiceType = standalone ? 'meerwerk' : invoice?.invoiceType === 'voorschot' ? 'voorschot' : 'eind';
   const isVoorschotInvoice = invoiceType === 'voorschot';
   const pdfSourcesReady = settingsLoadedFor === user?.uid
     && (!invoice?.quoteId || (quoteLoadedFor === invoice.id && calculationLoadedFor === invoice.id));
@@ -692,7 +694,7 @@ export default function FactuurDetailPage() {
     const bedrijfNaam = settings.bedrijfsnaam || businessData?.bedrijfsnaam || '';
     const klant = invoice.sourceQuote?.klantSnapshot;
     if (!bedrijfNaam || !klant) return null;
-    const effectiveCalculationSnapshot = hasFrozenInvoiceSnapshot(invoice)
+    const effectiveCalculationSnapshot = standalone || hasFrozenInvoiceSnapshot(invoice)
       ? invoice.calculationSnapshot ?? null
       : mergeCalculationSnapshotWithQuote(quoteCalculationSnapshot ?? invoice.calculationSnapshot, quoteDocData);
     const snapshotKvk = getString((klant as any).kvkNummer || (klant as any).kvk);
@@ -727,8 +729,10 @@ export default function FactuurDetailPage() {
       dueDate: effectiveDueDate.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }),
       paymentTermDays: isVoorschotInvoice ? 0 : effectivePaymentTermDays,
       invoiceDescription: invoicePdfSettings?.invoiceDescription?.trim() || undefined,
+      meerwerkbonRegels: standalone ? invoice.meerwerkbonRegels : undefined,
       betreftOfferte: invoicePdfSettings?.showQuoteReference !== false
-        ? (offerteNummer ? `Offerte #${offerteNummer}` : undefined)
+        ? standalone ? `Meerwerkbon ${invoice.combinedContext!.meerwerkbonNumber || invoice.combinedContext!.meerwerkbonId}`
+          : (offerteNummer ? `Offerte #${offerteNummer}` : undefined)
         : undefined,
       logoUrl: invoicePdfSettings?.showLogo === false ? undefined : (settings.logoUrl || undefined),
       logoScale: settings.logoScale || 1.0,
@@ -771,8 +775,8 @@ export default function FactuurDetailPage() {
         }
         : undefined,
       extraWork: invoice.extraWork ?? [],
-      showMaterialLaborBreakdown: invoicePdfSettings?.showMaterialLaborBreakdown === true,
-      showTransportBreakdown: invoicePdfSettings?.showTransportBreakdown === true,
+      showMaterialLaborBreakdown: standalone ? invoicePdfSettings?.showSpecification !== false : invoicePdfSettings?.showMaterialLaborBreakdown === true,
+      showTransportBreakdown: !standalone && invoicePdfSettings?.showTransportBreakdown === true,
       showHourlyRateOnInvoice: invoicePdfSettings?.showHourlyRateOnInvoice === true,
       invoiceNotes: typeof invoice.notes === 'string' ? invoice.notes : '',
       standaardFactuurTekst: (invoicePdfSettings?.customPaymentText || settings.standaardFactuurTekst || '').trim(),
@@ -781,7 +785,7 @@ export default function FactuurDetailPage() {
         : settings.planningSettings?.defaultWorkdayHours,
       calculationSnapshot: effectiveCalculationSnapshot ?? null,
     };
-  }, [invoice, settings, pdfSourcesReady, pdfSettingsInitialized, businessData, invoiceType, isVoorschotInvoice, effectiveIssueDate, effectiveDueDate, effectivePaymentTermDays, invoicePdfSettings, quoteClientNumbers, quoteOfferteNummer, quoteCalculationSnapshot, quoteDocData]);
+  }, [invoice, standalone, settings, pdfSourcesReady, pdfSettingsInitialized, businessData, invoiceType, isVoorschotInvoice, effectiveIssueDate, effectiveDueDate, effectivePaymentTermDays, invoicePdfSettings, quoteClientNumbers, quoteOfferteNummer, quoteCalculationSnapshot, quoteDocData]);
 
   useEffect(() => {
     if (!invoice || !pdfData) return;
@@ -925,7 +929,7 @@ export default function FactuurDetailPage() {
   const paid = invoice.paymentSummary?.paidAmount ?? 0;
   const open = invoice.paymentSummary?.openAmount ?? Math.max(0, totaalIncl - paid);
   const klantNaam = invoice.sourceQuote?.klantSnapshot?.naam || 'Onbekende klant';
-  const typeLabel = invoiceType === 'voorschot' ? 'Voorschotfactuur' : 'Eindfactuur';
+  const typeLabel = standalone ? 'Meerwerkfactuur' : invoiceType === 'voorschot' ? 'Voorschotfactuur' : 'Eindfactuur';
 
   return (
     <div className="app-shell min-h-screen bg-background font-sans selection:bg-emerald-500/30">
@@ -1098,7 +1102,7 @@ export default function FactuurDetailPage() {
                           checked={invoicePdfSettings.showQuoteReference}
                           onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showQuoteReference: event.target.checked }) : prev)}
                         />
-                        <span>Offerte-referentie tonen</span>
+                        <span>{standalone ? 'Meerwerkbonnummer tonen' : 'Offerte-referentie tonen'}</span>
                       </label>
                       <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
                         <input
@@ -1106,7 +1110,7 @@ export default function FactuurDetailPage() {
                           checked={invoicePdfSettings.showSpecification}
                           onChange={(event) => setInvoicePdfSettings((prev) => prev ? ({ ...prev, showSpecification: event.target.checked }) : prev)}
                         />
-                        <span>Specificatieblok tonen</span>
+                        <span>{standalone ? 'Meerwerkregels tonen' : 'Specificatieblok tonen'}</span>
                       </label>
                       <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
                         <input
@@ -1116,6 +1120,7 @@ export default function FactuurDetailPage() {
                         />
                         <span>Subtotaal + BTW tonen</span>
                       </label>
+                      {!standalone && <>
                       <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm md:col-span-2">
                         <input
                           type="checkbox"
@@ -1140,6 +1145,7 @@ export default function FactuurDetailPage() {
                         />
                         <span>Transportkosten tonen</span>
                       </label>
+                      </>}
                       <label className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm md:col-span-2">
                         <input
                           type="checkbox"
@@ -1214,7 +1220,11 @@ export default function FactuurDetailPage() {
               {Array.isArray((invoice as any)?.linkedMeerwerkbonIds) && (invoice as any).linkedMeerwerkbonIds.length > 0 ? (
                 <div>
                   <span className="text-muted-foreground">Bron meerwerkbon:</span>{' '}
-                  {(invoice as any).linkedMeerwerkbonIds.join(', ')}
+                  {invoice.combinedContext?.meerwerkbonId ? (
+                    <Link className="underline" href={`/meerwerkbon/${invoice.combinedContext.meerwerkbonId}`}>
+                      {invoice.combinedContext.meerwerkbonNumber || invoice.combinedContext.meerwerkbonId}
+                    </Link>
+                  ) : invoice.linkedMeerwerkbonIds?.join(', ')}
                 </div>
               ) : null}
               <div className="pt-2 flex flex-wrap gap-2">

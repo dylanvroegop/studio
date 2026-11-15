@@ -1,12 +1,13 @@
 import { jsPDF } from 'jspdf';
 import { calculateQuoteTotals } from './quote-calculations';
 import type { DataJson } from './quote-calculations';
-import type { InvoiceExtraWork, InvoiceType } from './types';
+import type { InvoiceExtraWork, InvoiceType, MeerwerkbonLineItem } from './types';
 import { loadPdfImage } from './pdf-image-cache';
 import { invoiceShareFilename } from './invoice-sharing';
 
 export interface PDFInvoiceData {
-  invoiceType: InvoiceType;
+  invoiceType: InvoiceType | 'meerwerk';
+  meerwerkbonRegels?: MeerwerkbonLineItem[];
   invoiceNumberLabel: string;
   issueDate: string;
   dueDate: string;
@@ -505,7 +506,29 @@ function formatHours(hours: number): string {
   return `${formatted} uur`;
 }
 
-export function buildInvoiceCostTable(data: Pick<PDFInvoiceData, 'calculationSnapshot' | 'totals' | 'showMaterialLaborBreakdown' | 'showTransportBreakdown' | 'showHourlyRateOnInvoice' | 'laborHoursPerDay' | 'extraWork'>): InvoiceCostTable {
+export function buildInvoiceCostTable(data: Pick<PDFInvoiceData, 'calculationSnapshot' | 'totals' | 'showMaterialLaborBreakdown' | 'showTransportBreakdown' | 'showHourlyRateOnInvoice' | 'laborHoursPerDay' | 'extraWork' | 'meerwerkbonRegels'>): InvoiceCostTable {
+  if (data.meerwerkbonRegels) {
+    const rows = data.meerwerkbonRegels.map((row) => ({
+      label: row.omschrijving,
+      calculation: `${formatDecimal(row.aantal, 3)} ${row.eenheid} × ${formatCurrency(row.prijsPerEenheidExclBtw)}`,
+      amount: row.totaalExclBtw,
+    }));
+    const vatCents = new Map<number, number>();
+    const addVat = (rate: number, value: number) => vatCents.set(rate, (vatCents.get(rate) || 0) + Math.round(value * 100));
+    for (const row of data.meerwerkbonRegels) addVat(row.btwTarief, row.totaalBtw);
+    for (const item of data.extraWork ?? []) {
+      rows.push({ label: item.description, calculation: '-', amount: item.amountExclBtw });
+      addVat(item.vatRate, item.vatAmount);
+    }
+    return {
+      rows,
+      subtotalExclBtw: rows.reduce((sum, row) => sum + Math.round(row.amount * 100), 0) / 100,
+      btw: [...vatCents.values()].reduce((sum, cents) => sum + cents, 0) / 100,
+      btwPercentage: null,
+      btwRows: [...vatCents].map(([rate, cents]) => ({ label: `BTW ${formatDecimal(rate, 2)}%`, value: cents / 100 })),
+      totalInclBtw: data.totals.totaalInclBtw,
+    };
+  }
   const breakdown = getInvoiceBreakdown(data.calculationSnapshot, data.laborHoursPerDay);
   const extraWork = data.extraWork ?? [];
   const extraExcl = Math.round(extraWork.reduce((sum, item) => sum + item.amountExclBtw, 0) * 100) / 100;
@@ -611,10 +634,11 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
     unit: 'mm',
     format: 'a4',
   });
+  const title = data.invoiceType === 'meerwerk' ? 'Meerwerkfactuur' : data.invoiceType === 'voorschot' ? 'Voorschotfactuur' : 'Eindfactuur';
   doc.setProperties({
     title: invoiceShareFilename(data.invoiceNumberLabel, data.klant.naam).replace(/\.pdf$/, ''),
     author: data.bedrijf.naam,
-    subject: data.invoiceType === 'voorschot' ? 'Voorschotfactuur' : 'Eindfactuur',
+    subject: title,
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -639,7 +663,7 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
   const isVoorschotInvoice = data.invoiceType === 'voorschot';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.text(isVoorschotInvoice ? 'VOORSCHOTFACTUUR' : 'EINDFACTUUR', pageWidth - margin, y + 5, { align: 'right' });
+  doc.text(title.toUpperCase(), pageWidth - margin, y + 5, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
@@ -753,14 +777,15 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
     doc.setFontSize(10);
     doc.setTextColor(0);
     invoiceCostTable.rows.forEach((row) => {
-      if (y > 270) {
-        doc.addPage();
-        y = margin;
+      const labels = doc.splitTextToSize(row.label, calcX - descX - 3) as string[];
+      const calculations = doc.splitTextToSize(row.calculation, amountX - calcX - 37) as string[];
+      for (let index = 0; index < Math.max(labels.length, calculations.length); index++) {
+        ensureSpace(rowHeight);
+        doc.text(labels[index] || '', descX, y);
+        doc.text(calculations[index] || '', calcX, y);
+        if (index === 0) doc.text(formatCurrency(row.amount), amountX, y, { align: 'right' });
+        y += rowHeight;
       }
-      doc.text(row.label, descX, y);
-      doc.text(row.calculation, calcX, y);
-      doc.text(formatCurrency(row.amount), amountX, y, { align: 'right' });
-      y += rowHeight;
     });
 
     y += 2;
@@ -781,6 +806,7 @@ export async function generateInvoicePDF(data: PDFInvoiceData): Promise<Blob> {
     ];
 
     totalRows.forEach((row) => {
+      ensureSpace(rowHeight);
       doc.setFont('helvetica', row.bold ? 'bold' : 'normal');
       doc.text(row.label, calcX, y);
       doc.text(formatCurrency(row.value), amountX, y, { align: 'right' });

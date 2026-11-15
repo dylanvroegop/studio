@@ -29,7 +29,7 @@ function dateOnly(value: unknown): string | null {
     : null;
 }
 const INVOICE_PAYMENT_FIELDS = ['userId', 'invoiceNumberLabel', 'status', 'totalsSnapshot', 'paymentSummary',
-  'issueDate', 'sourceQuote.klantSnapshot.naam', 'quoteId', 'combinedQuoteIds', 'combinedContext.quoteIds', 'paidAt'];
+  'issueDate', 'sourceQuote.klantSnapshot.naam', 'quoteId', 'combinedQuoteIds', 'combinedContext', 'paidAt'];
 function toInvoice(id: string, data: Record<string, unknown>): BankMatchInvoice {
   const source = record(data.sourceQuote);
   return {
@@ -163,7 +163,7 @@ export async function applyInvoiceBankPayment(options: {
     const quoteIds = new Set([text(saved.quoteId), ...(Array.isArray(saved.combinedQuoteIds) ? saved.combinedQuoteIds : []),
       ...(Array.isArray(record(saved.combinedContext).quoteIds) ? record(saved.combinedContext).quoteIds as unknown[] : [])]
       .filter((value): value is string => typeof value === 'string' && Boolean(value) && !value.includes('/')));
-    const quotes = mode === 'add'
+    const quotes = mode === 'add' && record(saved.combinedContext).type !== 'meerwerkbon_only'
       ? await Promise.all(Array.from(quoteIds).map((id) => transaction.get(firestore.collection('quotes').doc(id)))) : [];
     const now = FieldValue.serverTimestamp();
     const paidCents = invoice.paidCents + (mode === 'add' ? amountCents : 0);

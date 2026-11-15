@@ -356,7 +356,8 @@ function FacturenPageContent() {
                 ) : null;
                 const klant = inv.sourceQuote?.klantSnapshot?.naam || 'Onbekende klant';
                 const datum = inv.issueDateDate;
-                const nrLabel = inv.invoiceNumberLabel ? `Factuur #${inv.invoiceNumberLabel}` : 'Factuur';
+                const documentLabel = inv.combinedContext?.type === 'meerwerkbon_only' ? 'Meerwerkfactuur' : 'Factuur';
+                const nrLabel = inv.invoiceNumberLabel ? `${documentLabel} #${inv.invoiceNumberLabel}` : documentLabel;
                 const titel =
                   inv.sourceQuote?.titel ||
                   inv.sourceQuote?.projectAdresSnapshot?.adres ||

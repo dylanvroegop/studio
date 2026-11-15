@@ -340,3 +340,51 @@ test('nieuwe gedeelde PDF maakt eerder geladen factuurcontrole ongeldig', async 
   await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', h.params, null), /offerte is gewijzigd/);
   assert.equal(h.commits.length, 0);
 });
+
+const workLine = { id: 'arbeid', type: 'vrije_post', omschrijving: 'Montage rooster', eenheid: 'uur', aantal: 2, prijsPerEenheidExclBtw: 50, btwTarief: 9 };
+const materialLine = { ...workLine, id: 'rooster', type: 'materiaal', omschrijving: 'Rooster', eenheid: 'stuk', aantal: 1, prijsPerEenheidExclBtw: 20, btwTarief: 21 };
+function workOrder(mode) {
+  const bon = { userId: 'owner', primaryQuoteId: 'quote', linkedQuoteIds: ['quote', 'other'], status: 'akkoord',
+    pricingMode: mode, numbering: { label: '260504-MW01' }, geschatteArbeidsuren: 2, lineItems: [workLine, materialLine],
+    totals: { totaalInclBtw: 133.2 }, opmerking: 'Extra ventilatie' };
+  const h = harness({ rows: [advance('advance', 5000), { ...advance('paid', 7000, 'betaald'), invoiceType: 'eind' }],
+    extra: { 'meerwerkbonnen/mw': bon } });
+  const input = { ...h.params, combinedContext: { type: 'meerwerkbon_only', meerwerkbonId: 'mw' },
+    meerwerkbonPricingMode: mode, originalTotalInclBtw: 133.2, totalsInclBtw: 133.2 };
+  return { h, bon, input };
+}
+
+test('aparte meerwerkfactuur bevriest alleen bonregels, ook na de eindfactuur', async () => {
+  const { h, input } = workOrder('begroot');
+  const create = () => createInvoiceAtomically(h.firestore, 'owner', { ...input, actualLineItems: [] }, null);
+  const [id, retry] = await Promise.all([create(), create()]);
+  assert.equal(id, retry);
+  const invoice = h.documents.get(`invoices/${id}`);
+  assert.equal(invoice.status, 'concept');
+  assert.deepEqual(invoice.totalsSnapshot, { totaalInclBtw: 133.2, totaalExclBtw: 120, btw: 13.2 });
+  assert.equal(invoice.sourceQuote.titel, 'Extra ventilatie');
+  assert.equal(invoice.meerwerkbonRegels.length, 2);
+  assert.equal(invoice.financialAdjustments.voorschotAftrekInclBtw, 0);
+  assert.equal(h.documents.get('meerwerkbonnen/mw').invoiceLink.invoiceId, id);
+  assert.equal(h.documents.get('counters/invoiceNumber_owner').next, 2);
+  assert.equal(h.commits.flat().some(write => write.path.startsWith('quotes/')), false);
+  assert.equal(summarizeInvoiceBilling([{ ...invoice, id }]).existingFinalId, null);
+  const combinedRetry = { ...input, combinedContext: { type: 'meerwerkbon_combined', meerwerkbonId: 'mw' } };
+  assert.equal(await createInvoiceAtomically(h.firestore, 'owner', combinedRetry, null), id);
+});
+
+test('nacalculatie gebruikt uitsluitend bevestigde aantallen en rekent btw per regel', async () => {
+  for (const mode of ['uren_nacalculatie', 'uren_materialen_nacalculatie']) {
+    const { h, bon, input } = workOrder(mode);
+    await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', input, null), /factuurregels/);
+    assert.equal(h.commits.length, 0);
+    const actuals = [{ ...workLine, aantal: 3, totaalInclBtw: 999 }, { ...materialLine, aantal: 2 }];
+    const id = await createInvoiceAtomically(h.firestore, 'owner', {
+      ...input, originalTotalInclBtw: 211.9, totalsInclBtw: 211.9, actualLineItems: actuals,
+    }, null);
+    const invoice = h.documents.get(`invoices/${id}`);
+    assert.equal(bon.lineItems[0].aantal, 2);
+    assert.deepEqual(invoice.meerwerkbonRegels.map(row => row.totaalInclBtw), [163.5, 48.4]);
+    assert.deepEqual(invoice.totalsSnapshot, { totaalInclBtw: 211.9, totaalExclBtw: 190, btw: 21.9 });
+  }
+});

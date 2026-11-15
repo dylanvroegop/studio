@@ -1682,7 +1682,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                             return {
                                 id: invoiceId,
                                 invoiceNumberLabel: String(data.invoiceNumberLabel || invoiceId),
-                                invoiceType: String(data.invoiceType || 'eind'),
+                                invoiceType: data.combinedContext?.type === 'meerwerkbon_only' ? 'meerwerk' : String(data.invoiceType || 'eind'),
                                 status: String(data.status || 'concept'),
                                 totalIncl: Math.max(0, Number(data.totalsSnapshot?.totaalInclBtw) || 0),
                                 paidAmount: payments.length > 0 ? paymentRowsTotal : summaryPaid,
@@ -8275,7 +8275,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                                 <div key={invoice.id} className="rounded-lg border border-border/70 bg-muted/20 p-3">
                                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                                         <Link href={`/facturen/${invoice.id}`} className="font-medium text-cyan-300 hover:text-cyan-200 hover:underline">Factuur #{invoice.invoiceNumberLabel}</Link>
-                                                        <span className="text-xs text-muted-foreground">{invoice.invoiceType === 'voorschot' ? 'Voorschot' : 'Eindfactuur'} · {invoice.status}</span>
+                                                        <span className="text-xs text-muted-foreground">{invoice.invoiceType === 'meerwerk' ? 'Meerwerkfactuur' : invoice.invoiceType === 'voorschot' ? 'Voorschot' : 'Eindfactuur'} · {invoice.status}</span>
                                                     </div>
                                                     <div className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
                                                         <div><span className="text-muted-foreground">Factuurbedrag:</span> {formatCurrency(invoice.totalIncl)}</div>

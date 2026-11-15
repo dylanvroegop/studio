@@ -1,7 +1,7 @@
 import { resolveQuoteClientInfo } from '@/lib/quote-client-info';
 import type { DataJson } from '@/lib/quote-calculations';
 import type { UserSettings } from '@/lib/types-settings';
-import type { InvoiceCombinedContext, InvoiceType } from '@/lib/types';
+import type { InvoiceCombinedContext, InvoiceType, MeerwerkbonLineItem, MeerwerkbonPricingMode } from '@/lib/types';
 import { removeEmptyFields } from '@/lib/utils';
 
 function safeNumber(value: unknown): number | null {
@@ -115,6 +115,8 @@ export interface CreateInvoiceParams {
     opmerking?: string;
     notes?: string;
     combinedContext?: InvoiceCombinedContext | null;
+    meerwerkbonPricingMode?: MeerwerkbonPricingMode;
+    actualLineItems?: Partial<MeerwerkbonLineItem>[];
     combinedQuoteIds?: string[] | null;
     linkedMeerwerkbonIds?: string[] | null;
   

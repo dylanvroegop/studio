@@ -17,7 +17,7 @@ interface SendInvoiceModalProps {
   klantAanhef: string;
   factuurNummer: string;
   vervaldatum: string;
-  invoiceType?: InvoiceType;
+  invoiceType?: InvoiceType | 'meerwerk';
   totaalInclBtw: number;
   bedrijfsnaam: string;
   iban?: string;
@@ -63,7 +63,7 @@ export function SendInvoiceModal({
 
     setBody(
       `Beste ${klantAanhef || 'klant'},\n\n` +
-      `Hierbij ontvangt u ${isVoorschot ? 'de voorschotfactuur' : 'factuur'} #${factuurNummer}.\n` +
+      `Hierbij ontvangt u ${invoiceType === 'meerwerk' ? 'de meerwerkfactuur' : isVoorschot ? 'de voorschotfactuur' : 'factuur'} #${factuurNummer}.\n` +
       `Bedrag: ${bedrag}\n` +
       paymentLine +
       `${ibanLine}` +

@@ -112,3 +112,20 @@ test('uitsplitsen toont materiaal, uren en reizen zonder eindtermijn, meerwerk o
     assert.equal(ordinaryLines.filter((line) => line === money(amount)).length, 1);
   }
 });
+
+test('meerwerkfactuur toont eigen bonnummer, uren, materialen en btw per tarief', async () => {
+  const pdf = fixture();
+  await pdf.render({ ...invoice, invoiceType: 'meerwerk', betreftOfferte: 'Meerwerkbon 260504-MW01',
+    extraWork: [], showMaterialLaborBreakdown: true, totals: { totaalInclBtw: 211.9 },
+    meerwerkbonRegels: [
+      { omschrijving: 'Montage rooster', aantal: 3, eenheid: 'uur', prijsPerEenheidExclBtw: 50, totaalExclBtw: 150, btwTarief: 9, totaalBtw: 13.5 },
+      { omschrijving: 'Rooster', aantal: 2, eenheid: 'stuk', prijsPerEenheidExclBtw: 20, totaalExclBtw: 40, btwTarief: 21, totaalBtw: 8.4 },
+    ],
+  });
+  const lines = pdf.text.map(row => row.value);
+  for (const expected of ['MEERWERKFACTUUR', 'Betreft: Meerwerkbon 260504-MW01', 'Montage rooster', 'Rooster', 'BTW 9%', 'BTW 21%', money(211.9)]) {
+    assert.ok(lines.includes(expected), expected);
+  }
+  assert.ok(lines.includes(`3 uur × ${money(50)}`));
+  assert.ok(!lines.includes('Offertebedrag'));
+});

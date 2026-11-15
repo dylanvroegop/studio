@@ -2,8 +2,8 @@ import { doc, serverTimestamp, type Firestore, type Transaction } from 'firebase
 
 import type { InvoiceStatus, Quote } from '@/lib/types';
 
-export function invoiceImpliesAccepted(status: InvoiceStatus | string | undefined | null): boolean {
-  return status === 'gedeeltelijk_betaald' || status === 'betaald';
+export function invoiceImpliesAccepted(status: InvoiceStatus | string | undefined | null, contextType?: string): boolean {
+  return contextType !== 'meerwerkbon_only' && (status === 'gedeeltelijk_betaald' || status === 'betaald');
 }
 
 export function getEffectiveQuoteStatus(
@@ -64,6 +64,7 @@ export async function promoteInvoiceRelatedQuotesToAcceptedInTransaction(
   firestore: Firestore,
   invoiceLike: any
 ): Promise<void> {
+  if (invoiceLike?.combinedContext?.type === 'meerwerkbon_only') return;
   const quoteIds = extractQuoteIdsFromInvoiceLike(invoiceLike);
   for (const quoteId of quoteIds) {
     await promoteQuoteToAcceptedInTransaction(tx, firestore, quoteId);
