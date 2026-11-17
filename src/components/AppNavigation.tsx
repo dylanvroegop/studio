@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getIdTokenResult } from 'firebase/auth';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, FileText, Receipt, ReceiptText, CalendarDays, Boxes, Users, Clock3, ClipboardList, Mic, Settings } from 'lucide-react';
+import { Menu, X, FileText, Plus, Calculator, Receipt, ReceiptText, CalendarDays, Boxes, Clock3, ClipboardList, Mic, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -61,9 +61,23 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
         iconColorClassActive: 'text-amber-300',
     },
     {
-        href: '/kosten',
-        label: 'Finance',
+        href: '/kosten?tab=quick-add',
+        label: 'Snel toevoegen',
+        icon: Plus,
+        iconColorClass: 'text-teal-400',
+        iconColorClassActive: 'text-teal-300',
+    },
+    {
+        href: '/kosten?tab=kosten',
+        label: 'Kosten',
         icon: Receipt,
+        iconColorClass: 'text-teal-400',
+        iconColorClassActive: 'text-teal-300',
+    },
+    {
+        href: '/kosten?tab=totalen',
+        label: 'Totalen',
+        icon: Calculator,
         iconColorClass: 'text-teal-400',
         iconColorClassActive: 'text-teal-300',
     },
@@ -89,13 +103,6 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
         iconColorClassActive: 'text-emerald-300',
     },
     {
-        href: '/klanten',
-        label: 'Klanten',
-        icon: Users,
-        iconColorClass: 'text-blue-400',
-        iconColorClassActive: 'text-blue-300',
-    },
-    {
         href: '/klantgesprekken',
         label: 'Klantgesprekken',
         icon: Mic,
@@ -118,7 +125,11 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
     },
 ];
 
-function isActivePath(pathname: string, href: string): boolean {
+function isActivePath(pathname: string, href: string, financeView: string): boolean {
+    if (href.startsWith('/kosten?tab=')) {
+        const tab = new URLSearchParams(href.split('?')[1]).get('tab');
+        return pathname === '/kosten' && tab === (financeView === 'pdfs' ? 'kosten' : financeView);
+    }
     if (href === '/instellingen') return pathname.startsWith('/instellingen') || pathname.startsWith('/meldingen');
     if (href === '/facturen/start') return pathname === '/facturen/start' || pathname === '/facturen/nieuw';
     if (href === '/facturen') return pathname.startsWith('/facturen') && pathname !== '/facturen/start' && pathname !== '/facturen/nieuw';
@@ -128,7 +139,7 @@ function isActivePath(pathname: string, href: string): boolean {
     return pathname.startsWith(href);
 }
 
-function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string; onNavigate?: () => void; onClose?: () => void }) {
+function NavigationContent({ pathname, financeView, onNavigate, onClose, isMobile = false }: { pathname: string; financeView: string; onNavigate?: () => void; onClose?: () => void; isMobile?: boolean }) {
     const { user, isUserLoading } = useUser();
     const [isDeveloperAccess, setIsDeveloperAccess] = useState(false);
 
@@ -159,17 +170,27 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
     const navItems: NavigationItem[] = BASE_NAV_ITEMS;
 
     return (
-        <div className="flex h-full flex-col border-r border-border bg-card/95 backdrop-blur-sm">
-            <div className="border-b border-border px-6 py-4">
+        <div className={cn(
+            'flex h-full min-h-0 flex-col border-border bg-card/95 backdrop-blur-sm',
+            isMobile
+                ? 'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]'
+                : 'border-r'
+        )}>
+            <div className={cn('shrink-0 border-b border-border px-6', isMobile ? 'py-3 pr-20' : 'py-4')}>
                 {onClose && (
                     <Button
                         variant="outline"
                         size="icon"
-                        className="absolute right-3 top-3 h-8 w-8 rounded-lg shrink-0 border-border bg-background/90 shadow-lg backdrop-blur-sm"
+                        className={cn(
+                            'absolute shrink-0 border-border bg-background/90 shadow-lg backdrop-blur-sm',
+                            isMobile
+                                ? 'right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] h-12 w-12 rounded-xl [&_svg]:size-7'
+                                : 'right-3 top-3 h-8 w-8 rounded-lg'
+                        )}
                         onClick={onClose}
                         aria-label="Navigatie sluiten"
                     >
-                        <X className="h-4 w-4" />
+                        <X className={isMobile ? 'h-7 w-7' : 'h-4 w-4'} />
                     </Button>
                 )}
                 <div className="flex items-center">
@@ -184,19 +205,23 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                 </div>
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-3 pb-6">
-                <div className="space-y-1">
+            <nav className={cn('min-h-0 flex-1 overflow-y-auto px-3', isMobile ? 'overscroll-contain py-3' : 'pb-6')}>
+                <div className={isMobile ? 'flex min-h-full flex-col gap-1' : 'space-y-1'}>
                     {navItems.map((item) => {
-                        const active = isActivePath(pathname, item.href);
+                        const active = isActivePath(pathname, item.href, financeView);
                         const Icon = item.icon;
 
                         return (
                             <Link
                                 key={item.href}
                                 href={item.href}
+                                aria-current={active ? 'page' : undefined}
                                 onClick={onNavigate}
                                 className={cn(
-                                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+                                    'flex items-center transition-colors',
+                                    isMobile
+                                        ? 'min-h-14 flex-1 gap-4 rounded-xl px-4 py-2 text-2xl leading-tight'
+                                        : 'gap-3 rounded-lg px-3 py-2.5 text-sm',
                                     active
                                         ? 'bg-emerald-500/15 text-emerald-400'
                                         : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -204,7 +229,7 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
                             >
                                 <Icon
                                     className={cn(
-                                        'h-4 w-4',
+                                        isMobile ? 'h-7 w-7 shrink-0' : 'h-4 w-4',
                                         item.iconColorClass,
                                         active && item.iconColorClassActive
                                     )}
@@ -218,7 +243,7 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
             </nav>
 
             {!isDeveloperAccess && (
-                <div className="border-t border-border px-4 py-3">
+                <div className="shrink-0 border-t border-border px-4 py-3">
                     <SupportSidePanel />
                 </div>
             )}
@@ -226,7 +251,7 @@ function NavigationContent({ pathname, onNavigate, onClose }: { pathname: string
     );
 }
 
-export function AppNavigation() {
+export function AppNavigation({ financeView = 'quick-add' }: { financeView?: string } = {}) {
     const pathname = usePathname();
     const isMobile = useIsMobile();
     const hideNavigation = pathname === '/login' || pathname === '/';
@@ -356,14 +381,14 @@ export function AppNavigation() {
                                 <Button
                                     size="icon"
                                     variant="outline"
-                                    className="h-9 w-9 rounded-lg shrink-0 border-border bg-background/90 shadow-lg backdrop-blur-sm"
+                                    className="h-12 w-12 rounded-xl shrink-0 border-border bg-background/90 shadow-lg backdrop-blur-sm [&_svg]:size-7"
                                     aria-label="Open navigatie"
                                 >
                                     <Menu className="h-4 w-4" />
                                 </Button>
                             </SheetTrigger>
                         )}
-                        <SheetContent side="left" className="w-[85vw] max-w-[350px] p-0">
+                        <SheetContent side="left" className="h-[100dvh] w-screen max-w-none overflow-hidden border-0 p-0 sm:max-w-none [&>button]:hidden">
                             <SheetHeader className="sr-only">
                                 <SheetTitle>Navigatie</SheetTitle>
                                 <SheetDescription>Navigatiemenu van de applicatie.</SheetDescription>
@@ -371,7 +396,10 @@ export function AppNavigation() {
                             {isReady && (
                                 <NavigationContent
                                     pathname={pathname}
+                                    financeView={financeView}
+                                    isMobile
                                     onNavigate={() => handleMenuOpenChange(false)}
+                                    onClose={() => handleMenuOpenChange(false)}
                                 />
                             )}
                         </SheetContent>
@@ -414,6 +442,7 @@ export function AppNavigation() {
                         {isReady && (
                             <NavigationContent
                                 pathname={pathname}
+                                financeView={financeView}
                                 onClose={() => {
                                     setIsHoveringDesktopNav(false);
                                     handleMenuOpenChange(false);

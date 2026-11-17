@@ -54,18 +54,17 @@ import type {
   MeerwerkbonTemplateSettings,
 } from '@/lib/types';
 import type { KlantInformatie } from '@/lib/quote-calculations';
-import { calculateMeerwerkbonTotals, clientSnapshotKey, formatCurrency, normalizeMeerwerkbonLineItem, recalcMeerwerkbonLineItems, safeNumber } from '@/lib/meerwerkbon-utils';
+import { calculateMeerwerkbonTotals, createMeerwerkbonLaborLine, isMeerwerkbonLaborLine, clientSnapshotKey, formatCurrency, normalizeMeerwerkbonLineItem, recalcMeerwerkbonLineItems, safeNumber } from '@/lib/meerwerkbon-utils';
 import {
-  createCombinedInvoiceConceptFromMeerwerkbon,
+  createMeerwerkbonInvoice,
+  saveMeerwerkbonDetails,
   updateMeerwerkbonClientSnapshot,
-  updateMeerwerkbonEstimatedHours,
-  updateMeerwerkbonLineItems,
-  updateMeerwerkbonPricingMode,
   updateMeerwerkbonStatus,
-  updateMeerwerkbonTemplate,
 } from '@/lib/meerwerkbon-actions';
+import { getQuoteLaborPricing, type QuoteLaborPricing } from '@/lib/quote-labor-pricing';
 import { DEFAULT_USER_SETTINGS, type UserSettings } from '@/lib/types-settings';
 import { generateMeerwerkbonPDF, type PDFMeerwerkbonData } from '@/lib/generate-meerwerkbon-pdf';
+import { MeerwerkInvoiceDialog } from '@/components/meerwerk/MeerwerkInvoiceDialog';
 import { PDFPreviewMeerwerkbon } from '@/components/meerwerk/PDFPreviewMeerwerkbon';
 import { SendMeerwerkbonModal } from '@/components/meerwerk/SendMeerwerkbonModal';
 import { SendQuoteWhatsAppModal } from '@/components/quote/SendQuoteWhatsAppModal';
@@ -127,8 +126,9 @@ function pricingModeLabel(mode: MeerwerkbonPricingMode): string {
   return 'Begrote kosten';
 }
 
-function pricingModeDescription(mode: MeerwerkbonPricingMode, hourlyRateExclBtw: number, estimatedHours?: number): string {
-  const hourlyRate = formatCurrency(hourlyRateExclBtw);
+function pricingModeDescription(mode: MeerwerkbonPricingMode, hourlyRateExclBtw: number | null, estimatedHours?: number): string {
+  if (mode !== 'begroot' && hourlyRateExclBtw === null) return 'Uurtarief uit de gekoppelde offerte';
+  const hourlyRate = formatCurrency(hourlyRateExclBtw ?? 0);
   const estimate = estimatedHours && estimatedHours > 0
     ? ` De schatting is ongeveer ${new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2 }).format(estimatedHours)} uur.`
     : '';
@@ -137,8 +137,9 @@ function pricingModeDescription(mode: MeerwerkbonPricingMode, hourlyRateExclBtw:
   return 'De werkzaamheden worden afgerekend op basis van de begrote kosten op deze meerwerkbon.';
 }
 
-function pricingModeRateLabel(mode: MeerwerkbonPricingMode, hourlyRateExclBtw: number): string {
-  const hourlyRate = formatCurrency(hourlyRateExclBtw);
+function pricingModeRateLabel(mode: MeerwerkbonPricingMode, hourlyRateExclBtw: number | null): string {
+  if (mode !== 'begroot' && hourlyRateExclBtw === null) return 'Uurtarief uit de gekoppelde offerte';
+  const hourlyRate = formatCurrency(hourlyRateExclBtw ?? 0);
   if (mode === 'uren_nacalculatie') return `${hourlyRate} per uur excl. btw`;
   if (mode === 'uren_materialen_nacalculatie') return `${hourlyRate} per uur + materialen achteraf`;
   return 'Vaste voorafgaande inschatting';
@@ -204,7 +205,8 @@ export default function MeerwerkbonDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [meerwerkbon, setMeerwerkbon] = useState<Meerwerkbon | null>(null);
-  const [linkedQuotes, setLinkedQuotes] = useState<Array<{ quoteId: string; offerteNummer?: number; titel?: string }>>([]);
+  const [linkedQuotes, setLinkedQuotes] = useState<Array<{ quoteId: string; offerteNummer?: number; titel?: string; labor?: QuoteLaborPricing }>>([]);
+  const [quoteLoadAttempt, setQuoteLoadAttempt] = useState(0);
 
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
   const [businessData, setBusinessData] = useState<any>(null);
@@ -230,7 +232,8 @@ export default function MeerwerkbonDetailPage() {
   const [sendOpen, setSendOpen] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [hasDeveloperWhatsAppAccess, setHasDeveloperWhatsAppAccess] = useState(false);
-  const [creatingCombinedInvoice, setCreatingCombinedInvoice] = useState(false);
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const [actualsOpen, setActualsOpen] = useState(false);
   const [pdfSettingsOpen, setPdfSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overzicht' | 'regels' | 'pdf'>('overzicht');
 
@@ -393,15 +396,16 @@ export default function MeerwerkbonDetailPage() {
     };
   }, [user, firestore]);
 
+  const primaryQuoteId = meerwerkbon?.primaryQuoteId || meerwerkbon?.linkedQuoteIds?.[0];
   useEffect(() => {
-    if (!meerwerkbon || !firestore) {
+    if (!meerwerkbon || !firestore || !user) {
       setLinkedQuotes([]);
       return;
     }
 
     let cancelled = false;
     (async () => {
-      const ids = Array.isArray(meerwerkbon.linkedQuoteIds) ? meerwerkbon.linkedQuoteIds : [];
+      const ids = Array.from(new Set([primaryQuoteId, ...(meerwerkbon.linkedQuoteIds || [])].filter((value): value is string => !!value)));
       if (ids.length === 0) {
         if (!cancelled) setLinkedQuotes([]);
         return;
@@ -411,9 +415,25 @@ export default function MeerwerkbonDetailPage() {
         try {
           const snap = await getDoc(doc(firestore, 'quotes', quoteId));
           if (!snap.exists()) return { quoteId };
-          const data = snap.data() as any;
+          const data = snap.data();
+          let labor: QuoteLaborPricing | undefined;
+          if (quoteId === primaryQuoteId) {
+            labor = getQuoteLaborPricing(data);
+            if (labor.hourlyRate === null) {
+              const response = await fetch('/api/quotes/get-calculations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` },
+                body: JSON.stringify({ quoteId, latestOnly: true, preferCompletedFallback: true }),
+              });
+              if (!response.ok) throw new Error('Offertecalculatie niet geladen.');
+              const payload = await response.json();
+              labor = getQuoteLaborPricing(data, payload.row?.data_json);
+              // De offertecalculatie gebruikt € 50 voor oudere offertes zonder opgeslagen tarief.
+              labor.hourlyRate ??= 50;
+            }
+          }
           return {
-            quoteId,
+            quoteId, labor,
             offerteNummer: typeof data?.offerteNummer === 'number' ? data.offerteNummer : undefined,
             titel: (data?.titel || data?.title || data?.werkomschrijving || '').toString() || undefined,
           };
@@ -428,8 +448,13 @@ export default function MeerwerkbonDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [meerwerkbon, firestore]);
+  }, [meerwerkbon, firestore, primaryQuoteId, user, quoteLoadAttempt]);
 
+  const primaryQuote = linkedQuotes.find(row => row.quoteId === primaryQuoteId);
+  const quoteLabor = primaryQuote?.labor;
+  const savedLabor = lineItems.find(isMeerwerkbonLaborLine);
+  const hourlyRateExclBtw = savedLabor?.prijsPerEenheidExclBtw ?? quoteLabor?.hourlyRate ?? null;
+  const laborVatRate = quoteLabor?.vatRate ?? savedLabor?.btwTarief ?? 21;
   const totals = useMemo(() => calculateMeerwerkbonTotals(recalcMeerwerkbonLineItems(lineItems)), [lineItems]);
 
   useEffect(() => {
@@ -457,7 +482,7 @@ export default function MeerwerkbonDetailPage() {
   }, [materialModalOpen, materials.length, user]);
 
   const pdfData: PDFMeerwerkbonData | null = useMemo(() => {
-    if (!meerwerkbon) return null;
+    if (!meerwerkbon || (pricingMode !== 'begroot' && hourlyRateExclBtw === null)) return null;
 
     const bedrijfNaam = settings.bedrijfsnaam || businessData?.bedrijfsnaam || '';
     if (!bedrijfNaam) return null;
@@ -490,7 +515,7 @@ export default function MeerwerkbonDetailPage() {
       lineItems: recalcMeerwerkbonLineItems(lineItems),
       totals,
       pricingMode,
-      uurTariefExclBtw: Number(settings.standaardUurtarief) || 0,
+      uurTariefExclBtw: hourlyRateExclBtw ?? 0,
       geschatteArbeidsuren: Number(geschatteArbeidsuren.replace(',', '.')) > 0
         ? Number(geschatteArbeidsuren.replace(',', '.'))
         : undefined,
@@ -504,7 +529,7 @@ export default function MeerwerkbonDetailPage() {
       },
       template,
     };
-  }, [meerwerkbon, settings, businessData, linkedQuotes, lineItems, totals, pricingMode, geschatteArbeidsuren, opmerking, introText, voorwaardenText, approvalForm, template]);
+  }, [meerwerkbon, settings, businessData, linkedQuotes, lineItems, totals, hourlyRateExclBtw, pricingMode, geschatteArbeidsuren, opmerking, introText, voorwaardenText, approvalForm, template]);
 
   const serializedRulesState = useMemo(
     () => serializeRulesState(lineItems, opmerking, introText, voorwaardenText),
@@ -529,7 +554,6 @@ export default function MeerwerkbonDetailPage() {
     () => (Array.isArray(meerwerkbon?.linkedQuoteIds) ? meerwerkbon!.linkedQuoteIds.length : 0),
     [meerwerkbon?.linkedQuoteIds]
   );
-  const hourlyRateExclBtw = Number(settings.standaardUurtarief) || 0;
 
   const whatsappKlantInfo = useMemo<KlantInformatie | null>(() => {
     const snapshot = meerwerkbon?.clientSnapshot;
@@ -557,8 +581,9 @@ export default function MeerwerkbonDetailPage() {
     setPricingMode(nextMode);
   };
 
-  const handleSaveMeerwerkbon = async (): Promise<void> => {
-    if (!firestore || !meerwerkbon || savingAll || !hasUnsavedChanges) return;
+  const handleSaveMeerwerkbon = async (): Promise<boolean> => {
+    if (!firestore || !meerwerkbon || savingAll) return false;
+    if (!hasUnsavedChanges) return true;
 
     const normalizedLineItems = recalcMeerwerkbonLineItems(lineItems);
     const invalid = normalizedLineItems.some((item) => !item.omschrijving.trim() || safeNumber(item.aantal, 0) <= 0);
@@ -568,33 +593,15 @@ export default function MeerwerkbonDetailPage() {
         description: 'Vul bij elke regel een omschrijving en een aantal groter dan nul in.',
         variant: 'destructive',
       });
-      return;
+      return false;
     }
 
     setSavingAll(true);
     try {
-      await Promise.all([
-        updateMeerwerkbonPricingMode(firestore, {
-          meerwerkbonId: meerwerkbon.id,
-          pricingMode,
-        }),
-        updateMeerwerkbonEstimatedHours(firestore, {
-          meerwerkbonId: meerwerkbon.id,
-          estimatedHours: normalizedEstimatedHours,
-        }),
-        updateMeerwerkbonLineItems(firestore, {
-          meerwerkbonId: meerwerkbon.id,
-          lineItems: normalizedLineItems,
-          opmerking,
-          introText,
-          voorwaardenText,
-        }),
-        updateMeerwerkbonTemplate(firestore, {
-          meerwerkbonId: meerwerkbon.id,
-          template,
-        }),
-      ]);
-
+      await saveMeerwerkbonDetails(firestore, {
+        meerwerkbonId: meerwerkbon.id, pricingMode, estimatedHours: normalizedEstimatedHours,
+        lineItems: normalizedLineItems, opmerking, introText, voorwaardenText, template,
+      });
       lastSyncedRulesRef.current = serializeRulesState(normalizedLineItems, opmerking, introText, voorwaardenText);
       lastSyncedTemplateRef.current = serializedTemplateState;
       lastSyncedPricingModeRef.current = pricingMode;
@@ -603,6 +610,7 @@ export default function MeerwerkbonDetailPage() {
       setOpgeslagenArbeidsuren(normalizedEstimateValue);
       setLastSavedAt(Date.now());
       toast({ title: 'Meerwerkbon opgeslagen', description: 'Alle wijzigingen zijn opgeslagen.' });
+      return true;
     } catch (err: any) {
       console.error(err);
       toast({
@@ -610,6 +618,7 @@ export default function MeerwerkbonDetailPage() {
         description: err?.message || 'Kon de meerwerkbon niet opslaan.',
         variant: 'destructive',
       });
+      return false;
     } finally {
       setSavingAll(false);
     }
@@ -732,38 +741,33 @@ export default function MeerwerkbonDetailPage() {
     }
   };
 
-  const handleCreateCombinedInvoice = async () => {
-    if (!firestore || !meerwerkbon || creatingCombinedInvoice) return;
-
-    if (meerwerkbon.status !== 'akkoord') {
-      toast({
-        title: 'Actie geblokkeerd',
-        description: 'Alleen geaccordeerde meerwerkbonnen kunnen omgezet worden naar factuur-concept.',
-        variant: 'destructive',
-      });
+  const handleCreateInvoice = async (standalone: boolean, actualLines?: MeerwerkbonLineItem[]) => {
+    if (!firestore || !user || !meerwerkbon || creatingInvoice || savingAll) return;
+    if (meerwerkbon.invoiceLink?.invoiceId) {
+      router.push(`/facturen/${meerwerkbon.invoiceLink.invoiceId}`);
       return;
     }
-    if ((meerwerkbon.invoiceLink as any)?.invoiceId) {
-      router.push(`/facturen/${(meerwerkbon.invoiceLink as any).invoiceId}`);
-      return;
-    }
+    if (meerwerkbon.status !== 'akkoord') return;
 
-    setCreatingCombinedInvoice(true);
+    setCreatingInvoice(true);
     try {
-      const invoiceId = await createCombinedInvoiceConceptFromMeerwerkbon(firestore, {
-        userId: user!.uid,
-        meerwerkbonId: meerwerkbon.id,
-      });
+      if (!await handleSaveMeerwerkbon()) return;
+      if (standalone && pricingMode !== 'begroot' && !actualLines) {
+        setActualsOpen(true);
+        return;
+      }
+      const invoiceId = await createMeerwerkbonInvoice(firestore, user.uid,
+        { ...meerwerkbon, pricingMode, totals }, standalone ? 'meerwerkbon_only' : 'meerwerkbon_combined', actualLines);
+      setActualsOpen(false);
       router.push(`/facturen/${invoiceId}`);
-    } catch (err: any) {
-      console.error(err);
+    } catch (err) {
       toast({
-        title: 'Factuur-concept mislukt',
-        description: err?.message || 'Kon geen gecombineerde factuur maken.',
+        title: 'Factuur maken mislukt',
+        description: err instanceof Error ? err.message : 'Probeer het opnieuw.',
         variant: 'destructive',
       });
     } finally {
-      setCreatingCombinedInvoice(false);
+      setCreatingInvoice(false);
     }
   };
 
@@ -778,6 +782,15 @@ export default function MeerwerkbonDetailPage() {
         prijsPerEenheidExclBtw: 0,
         btwTarief: 21,
       }),
+    ]);
+  };
+
+  const addLaborLine = () => {
+    if (quoteLabor?.hourlyRate == null) return;
+    const { hourlyRate, vatRate } = quoteLabor;
+    setLineItems((prev) => [
+      ...prev,
+      createMeerwerkbonLaborLine(hourlyRate, vatRate, prev.some(isMeerwerkbonLaborLine) ? 1 : normalizedEstimatedHours ?? 1),
     ]);
   };
 
@@ -998,11 +1011,11 @@ export default function MeerwerkbonDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              {(meerwerkbon.invoiceLink as any)?.invoiceId ? (
+              {meerwerkbon.invoiceLink?.invoiceId ? (
                 <div>
                   <span className="text-muted-foreground">Gekoppelde factuur:</span>{' '}
-                  <Link className="underline underline-offset-4" href={`/facturen/${(meerwerkbon.invoiceLink as any).invoiceId}`}>
-                    {(meerwerkbon.invoiceLink as any).invoiceNumberLabel || (meerwerkbon.invoiceLink as any).invoiceId}
+                  <Link className="underline underline-offset-4" href={`/facturen/${meerwerkbon.invoiceLink.invoiceId}`}>
+                    {meerwerkbon.invoiceLink.invoiceNumberLabel || meerwerkbon.invoiceLink.invoiceId}
                   </Link>
                 </div>
               ) : null}
@@ -1018,16 +1031,27 @@ export default function MeerwerkbonDetailPage() {
                   <CheckCircle2 className="h-4 w-4" />
                   Markeer als akkoord
                 </Button>
+                {!meerwerkbon.invoiceLink?.invoiceId && (
+                  <Button type="button" variant="success" className="h-9"
+                    onClick={() => void handleCreateInvoice(true)}
+                    disabled={creatingInvoice || savingAll || statusUpdating || (pricingMode !== 'begroot' && hourlyRateExclBtw === null) || meerwerkbon.status !== 'akkoord'}>
+                    Maak aparte meerwerkfactuur
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"
                   className="h-9"
-                  onClick={handleCreateCombinedInvoice}
-                  disabled={creatingCombinedInvoice || meerwerkbon.status !== 'akkoord'}
+                  onClick={() => void handleCreateInvoice(false)}
+                  disabled={creatingInvoice || savingAll || statusUpdating || meerwerkbon.status !== 'akkoord'}
                 >
-                  {creatingCombinedInvoice ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Maak gecombineerd factuur-concept
                 </Button>
+                {actualsOpen && hourlyRateExclBtw !== null && (
+                  <MeerwerkInvoiceDialog lines={lineItems} pricingMode={pricingMode} hourlyRate={hourlyRateExclBtw} vatRate={laborVatRate}
+                    busy={creatingInvoice} onClose={() => setActualsOpen(false)}
+                    onCreate={(rows) => void handleCreateInvoice(true, rows)} />
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1213,9 +1237,9 @@ export default function MeerwerkbonDetailPage() {
             <TabsContent value="regels" className="space-y-4">
               <Card>
                 <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center justify-between gap-3">
+                  <CardTitle className="flex flex-wrap items-center justify-between gap-3">
                     <span>Regels</span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Button type="button" variant="outline" className="gap-2" onClick={() => setMaterialModalOpen(true)}>
                         <Plus className="h-4 w-4" />
                         Materiaal
@@ -1224,10 +1248,19 @@ export default function MeerwerkbonDetailPage() {
                         <Plus className="h-4 w-4" />
                         Vrije post
                       </Button>
+                      <Button type="button" variant="outline" className="gap-2" onClick={addLaborLine} disabled={quoteLabor?.hourlyRate == null}>
+                        <Plus className="h-4 w-4" />
+                        Arbeidsuren
+                      </Button>
                     </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {primaryQuote && !quoteLabor && (
+                    <Button variant="link" className="h-auto p-0" onClick={() => setQuoteLoadAttempt(attempt => attempt + 1)}>
+                      Uurtarief uit offerte opnieuw laden
+                    </Button>
+                  )}
                   {lineItems.length === 0 ? (
                     <div className="rounded-lg border border-border/60 bg-card/40 p-4 text-sm text-muted-foreground">
                       Nog geen regels toegevoegd.

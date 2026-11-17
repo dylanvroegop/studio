@@ -22,7 +22,7 @@ export function invoiceQuoteSignature(quote: Record<string, unknown>): string {
     'whatsappQuoteSnapshot.id', 'whatsappQuoteSnapshot.amountCents',
     'amount', 'totaalbedrag', 'totaalInclBtw', 'totals.totaalInclBtw', 'totalsSnapshot.totaalInclBtw',
     'financieel.afgesprokenPrijsInclBtw', 'financialAdjustments.originalTotalInclBtw',
-    'calculationSnapshot', 'instellingen', 'extras', 'offerteVersie', 'facturatie', 'klantinformatie',
+    'calculationSnapshot', 'instellingen', 'extras', 'offerteNummer', 'offerteVersie', 'facturatie', 'klantinformatie',
   ];
   return JSON.stringify(fields.map((field) => normalizeSignatureValue(readPath(quote, field))));
 }

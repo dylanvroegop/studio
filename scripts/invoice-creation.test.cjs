@@ -254,6 +254,7 @@ test('create API weigert ontbrekende auth voordat Firebase wordt gestart', async
   const route = loader({
     '@/firebase/admin': { initFirebaseAdmin: () => { initialized += 1; throw new Error('not configured'); } },
     '@/lib/supabase-admin': {},
+    '@/lib/invoice-bank-payments': { InvoiceBankError: class extends Error {} },
     '@/lib/invoice-create-server': load('@/lib/invoice-create-server'),
     '@/lib/demo-trial-server': { ensureDemoTrialActiveByUid: async () => null },
   })('@/app/api/facturen/create/route');
@@ -267,6 +268,7 @@ test('create API verwerpt ongeldige gecombineerde context; hiermee kan actuele c
   const route = loader({
     '@/firebase/admin': { initFirebaseAdmin: () => ({ auth: { verifyIdToken: async () => ({ uid: 'owner' }) }, firestore: { doc: () => { reads += 1; throw new Error('unexpected read'); } } }) },
     '@/lib/supabase-admin': {},
+    '@/lib/invoice-bank-payments': { InvoiceBankError: class extends Error {} },
     '@/lib/invoice-create-server': load('@/lib/invoice-create-server'),
     '@/lib/demo-trial-server': { ensureDemoTrialActiveByUid: async () => null },
   })('@/app/api/facturen/create/route');
@@ -338,5 +340,81 @@ test('nieuwe gedeelde PDF maakt eerder geladen factuurcontrole ongeldig', async 
   const h = withShared(harness({ total: 957 }));
   h.quote.whatsappQuoteSnapshot = sharedSnapshot({ id: 'new-pdf' });
   await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', h.params, null), /offerte is gewijzigd/);
+  assert.equal(h.commits.length, 0);
+});
+
+const workLine = { id: 'arbeid', type: 'vrije_post', omschrijving: 'Montage rooster', eenheid: 'uur', aantal: 2, prijsPerEenheidExclBtw: 50, btwTarief: 9 };
+const materialLine = { ...workLine, id: 'rooster', type: 'materiaal', omschrijving: 'Rooster', eenheid: 'stuk', aantal: 1, prijsPerEenheidExclBtw: 20, btwTarief: 21 };
+function workOrder(mode) {
+  const bon = { userId: 'owner', primaryQuoteId: 'quote', linkedQuoteIds: ['quote', 'other'], status: 'akkoord',
+    pricingMode: mode, numbering: { label: '260504-MW01' }, geschatteArbeidsuren: 2, lineItems: [workLine, materialLine],
+    totals: { totaalInclBtw: 133.2 }, opmerking: 'Extra ventilatie' };
+  const h = harness({ rows: [advance('advance', 5000), { ...advance('paid', 7000, 'betaald'), invoiceType: 'eind' }],
+    extra: { 'meerwerkbonnen/mw': bon } });
+  const input = { ...h.params, combinedContext: { type: 'meerwerkbon_only', meerwerkbonId: 'mw' },
+    meerwerkbonPricingMode: mode, originalTotalInclBtw: 133.2, totalsInclBtw: 133.2 };
+  return { h, bon, input };
+}
+
+test('aparte meerwerkfactuur bevriest alleen bonregels, ook na de eindfactuur', async () => {
+  const { h, input } = workOrder('begroot');
+  const create = () => createInvoiceAtomically(h.firestore, 'owner', { ...input, actualLineItems: [] }, null);
+  const [id, retry] = await Promise.all([create(), create()]);
+  assert.equal(id, retry);
+  const invoice = h.documents.get(`invoices/${id}`);
+  assert.equal(invoice.status, 'concept');
+  assert.deepEqual(invoice.totalsSnapshot, { totaalInclBtw: 133.2, totaalExclBtw: 120, btw: 13.2 });
+  assert.equal(invoice.sourceQuote.titel, 'Extra ventilatie');
+  assert.equal(invoice.meerwerkbonRegels.length, 2);
+  assert.equal(invoice.financialAdjustments.voorschotAftrekInclBtw, 0);
+  assert.equal(h.documents.get('meerwerkbonnen/mw').invoiceLink.invoiceId, id);
+  assert.equal(h.documents.get('counters/invoiceNumber_owner').next, 2);
+  assert.equal(h.commits.flat().some(write => write.path.startsWith('quotes/')), false);
+  assert.equal(summarizeInvoiceBilling([{ ...invoice, id }]).existingFinalId, null);
+  const combinedRetry = { ...input, combinedContext: { type: 'meerwerkbon_combined', meerwerkbonId: 'mw' } };
+  assert.equal(await createInvoiceAtomically(h.firestore, 'owner', combinedRetry, null), id);
+});
+
+test('nacalculatie gebruikt uitsluitend bevestigde aantallen en rekent btw per regel', async () => {
+  for (const mode of ['uren_nacalculatie', 'uren_materialen_nacalculatie']) {
+    const { h, bon, input } = workOrder(mode);
+    await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', input, null), /factuurregels/);
+    assert.equal(h.commits.length, 0);
+    const actuals = [{ ...workLine, aantal: 3, totaalInclBtw: 999 }, { ...materialLine, aantal: 2 }];
+    const id = await createInvoiceAtomically(h.firestore, 'owner', {
+      ...input, originalTotalInclBtw: 211.9, totalsInclBtw: 211.9, actualLineItems: actuals,
+    }, null);
+    const invoice = h.documents.get(`invoices/${id}`);
+    assert.equal(bon.lineItems[0].aantal, 2);
+    assert.deepEqual(invoice.meerwerkbonRegels.map(row => row.totaalInclBtw), [163.5, 48.4]);
+    assert.deepEqual(invoice.totalsSnapshot, { totaalInclBtw: 211.9, totaalExclBtw: 190, btw: 21.9 });
+  }
+});
+
+test('losse Knab-voorschotten worden atomair verrekend en blijven apart van betalingen op de eindfactuur', async () => {
+  const h = harness({ total: 2000 });
+  const credits = [60000, 44747].map((amountCents, i) => ({ id: 'tx' + i, key: 'key' + i, amountCents,
+    bookingDate: '2026-10-27', currency: 'EUR', name: 'KNAB', description: '260493' }));
+  const input = { ...h.params, totalsInclBtw: 952.53, bankAdvanceSelection: credits.map((row) => ({ transactionId: row.id, amountCents: row.amountCents })) };
+  await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', input, null, [credits[0]]), /gewijzigd/);
+  assert.equal(h.commits.length, 0);
+  const path = 'users/owner/invoiceBankAllocations/key1';
+  h.documents.set(path, { allocations: [{ invoiceId: 'another', amountCents: 44747, mode: 'add' }] });
+  await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', input, null, credits), /inmiddels gekoppeld/);
+  assert.equal(h.commits.length, 0);
+  h.documents.delete(path);
+  const id = await createInvoiceAtomically(h.firestore, 'owner', input, null, credits);
+  const final = h.documents.get('invoices/' + id);
+  assert.equal(final.financialAdjustments.voorschotAftrekInclBtw, 1047.47);
+  assert.equal(final.financialAdjustments.bankVoorschotten.length, 2);
+  assert.deepEqual(final.paymentSummary, { paidAmount: 0, openAmount: 952.53 });
+  assert.deepEqual(h.documents.get(path).allocations, [{ invoiceId: id, amountCents: 44747, mode: 'advance' }]);
+  assert.equal(await createInvoiceAtomically(h.firestore, 'owner', input, null, []), id);
+});
+
+test('bankselectie kan een al gefactureerd voorschot niet dubbel aftrekken', async () => {
+  const h = harness({ rows: [advance('advance', 500, 'betaald', 500)] });
+  const input = { ...h.params, bankAdvanceSelection: [{ transactionId: 'tx', amountCents: 50000 }] };
+  await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', input, null), /bestaande voorschotfactuur/);
   assert.equal(h.commits.length, 0);
 });

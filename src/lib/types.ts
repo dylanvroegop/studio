@@ -196,7 +196,7 @@ export interface QuoteFinancialState {
 }
 
 export interface InvoiceCombinedContext {
-  type: 'meerwerkbon_combined';
+  type: 'meerwerkbon_combined' | 'meerwerkbon_only';
   primaryQuoteId: string;
   quoteIds: string[];
   meerwerkbonId: string;
@@ -211,6 +211,16 @@ export interface InvoicePayment {
   method: 'bank' | 'contant' | 'pin' | 'overig';
   reference?: string;
   note?: string;
+  createdAt: Timestamp;
+}
+
+export interface InvoiceExtraWork {
+  id: string;
+  description: string;
+  amountInclBtw: number;
+  amountExclBtw: number;
+  vatAmount: number;
+  vatRate: number;
   createdAt: Timestamp;
 }
 
@@ -231,6 +241,7 @@ export interface Invoice {
   dueDate: Timestamp;
 
   sourceQuote: {
+    datum?: Timestamp;
     offerteNummer?: number;
     offerteVersie?: number;
     titel?: string;
@@ -264,6 +275,7 @@ export interface Invoice {
   financialAdjustments?: {
     originalTotalInclBtw: number;
     voorschotAftrekInclBtw: number;
+    bankVoorschotten?: { transactionId: string; date: string; name: string; description: string; amountCents: number }[];
     voorschotFactuur?: {
       id: string;
       invoiceNumberLabel: string;
@@ -282,9 +294,11 @@ export interface Invoice {
   };
 
   notes?: string;
+  extraWork?: InvoiceExtraWork[];
   sentAt?: Timestamp;
   paidAt?: Timestamp;
 
+  meerwerkbonRegels?: MeerwerkbonLineItem[];
   combinedContext?: InvoiceCombinedContext;
   combinedQuoteIds?: string[];
   linkedMeerwerkbonIds?: string[];
@@ -329,7 +343,7 @@ export interface MeerwerkbonClientSnapshot {
 
 export interface MeerwerkbonLineItem {
   id: string;
-  type: 'materiaal' | 'vrije_post';
+  type: 'materiaal' | 'vrije_post' | 'arbeid';
   omschrijving: string;
   aantal: number;
   eenheid: string;

@@ -127,6 +127,7 @@ type InvoiceSyncRow = {
   id: string;
   quoteId?: string;
   status?: InvoiceStatus;
+  combinedContext?: { type?: string };
   archived?: boolean;
 };
 
@@ -949,6 +950,7 @@ export default function OffertesPage() {
           return {
             id: docSnap.id,
             quoteId: raw?.quoteId,
+            combinedContext: raw?.combinedContext,
             status: raw?.status,
             archived: !!raw?.archived,
           } as InvoiceSyncRow;
@@ -1062,7 +1064,7 @@ export default function OffertesPage() {
     invoices.forEach((invoice) => {
       if (invoice.archived) return;
       if (!invoice.quoteId) return;
-      if (!invoiceImpliesAccepted(invoice.status)) return;
+      if (!invoiceImpliesAccepted(invoice.status, invoice.combinedContext?.type)) return;
       ids.add(invoice.quoteId);
     });
     return ids;

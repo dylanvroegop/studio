@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { createInvoiceAtomically, InvoiceCreationError } from '@/lib/invoice-create-server';
+import { deriveBankUserId } from '@/lib/bank-user-id';
+import { InvoiceBankError, loadQuoteAdvanceBankView } from '@/lib/invoice-bank-payments';
 import type { CreateInvoiceParams } from '@/lib/invoice-document';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
@@ -22,7 +24,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!input || typeof input.quoteId !== 'string' || !input.quoteId || input.quoteId.includes('/')) {
       throw new InvoiceCreationError('Ongeldige offerte.', 400);
     }
-    if (input.combinedContext && (input.combinedContext.type !== 'meerwerkbon_combined'
+    if (input.combinedContext && (!['meerwerkbon_only', 'meerwerkbon_combined'].includes(input.combinedContext.type)
       || typeof input.combinedContext.meerwerkbonId !== 'string' || !input.combinedContext.meerwerkbonId)) {
       throw new InvoiceCreationError('Ongeldige meerwerkbon.', 400);
     }
@@ -43,10 +45,23 @@ export async function POST(request: Request): Promise<NextResponse> {
         calculation = fallback.data?.data_json || null;
       }
     }
-    const invoiceId = await createInvoiceAtomically(firestore, uid, input, calculation);
+    const selection = input.bankAdvanceSelection ?? [];
+    if (!Array.isArray(selection) || selection.some((row) => typeof row?.transactionId !== 'string'
+      || !Number.isSafeInteger(row.amountCents) || row.amountCents <= 0)
+      || new Set(selection.map((row) => row.transactionId)).size !== selection.length
+      || (selection.length && (input.invoiceType !== 'eind' || input.combinedContext))) {
+      throw new InvoiceCreationError('Ongeldige selectie van voorschotbetalingen.', 400);
+    }
+    let bankCredits;
+    if (selection.length) {
+      const view = await loadQuoteAdvanceBankView({ firestore, uid, bankUserId: deriveBankUserId(uid), quoteId: input.quoteId });
+      const candidates = new Set(view.candidates.map((row) => row.transactionId));
+      bankCredits = view.credits.filter((credit) => candidates.has(credit.id));
+    }
+    const invoiceId = await createInvoiceAtomically(firestore, uid, input, calculation, bankCredits);
     return NextResponse.json({ ok: true, invoiceId }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
-    if (error instanceof InvoiceCreationError) return NextResponse.json({ message: error.message }, { status: error.status });
+    if (error instanceof InvoiceCreationError || error instanceof InvoiceBankError) return NextResponse.json({ message: error.message }, { status: error.status });
     console.error('[facturen/create]', error);
     return NextResponse.json({ message: 'Factuur kon niet worden aangemaakt.' }, { status: 500 });
   }

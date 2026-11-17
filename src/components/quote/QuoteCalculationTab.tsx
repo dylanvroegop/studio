@@ -55,7 +55,7 @@ import {
 } from '@/components/ui/tooltip';
 
 import type { Quote, Job } from '@/lib/types';
-import { normalizeDataJson } from '@/lib/quote-calculations';
+import { getQuoteSnapshotRoots, getQuoteLaborPricing } from '@/lib/quote-labor-pricing';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
@@ -497,26 +497,6 @@ function getStandaardUurTarief(instellingen?: GebruikerInstellingen | null): num
   return typeof normalized === 'number' && Number.isFinite(normalized) ? normalized : null;
 }
 
-function getQuoteSnapshotRoots(data: any): any[] {
-  const candidates = [
-    data,
-    data?.calculationSnapshot,
-    data?.data_json,
-    data?.calculation?.data_json,
-  ];
-
-  return candidates
-    .filter((candidate) => candidate && typeof candidate === 'object')
-    .map((candidate) => {
-      try {
-        return normalizeDataJson(candidate);
-      } catch {
-        return candidate;
-      }
-    })
-    .filter(Boolean);
-}
-
 function getStoredQuoteSetting(data: any, key: 'transport' | 'winstMarge' | 'materieel' | 'verzendkosten'): any {
   for (const root of getQuoteSnapshotRoots(data)) {
     const direct = root?.extras?.[key];
@@ -548,26 +528,6 @@ function getStoredQuoteSetting(data: any, key: 'transport' | 'winstMarge' | 'mat
         percentage: instellingen.winstmarge_percentage,
         basis: 'totaal',
       };
-    }
-  }
-
-  return null;
-}
-
-function getStoredQuoteHourlyRate(data: any): number | null {
-  for (const root of getQuoteSnapshotRoots(data)) {
-    const candidates = [
-      root?.instellingen?.uurTariefExclBtw,
-      root?.instellingen?.uurTarief,
-      root?.uurTariefExclBtw,
-      root?.uurTarief,
-    ];
-
-    for (const candidate of candidates) {
-      const value = typeof candidate === 'number'
-        ? candidate
-        : euroNLToNumberOrNull(candidate);
-      if (value !== null && value > 0) return value;
     }
   }
 
@@ -1088,7 +1048,7 @@ export function OverzichtPage({ embedded = false, onCalculated, calculationInPro
         setPrijsPerKm('');
         setVasteTransportkosten('');
         setTunnelkosten('');
-        const savedUurTarief = getStoredQuoteHourlyRate(data);
+        const savedUurTarief = getQuoteLaborPricing(data).hourlyRate;
         const rawSource = (data.instellingen as any)?.uurTariefSource;
         const savedSource: UurTariefSource | null =
           rawSource === 'custom' || rawSource === 'default'

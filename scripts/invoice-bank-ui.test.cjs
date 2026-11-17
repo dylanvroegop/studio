@@ -6,7 +6,9 @@ const ts = require('typescript');
 
 // Kleine hook-adapter om vertraagde netwerkresponses en navigatie te testen.
 // Geen browser, Firebase, Supabase of echte bankrequests worden gebruikt.
-function componentFixture(t) {
+function componentFixture(t, quoteAdvance = false) {
+  const originalWindow = global.window;
+  global.window = new EventTarget();
   const slots = [];
   const effects = [];
   const requests = [];
@@ -14,6 +16,7 @@ function componentFixture(t) {
   let dirty = true;
   let props = { invoiceId: 'invoice-a', refreshKey: 'initial' };
   let tree;
+  let bank;
   const same = (left, right) => left && right && left.length === right.length && left.every((item, index) => Object.is(item, right[index]));
   const react = {
     useState(initial) {
@@ -50,7 +53,8 @@ function componentFixture(t) {
     '@/firebase': { useUser: () => ({ user }) }, '@/components/ui/button': { Button: 'button' },
     '@/components/ui/dialog': Object.fromEntries(['Dialog', 'DialogContent', 'DialogFooter', 'DialogHeader', 'DialogTitle'].map((name) => [name, name])),
   };
-  const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, '..', 'src/components/invoice/InvoiceBankPayments.tsx'), 'utf8'), {
+  const component = quoteAdvance ? 'QuoteAdvancePayments' : 'InvoiceBankPayments';
+  const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, '..', 'src/components/invoice', component + '.tsx'), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const module = { exports: {} };
@@ -62,11 +66,17 @@ function componentFixture(t) {
   global.fetch = (url, options) => new Promise((resolve) => {
     requests.push({ url, options, respond: (data) => resolve({ ok: true, json: async () => ({ ok: true, ...data }) }) });
   });
-  t.after(() => { global.fetch = originalFetch; slots.forEach((slot) => slot?.cleanup?.()); });
+  t.after(() => { global.fetch = originalFetch; slots.forEach((slot) => slot?.cleanup?.()); global.window = originalWindow; });
   function render(nextProps) {
     if (nextProps) { props = nextProps; dirty = true; }
     for (let count = 0; dirty && count < 25; count += 1) {
-      dirty = false; cursor = 0; tree = module.exports.InvoiceBankPayments(props);
+      dirty = false; cursor = 0;
+      if (quoteAdvance) {
+        bank = module.exports.useQuoteAdvancePayments(user, props.quoteId || 'quote');
+        tree = module.exports.QuoteAdvancePayments({ bank, disabled: false });
+      } else {
+        tree = module.exports.InvoiceBankPayments(props);
+      }
       while (effects.length) effects.shift()();
     }
     assert.equal(dirty, false, 'render mag niet blijven herhalen');
@@ -84,7 +94,7 @@ function componentFixture(t) {
     if (Array.isArray(node)) return node.flatMap(buttons);
     return [...(node.type === 'button' ? [node] : []), ...buttons(node.props?.children)];
   }
-  return { render, tick, requests, text: () => textOf(tree),
+  return { render, tick, requests, bank: () => bank, text: () => textOf(tree),
     check: () => buttons(tree).find((button) => textOf(button).includes('Controleer betalingen')) };
 }
 const view = (linkedCents = 0) => ({ connected: true, lastSyncedAt: '2026-10-06T10:00:00Z',
@@ -135,4 +145,39 @@ test('snapshot-refresh tijdens boeking leest na de POST opnieuw en hergebruikt d
   ui.requests[3].respond({ data: view(10000) }); await ui.tick();
   assert.match(ui.text(), /100,00.*via Knab bevestigd voor deze factuur/);
   assert.equal(ui.check().props.disabled, false);
+});
+
+test('controlekaart toont gesplitste bijschrijvingen en verrekent alleen de gekozen transacties', async (t) => {
+  const ui = componentFixture(t, true);
+  ui.render(); await ui.tick();
+  assert.equal(ui.bank().ready, false);
+  const candidates = [60000, 44747].map((amountCents, i) => ({ transactionId: 'tx' + i, date: '2026-10-27',
+    name: 'KNAB', description: '260493', amountCents, reason: 'Offertenummer', numberMatch: true }));
+  ui.requests[0].respond({ data: { connected: true, candidates } }); await ui.tick();
+  assert.equal(ui.bank().ready, false);
+  assert.match(ui.text(), /Welke betalingen/);
+  ui.bank().toggle('tx0'); await ui.tick();
+  ui.bank().toggle('tx1'); await ui.tick();
+  assert.equal(ui.bank().amountCents, 104747);
+  ui.bank().skipPayments(); await ui.tick();
+  assert.equal(ui.bank().ready, true);
+  assert.equal(ui.bank().amountCents, 0);
+  ui.render({ quoteId: 'next' }); await ui.tick();
+  assert.equal(ui.bank().ready, false);
+  ui.requests[1].respond({ data: { connected: true, candidates: [candidates[0]] } }); await ui.tick();
+  assert.equal(ui.bank().amountCents, 60000);
+  ui.bank().toggle('tx0'); await ui.tick();
+  assert.equal(ui.bank().ready, false);
+});
+
+test('late bankrespons van andere offerte verandert een enkele naamsuggestie niet', async (t) => {
+  const ui = componentFixture(t, true);
+  ui.render(); await ui.tick();
+  ui.render({ quoteId: 'next' }); await ui.tick();
+  const row = { transactionId: 'new', date: '2026-10-27', amountCents: 12000,
+    name: 'KNAB', description: 'Klantnaam', reason: 'Klantnaam', numberMatch: false };
+  ui.requests[1].respond({ data: { connected: true, candidates: [row] } }); await ui.tick();
+  ui.requests[0].respond({ data: { connected: true, candidates: [{ ...row, transactionId: 'old', numberMatch: true }] } }); await ui.tick();
+  assert.equal(ui.bank().ready, false);
+  assert.equal(ui.bank().view.candidates[0].transactionId, 'new');
 });

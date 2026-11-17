@@ -5,7 +5,7 @@ export const DEFAULT_INVOICE_MESSAGE = 'Beste {{naam}},\n\nHierbij de {{factuurt
 
 export interface InvoiceMessageContext {
   clientName: string;
-  invoiceType: 'voorschot' | 'eind';
+  invoiceType: 'voorschot' | 'eind' | 'meerwerk';
   invoiceNumber: string;
   amount: number;
   dueDate: string;
@@ -36,7 +36,7 @@ export function resolveInvoiceMessage(template: string, context: InvoiceMessageC
     naam: context.clientName.trim() || 'klant',
     // Oude presets blijven bruikbaar zonder een bedrijfsnaam als voornaam te raden.
     voornaam: context.clientName.trim() || 'klant',
-    factuurtype: context.invoiceType === 'voorschot' ? 'voorschotfactuur' : 'eindfactuur',
+    factuurtype: context.invoiceType === 'meerwerk' ? 'meerwerkfactuur' : context.invoiceType === 'voorschot' ? 'voorschotfactuur' : 'eindfactuur',
     factuurnummer: context.invoiceNumber,
     bedrag: new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(context.amount),
     vervaldatum: context.dueDate,

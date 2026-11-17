@@ -1,7 +1,7 @@
 import { resolveQuoteClientInfo } from '@/lib/quote-client-info';
 import type { DataJson } from '@/lib/quote-calculations';
 import type { UserSettings } from '@/lib/types-settings';
-import type { InvoiceCombinedContext, InvoiceType } from '@/lib/types';
+import type { InvoiceCombinedContext, InvoiceType, MeerwerkbonLineItem, MeerwerkbonPricingMode } from '@/lib/types';
 import { removeEmptyFields } from '@/lib/utils';
 
 function safeNumber(value: unknown): number | null {
@@ -104,6 +104,7 @@ export interface CreateInvoiceParams {
     totalsInclBtw: number;
     voorschotPercentage?: number;
     voorschotAftrekInclBtw?: number;
+    bankAdvanceSelection?: { transactionId: string; amountCents: number }[];
     voorschotFactuurSnapshot?: {
       id: string;
       invoiceNumberLabel: string;
@@ -115,6 +116,8 @@ export interface CreateInvoiceParams {
     opmerking?: string;
     notes?: string;
     combinedContext?: InvoiceCombinedContext | null;
+    meerwerkbonPricingMode?: MeerwerkbonPricingMode;
+    actualLineItems?: Partial<MeerwerkbonLineItem>[];
     combinedQuoteIds?: string[] | null;
     linkedMeerwerkbonIds?: string[] | null;
   
@@ -171,6 +174,7 @@ export function buildInvoiceDocument(params: CreateInvoiceParams, invoiceNumber:
     dueDate,
 
     sourceQuote: {
+      datum: quote?.createdAt,
       offerteNummer: safeNumber(quote?.offerteNummer) ?? null,
       offerteVersie: safeNumber(quote?.offerteVersie) ?? null,
       titel: resolveInvoiceTitle(quote, calculationSnapshot),

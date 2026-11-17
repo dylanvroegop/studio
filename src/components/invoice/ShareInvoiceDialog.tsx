@@ -73,7 +73,7 @@ export function ShareInvoiceDialog({
 
   const context = useMemo<InvoiceMessageContext | null>(() => pdfData ? {
     clientName: pdfData.klant.naam,
-    invoiceType: pdfData.invoiceType === 'voorschot' ? 'voorschot' : 'eind',
+    invoiceType: pdfData.invoiceType,
     invoiceNumber: pdfData.invoiceNumberLabel,
     amount: pdfData.totals.totaalInclBtw,
     dueDate: pdfData.invoiceType === 'voorschot' ? 'direct' : pdfData.dueDate,

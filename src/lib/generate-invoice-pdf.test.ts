@@ -174,12 +174,55 @@ export function runInvoicePdfUnitTests(): void {
     voorschotFactuurPaidAmount: 1563.21,
   });
   assert.deepEqual(adjustmentRows.map((row) => row.label), [
-    'Origineel totaal (incl. BTW)',
+    'Offertebedrag',
     'Voorschot in mindering',
-    'Reeds betaald op voorschot (info)',
+    'Resterende eindtermijn (50%)',
   ]);
+  assert.deepEqual(adjustmentRows.map((row) => row.value), [3126.42, -1563.21, 1563.21]);
 
   assert.equal(shouldShowClientTaxNumbers('Zakelijk'), true);
   assert.equal(shouldShowClientTaxNumbers('Particulier'), false);
   assert.equal(shouldShowClientTaxNumbers(null), false);
+
+  const extraWork = [
+    { description: 'Extra plint', amountInclBtw: 121, amountExclBtw: 100, vatAmount: 21, vatRate: 21 },
+    { description: 'Schilderwerk', amountInclBtw: 109, amountExclBtw: 100, vatAmount: 9, vatRate: 9 },
+  ];
+  for (const totals of [
+    { totaalInclBtw: 3250.27 },
+    { totaalInclBtw: 3250.27, totaalExclBtw: 2696.09, btw: 554.18 },
+  ]) {
+    const base = buildInvoiceCostTable({ ...baseData(), totals: totals.totaalExclBtw === undefined ? { totaalInclBtw: 3020.27 } : baseData().totals });
+    const withExtraWork = buildInvoiceCostTable({ ...baseData(), totals, extraWork });
+    assert.equal(withExtraWork.totalInclBtw, 3250.27);
+    assert.equal(withExtraWork.subtotalExclBtw, Math.round((base.subtotalExclBtw + 200) * 100) / 100, 'meerwerk niet dubbel tellen bij opgeslagen subtotalen');
+    assert.equal(withExtraWork.btw, Math.round((base.btw + 30) * 100) / 100);
+    assert.equal(withExtraWork.rows.find((row) => row.label === 'Meerwerk')?.amount, 200);
+    assert.equal(Math.round(withExtraWork.btwRows!.reduce((sum, row) => sum + row.value, 0) * 100) / 100, withExtraWork.btw);
+  }
+  const withoutCalculation = buildInvoiceCostTable({
+    totals: { totaalInclBtw: 230, totaalExclBtw: 200, btw: 30 },
+    extraWork: [extraWork[1]],
+  });
+  assert.deepEqual(withoutCalculation.btwRows, [{ label: 'BTW 21%', value: 21 }, { label: 'BTW 9%', value: 9 }]);
+
+  const extraSpec = buildFinancialAdjustmentRows({ originalTotalInclBtw: 1000, voorschotAftrekInclBtw: 500, extraWorkInclBtw: 230 });
+  assert.deepEqual(extraSpec.map((row) => row.value), [1000, -500, 500], 'meerwerk verschijnt alleen bij de omschrijving');
+
+  const customerExample = buildFinancialAdjustmentRows({ originalTotalInclBtw: 2954.53, voorschotAftrekInclBtw: 1477.27, extraWorkInclBtw: 135.80 }, 1613.06 - 135.80);
+  assert.deepEqual(customerExample, [
+    { label: 'Offertebedrag', value: 2954.53 },
+    { label: 'Voorschot in mindering', value: -1477.27 },
+    { label: 'Resterende eindtermijn (50%)', value: 1477.26, bold: true },
+  ]);
+  assert.equal(customerExample.at(-1)!.value + 135.80, 1613.06);
+  const otherPercentage = buildFinancialAdjustmentRows({ originalTotalInclBtw: 1000, voorschotAftrekInclBtw: 400 }, 600);
+  assert.equal(otherPercentage.at(-1)?.label, 'Resterende eindtermijn (60%)');
+  const nonPercentage = buildFinancialAdjustmentRows({ originalTotalInclBtw: 1000, voorschotAftrekInclBtw: 333.33 }, 666.67);
+  assert.equal(nonPercentage.at(-1)?.label, 'Resterende eindtermijn');
+  const corrected = buildFinancialAdjustmentRows({ originalTotalInclBtw: 1000, voorschotAftrekInclBtw: 500 }, 450);
+  assert.deepEqual(corrected.map((row) => row.value), [1000, -500, -50, 450], 'een handmatige correctie mag niet ongemerkt uit de opbouw verdwijnen');
+  assert.equal(corrected.at(-1)?.label, 'Resterende eindtermijn');
+  const noAdvance = buildFinancialAdjustmentRows({ originalTotalInclBtw: 1000, voorschotAftrekInclBtw: 0 }, 1000);
+  assert.deepEqual(noAdvance, [{ label: 'Offertebedrag', value: 1000 }]);
 }

@@ -23,9 +23,11 @@ De standaardberichttekst kan bij het account worden opgeslagen. Bestaande niet-l
 
 ## Knab
 
-Factuurbezoek leest opgeslagen bankgegevens zonder betalingen te boeken. **Controleer betalingen** synchroniseert Knab en controleert betalingen. Ook de bestaande succesvolle Knab-synchronisatie koppelt eenduidige ontvangen betalingen aan uitgebrachte facturen, maximaal 25 per synchronisatie. Overige matches en conflicten worden in het resultaat gemeld. Er is geen nieuw schema of scheduler toegevoegd.
+Calvora synchroniseert Knab op de achtergrond zolang de ingelogde app geopend en zichtbaar is. Een automatische import haalt nieuwe gegevens op zodra de vorige import minstens zes uur oud is. **Controleer betalingen** kan op elk moment een synchronisatie starten. Per import worden maximaal 25 eenduidige betalingen geboekt.
 
-Automatisch koppelen vereist één volledig factuurnummer, precies het openstaande EUR-bedrag en geen conflicterende match of al handmatig geboekte betaling. Naam/bedrag, deelbetalingen en gecombineerde betalingen blijven voorstellen. Een reeds handmatig ontvangen bedrag kan aan bankbewijs worden gekoppeld zonder het opnieuw op te tellen. Toewijzingen houden het transactiebedrag en factuurrestant bij en zijn herhaalbaar zonder dubbeltelling.
+Bij een voorschotfactuur kan het factuurnummer of het offertenummer in de bankomschrijving staan. Eenduidige deelbetalingen worden opgeteld. Na een deelbetaling wordt de status **gedeeltelijk betaald**. Zodra het openstaande bedrag nul is, wordt de status **betaald**. Een naam of meerdere conflicterende matches leveren voorstellen op die je zelf kunt bevestigen.
+
+Bij het maken van een eindfactuur toont de controlekaart de ontvangen bedragen en bijschrijvingen. Is er nog geen voorschotfactuur, dan kun je één of meerdere bijschrijvingen selecteren. Het geselecteerde voorschot wordt direct zichtbaar in de berekening. Een al uitgebrachte voorschotfactuur wordt één keer verrekend, ook als de klant die in delen betaalt.
 
 De banktoewijzingen staan onder `users/{uid}/invoiceBankAllocations`; bankbetaalregels hebben een `bank_`-id en worden uitsluitend server-side beheerd. Publiceer de gewijzigde `firestore.rules` samen met de app. Geen nieuwe SQL-migratie nodig.
 

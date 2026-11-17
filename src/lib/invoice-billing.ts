@@ -80,7 +80,8 @@ export function invoiceTouchesQuote(row: InvoiceBillingRow, quoteId: string): bo
 
 /** Meerwerkbonfacturen bevatten de eigen meerwerkregels, niet het totaal van de gekoppelde offerte. */
 export function isSupplementaryInvoice(row: InvoiceBillingRow): boolean {
-  return row.combinedContext?.type === 'meerwerkbon_combined' && !!row.combinedContext.meerwerkbonId;
+  return (row.combinedContext?.type === 'meerwerkbon_combined' || row.combinedContext?.type === 'meerwerkbon_only')
+    && !!row.combinedContext.meerwerkbonId;
 }
 
 /** Vergelijk de bedragen waarop de gebruiker de controle heeft gebaseerd, niet alleen factuur-id's. */

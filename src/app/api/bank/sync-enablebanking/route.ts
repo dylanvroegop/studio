@@ -9,6 +9,7 @@ import { reconcileInvoiceBankPaymentsAfterSync, type InvoiceBankSyncResult } fro
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   try {
@@ -18,17 +19,23 @@ export async function POST(request: Request) {
       trialBlockedResponse.headers.set('Cache-Control', 'no-store');
       return trialBlockedResponse;
     }
-    let connection = await supabaseAdmin.from('bank_connections')
-      .select('requisition_id')
+    const background = new URL(request.url).searchParams.get('background') === '1';
+    const activeConnections = supabaseAdmin.from('bank_connections')
+      .select('requisition_id,last_synced_at,institution_name')
       .eq('provider', 'enablebanking')
       .eq('user_id', identity.bankUserId)
-      .eq('status', 'connected')
-      .order('updated_at', { ascending: false })
+      .eq('status', 'connected');
+    if (background) activeConnections.ilike('institution_name', '%knab%');
+    let connection = await activeConnections.order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!connection.error && !connection.data) {
+    if (background && !connection.error && (!connection.data
+      || Date.now() - Date.parse(String(connection.data.last_synced_at || '')) < 6 * 60 * 60_000)) {
+      return NextResponse.json({ ok: true, skipped: true }, { headers: noStoreHeaders() });
+    }
+    if (!background && !connection.error && !connection.data) {
       connection = await supabaseAdmin.from('bank_connections')
-        .select('requisition_id')
+        .select('requisition_id,last_synced_at,institution_name')
         .eq('provider', 'enablebanking')
         .eq('user_id', identity.bankUserId)
         .order('updated_at', { ascending: false })
@@ -37,12 +44,13 @@ export async function POST(request: Request) {
     }
     const sessionId = typeof connection.data?.requisition_id === 'string' ? connection.data.requisition_id : '';
     if (connection.error || !sessionId || sessionId.startsWith('pending:')) {
-      return NextResponse.json({ ok: false, error: 'Koppel eerst je Knab-rekening.' }, { status: 400, headers: noStoreHeaders() });
+      if (connection.error) throw new Error('De Knab-koppeling kon niet worden geladen. Probeer het opnieuw.');
+      return NextResponse.json({ ok: false, reconnectRequired: true, error: 'Koppel eerst je Knab-rekening.' }, { status: 400, headers: noStoreHeaders() });
     }
     const result = await syncEnableBankingConnection({ bankUserId: identity.bankUserId, sessionId });
     if (result.status !== 'connected') {
       return NextResponse.json(
-        { ok: false, ...result, error: `Enable Banking status: ${result.status}` },
+        { ok: false, ...result, reconnectRequired: true, error: `Enable Banking status: ${result.status}` },
         { status: 409, headers: noStoreHeaders() },
       );
     }

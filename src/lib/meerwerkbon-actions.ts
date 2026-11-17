@@ -6,7 +6,6 @@ import {
   getDoc,
   runTransaction,
   serverTimestamp,
-  Timestamp,
   updateDoc,
   type Firestore,
 } from 'firebase/firestore';
@@ -183,72 +182,28 @@ export async function createMeerwerkbon(
   return created.id;
 }
 
-export async function updateMeerwerkbonPricingMode(
+export async function saveMeerwerkbonDetails(
   firestore: Firestore,
   params: {
     meerwerkbonId: string;
     pricingMode: MeerwerkbonPricingMode;
-  }
-): Promise<void> {
-  const ref = doc(firestore, 'meerwerkbonnen', params.meerwerkbonId);
-  await updateDoc(ref, {
-    pricingMode: params.pricingMode,
-    updatedAt: serverTimestamp(),
-  });
-}
-
-export async function updateMeerwerkbonEstimatedHours(
-  firestore: Firestore,
-  params: { meerwerkbonId: string; estimatedHours: number | null }
-): Promise<void> {
-  const ref = doc(firestore, 'meerwerkbonnen', params.meerwerkbonId);
-  await updateDoc(ref, {
-    geschatteArbeidsuren: params.estimatedHours && params.estimatedHours > 0 ? params.estimatedHours : null,
-    updatedAt: serverTimestamp(),
-  });
-}
-
-export async function updateMeerwerkbonLineItems(
-  firestore: Firestore,
-  params: {
-    meerwerkbonId: string;
-    lineItems: Partial<MeerwerkbonLineItem>[];
-    opmerking?: string;
-    introText?: string;
-    voorwaardenText?: string;
-  }
-): Promise<void> {
-  const normalizedLineItems = recalcMeerwerkbonLineItems(params.lineItems);
-  const totals = calculateMeerwerkbonTotals(normalizedLineItems);
-  const ref = doc(firestore, 'meerwerkbonnen', params.meerwerkbonId);
-
-  const payload = removeEmptyFields({
-    lineItems: normalizedLineItems,
-    totals,
-    introText: params.introText,
-    voorwaardenText: params.voorwaardenText,
-    updatedAt: serverTimestamp(),
-  }) as Record<string, unknown>;
-
-  if (params.opmerking !== undefined) {
-    payload.opmerking = params.opmerking.trim() ? params.opmerking : deleteField();
-  }
-
-  await updateDoc(ref, payload as any);
-}
-
-export async function updateMeerwerkbonTemplate(
-  firestore: Firestore,
-  params: {
-    meerwerkbonId: string;
+    estimatedHours: number | null;
     template: MeerwerkbonTemplateSettings;
+    lineItems: MeerwerkbonLineItem[];
+    opmerking: string;
+    introText: string;
+    voorwaardenText: string;
   }
 ): Promise<void> {
-  const ref = doc(firestore, 'meerwerkbonnen', params.meerwerkbonId);
-  await updateDoc(ref, {
-    template: params.template,
+  const { meerwerkbonId, estimatedHours, ...details } = params;
+  await updateDoc(doc(firestore, 'meerwerkbonnen', meerwerkbonId), {
+    ...details,
+    lineItems: details.lineItems.map((row) => removeEmptyFields(row)),
+    totals: calculateMeerwerkbonTotals(details.lineItems),
+    geschatteArbeidsuren: estimatedHours,
+    opmerking: details.opmerking.trim() || deleteField(),
     updatedAt: serverTimestamp(),
-  } as any);
+  });
 }
 
 export async function updateMeerwerkbonClientSnapshot(
@@ -302,86 +257,32 @@ export async function updateMeerwerkbonStatus(
   await updateDoc(ref, payload as any);
 }
 
-export async function createCombinedInvoiceConceptFromMeerwerkbon(
+export async function createMeerwerkbonInvoice(
   firestore: Firestore,
-  params: {
-    userId: string;
-    meerwerkbonId: string;
-  }
+  userId: string,
+  meerwerkbon: Meerwerkbon,
+  type: InvoiceCombinedContext['type'],
+  actualLineItems?: MeerwerkbonLineItem[],
 ): Promise<string> {
-  const mwRef = doc(firestore, 'meerwerkbonnen', params.meerwerkbonId);
-  const mwSnap = await getDoc(mwRef);
-  if (!mwSnap.exists()) throw new Error('Meerwerkbon niet gevonden.');
-
-  const meerwerkbon = { id: mwSnap.id, ...(mwSnap.data() as any) } as Meerwerkbon & Record<string, any>;
-  if (meerwerkbon.userId !== params.userId) {
-    throw new Error('Geen toegang tot deze meerwerkbon.');
-  }
-  if (meerwerkbon.status !== 'akkoord') {
-    throw new Error('Alleen geaccordeerde meerwerkbonnen kunnen gefactureerd worden.');
-  }
-  if (meerwerkbon.invoiceLink?.invoiceId) {
-    return meerwerkbon.invoiceLink.invoiceId;
-  }
-
-  const primaryQuoteRef = doc(firestore, 'quotes', meerwerkbon.primaryQuoteId);
-  const primaryQuoteSnap = await getDoc(primaryQuoteRef);
-  if (!primaryQuoteSnap.exists()) {
-    throw new Error('Hoofd-offerte van deze meerwerkbon bestaat niet meer.');
-  }
-  const primaryQuote = { id: primaryQuoteSnap.id, ...(primaryQuoteSnap.data() as any) };
-
-  const settings = await getMergedUserSettings(firestore, params.userId);
-  const totaalInclBtw = Number(meerwerkbon?.totals?.totaalInclBtw || 0);
-  const quoteIds = Array.from(new Set([
-    meerwerkbon.primaryQuoteId,
-    ...(Array.isArray(meerwerkbon.linkedQuoteIds) ? meerwerkbon.linkedQuoteIds : []),
-  ]));
-
-  const combinedContext: InvoiceCombinedContext = {
-    type: 'meerwerkbon_combined',
-    primaryQuoteId: meerwerkbon.primaryQuoteId,
-    quoteIds,
-    meerwerkbonId: meerwerkbon.id,
-    meerwerkbonNumber: meerwerkbon.numbering?.label || '',
-  };
-
-  const invoiceId = await createInvoiceFromQuote(firestore, {
-    userId: params.userId,
-    quoteId: meerwerkbon.primaryQuoteId,
-    quote: primaryQuote,
-    settings,
+  const { id, primaryQuoteId, numbering } = meerwerkbon;
+  const total = actualLineItems
+    ? calculateMeerwerkbonTotals(actualLineItems).totaalInclBtw
+    : meerwerkbon.totals.totaalInclBtw;
+  return createInvoiceFromQuote(firestore, {
+    userId,
+    quoteId: primaryQuoteId,
     invoiceType: 'eind',
-    originalTotalInclBtw: totaalInclBtw,
-    totalsInclBtw: totaalInclBtw,
-    opmerking: `Gecombineerde factuur vanuit meerwerkbon ${meerwerkbon.numbering?.label || meerwerkbon.id}`,
-    combinedContext,
-    combinedQuoteIds: quoteIds,
-    linkedMeerwerkbonIds: [meerwerkbon.id],
-    notes: `Aangemaakt vanuit meerwerkbon ${meerwerkbon.numbering?.label || meerwerkbon.id}.`,
+    originalTotalInclBtw: total,
+    totalsInclBtw: total,
+    combinedContext: {
+      type, primaryQuoteId, quoteIds: meerwerkbon.linkedQuoteIds,
+      meerwerkbonId: id, meerwerkbonNumber: numbering?.label || id,
+    },
+    meerwerkbonPricingMode: meerwerkbon.pricingMode || 'begroot',
+    actualLineItems,
+    ...(type === 'meerwerkbon_combined' && {
+      opmerking: `Gecombineerde factuur vanuit meerwerkbon ${numbering?.label || id}`,
+      notes: `Aangemaakt vanuit meerwerkbon ${numbering?.label || id}.`,
+    }),
   });
-
-  const invoiceSnap = await getDoc(doc(firestore, 'invoices', invoiceId));
-  const invoiceNumberLabel = invoiceSnap.exists()
-    ? ((invoiceSnap.data() as any)?.invoiceNumberLabel || '').toString()
-    : '';
-
-  await runTransaction(firestore, async (tx) => {
-    const latest = await tx.get(mwRef);
-    if (!latest.exists()) return;
-    const latestData = latest.data() as any;
-    if (latestData?.invoiceLink?.invoiceId) return;
-
-    tx.update(mwRef, {
-      status: 'gefactureerd',
-      invoiceLink: {
-        invoiceId,
-        invoiceNumberLabel,
-        createdAt: Timestamp.fromDate(new Date()),
-      },
-      updatedAt: serverTimestamp(),
-    } as any);
-  });
-
-  return invoiceId;
 }

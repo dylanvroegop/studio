@@ -638,10 +638,13 @@ function KostenPageContent() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CostFilterMode>('alle');
   const [onlyWithoutDocument, setOnlyWithoutDocument] = useState(false);
-  const [viewMode, setViewMode] = useState<KostenViewMode>(() => {
-    const requestedTab = searchParams?.get('tab') || null;
-    return isKostenViewMode(requestedTab) ? requestedTab : QUICK_ADD_TAB_ID;
-  });
+  const requestedTab = searchParams?.get('tab') || null;
+  const viewMode: KostenViewMode = isKostenViewMode(requestedTab) ? requestedTab : QUICK_ADD_TAB_ID;
+  const setViewMode = (tab: KostenViewMode) => {
+    const params = new URLSearchParams(searchParams?.toString());
+    params.set('tab', tab);
+    router.replace(`/kosten?${params.toString()}`, { scroll: false });
+  };
 
   const [createOpen, setCreateOpen] = useState(false);
   const [entryMode, setEntryMode] = useState<EntryMode>('upload');
@@ -674,11 +677,6 @@ function KostenPageContent() {
   const activeFinanceTab = KOSTEN_PAGE_TABS.find((tab) => tab.value === viewMode)?.financeTab || null;
 
   useEffect(() => {
-    const requestedTab = searchParams?.get('tab') || null;
-    if (isKostenViewMode(requestedTab)) setViewMode(requestedTab);
-  }, [searchParams]);
-
-  useEffect(() => {
     if (!isUserLoading && !user) router.push('/login');
   }, [isUserLoading, router, user]);
 
@@ -709,10 +707,11 @@ function KostenPageContent() {
       const invoice = invoiceSnap.data() as {
         quoteId?: unknown;
         status?: InvoiceStatus | string;
+        combinedContext?: { type?: string };
         archived?: boolean;
       };
       const quoteId = safeString(invoice.quoteId);
-      if (!quoteId || invoice.archived || !invoiceImpliesAccepted(invoice.status)) return;
+      if (!quoteId || invoice.archived || !invoiceImpliesAccepted(invoice.status, invoice.combinedContext?.type)) return;
       acceptedQuoteIdsFromInvoices.add(quoteId);
     });
 
@@ -807,6 +806,9 @@ function KostenPageContent() {
       setPrivateCredits(data.privateCredits);
       setSourceCosts(data.sourceCosts);
       setError(null);
+    } catch (error) {
+      if (version === costReadVersionRef.current) setError('Kostentotalen konden niet worden bijgewerkt. Probeer het opnieuw.');
+      throw error;
     } finally {
       if (version === costReadVersionRef.current) setLoading(false);
     }
@@ -1694,11 +1696,11 @@ function KostenPageContent() {
           </div>
         </div>
       ) : null}
-      <AppNavigation />
+      <AppNavigation financeView={viewMode} />
       <DashboardHeader user={user} title="Kosten" />
 
       <main className="flex flex-col items-center p-4 pb-24 md:px-6 md:pb-10 md:pt-6">
-        <div className="w-full max-w-7xl space-y-5">
+        <div className="min-w-0 w-full max-w-7xl space-y-5">
           <div className="flex overflow-x-auto border-b border-border" role="tablist" aria-label="Kosten en financiën">
             {KOSTEN_PAGE_TABS.filter((tab) => !tab.hidden).map((tab) => (
               <button
@@ -1721,7 +1723,7 @@ function KostenPageContent() {
 
           {viewMode === 'pdfs' ? <div className="flex items-center gap-3"><Button type="button" variant="outline" size="sm" onClick={() => setViewMode('kosten')}>Terug naar kosten</Button><h2 className="text-sm font-semibold">PDF-bestanden</h2></div> : null}
 
-          {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} categories={filterOptions} loading={loading} error={error} /> : null}
+          {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} categories={filterOptions} loading={loading} error={error} onBankSynced={refreshCostsAfterChange} /> : null}
 
           <input
             ref={quickPhotoInputRef}

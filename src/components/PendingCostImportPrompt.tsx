@@ -267,10 +267,11 @@ export function PendingCostImportPrompt() {
           const invoice = invoiceSnap.data() as {
             quoteId?: unknown;
             status?: InvoiceStatus | string;
+            combinedContext?: { type?: string };
             archived?: boolean;
           };
           const quoteId = safeString(invoice.quoteId);
-          if (!quoteId || invoice.archived || !invoiceImpliesAccepted(invoice.status)) return;
+          if (!quoteId || invoice.archived || !invoiceImpliesAccepted(invoice.status, invoice.combinedContext?.type)) return;
           acceptedQuoteIdsFromInvoices.add(quoteId);
         });
 

@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { InvoiceBankCandidate, InvoiceBankView } from '@/lib/invoice-bank-matching';
 
-interface InvoiceBankPaymentsProps { invoiceId: string; refreshKey?: string }
+interface InvoiceBankPaymentsProps { invoiceId: string; refreshKey?: string; advanceLabel?: string; onLoaded?: (id: string, view: InvoiceBankView) => void }
 interface Confirmation { candidate: InvoiceBankCandidate; mode: 'add' | 'link' }
 const money = (cents: number): string => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(cents / 100);
 const date = (value: string): string => new Date(value).toLocaleDateString('nl-NL');
 
-export function InvoiceBankPayments({ invoiceId, refreshKey }: InvoiceBankPaymentsProps) {
+export function InvoiceBankPayments({ invoiceId, refreshKey, advanceLabel, onLoaded }: InvoiceBankPaymentsProps) {
   const { user } = useUser();
   const [view, setView] = useState<InvoiceBankView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +29,10 @@ export function InvoiceBankPayments({ invoiceId, refreshKey }: InvoiceBankPaymen
   const readSequenceRef = useRef(0);
   const mutationRef = useRef<{ identity: string; token: symbol } | null>(null);
   const needsRefreshRef = useRef(false);
+
+  useEffect(() => {
+    if (view && loadedIdentityRef.current === identity) onLoaded?.(invoiceId, view);
+  }, [invoiceId, identity, view, onLoaded]);
 
   const request = useCallback(async (url: string, options?: { body?: Record<string, unknown>; signal?: AbortSignal }) => {
     if (!user) throw new Error('Log opnieuw in om betalingen te controleren.');
@@ -60,13 +64,29 @@ export function InvoiceBankPayments({ invoiceId, refreshKey }: InvoiceBankPaymen
     const current = () => !controller.signal.aborted && identityRef.current === identity && readSequenceRef.current === sequence;
     setLoading(true);
     setError('');
-    // Bezoek/prefetch is altijd alleen lezen. Boekingen vragen een bewuste actie.
+    // Bij de eindfactuur worden eenduidige voorschotten uit de bestaande import direct bijgewerkt.
     void request(`/api/facturen/bank-payments?invoiceId=${encodeURIComponent(invoiceId)}`, { signal: controller.signal })
-      .then((result) => { if (current()) setView(result.data); })
+      .then(async (result) => {
+        if (!current()) return;
+        if (advanceLabel && result.data.candidates.some((candidate) => candidate.automatic)) {
+          const updated = await request('/api/facturen/bank-payments', {
+            body: { invoiceId, action: 'reconcile' }, signal: controller.signal,
+          });
+          if (current()) setView(updated.data);
+        } else {
+          setView(result.data);
+        }
+      })
       .catch((cause: unknown) => { if (current()) setError(cause instanceof Error ? cause.message : 'Bankbetalingen konden niet worden geladen.'); })
       .finally(() => { if (current()) setLoading(false); });
     return () => controller.abort();
-  }, [invoiceId, identity, refreshKey, refreshAfterMutation, user, request]);
+  }, [invoiceId, identity, refreshKey, refreshAfterMutation, user, request, advanceLabel]);
+
+  useEffect(() => {
+    const refresh = () => setRefreshAfterMutation((value) => value + 1);
+    window.addEventListener('knab:bijgewerkt', refresh);
+    return () => window.removeEventListener('knab:bijgewerkt', refresh);
+  }, []);
 
   const beginMutation = () => {
     const token = Symbol('bank-payment');
@@ -136,7 +156,7 @@ export function InvoiceBankPayments({ invoiceId, refreshKey }: InvoiceBankPaymen
     <section className="space-y-3 rounded-md border p-3" aria-label="Knab-betalingen">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-medium">Knab-betalingen</h3>
+          <h3 className="text-sm font-medium">{advanceLabel || 'Knab-betalingen'}</h3>
           <p className="text-xs text-muted-foreground">
             {view?.lastSyncedAt ? `Laatst bijgewerkt: ${new Date(view.lastSyncedAt).toLocaleString('nl-NL')}` : 'Bankstatus nog niet gecontroleerd'}
           </p>
@@ -155,8 +175,12 @@ export function InvoiceBankPayments({ invoiceId, refreshKey }: InvoiceBankPaymen
           <span>Via Knab bevestigd: <strong>{money(view.linkedCents)}</strong></span>
           <span>Openstaand: <strong>{money(view.openCents)}</strong></span>
         </div>
+        {advanceLabel && view.receipts?.map((row) => <div key={row.id} className="border-t pt-2 text-xs">
+          <div className="flex justify-between gap-2"><span>{row.name || 'Bijschrijving'}{row.date && ` · ${date(row.date)}`}</span><strong>{money(row.amountCents)}</strong></div>
+          <p className="break-words text-muted-foreground">{row.description}</p>
+        </div>)}
         {view.unlinkedPaidCents > 0 && <p className="text-xs text-muted-foreground">{money(view.unlinkedPaidCents)} handmatig geregistreerd, nog niet aan een bankbetaling gekoppeld.</p>}
-        {view.candidates.length === 0 && !notice && <p className="text-xs text-muted-foreground">Geen passende bijschrijving in de opgeslagen bankgegevens.</p>}
+        {view.candidates.length === 0 && !view.linkedCents && !notice && <p className="text-xs text-muted-foreground">Geen passende bijschrijving in de opgeslagen bankgegevens.</p>}
         {view.candidates.map((candidate) => (
           <div key={candidate.transactionId} className="space-y-2 border-t pt-3">
             <div className="flex items-baseline justify-between gap-2 text-sm">

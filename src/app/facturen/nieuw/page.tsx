@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Loader2, ReceiptText, Share2 } from 'lucide-react';
@@ -17,6 +17,9 @@ import { formatOfferteNummerLabel } from '@/lib/quote-number';
 import { loadInvoicePreparation } from '@/lib/invoice-preparation';
 import { summarizeInvoiceBilling, invoiceBillingSignature, type InvoiceBillingRow } from '@/lib/invoice-billing';
 import { invoiceQuoteSignature } from '@/lib/invoice-quote-signature';
+import { QuoteAdvancePayments, useQuoteAdvancePayments } from '@/components/invoice/QuoteAdvancePayments';
+import { InvoiceBankPayments } from '@/components/invoice/InvoiceBankPayments';
+import type { InvoiceBankView } from '@/lib/invoice-bank-matching';
 import { QuoteAmountDifferenceDialog } from '@/components/invoice/QuoteAmountDifferenceDialog';
 import { SharedQuoteAmountBar } from '@/components/quote/SharedQuoteAmountBar';
 import { compareSharedQuoteAmount, isQuoteAmountConfirmed, type QuoteAmountComparison, type QuoteAmountConfirmation } from '@/lib/quote-shared-amount';
@@ -104,7 +107,17 @@ function NieuweFactuurPageContent() {
 
   const existingId = selectedType === 'voorschot' ? billing.existingAdvanceId : billing.existingFinalId;
   const existingInvoice = invoices.find((invoice) => invoice.id === existingId);
-  const calculatedFinal = roundMoney(total - billing.billedAdvanceAmount);
+  const reviewAdvance = selectedType === 'eind' && !existingId && !loading && quote?.id === quoteId;
+  const advances = [...billing.issuedAdvances, ...billing.draftAdvances];
+  const directAdvance = reviewAdvance && advances.length === 0;
+  const bank = useQuoteAdvancePayments(user, directAdvance ? quoteId : null);
+  const deduction = roundMoney(billing.billedAdvanceAmount + (directAdvance ? bank.amountCents / 100 : 0));
+  const calculatedFinal = roundMoney(total - deduction);
+  const updateAdvance = useCallback((id: string, view: InvoiceBankView) => {
+    setInvoices((current) => current.map((row) => row.id !== id ? row : {
+      ...row, status: view.status, paymentSummary: { paidAmount: view.paidCents / 100, openAmount: view.openCents / 100 },
+    }));
+  }, []);
   const newAmount = selectedType === 'voorschot' ? parseAmount(advanceAmount)
     : manualFinalAmount === null ? calculatedFinal : parseAmount(manualFinalAmount);
   const displayedAmount = existingInvoice?.totalsSnapshot?.totaalInclBtw ?? newAmount;
@@ -112,9 +125,10 @@ function NieuweFactuurPageContent() {
     || (!existingId && selectedType === 'voorschot' && billing.issuedAdvances.length > 1 ? 'Er zijn al meerdere voorschotfacturen. Open de facturen of kies Eindfactuur.' : null)
     || (!existingId && selectedType === 'voorschot' && billing.finalInvoices.length > 0 ? 'Deze offerte heeft al een eindfactuur.' : null)
     || (!existingId && selectedType === 'eind' && billing.draftAdvances.length > 0 ? 'Er staat nog een voorschotconcept. Open of annuleer dit eerst voordat je de eindfactuur maakt.' : null)
-    || (!existingId && billing.billedAdvanceAmount > total ? 'Het gefactureerde voorschot is hoger dan het offertebedrag. Controleer dit eerst.' : null);
+    || (!existingId && selectedType === 'eind' && deduction > 0 && calculatedFinal === 0 && manualFinalAmount === null ? 'Het volledige offertebedrag is al verrekend. Er is geen eindtermijn meer over.' : null)
+    || (!existingId && deduction > total ? 'Het voorschot is hoger dan het offertebedrag. Controleer dit eerst.' : null);
   const validAmount = newAmount !== null && newAmount > 0 && newAmount <= total;
-  const canCreate = !loading && !loadError && !!user && !!firestore && !!quote && !blockingMessage
+  const canCreate = !loading && !loadError && !!user && !!firestore && !!quote && quote.id === quoteId && !blockingMessage && (!directAdvance || bank.ready)
     && (!!existingId || (!!settings && total > 0 && validAmount && (selectedType !== 'eind' || manualFinalAmount === null || !!reason.trim())));
   const customer = quote?.klantinformatie;
   const customerName = customer?.bedrijfsnaam || [customer?.voornaam, customer?.achternaam].filter(Boolean).join(' ') || 'Onbekende klant';
@@ -122,7 +136,7 @@ function NieuweFactuurPageContent() {
   async function handleCreate(share: boolean, confirmation?: QuoteAmountConfirmation): Promise<void> {
     if (!canCreate || creatingRef.current || !user || !firestore || !quote) return;
     const comparison = !existingId && selectedType === 'eind' && newAmount !== null
-      ? compareSharedQuoteAmount(quote.whatsappQuoteSnapshot, newAmount, billing.billedAdvanceAmount) : null;
+      ? compareSharedQuoteAmount(quote.whatsappQuoteSnapshot, newAmount, deduction) : null;
     if (comparison?.differenceCents && !isQuoteAmountConfirmed(comparison, confirmation)) {
       setAmountWarning({ comparison, share });
       return;
@@ -136,7 +150,8 @@ function NieuweFactuurPageContent() {
         calculationSnapshot: quote.calculationSnapshot,
         originalTotalInclBtw: total, totalsInclBtw: newAmount!,
         voorschotPercentage: advancePercentage,
-        voorschotAftrekInclBtw: selectedType === 'eind' ? billing.billedAdvanceAmount : 0,
+        voorschotAftrekInclBtw: selectedType === 'eind' ? deduction : 0,
+        bankAdvanceSelection: directAdvance ? bank.selected.map(({ transactionId, amountCents }) => ({ transactionId, amountCents })) : undefined,
         handmatigEindbedrag: selectedType === 'eind' && manualFinalAmount !== null,
         opmerking: reason.trim(),
         sharedQuoteAmountConfirmation: confirmation,
@@ -171,15 +186,19 @@ function NieuweFactuurPageContent() {
                 <h2 className="font-semibold">{customerName}</h2>
                 <p className="text-sm text-muted-foreground">{quote.titel || quote.title || 'Offerte'}{typeof quote.offerteNummer === 'number' ? ` · #${formatOfferteNummerLabel(quote.offerteNummer, quote.offerteVersie)}` : ''}</p>
               </div>
+              {directAdvance && <QuoteAdvancePayments bank={bank} disabled={creating} />}
+              {reviewAdvance && advances.map((advance) => <InvoiceBankPayments key={advance.id} invoiceId={advance.id}
+                advanceLabel={`Knab · Voorschotfactuur #${advance.invoiceNumberLabel || advance.id}`} onLoaded={updateAdvance} />)}
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Factuur</dt><dd className="text-right">{selectedType === 'voorschot' ? 'Voorschot' : 'Eindfactuur'}{existingInvoice ? ` #${existingInvoice.invoiceNumberLabel || ''}` : selectedType === 'voorschot' ? ` ${new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2 }).format(advancePercentage)}%` : ''}</dd></div>
                 <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Offerte incl. btw</dt><dd>{formatCurrency(total)}</dd></div>
+                {directAdvance && <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Voorschot in mindering</dt><dd>{bank.ready ? formatCurrency(deduction) : 'Nog te controleren'}</dd></div>}
                 {billing.issuedAdvances.length > 0 && <>
                   <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Voorschot gefactureerd</dt><dd>{formatCurrency(billing.billedAdvanceAmount)}</dd></div>
                   <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Voorschot ontvangen</dt><dd>{formatCurrency(billing.receivedAdvanceAmount)}</dd></div>
                   <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Voorschot nog open</dt><dd>{formatCurrency(billing.openAdvanceAmount)}</dd></div>
                 </>}
-                <div className="flex justify-between gap-3 border-t pt-3 font-semibold"><dt>Deze factuur incl. btw</dt><dd>{displayedAmount !== null ? formatCurrency(displayedAmount) : 'Vul een bedrag in'}</dd></div>
+                <div className="flex justify-between gap-3 border-t pt-3 font-semibold"><dt>Deze factuur incl. btw</dt><dd>{directAdvance && !bank.ready ? 'Na bankcontrole' : displayedAmount !== null ? formatCurrency(displayedAmount) : 'Vul een bedrag in'}</dd></div>
               </dl>
               <SharedQuoteAmountBar snapshot={quote.whatsappQuoteSnapshot} currentAmount={total} />
               {existingInvoice && <p className="text-sm text-muted-foreground">{existingInvoice.status === 'concept' ? 'Het bestaande concept wordt geopend.' : 'Deze factuur bestaat al en wordt opnieuw geopend.'}</p>}
@@ -195,7 +214,7 @@ function NieuweFactuurPageContent() {
                 <div className="space-y-2"><Label htmlFor="advance-percentage">Voorschot (%)</Label><Input id="advance-percentage" type="number" min="0" max="100" value={advancePercentage} onChange={(event) => { const pct = Math.max(0, Math.min(100, Number(event.target.value) || 0)); setAdvancePercentage(pct); setAdvanceAmount(roundMoney(total * pct / 100).toFixed(2)); }} /></div>
                 <div className="space-y-2"><Label htmlFor="advance-amount">Bedrag incl. btw</Label><Input id="advance-amount" inputMode="decimal" value={advanceAmount} onChange={(event) => { setAdvanceAmount(event.target.value); const value = parseAmount(event.target.value); if (value !== null && total > 0) setAdvancePercentage(value / total * 100); }} /></div>
               </div> : <>
-                <div className="space-y-2"><Label htmlFor="final-amount">Eindbedrag incl. btw</Label><Input ref={finalAmountRef} id="final-amount" inputMode="decimal" value={manualFinalAmount ?? calculatedFinal.toFixed(2)} onChange={(event) => setManualFinalAmount(event.target.value)} /><p className="text-xs text-muted-foreground">Berekend: {formatCurrency(total)} − {formatCurrency(billing.billedAdvanceAmount)} gefactureerd voorschot = {formatCurrency(calculatedFinal)}.</p></div>
+                <div className="space-y-2"><Label htmlFor="final-amount">Eindbedrag incl. btw</Label><Input ref={finalAmountRef} id="final-amount" inputMode="decimal" value={manualFinalAmount ?? calculatedFinal.toFixed(2)} onChange={(event) => setManualFinalAmount(event.target.value)} /><p className="text-xs text-muted-foreground">Berekend: {formatCurrency(total)} − {formatCurrency(deduction)} voorschot = {formatCurrency(calculatedFinal)}.</p></div>
                 {manualFinalAmount !== null && <><div className="space-y-2"><Label htmlFor="adjustment-reason">Reden aanpassing</Label><Input id="adjustment-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Bijv. afgesproken korting" /></div><Button variant="ghost" onClick={() => { setManualFinalAmount(null); setReason(''); }}>Gebruik berekend bedrag</Button></>}
               </>}
             </section>}
