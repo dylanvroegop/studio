@@ -60,7 +60,7 @@ export async function POST(req: Request) {
         const token = match[1].trim();
 
         // Initialize Firebase Admin
-        const { auth } = initFirebaseAdmin();
+        const { auth, firestore } = initFirebaseAdmin();
 
         // Verify token
         let decodedToken: { uid: string };
@@ -77,12 +77,21 @@ export async function POST(req: Request) {
         if (trialBlockedResponse) return trialBlockedResponse;
 
         // 2. Parse Body
-        const { calculation_id, data_json, data_json_patch } = await req.json();
+        const { calculation_id, data_json, data_json_patch, split_operation_id } = await req.json();
 
         if (!calculation_id || (!data_json && !data_json_patch)) {
             return NextResponse.json({ ok: false, message: 'Missing required fields' }, { status: 400 });
         }
 
+        const { data: target, error: targetError } = await supabaseAdmin.from('quotes_collection')
+            .select('quoteid, data_json').eq('id', calculation_id).eq('gebruikerid', decodedToken.uid).maybeSingle();
+        if (targetError) return NextResponse.json({ ok: false, message: targetError.message }, { status: 500 });
+        if (!target) return NextResponse.json({ ok: false, message: 'Calculation not found' }, { status: 404 });
+        const quote = (await firestore.collection('quotes').doc(String(target.quoteid)).get()).data();
+        const splitAllocation = rootObject(target.data_json)?.splitCostAllocation as { operationId?: string } | undefined;
+        if (quote?.splitInProgress || (splitAllocation?.operationId ?? null) !== (split_operation_id ?? null)) {
+            return NextResponse.json({ ok: false, message: 'Deze offerte wordt of is gesplitst. Ververs de offerte voordat je verder bewerkt.' }, { status: 409 });
+        }
         let nextDataJson = data_json;
         let currentDataJson: unknown = null;
         if (data_json_patch && typeof data_json_patch === 'object' && !Array.isArray(data_json_patch)) {
@@ -130,6 +139,7 @@ export async function POST(req: Request) {
         const patch = data_json_patch && typeof data_json_patch === 'object' && !Array.isArray(data_json_patch)
             ? data_json_patch
             : createQuoteDataPatch(currentDataJson, nextDataJson);
+        delete patch.splitCostAllocation;
         const { data, error } = await supabaseAdmin.rpc('patch_quote_calculation_input', {
             calculation_id,
             owner_uid: decodedToken.uid,

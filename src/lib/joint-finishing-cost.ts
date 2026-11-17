@@ -17,7 +17,7 @@ const object = (v: unknown): Row => v && typeof v === 'object' && !Array.isArray
 export function grossSurface(row: Row, ceiling: boolean): number {
     // Nul is een geldige zijhoogte; ontbrekende of onleesbare maten zijn dat niet.
     const relevantKeys = row.shape === 'slope' ? ['lengte', 'hoogteLinks', 'hoogteRechts']
-        : row.shape === 'gable' ? ['lengte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok']
+        : row.shape === 'gable' ? ['lengte', 'hoogte', 'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'vlakkeBovenzijdeBreedte']
         : row.shape === 'l-shape' ? ['lengte', 'lengte1', 'hoogte1', 'hoogte2']
         : row.shape === 'u-shape' ? ['lengte', 'lengte1', 'lengte2', 'hoogte1', 'hoogte2', 'hoogte3']
         : ['lengte', ceiling ? (row.hoogte != null ? 'hoogte' : 'breedte') : 'hoogte'];
@@ -34,8 +34,10 @@ export function grossSurface(row: Row, ceiling: boolean): number {
         const right = number(row.hoogteRechts ?? row.hoogte);
         const peak = number(row.hoogteNok);
         if (length <= 0 || left < 0 || right < 0 || peak <= 0 || peak < Math.max(left, right)) return 0;
-        // Twee trapezia, met de nok halverwege de wand.
-        return length * (left + 2 * peak + right) / 4e6;
+        const flat = number(row.vlakkeBovenzijdeBreedte);
+        if (flat > length) return 0;
+        // Schuine zijden met optioneel een gecentreerd vlak plafond.
+        return ((length - flat) * (left + 2 * peak + right) / 4 + flat * peak) / 1e6;
     }
     if (shape === 'slope') {
         const left = number(row.hoogteLinks);

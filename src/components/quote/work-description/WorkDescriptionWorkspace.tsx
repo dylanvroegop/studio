@@ -550,8 +550,11 @@ export function WorkDescriptionWorkspace({
       placeholder={placeholder}
       onChangeRow={(index, rowValue) => {
         const next = [...rows(cleanedValue[key])];
+        const original = next[index];
         next[index] = rowValue;
-        setRootField(key, ensureRows(next));
+        const reviewed = cleanedValue.reviewedScopeLines?.map(line => line.kind === key && line.text === original
+          ? { ...line, text: rowValue } : line);
+        onChange({ ...cleanedValue, [key]: ensureRows(next), ...(reviewed ? { reviewedScopeLines: reviewed } : {}) });
       }}
       onAddRow={() => setRootField(key, [...rows(cleanedValue[key]), ''])}
       onRemoveRow={(index) => setRootField(key, rows(cleanedValue[key]).filter((_, rowIndex) => rowIndex !== index))}

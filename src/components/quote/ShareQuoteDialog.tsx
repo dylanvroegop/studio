@@ -184,7 +184,7 @@ export function ShareQuoteDialog(props: ShareQuoteDialogProps): JSX.Element {
             <Label htmlFor="quote-share-message">Bericht</Label>
             <Button size="sm" variant="outline" onClick={() => void copyMessage()} disabled={!ready || rewriting || !message.trim()}><Copy className="mr-1.5 h-3.5 w-3.5" />Kopiëren</Button>
           </div>
-          <Textarea id="quote-share-message" ref={messageRef} rows={7} value={message} disabled={!ready || busy || rewriting} onChange={(event) => setMessage(event.target.value)} />
+          <Textarea id="quote-share-message" ref={messageRef} rows={14} value={message} disabled={!ready || busy || rewriting} onChange={(event) => setMessage(event.target.value)} />
           <div className="space-y-2 pt-2">
             <Label htmlFor="quote-share-extra-info">Extra informatie</Label>
             <Textarea id="quote-share-extra-info" rows={3} value={extraInfo} maxLength={6000}

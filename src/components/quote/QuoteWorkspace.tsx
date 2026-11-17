@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuoteSendSelection } from '@/hooks/useQuoteSendSelection';
 import { loadQuotePdfData } from '@/lib/load-quote-pdf-data';
+import { loadQuoteDrawingImages } from '@/lib/quote-drawing-attachments';
 import { bindSharedQuoteAmount, sharedAmountsForFiles } from '@/lib/quote-shared-amount';
 import { markQuoteSelectionAsSent } from '@/lib/quote-send-status';
 import { useQuoteData } from '@/hooks/useQuoteData';
@@ -12,6 +13,7 @@ import { getCalculationProgress, resolveCalculationStart } from '@/lib/calculati
 import { useTodayQuoteHours } from '@/hooks/useTodayQuoteHours';
 import {
     calculateQuoteTotals,
+    completeStructuredWorkDescription,
     QuoteSettings as QuoteCalculationSettings,
     formatCurrency,
     MaterialItem,
@@ -32,6 +34,8 @@ import { calculateScaffoldCost, getScopeCosts, getMissingScopeCosts, setScopeCos
 import { PaymentRequestDialog } from '@/components/quote/PaymentRequestDialog';
 import { Link2 } from 'lucide-react';
 import { CostSummaryCard } from '@/components/quote/CostSummaryCard';
+import { QuoteScopeReview } from '@/components/quote/QuoteScopeReview';
+import { addScopeDecisions, scopeReviewSources } from '@/lib/quote-scope-review';
 import { QuotePhotoImage } from '@/components/quote/QuotePhotoImage';
 import { createQuotePhotoPreview } from '@/lib/quote-photo-preview';
 import { MaterialCalculationHistory } from '@/components/quote/MaterialCalculationHistory';
@@ -40,6 +44,9 @@ import { MaterialEditor } from '@/components/quote/MaterialEditor';
 import { NacalculatieTab } from '@/components/quote/NacalculatieTab';
 import { createOrderedSaveQueue } from '@/lib/ordered-save-queue';
 import { QuoteSettings, QuotePDFSettings, defaultQuotePDFSettings, sanitizeQuotePDFSettings } from '@/components/quote/QuoteSettings';
+import { planQuoteSplit, splitCents, splitMaterialIsAmount, splitMaterialTotal } from '@/lib/quote-split';
+import { automaticSplitCostKey, splitPartArea } from '@/lib/quote-split-scope';
+import { stableSplitSourceKey, splitSourceChanges, acceptSplitAnalysisSource } from '@/lib/quote-split-source';
 import { buildOfficialQuotePdfData, forceSummaryIntoWorkScope, resolveQuoteCalculationSettings, resolveQuotePdfWorkDescription } from '@/lib/quote-pdf-data';
 import type { PDFQuoteData } from '@/lib/generate-quote-pdf';
 import { validateQuotePdfTranslations } from '@/lib/quote-pdf-translation';
@@ -74,6 +81,7 @@ import { nl } from 'date-fns/locale';
 import { Button } from "@/components/ui/button";
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import Link from "next/link";
 import { SendQuoteModal, type QuoteAttachmentOptions } from '@/components/quote/SendQuoteModal';
 import { ShareQuoteDialog } from '@/components/quote/ShareQuoteDialog';
@@ -1217,6 +1225,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
     const lastHydratedFacturatieSourceRef = useRef('');
     const [voorwaardenEditorMode, setVoorwaardenEditorMode] = useState<VoorwaardenEditorMode>('vastePrijs');
     const [activeTab, setActiveTab] = useState(hasJobEditor ? 'calculatie' : initialTab);
+    const [reviewOpened, setReviewOpened] = useState(initialTab === 'offertecheck');
     useEffect(() => {
         if (hasJobEditor) setActiveTab('calculatie');
     }, [pathname, hasJobEditor]);
@@ -3205,7 +3214,6 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         0
     );
     const totalMaterialItems = materials.groot.length + materials.verbruik.length;
-    const totalMaterialExcl = grootSubtotal + verbruikSubtotal;
     const selectedMaterialPackage =
         materialPackages.find((pkg) => pkg.id === selectedMaterialPackageId) || null;
     const materialPackagePickerQuery = materialPackagePickerSearch.trim().toLowerCase();
@@ -3419,6 +3427,8 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         totalHours: number;
         marginAmount: number;
         workJobIndex: number | null;
+        workDescription: string;
+        surfaceM2?: number | null;
     };
     type SplitCalculationJobOption = {
         id: string;
@@ -3446,11 +3456,36 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
 
     const [isSplitQuoteOpen, setIsSplitQuoteOpen] = useState(false);
     const [isSplittingQuote, setIsSplittingQuote] = useState(false);
+    const [isAnalyzingSplit, setIsAnalyzingSplit] = useState(false);
+    const [splitAiError, setSplitAiError] = useState('');
+    const [splitSubmitError, setSplitSubmitError] = useState('');
+    const [splitAiWarnings, setSplitAiWarnings] = useState<string[]>([]);
+    const [splitAiReasons, setSplitAiReasons] = useState<Record<string, string>>({});
+    const splitAnalysisVersionRef = useRef(0);
     const [isDuplicateQuoteOpen, setIsDuplicateQuoteOpen] = useState(false);
     const [isDuplicatingQuote, setIsDuplicatingQuote] = useState(false);
     const [isCreatingMeerwerkbon, setIsCreatingMeerwerkbon] = useState(false);
+    const splitRequestIdRef = useRef('');
+    const splitSourceKeyRef = useRef('');
+    const splitSourceKey = stableSplitSourceKey([calculation?.id, calculation?.data_json, quoteSettings, (quote as (Quote & { klussen?: Record<string, unknown> }) | null)?.klussen]);
+    const splitLatestSourceKeyRef = useRef(splitSourceKey);
+    splitLatestSourceKeyRef.current = splitSourceKey;
+    const splitSourceJobs = useMemo(
+        () => (quote as (Quote & { klussen?: Record<string, unknown> }) | null)?.klussen || {},
+        [quote],
+    );
+    const quoteSplitInProgress = Boolean((quote as (Quote & { splitInProgress?: string }) | null)?.splitInProgress);
+    const quoteSplitMetadata = quote as (Quote & { splitPrimary?: { operationId?: string }; splitSource?: { operationId?: string } }) | null;
+    const quoteSplitOperationId = quoteSplitMetadata?.splitPrimary?.operationId || quoteSplitMetadata?.splitSource?.operationId;
+    const splitCalculationStale = Boolean(quoteSplitOperationId && quoteSplitOperationId !== normalizedData?.splitCostAllocation?.operationId);
+    const splitRefetchedOperationRef = useRef('');
+    useEffect(() => {
+        if (!splitCalculationStale || !quoteSplitOperationId || splitRefetchedOperationRef.current === quoteSplitOperationId) return;
+        splitRefetchedOperationRef.current = quoteSplitOperationId;
+        void refetchQuoteData();
+    }, [splitCalculationStale, quoteSplitOperationId, refetchQuoteData]);
     const [splitQuoteDrafts, setSplitQuoteDrafts] = useState<SplitQuoteDraft[]>([]);
-    const [splitMaterialAssignments, setSplitMaterialAssignments] = useState<Record<string, string>>({});
+    const [splitMaterialAssignments, setSplitMaterialAssignments] = useState<Record<string, Record<string, number | string>>>({});
     const [splitKlusAssignments, setSplitKlusAssignments] = useState<Record<string, string>>({});
     const [splitNoteAssignments, setSplitNoteAssignments] = useState<Record<string, string>>({});
     const [splitMaatwerkAssignments, setSplitMaatwerkAssignments] = useState<Record<string, string>>({});
@@ -3481,20 +3516,11 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
 
     const splitWorkJobOptions = useMemo(() => {
         const jobs = Array.isArray(workDescriptionStructured.jobs) ? workDescriptionStructured.jobs : [];
-        const optionCount = Math.max(jobs.length, splitCalculationJobOptions.length);
-        return Array.from({ length: optionCount }, (_, index) => {
-            const job = jobs[index];
-            const fallbackLabel = `Klus ${index + 1}`;
-            const workTitle = String(job?.title || '').trim();
-            const calculationTitle = splitCalculationJobOptions[index]?.title || '';
-            const title = calculationTitle || workTitle || fallbackLabel;
-            return {
-                index,
-                title,
-                displayLabel: title === fallbackLabel ? fallbackLabel : `${fallbackLabel} · ${title}`,
-            };
+        return jobs.map((job, index) => {
+            const title = String(job.title || `Beschrijving ${index + 1}`).trim();
+            return { index, title, displayLabel: title, summary: String(job.summary || '') };
         });
-    }, [splitCalculationJobOptions, workDescriptionStructured.jobs]);
+    }, [workDescriptionStructured.jobs]);
 
     const createSplitDraftId = useCallback(() => (
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -3504,28 +3530,35 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
 
     const handleOpenSplitQuoteDialog = useCallback(() => {
         const jobCount = Math.max(2, splitCalculationJobOptions.length || 0, splitWorkJobOptions.length || 0);
-        const hoursPerDraft = Number(normalizedData?.totaal_uren || 0) > 0
-            ? Number((Number(normalizedData?.totaal_uren || 0) / jobCount).toFixed(2))
-            : 0;
-        const sourceFixedMargin = quoteSettings?.extras?.winstMarge?.mode === 'fixed'
-            ? Number(quoteSettings.extras.winstMarge.fixedAmount || 0)
-            : 0;
-        const marginPerDraft = sourceFixedMargin > 0
-            ? Number((sourceFixedMargin / jobCount).toFixed(2))
-            : 0;
+        if (hasUnsavedWorkDescription || !normalizedData || !quoteSettings) {
+            toast({ variant: 'destructive', title: 'Sla eerst Werk & Levering op', description: 'Open splitsen daarna opnieuw.' });
+            return;
+        }
+        splitAnalysisVersionRef.current++;
+        setIsAnalyzingSplit(false);
+        setSplitAiError('');
+        setSplitSubmitError('');
+        setSplitAiWarnings([]);
+        setSplitAiReasons({});
+        splitRequestIdRef.current = createSplitDraftId();
+        splitSourceKeyRef.current = splitSourceKey;
+        const originalTotals = calculateQuoteTotals(normalizedData, quoteSettings, Number(userProfile?.settings?.planningSettings?.defaultWorkdayHours) || 8);
+        const dividedHours = splitCents(Number(normalizedData.totaal_uren || 0), Array(jobCount).fill(1));
+        const dividedMargins = splitCents(originalTotals.winstMarge, Array(jobCount).fill(1));
         const drafts = Array.from({ length: jobCount }, (_, index) => {
             const jobOption = splitWorkJobOptions[index];
             return {
                 id: createSplitDraftId(),
-                title: jobOption?.title || `Deelofferte ${index + 1}`,
-                totalHours: hoursPerDraft,
-                marginAmount: marginPerDraft,
-                workJobIndex: jobOption ? jobOption.index : null,
+                title: splitCalculationJobOptions[index]?.title || jobOption?.title || `Deelofferte ${index + 1}`,
+                totalHours: dividedHours[index],
+                marginAmount: dividedMargins[index],
+                workJobIndex: null,
+                workDescription: '',
             };
         });
         const fallbackDraftId = drafts[0]?.id || '';
-        const initialAssignments = combinedMaterialItems.reduce<Record<string, string>>((acc, item) => {
-            acc[item._sourceKey] = fallbackDraftId;
+        const initialAssignments = combinedMaterialItems.reduce<Record<string, Record<string, number>>>((acc, item) => {
+            acc[item._sourceKey] = {};
             return acc;
         }, {});
         const initialKlusAssignments = splitCalculationJobOptions.reduce<Record<string, string>>((acc, job, index) => {
@@ -3552,7 +3585,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         setSplitNoteAssignments(initialNoteAssignments);
         setSplitMaatwerkAssignments(initialMaatwerkAssignments);
         setIsSplitQuoteOpen(true);
-    }, [combinedMaterialItems, createSplitDraftId, normalizedData?.totaal_uren, quoteNoteSections, quoteSettings?.extras?.winstMarge?.fixedAmount, quoteSettings?.extras?.winstMarge?.mode, splitCalculationJobOptions, splitWorkJobOptions]);
+    }, [combinedMaterialItems, createSplitDraftId, normalizedData, quoteNoteSections, quoteSettings, splitCalculationJobOptions, splitWorkJobOptions, hasUnsavedWorkDescription, toast, userProfile, splitSourceKey]);
 
     const updateSplitDraft = useCallback((draftId: string, patch: Partial<SplitQuoteDraft>) => {
         setSplitQuoteDrafts((prev) => prev.map((draft) => (
@@ -3569,6 +3602,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                 totalHours: 0,
                 marginAmount: 0,
                 workJobIndex: null,
+                workDescription: '',
             },
         ]));
     }, [createSplitDraftId]);
@@ -3591,13 +3625,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
             if (prev.length <= 2) return prev;
             const next = prev.filter((draft) => draft.id !== draftId);
             const fallbackId = next[0]?.id || '';
-            setSplitMaterialAssignments((assignments) => {
-                const nextAssignments = { ...assignments };
-                Object.entries(nextAssignments).forEach(([key, assignedDraftId]) => {
-                    if (assignedDraftId === draftId) nextAssignments[key] = fallbackId;
-                });
-                return nextAssignments;
-            });
+            setSplitMaterialAssignments((assignments) => Object.fromEntries(Object.entries(assignments).map(([key, values]) => {
+                const { [draftId]: removed, ...remaining } = values;
+                return [key, { ...remaining, [fallbackId]: Number(remaining[fallbackId] || 0) + Number(removed || 0) }];
+            })));
             setSplitKlusAssignments((assignments) => {
                 const nextAssignments = { ...assignments };
                 Object.entries(nextAssignments).forEach(([key, assignedDraftId]) => {
@@ -3623,25 +3654,72 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         });
     }, []);
 
-    const splitDraftSummaries = useMemo(() => {
-        return splitQuoteDrafts.map((draft) => {
-            const rows = combinedMaterialItems.filter((item) => splitMaterialAssignments[item._sourceKey] === draft.id);
-            const totalExcl = rows.reduce((sum, item) => {
-                const row = item as Record<string, unknown>;
-                const aantal = Number(item.aantal);
-                const prijs = Number(item.prijs_per_stuk ?? row.prijs_excl_btw ?? row.prijs);
-                return sum + ((Number.isFinite(aantal) ? aantal : 0) * (Number.isFinite(prijs) ? prijs : 0));
-            }, 0);
-            return {
-                draftId: draft.id,
-                rowCount: rows.length,
-                totalExcl,
-            };
-        });
-    }, [combinedMaterialItems, splitMaterialAssignments, splitQuoteDrafts]);
+    const splitPreview = useMemo(() => {
+        if (!isSplitQuoteOpen || !normalizedData || !quoteSettings) return { plan: null, error: '' };
+        try {
+            const changes = splitSourceChanges(splitSourceKeyRef.current, splitSourceKey);
+            if (changes.length) throw new Error(`Sinds het openen zijn ${changes.join(' en ')} gewijzigd. Klik op ‘AI-verdeling voorstellen’ om de actuele offerte opnieuw te verdelen. Je invoer blijft staan totdat er een geldig nieuw voorstel is.`);
+            const drafts = splitQuoteDrafts.map(draft => ({ ...draft,
+                materialRows: combinedMaterialItems.filter(item => !automaticSplitCostKey(item, normalizedData))
+                    .map(item => ({ sourceCategory: item._sourceCategory, sourceIndex: item._sourceIndex, item, allocation: Number(splitMaterialAssignments[item._sourceKey]?.[draft.id] || 0) })),
+                selectedKlusIds: splitCalculationJobOptions.filter(job => splitKlusAssignments[job.id] === draft.id).map(job => job.id),
+            }));
+            return { plan: planQuoteSplit(normalizedData, quoteSettings, drafts, splitCalculationJobOptions.map(job => job.id), Number(userProfile?.settings?.planningSettings?.defaultWorkdayHours) || 8, splitSourceJobs), error: '' };
+        } catch (error) { return { plan: null, error: error instanceof Error ? error.message : 'Controleer de verdeling.' }; }
+    }, [isSplitQuoteOpen, normalizedData, quoteSettings, splitQuoteDrafts, combinedMaterialItems, splitMaterialAssignments, splitCalculationJobOptions, splitKlusAssignments, userProfile, splitSourceKey, splitSourceJobs]);
+
+    const handleAnalyzeSplit = async (): Promise<void> => {
+        if (isAnalyzingSplit || isSplittingQuote) return;
+        if (!user || !calculation) {
+            setSplitAiError(!user ? 'Je bent niet ingelogd. Log opnieuw in voordat je AI gebruikt.' : 'De calculatie is nog niet geladen. Wacht tot deze geladen is en probeer opnieuw.');
+            return;
+        }
+        const version = ++splitAnalysisVersionRef.current;
+        const sourceKey = splitSourceKey;
+        setIsAnalyzingSplit(true);
+        setSplitAiError('');
+        try {
+            await flushCalculationWrites();
+            const response = await fetch('/api/quotes/split/analyze', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` },
+                body: JSON.stringify({ quoteId: id, calculationId: calculation.id, sourceDataJson: calculation.data_json,
+                    drafts: splitQuoteDrafts.map(({ id, title }) => ({ id, title })),
+                    notes: quoteNoteSections.map(({ id, title, notes, maatwerkLines }) => ({ id, title, notes, maatwerkLines })),
+                }),
+            });
+            const result = await response.json().catch(() => null);
+            if (version !== splitAnalysisVersionRef.current) return;
+            if (!response.ok || !result?.ok) {
+                const reason = result?.message || result?.error || (response.status === 504
+                    ? 'De server heeft niet op tijd geantwoord.'
+                    : 'De server gaf geen bruikbaar antwoord terug.');
+                throw new Error(`${typeof reason === 'string' ? reason : 'De analyse is mislukt.'}${result?.stage ? ` Stap: ${result.stage}.` : ''} (HTTP ${response.status})`);
+            }
+            // Pas de bronversie pas aan na een succesvol, server-gevalideerd voorstel.
+            // Anders blijft een eerdere achtergrondwijziging ook na opnieuw analyseren blokkeren.
+            splitSourceKeyRef.current = acceptSplitAnalysisSource(sourceKey, splitLatestSourceKeyRef.current);
+            const proposals = result.drafts as Array<SplitQuoteDraft & { selectedKlusIds: string[] }>;
+            setSplitQuoteDrafts(proposals.map(part => ({ id: part.id, title: part.title, totalHours: part.totalHours, marginAmount: part.marginAmount, workJobIndex: null, workDescription: part.workDescription, surfaceM2: part.surfaceM2 })));
+            setSplitMaterialAssignments(result.materialAssignments);
+            setSplitKlusAssignments(Object.fromEntries(proposals.flatMap(part => part.selectedKlusIds.map(jobId => [jobId, part.id]))));
+            setSplitNoteAssignments(previous => ({ ...previous, ...result.noteAssignments }));
+            setSplitMaatwerkAssignments(previous => ({ ...previous, ...result.maatwerkAssignments }));
+            setSplitAiWarnings(result.warnings);
+            setSplitAiReasons(Object.fromEntries(result.reasons.map((part: { id: string; reason: string }) => [part.id, part.reason])));
+            toast({ title: 'AI-voorstel ingevuld', description: 'Controleer de verdeling en pas aan waar nodig. Er is nog niets gesplitst.' });
+        } catch (error) {
+            if (version === splitAnalysisVersionRef.current) {
+                const message = error instanceof TypeError && /fetch|network|load failed/i.test(error.message)
+                    ? 'De verbinding met de server is weggevallen. Controleer je verbinding en probeer opnieuw.'
+                    : error instanceof Error ? error.message : 'De analyse is mislukt zonder verdere foutinformatie. Probeer opnieuw.';
+                setSplitAiError(message);
+                toast({ variant: 'destructive', title: 'AI-verdeling niet ingevuld', description: message });
+            }
+        } finally { if (version === splitAnalysisVersionRef.current) setIsAnalyzingSplit(false); }
+    };
 
     const handleCreateSplitQuotes = useCallback(async () => {
-        if (!user || !id) return;
+        if (!user || !id || isSplittingQuote || isAnalyzingSplit || !splitPreview.plan) return;
         if (splitQuoteDrafts.length < 2) {
             toast({
                 variant: 'destructive',
@@ -3675,10 +3753,11 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
 
         const splits = splitQuoteDrafts.map((draft) => {
             const materialRows = combinedMaterialItems
-                .filter((item) => splitMaterialAssignments[item._sourceKey] === draft.id)
+                .filter((item) => !automaticSplitCostKey(item, normalizedData))
                 .map((item) => ({
                     sourceCategory: item._sourceCategory,
                     sourceIndex: item._sourceIndex,
+                    allocation: Number(splitMaterialAssignments[item._sourceKey]?.[draft.id] || 0),
                     item: Object.fromEntries(
                         Object.entries(item).filter(([key]) => !['_sourceCategory', '_sourceIndex', '_sourceKey'].includes(key))
                     ),
@@ -3703,18 +3782,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
             return;
         }
 
-        const emptySplit = splits.find((split) => split.materialRows.length === 0 && Number(split.totalHours || 0) <= 0);
-        if (emptySplit) {
-            toast({
-                variant: 'destructive',
-                title: 'Deelofferte is leeg',
-                description: `${emptySplit.title} heeft nog geen producten of uren.`,
-            });
-            return;
-        }
-
         setIsSplittingQuote(true);
+        setSplitSubmitError('');
         try {
+            await flushCalculationWrites();
             const token = await user.getIdToken();
             const response = await fetch('/api/quotes/split', {
                 method: 'POST',
@@ -3724,7 +3795,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                 },
                 body: JSON.stringify({
                     quoteId: id,
-                    dataJson: normalizedData || {},
+                    calculationId: calculation?.id,
+                    sourceDataJson: calculation?.data_json,
+                    requestId: splitRequestIdRef.current,
+                    quoteRevision: (quote?.updatedAt as { toMillis?: () => number } | undefined)?.toMillis?.(),
                     notes: quoteNotes,
                     noteSections,
                     splits,
@@ -3732,7 +3806,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.ok) {
-                throw new Error(payload?.message || 'Kon deeloffertes niet aanmaken.');
+                // Alleen na bevestigd herstel een nieuwe operatie starten; bij een
+                // verloren antwoord dezelfde id behouden om dubbel splitsen te voorkomen.
+                if (payload?.retryable === true) splitRequestIdRef.current = createSplitDraftId();
+                throw new Error(`${payload?.message || 'Kon deeloffertes niet aanmaken.'} (HTTP ${response.status})`);
             }
 
             const created = Array.isArray(payload.created) ? payload.created : [];
@@ -3741,20 +3818,23 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                 description: `${created.length} extra offerte(s) staan klaar. Deze offerte is bijgewerkt als ${splitQuoteDrafts[0]?.title || 'de eerste deelofferte'}.`,
             });
             setIsSplitQuoteOpen(false);
+            refetchQuoteData();
             if (created[0]?.id) {
                 router.push(`/offertes/${created[0].id}`);
             }
         } catch (error) {
             console.error('Fout bij splitsen offerte:', error);
+            const message = error instanceof Error ? error.message : 'Kon de offerte niet splitsen. Probeer het opnieuw.';
+            setSplitSubmitError(message);
             toast({
                 variant: 'destructive',
                 title: 'Splitsen mislukt',
-                description: error instanceof Error ? error.message : 'Probeer het opnieuw.',
+                description: message,
             });
         } finally {
             setIsSplittingQuote(false);
         }
-    }, [combinedMaterialItems, id, normalizedData, quoteNoteSections, quoteNotes, router, splitCalculationJobOptions, splitKlusAssignments, splitMaatwerkAssignments, splitMaterialAssignments, splitNoteAssignments, splitQuoteDrafts, toast, user]);
+    }, [combinedMaterialItems, normalizedData, id, quoteNoteSections, quoteNotes, router, splitCalculationJobOptions, splitKlusAssignments, splitMaatwerkAssignments, splitMaterialAssignments, splitNoteAssignments, splitQuoteDrafts, toast, user, isSplittingQuote, isAnalyzingSplit, splitPreview.plan, flushCalculationWrites, calculation, quote?.updatedAt, refetchQuoteData]);
 
     const handleDuplicateQuote = useCallback(async () => {
         if (!user || !id || isDuplicatingQuote) return;
@@ -4064,6 +4144,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
     // Sync calculated totals to Firebase for Dashboard visibility
     useEffect(() => {
         if (!firestore || !user || !id) return;
+        if (isSplittingQuote || quoteSplitInProgress || splitCalculationStale) return;
         if (typeof totalInclBtw !== 'number' || !Number.isFinite(totalInclBtw)) return;
         const totalToSync = hasStoredAgreedQuoteTotal ? storedAgreedQuoteTotal : totalInclBtw;
         if (typeof totalToSync !== 'number' || !Number.isFinite(totalToSync)) return;
@@ -4097,7 +4178,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         // Debounce to avoid rapid writes during slider/input changes
         const timer = setTimeout(updateFirebasePrice, 2000);
         return () => clearTimeout(timer);
-    }, [totalInclBtw, firestore, user, id, hasStoredAgreedQuoteTotal, storedAgreedQuoteTotal]);
+    }, [totalInclBtw, firestore, user, id, hasStoredAgreedQuoteTotal, storedAgreedQuoteTotal, isSplittingQuote, quoteSplitInProgress, splitCalculationStale]);
 
     // Handle updating settings
     const handleUpdateSettings = async (newSettings: QuoteCalculationSettings) => {
@@ -4340,6 +4421,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         data: PDFQuoteData = buildPDFData(),
     ): Promise<Blob> => {
         if (isPreparingPdfLanguage) throw new Error('Wacht tot de PDF-taal is voorbereid.');
+        if ((quote as (Quote & { splitIncludeDrawings?: boolean }) | null)?.splitIncludeDrawings) {
+            if (drawingStatus.processing) throw new Error('De calculatietekeningen worden nog verwerkt. Wacht tot ze klaar zijn.');
+            data = { ...data, settings: { ...data.settings, showTekeningen: true }, drawingImages: await loadQuoteDrawingImages(quote) };
+        }
         const signature = JSON.stringify(data);
         const cached = officialPdfCacheRef.current;
         if (cached?.signature === signature) return cached.blob;
@@ -5725,15 +5810,11 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         latestCalculationStatus === 'processing' ||
         calculation?.status === 'pending' ||
         calculation?.status === 'processing';
-    const laborTotalHours = (calculation?.data_json as any)?.totaal_uren || normalizedData?.totaal_uren || 0;
     const todaySummary = todayHoursByQuoteId[id];
     const todayWorkedHours = todaySummary?.workedHours || 0;
     const todayDriveMinutes = todaySummary?.driveMinutes || getQuoteDriveMinutes(normalizedData || calculation?.data_json, { laborHoursPerDay });
-    const laborRateExcl = Number(quoteSettings?.uurTariefExclBtw) || 0;
-    const laborTotalExcl = (Number(laborTotalHours) || 0) * laborRateExcl;
-    const footerVatRate = Number(quoteSettings?.btwTarief) || 21;
-    const footerQuoteTotalExcl = totalMaterialExcl + laborTotalExcl;
-    const footerQuoteTotalIncl = footerQuoteTotalExcl * (1 + footerVatRate / 100);
+    const footerQuoteTotalExcl = totals?.totaalExclBtw ?? 0;
+    const footerQuoteTotalIncl = totals?.totaalInclBtw ?? 0;
     const {
         running: calculationInProgress,
         completed: currentRunFinished,
@@ -6082,7 +6163,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
     const lastAutomaticScopeInputsRef = useRef<string | null>(null);
     const scaffoldCost = calculateScaffoldCost(Number(normalizedData?.totaal_uren) || 0, laborHoursPerDay);
     useEffect(() => {
-        if (loading || calculationLoading || !calculation) return;
+        if (loading || calculationLoading || !calculation || isSplittingQuote || quoteSplitInProgress || splitCalculationStale || normalizedData?.splitCostAllocation) return;
         if (JSON.stringify(materials.groot) !== JSON.stringify(normalizedData?.grootmaterialen || [])
             || JSON.stringify(materials.verbruik) !== JSON.stringify(normalizedData?.verbruiksartikelen || [])) return;
         // Een materiaalresultaat is geen opdracht om overige kosten opnieuw te berekenen.
@@ -6103,7 +6184,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         });
     }, [loading, calculationLoading, calculation, materials, normalizedData, workDescriptionStructured.steigerInbegrepen,
         scopeCosts.steiger, scopeCosts.naden, scaffoldCost, jointFinishingEnabled, jointFinishing.amount, updateDataJsonPatch, toast,
-        id, laborHoursPerDay, calculationJobs, noteSurfaceSelection, noteSurfaceCandidates]);
+        id, laborHoursPerDay, calculationJobs, noteSurfaceSelection, noteSurfaceCandidates, isSplittingQuote, quoteSplitInProgress, splitCalculationStale]);
 
     const handleWorkDescriptionChange = (next: WorkDescriptionStructured) => {
         const afvalChanged = next.afvalAfvoeren !== workDescriptionStructuredRef.current.afvalAfvoeren;
@@ -6278,8 +6359,13 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                 finishLevel: workDescriptionStructured.finishLevel,
                 customFinishDescription: workDescriptionStructured.customFinishDescription,
             };
+            const currentReviewed = () => workDescriptionStructuredRef.current.reviewedScopeLines?.filter(
+                line => workDescriptionStructuredRef.current[line.kind].some(text => text.trim() === line.text.trim()),
+            ) || [];
+            const keepReviewed = (generated: WorkDescriptionStructured) => addScopeDecisions(generated, currentReviewed());
             const promptBase = [
                 `Actie: ${action}`,
+                ...currentReviewed().map(line => `Vastgelegde afspraak (${line.kind === 'included' ? 'inbegrepen' : 'niet inbegrepen'}): ${line.text}`),
                 resolvedWorkDescriptionCategory ? `Categorie: ${resolvedWorkDescriptionCategory}` : '',
                 ...materialPromptLines,
                 ...notesPromptLines,
@@ -6355,7 +6441,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                 if (noteJobs.length > 0 && generatedStructured.jobs.some((job) => !String(job.summary || job.context).trim())) {
                     throw new Error('Geen professionele tekst ontvangen voor iedere klus. Er is niets opgeslagen.');
                 }
-                await saveWorkDescriptionNow(generatedStructured);
+                await saveWorkDescriptionNow(keepReviewed(generatedStructured));
                 toast({
                     title: 'Werk & Levering bijgewerkt',
                     description: 'AI-output is verwerkt en opgeslagen.',
@@ -6411,7 +6497,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                     korteTitel: workDescriptionStructured.title,
                     korteBeschrijving: workDescriptionStructured.context,
                 }));
-                await saveWorkDescriptionNow(inferred);
+                await saveWorkDescriptionNow(keepReviewed(inferred));
             }
 
             toast({
@@ -6740,9 +6826,11 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
         'tekeningen',
         'fotos',
         'notities',
+        'offertecheck',
         'algemene-voorwaarden',
     ];
     const handleTabChange = useCallback((tab: string) => {
+        if (tab === 'offertecheck') setReviewOpened(true);
         setActiveTab(tab);
     }, []);
     const openPlanningWithType = useCallback((scheduleType: 'job' | 'werkbespreking') => {
@@ -7313,10 +7401,13 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                     <TabsTrigger
                                         value="notities"
                                         className="relative z-[31] h-10 w-10 shrink-0 px-0 data-[state=active]:bg-muted data-[state=active]:text-foreground text-muted-foreground"
-                                        aria-label="Notes"
-                                        title="Notes"
+                                        aria-label="Notities"
+                                        title="Notities"
                                     >
                                         <MessageSquare size={16} />
+                                    </TabsTrigger>
+                                    <TabsTrigger value="offertecheck" aria-label="Offertecheck" title="Offertecheck" className="h-10 w-10 shrink-0 px-0">
+                                        <Sparkles size={16} />
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="algemene-voorwaarden"
@@ -7341,7 +7432,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                         </div>
 
                         <div className="quote-workspace-tabs relative z-30 pointer-events-auto hidden w-full items-center gap-2 rounded-lg border border-border bg-card p-2 sm:!mt-0 sm:flex">
-                            <TabsList className="h-auto w-full justify-start gap-1 bg-transparent p-0 md:justify-center">
+                            <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto bg-transparent p-0 xl:justify-center">
                                 <TabsTrigger value="calculatie" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                     {calculationInProgress ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
                                     Calculatie
@@ -7400,7 +7491,10 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                 </TabsTrigger>
                                     <TabsTrigger value="notities" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
                                         <MessageSquare size={16} />
-                                        Notes
+                                        Notities
+                                    </TabsTrigger>
+                                    <TabsTrigger value="offertecheck" className="relative z-[31] items-center gap-2 py-2.5 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
+                                        <Sparkles size={16} /> Offertecheck
                                     </TabsTrigger>
                                     {canShowNacalculatieTab && (
                                     <TabsTrigger value="nacalculatie" className="relative z-[31] items-center gap-2 text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground">
@@ -8994,6 +9088,34 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                             )}
                         </TabsContent>
 
+                        <TabsContent value="offertecheck" forceMount className="mt-6 data-[state=inactive]:hidden">
+                            {reviewOpened && (loading || calculationLoading || !user || !quote || quote.id !== id ? (
+                                <PageLoadingNotice label="Offertecheck laden..." />
+                            ) : (
+                                <QuoteScopeReview key={user.uid + '/' + id} quoteId={id} user={user}
+                                    sources={scopeReviewSources(
+                                        [quote.titel, quote.werkomschrijving].filter((v, i, a) => typeof v === 'string' && a.indexOf(v) === i).join('\n'),
+                                        buildQuoteNotesContextWithoutLinks(quoteNoteSections),
+                                        combinedMaterialItems.filter(row => row.product?.trim()).map(row => [row.product, row.aantal, row.eenheid].filter(v => v != null).join(' ')),
+                                        normalizedData || hasUnsavedWorkDescription ? workDescriptionStructured : null,
+                                    )}
+                                    photos={photoAttachments} uploading={pendingPhotoUploads.length > 0} onUpload={handleUploadPhoto}
+                                    onApply={calculation?.data_json ? decisions => {
+                                        const next = addScopeDecisions(workDescriptionStructuredRef.current, decisions);
+                                        const preview = completeStructuredWorkDescription(next);
+                                        const conflicts = decisions.filter(d => !preview[d.kind].includes(d.text.trim()));
+                                        if (conflicts.length) {
+                                            return 'De bestaande instellingen voor Werk & levering zouden deze tekst bij heropenen wijzigen: ' +
+                                                conflicts.map(d => d.topic).join(', ') + '. Controleer de instellingen of pas de gekozen tekst aan.';
+                                        }
+                                        applyLocalWorkDescriptionUpdate(next);
+                                        setActiveTab('werkbeschrijving');
+                                        toast({ title: 'Tekst overgenomen', description: 'Controleer de regels en klik op Opslaan.' });
+                                    } : undefined}
+                                />
+                            ))}
+                        </TabsContent>
+
                         <TabsContent value="notities" className="mt-6">
                             {loading ? (
                                 <PageLoadingNotice label="Notities laden..." />
@@ -9279,58 +9401,68 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                     </AlertDialog>
 
                     <Dialog open={isSplitQuoteOpen} onOpenChange={(open) => {
-                        if (!isSplittingQuote) setIsSplitQuoteOpen(open);
+                        if (!isSplittingQuote) {
+                            if (!open) { splitAnalysisVersionRef.current++; setIsAnalyzingSplit(false); }
+                            setIsSplitQuoteOpen(open);
+                        }
                     }}>
-                        <DialogContent className="flex h-[88vh] w-[96vw] max-w-6xl flex-col overflow-hidden">
+                        <DialogContent className="flex h-[88dvh] w-[96vw] max-w-6xl flex-col overflow-hidden overscroll-none" onWheel={(event) => event.stopPropagation()}>
                             <DialogHeader className="shrink-0">
                                 <DialogTitle>Offerte splitsen</DialogTitle>
                                 <DialogDescription>
-                                    Maak nieuwe offertes vanuit deze offerte. Kies per productregel, notitieblok en maatwerkregel bij welke deelofferte die hoort.
+                                    Laat AI de verdeling invullen en controleer materialen, uren en beschrijvingen. Pas alles aan vóór het splitsen.
                                 </DialogDescription>
                             </DialogHeader>
-
-                            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+                            <div className="flex shrink-0 flex-wrap items-center gap-3">
+                                <Button onClick={() => void handleAnalyzeSplit()} disabled={isAnalyzingSplit || isSplittingQuote} className="gap-2">
+                                    {isAnalyzingSplit ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                    {isAnalyzingSplit ? 'Verdeling analyseren…' : 'AI-verdeling voorstellen'}
+                                </Button>
+                            </div>
+                            {splitSubmitError && (
+                                <div role="alert" className="shrink-0 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm">
+                                    <p className="font-semibold">Splitsen mislukt</p>
+                                    <p className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap break-words">{splitSubmitError}</p>
+                                    <p className="mt-2 text-muted-foreground">Je ingevulde verdeling staat hieronder nog klaar.</p>
+                                </div>
+                            )}
+                            {splitAiError && (
+                                <div role="alert" className="shrink-0 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm">
+                                    <p className="font-semibold">AI-verdeling niet ingevuld</p>
+                                    <p className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap break-words">{splitAiError}</p>
+                                    <p className="mt-2 text-muted-foreground">Je invoer is behouden. Volg de aanwijzing hierboven en klik opnieuw op ‘AI-verdeling voorstellen’, of vul de verdeling hieronder zelf in. Er is niets gesplitst.</p>
+                                </div>
+                            )}
+                            {isAnalyzingSplit && <p role="status" className="shrink-0 text-sm text-muted-foreground">AI analyseert de offerte. Je voorstel wordt pas ingevuld als het antwoord compleet en gecontroleerd is.</p>}
+                            {splitAiWarnings.length > 0 && (
+                                <details className="shrink-0 rounded-md border border-amber-500/30 p-2 text-sm text-amber-400">
+                                    <summary className="cursor-pointer">Controlepunten ({splitAiWarnings.length})</summary>
+                                    <ul className="mt-2 max-h-28 list-disc space-y-1 overflow-y-auto pl-5">
+                                        {splitAiWarnings.map((warning, index) => <li key={index}>{warning}</li>)}
+                                    </ul>
+                                </details>
+                            )}
+                            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-1" data-split-scroll>
+                            <fieldset disabled={isAnalyzingSplit || isSplittingQuote} className="min-w-0 space-y-4">
                                 <div className="grid gap-3 lg:grid-cols-2">
                                     {splitQuoteDrafts.map((draft, index) => {
-                                        const summary = splitDraftSummaries.find((item) => item.draftId === draft.id);
+                                        const total = splitPreview.plan?.parts[index]?.totals.totaalInclBtw;
                                         return (
                                             <div key={draft.id} className="rounded-lg border border-border/70 bg-card/60 p-3">
-                                                <div className="mb-3 flex items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-xs font-semibold text-primary">
-                                                            {index + 1}
-                                                        </div>
-                                                        <div>
-                                                            <div className="text-sm font-semibold">Deelofferte</div>
-                                                            <div className="text-xs text-muted-foreground">
-                                                                {summary?.rowCount || 0} productregels • {formatCurrency(summary?.totalExcl || 0)} excl.
-                                                            </div>
-                                                        </div>
+                                                <div className="mb-3 flex flex-wrap items-center gap-3">
+                                                    <Input
+                                                        id={`split-title-${draft.id}`}
+                                                        aria-label={`Titel deelofferte ${index + 1}`}
+                                                        className="min-w-40 flex-1 font-semibold"
+                                                        value={draft.title}
+                                                        onChange={(event) => updateSplitDraft(draft.id, { title: event.target.value })}
+                                                    />
+                                                    <div className="text-right" aria-live="polite" aria-label={`Prijs ${draft.title}`}>
+                                                        {total !== undefined ? <><strong className="text-lg text-primary">{formatCurrency(total)}</strong><span className="ml-1 text-xs text-muted-foreground">incl. btw</span></> : <span className="text-xs text-muted-foreground">Verdeling onvolledig</span>}
                                                     </div>
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                                        onClick={() => removeSplitDraft(draft.id)}
-                                                        disabled={splitQuoteDrafts.length <= 2 || isSplittingQuote}
-                                                        aria-label="Deelofferte verwijderen"
-                                                        title="Deelofferte verwijderen"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
+                                                    {splitQuoteDrafts.length > 2 && <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeSplitDraft(draft.id)} aria-label={`Verwijder ${draft.title}`}><Trash2 className="h-4 w-4" /></Button>}
                                                 </div>
-
-                                                <div className="grid gap-3 sm:grid-cols-[1fr_120px_140px]">
-                                                    <div className="space-y-1.5">
-                                                        <Label htmlFor={`split-title-${draft.id}`}>Titel</Label>
-                                                        <Input
-                                                            id={`split-title-${draft.id}`}
-                                                            value={draft.title}
-                                                            onChange={(event) => updateSplitDraft(draft.id, { title: event.target.value })}
-                                                            disabled={isSplittingQuote}
-                                                        />
-                                                    </div>
+                                                <div className="grid grid-cols-2 gap-3">
                                                     <div className="space-y-1.5">
                                                         <Label htmlFor={`split-hours-${draft.id}`}>Uren</Label>
                                                         <Input
@@ -9362,6 +9494,13 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                                 </div>
 
                                                 <div className="mt-3 space-y-1.5">
+                                                    <Label htmlFor={`split-area-${draft.id}`}>Oppervlakte voor kostenverdeling (m²)</Label>
+                                                    <Input id={`split-area-${draft.id}`} type="number" min={0} step="0.01"
+                                                        value={splitPartArea({ ...draft, selectedKlusIds: splitCalculationJobOptions.filter(job => splitKlusAssignments[job.id] === draft.id).map(job => job.id) }, splitSourceJobs)}
+                                                        onChange={event => updateSplitDraft(draft.id, { surfaceM2: event.target.value === '' ? null : Math.max(0, Number(event.target.value) || 0) })} />
+                                                    {splitAiReasons[draft.id] && <p className="text-xs text-muted-foreground">{splitAiReasons[draft.id]}</p>}
+                                                </div>
+                                                <div className="mt-3 space-y-1.5">
                                                     <Label>Werk & Levering</Label>
                                                     <div className="flex flex-wrap gap-2">
                                                         <Button
@@ -9372,7 +9511,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                                             disabled={isSplittingQuote}
                                                             className="h-8"
                                                         >
-                                                            Auto
+                                                            Eigen beschrijving
                                                         </Button>
                                                         {splitWorkJobOptions.map((job) => (
                                                             <Button
@@ -9389,6 +9528,16 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                                             </Button>
                                                         ))}
                                                     </div>
+                                                    {draft.workJobIndex === null ? (
+                                                        <Textarea
+                                                            aria-label={`Werkbeschrijving ${draft.title}`}
+                                                            value={draft.workDescription}
+                                                            onChange={event => updateSplitDraft(draft.id, { workDescription: event.target.value })}
+                                                            placeholder="Beschrijf alleen het werk voor dit deel."
+                                                            disabled={isSplittingQuote}
+                                                        />
+                                                    ) : <p className="text-xs text-muted-foreground">{splitWorkJobOptions.find(job => job.index === draft.workJobIndex)?.summary}</p>}
+                                                    <p className="text-xs text-muted-foreground">Laat AI een beschrijving per deel voorstellen, of schrijf deze zelf. Controleer de tekst vóór het splitsen.</p>
                                                 </div>
                                             </div>
                                         );
@@ -9591,7 +9740,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                         <div>
                                             <div className="text-sm font-semibold">Producten verdelen</div>
                                             <div className="text-xs text-muted-foreground">
-                                                Elke regel wordt naar precies een nieuwe offerte gekopieerd.
+                                                Verdeel aantallen per offerte. Klein materiaal verdeel je in euro’s excl. btw.
                                             </div>
                                         </div>
                                         <div className="text-xs text-muted-foreground">
@@ -9619,27 +9768,25 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                                                 {item._sourceCategory === 'groot' ? 'Grootmateriaal' : 'Verbruik'} • {Number.isFinite(aantal) ? aantal : 0} {eenheid} • {formatCurrency(totaal)} excl.
                                                             </div>
                                                         </div>
-                                                        <div className="flex flex-wrap gap-2 sm:justify-end" aria-label={`${product} toewijzen aan deelofferte`}>
-                                                            {splitQuoteDrafts.map((draft, draftIndex) => {
-                                                                const isSelected = (splitMaterialAssignments[item._sourceKey] || splitQuoteDrafts[0]?.id || '') === draft.id;
-                                                                return (
-                                                                    <Button
-                                                                        key={draft.id}
-                                                                        type="button"
-                                                                        variant={isSelected ? 'default' : 'outline'}
-                                                                        size="sm"
-                                                                        onClick={() => setSplitMaterialAssignments((prev) => ({
-                                                                            ...prev,
-                                                                            [item._sourceKey]: draft.id,
-                                                                        }))}
-                                                                        disabled={isSplittingQuote}
-                                                                        className="h-8 min-w-16"
-                                                                        title={draft.title || `Deelofferte ${draftIndex + 1}`}
-                                                                    >
-                                                                        {draft.title || `Deelofferte ${draftIndex + 1}`}
-                                                                    </Button>
-                                                                );
-                                                            })}
+                                                        <div className="min-w-0 sm:w-80">
+                                                            {automaticSplitCostKey(item, normalizedData) ? <span className="text-sm text-primary">Automatisch verdeeld naar m²</span> : <>
+                                                                <div className="grid grid-cols-2 gap-2">
+                                                                    {splitQuoteDrafts.map(draft => <label key={draft.id} className="min-w-0 space-y-1 text-xs text-muted-foreground">
+                                                                        <span className="block truncate" title={draft.title}>{draft.title}</span>
+                                                                        <div className="flex items-center gap-1">
+                                                                            <Input type="number" min={splitMaterialTotal(item) < 0 ? undefined : 0} step={splitMaterialIsAmount(item) ? '0.01' : 'any'}
+                                                                                className="h-9" aria-label={`${product} — ${draft.title} (${splitMaterialIsAmount(item) ? 'euro excl. btw' : eenheid})`}
+                                                                                value={splitMaterialAssignments[item._sourceKey]?.[draft.id] ?? ''} placeholder="0"
+                                                                                onChange={event => setSplitMaterialAssignments(previous => ({...previous, [item._sourceKey]: {...previous[item._sourceKey], [draft.id]: event.target.value}}))} />
+                                                                            <span>{splitMaterialIsAmount(item) ? '€' : eenheid}</span>
+                                                                        </div>
+                                                                    </label>)}
+                                                                </div>
+                                                                {(() => {
+                                                                    const remaining = splitMaterialTotal(item) - splitQuoteDrafts.reduce((sum, draft) => sum + Number(splitMaterialAssignments[item._sourceKey]?.[draft.id] || 0), 0);
+                                                                    return Math.abs(remaining) > 0.000001 && <p className="mt-1 text-xs text-destructive">{remaining < 0 ? 'Te veel verdeeld' : 'Nog te verdelen'}: {splitMaterialIsAmount(item) ? formatCurrency(Math.abs(remaining)) : `${Number(Math.abs(remaining).toFixed(6)).toLocaleString('nl-NL')} ${eenheid}`}</p>;
+                                                                })()}
+                                                            </>}
                                                         </div>
                                                     </div>
                                                 );
@@ -9647,8 +9794,9 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                         )}
                                     </div>
                                 </div>
+                            </fieldset>
                             </div>
-
+                            {splitPreview.error && <p className="shrink-0 text-sm text-destructive" role="status">Nog nodig om te splitsen: {splitPreview.error}</p>}
                             <DialogFooter className="shrink-0 gap-2 border-t border-border/70 pt-4 sm:gap-2">
                                 <Button
                                     type="button"
@@ -9662,7 +9810,7 @@ export default function QuoteWorkspace({ children, initialTab = 'materialen' }: 
                                     type="button"
                                     variant="success"
                                     onClick={() => void handleCreateSplitQuotes()}
-                                    disabled={isSplittingQuote}
+                                    disabled={isSplittingQuote || isAnalyzingSplit || !splitPreview.plan}
                                     className="gap-2"
                                 >
                                     {isSplittingQuote ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}

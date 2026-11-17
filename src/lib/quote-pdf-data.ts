@@ -210,7 +210,8 @@ export function buildOfficialQuotePdfData({ quote, quoteSettings, normalizedData
             margePercentage: pdfMarginPercentage,
             margeBasis: pdfMarginBasis,
         },
-        settings: pdfSettings,
+        settings: (quote as (Quote & { splitIncludeDrawings?: boolean }) | null)?.splitIncludeDrawings
+            ? { ...pdfSettings, showTekeningen: true } : pdfSettings,
         drawingImages: capturedDrawings, // Include captured drawings for preview
         materialPresentations,
         onderVoorbehoud,

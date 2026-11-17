@@ -5,7 +5,7 @@ import { buildOfficialQuotePdfData, resolveQuotePdfWorkDescription, resolveQuote
 import { calculateQuoteTotals, normalizeDataJson } from './quote-calculations';
 import { sanitizeQuotePdfTextSettings } from './quote-pdf-text-settings';
 import { sanitizeMaterialPresentations } from './material-presentations';
-import { prepareDrawingImageForPdf } from './pdf-drawing-image';
+import { loadQuoteDrawingImages } from './quote-drawing-attachments';
 import { type PDFQuoteData } from './generate-quote-pdf';
 import { type QuotePDFSettings } from '@/components/quote/QuoteSettings';
 import { isMatchingDraft, type SendableQuote } from './quote-send-selection';
@@ -50,21 +50,7 @@ export async function loadQuotePdfData(options: LoadQuotePdfOptions): Promise<PD
     const workDescriptionStructured = resolveQuotePdfWorkDescription(normalizedData, quote.titel);
     const raw = snapshot.data();
     const conditions = raw.algemeneVoorwaarden ?? userProfile?.defaultAlgemeneVoorwaarden;
-    const jobs: any[] = raw.klussen && Object.keys(raw.klussen).length > 0
-        ? Object.values(raw.klussen) : Array.isArray(raw.jobs) ? raw.jobs : [];
-    const drawingUrls: string[] = jobs.flatMap((job) => {
-        const urls = Array.isArray(job.visualisatieSnapshots)
-            ? job.visualisatieSnapshots.map((entry: any) => typeof entry === 'string' ? entry : entry?.url ?? entry?.visualisatieUrl)
-                .filter((url: unknown): url is string => typeof url === 'string' && Boolean(url.trim())) : [];
-        return urls.length ? urls : typeof job.visualisatieUrl === 'string' && job.visualisatieUrl.trim() ? [job.visualisatieUrl] : [];
-    });
-    const capturedDrawings = await Promise.all(drawingUrls.map(async (url) => {
-        const res = await fetch(`/api/visualisatie-to-base64?url=${encodeURIComponent(url)}`);
-        if (!res.ok) throw new Error(`Tekening van offerte ${quote.offerteNummer || ''} kon niet worden geladen.`);
-        const data = await res.json();
-        if (!data.dataUrl) throw new Error('Tekening ontbreekt. Probeer opnieuw.');
-        return prepareDrawingImageForPdf(data.dataUrl);
-    }));
+    const capturedDrawings = await loadQuoteDrawingImages(raw);
     return buildOfficialQuotePdfData({
         quote, quoteSettings, normalizedData, klantInfo, userProfile, businessData, userEmail,
         workDescriptionStructured, materials, totals, pdfSettings, capturedDrawings,

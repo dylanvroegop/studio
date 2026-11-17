@@ -3753,7 +3753,7 @@ export default function GenericMeasurementPage() {
         'lengte1', 'lengte2', 'lengte3',
         'hoogte1', 'hoogte2', 'hoogte3',
         'hoogteLinks', 'hoogteRechts',
-        'hoogteNok',
+        'hoogteNok', 'vlakkeBovenzijdeBreedte',
       ];
       dimensionsToReset.forEach(key => newItem[key] = '');
       return newItem;
@@ -4301,6 +4301,13 @@ export default function GenericMeasurementPage() {
         // Prepare items
         const processedItems = (items || []).map((item: any) => {
           const processed = { ...item };
+          if (processed.shape === 'gable' && processed.vlakkeBovenzijdeBreedte != null && processed.vlakkeBovenzijdeBreedte !== '') {
+            const flat = Number(String(processed.vlakkeBovenzijdeBreedte).replace(',', '.'));
+            if (!Number.isFinite(flat) || flat < 0 || flat > Number(processed.lengte)) {
+              throw new Error('De breedte van het vlakke plafond moet tussen 0 en de wandlengte liggen.');
+            }
+            processed.vlakkeBovenzijdeBreedte = flat;
+          }
 
           // Specific handling for Maatwerk Kozijnen
           if (isMaatwerkKozijn) {
@@ -5483,6 +5490,7 @@ export default function GenericMeasurementPage() {
                               <>
                                 <div className="space-y-2"><Label>H. Zijkant</Label><MeasurementInput id="hoogte" placeholder="Bijv. 2500" value={item.hoogte} onChange={v => updateItem(index, 'hoogte', v)} /></div>
                                 <div className="space-y-2"><Label>H. Top</Label><MeasurementInput id="hoogteNok" placeholder="Bijv. 3000" value={item.hoogteNok} onChange={v => updateItem(index, 'hoogteNok', v)} /></div>
+                                {isWallCategory && !isBoeiboord && <div className="space-y-2"><Label>Breedte vlak plafond (mm)</Label><MeasurementInput id="vlakkeBovenzijdeBreedte" placeholder="0 = punt" value={item.vlakkeBovenzijdeBreedte ?? ''} onChange={v => updateItem(index, 'vlakkeBovenzijdeBreedte', v)} disabled={disabledAll} /><p className="text-xs text-muted-foreground">Gecentreerd tussen de schuine zijden.</p></div>}
                               </>
                             )}
 

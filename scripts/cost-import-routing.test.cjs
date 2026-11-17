@@ -19,6 +19,13 @@ function loadSource(filename, dependencies = {}) {
 const costs = loadSource('src/lib/project-costs.ts');
 const routing = loadSource('src/lib/cost-import-routing.ts', { './project-costs': costs });
 
+test('btw blijft bij de juiste categorie als het regeltarief ontbreekt', () => {
+  assert.equal(routing.costLineInclusive({ total_price: 44.03 }, 21), 53.28);
+  assert.equal(routing.costLineInclusive({ total_price: 43, btw_percentage: 0 }, 21), 43);
+  assert.equal(routing.costLineInclusive({ total_price: -26.07 }, 21), -31.54);
+  assert.equal(routing.costLineInclusive({ total_price: 10, total_incl_btw: 0 }, 21), 0);
+});
+
 test('gemengde factuur met offertenummer moet langs gereedschapcontrole', () => {
   assert.equal(routing.costImportHasTools({
     suggested_category: 'materiaal', offerte_reference: '260420',
@@ -37,6 +44,7 @@ test('gereedschap blijft algemene kosten; materiaal behoudt zijn offerte', () =>
 test('wachtrij bewaart factuurbedragen en vindt offerte, zonder gereedschap eraan te koppelen', async () => {
   let stored;
   const firestore = {
+    runTransaction: async fn => fn({ get: async () => ({ exists: false }), create: (_ref, value) => { stored = value; } }),
     collection(name) {
       return {
         where: () => ({ get: async () => ({ docs: name === 'quotes' ? [{ id: 'casper', data: () => ({ offerteNummer: 260420 }) }] : [] }) }),
@@ -45,6 +53,8 @@ test('wachtrij bewaart factuurbedragen en vindt offerte, zonder gereedschap eraa
     },
   };
   const { queuePendingCostImport } = loadSource('src/lib/pending-cost-imports.ts', {
+    'node:crypto': require('node:crypto'),
+    '@/lib/cost-document-policy': loadSource('src/lib/cost-document-policy.ts', { 'node:crypto': require('node:crypto') }),
     '@/firebase/admin': { initFirebaseAdmin: () => ({ firestore }) },
     '@/lib/purchase-product-category-server': { classifyPurchaseLines: async (_uid, lines) => ({ lines, uncertain: [] }) },
     '@/lib/gps-purchase-link-server': { enrichPurchaseFromGps: async (_uid, payload) => payload },
@@ -63,4 +73,18 @@ test('wachtrij bewaart factuurbedragen en vindt offerte, zonder gereedschap eraa
   assert.equal(stored.payload.amount_incl_btw, 1033.84);
   assert.equal(stored.payload.payment_status, 'openstaand');
   assert.equal(stored.payload.review_reason, 'gereedschap');
+});
+
+test('automatische boeking behoudt bedragen, boekt onbekend als Overig en houdt gereedschap los van de offerte', () => {
+  const lines = [
+    { description: 'Onbekend product', category: 'materiaal', total_price: 100, total_incl_btw: 121, offerte_id: 'quote' },
+    { description: 'Boormachine', category: 'gereedschap', total_price: 50, offerte_id: 'quote' },
+    { description: 'Gipsplaat', category: 'materiaal', total_price: 25, offerte_id: 'quote' },
+  ];
+  const actual = routing.automaticCostLines(lines, ['Onbekend product']);
+  assert.deepEqual(actual.map(x => x.category), ['overig', 'gereedschap', 'materiaal']);
+  assert.deepEqual(actual.map(x => x.offerte_id), [null, null, 'quote']);
+  assert.equal(actual[0].total_price, 100);
+  assert.equal(actual[0].total_incl_btw, 121);
+  assert.equal(lines[0].category, 'materiaal');
 });

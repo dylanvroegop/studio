@@ -18,7 +18,7 @@ const ToastViewport = React.forwardRef<
     ref={ref}
     className={cn(
       // pointer-events-none => buttons eronder blijven klikbaar
-      "pointer-events-none fixed left-1/2 top-[max(env(safe-area-inset-top),0.75rem)] z-[100] w-[calc(100vw-1.5rem)] max-w-sm -translate-x-1/2",
+      "pointer-events-none fixed left-1/2 top-[max(env(safe-area-inset-top),0.75rem)] z-[200] w-[calc(100vw-1.5rem)] max-w-sm -translate-x-1/2",
       "flex flex-col gap-2 p-0",
       "md:left-auto md:right-4 md:top-4 md:translate-x-0 md:w-auto md:max-w-md",
       className

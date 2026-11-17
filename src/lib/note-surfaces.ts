@@ -1,7 +1,7 @@
 import { grossSurface } from './joint-finishing-cost';
 
 export const NOTE_SHAPE_FIELDS = {
-    hoogteLinks: 'Hoogte links', hoogteRechts: 'Hoogte rechts', hoogteNok: 'Hoogte top',
+    hoogteLinks: 'Hoogte links', hoogteRechts: 'Hoogte rechts', hoogteNok: 'Hoogte top', vlakkeBovenzijdeBreedte: 'Breedte vlak plafond',
     lengte1: 'Lengte 1', lengte2: 'Lengte 2', hoogte1: 'Hoogte 1', hoogte2: 'Hoogte 2', hoogte3: 'Hoogte 3',
 } as const;
 export const NOTE_SHAPES = {

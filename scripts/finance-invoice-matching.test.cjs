@@ -73,6 +73,21 @@ test('dezelfde bronkosten tellen bij twee betalingen niet twee keer mee', () => 
   assert.equal(rows.filter((row) => row.match_status === 'matched').length, 1);
 });
 
+test('kortingsregel blijft onderdeel van de Toolstation-factuur bij een pinbetaling', () => {
+  const invoice = [38.94, -8.11].map((amount, i) => costsModule.mapProjectCostRow({
+    id: `toolstation-${i}`, user_id: 'owner', supplier_name: 'Toolstation NL B.V.',
+    supplier_invoice_number: 'OWW218219429', date: '2026-10-28', amount_incl_btw: amount,
+    category: i ? 'overig' : 'materiaal',
+  }));
+  const payment = { id: 'pin', amount: -30.83, booking_date: '2026-10-28',
+    counterparty_name: 'Toolstation via PayPal', description: 'TOOLSTATION Toolstation' };
+  const row = buildFinanceBankLedger({ userId: 'owner', costs: invoice, transactions: [payment] })[0];
+  assert.deepEqual(new Set(row.source_cost_ids), new Set(invoice.map(c => c.id)));
+  assert.equal(row.source_amount, 30.83);
+  const unrelated = [{ ...invoice[1], supplier_invoice_number: 'OTHER-INVOICE' }, invoice[0]];
+  assert.equal(buildFinanceBankLedger({ userId: 'owner', costs: unrelated, transactions: [payment] })[0].match_status, 'unmatched');
+});
+
 const { visibleUnmatchedSources } = loadSource('src/lib/finance-cost-visibility.ts');
 test('contante bon blijft zichtbaar en koppelt niet aan gelijk bankbedrag', () => {
   const cash = { ...costs[0], status: 'paid_cash' };
@@ -109,4 +124,16 @@ test('bankhistorie wordt volledig geladen voorbij de database paginalimiet', asy
   const result = await loadConnectedKnabTransactions('user');
   assert.equal(result.length, 1201);
   assert.deepEqual(ranges, [[0, 499], [500, 999], [1000, 1499]]);
+});
+
+test('Derks-incasso koppelt meerdere expliciete factuurnummers met hun volledige bedrag', () => {
+  const invoices = ['56264250', '56264266'].map((number, index) => costsModule.mapProjectCostRow({
+    id: number, user_id: 'test-user', supplier_name: 'Derks Lease B.V.', supplier_invoice_number: number,
+    category: 'boetes', date: '2026-10-20', amount_incl_btw: index ? 224.13 : 378.38,
+  }));
+  const bank = { id: 'derks', amount: -602.51, booking_date: '2026-10-27', counterparty_name: 'Derks Lease B.V.', description: 'Nr 56264250,56264266' };
+  const result = buildFinanceBankLedger({ userId: 'test-user', costs: invoices, transactions: [bank] });
+  assert.deepEqual(new Set(result[0].source_cost_ids), new Set(invoices.map(x => x.id)));
+  const missing = buildFinanceBankLedger({ userId: 'test-user', costs: invoices, transactions: [{ ...bank, amount: -378.38, description: 'Nr 56269999' }] });
+  assert.deepEqual(missing[0].source_cost_ids, []);
 });

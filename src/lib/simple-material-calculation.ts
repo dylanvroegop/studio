@@ -34,7 +34,10 @@ export function wallSurface(item: Row): { grossM2: number; openingsM2: number; n
   if (shape === 'gable') {
     const peak = dimensionMm(item.hoogteNok);
     if (peak < Math.max(left, right)) throw new Error('Nokhoogte is lager dan de wanduiteinden');
-    polygon.push({ x: length, y: right }, { x: length / 2, y: peak }, { x: 0, y: left });
+    const flat = item.vlakkeBovenzijdeBreedte == null || item.vlakkeBovenzijdeBreedte === '' ? 0 : dimensionMm(item.vlakkeBovenzijdeBreedte);
+    if (flat > length) throw new Error('Vlakke bovenzijde is breder dan de wand');
+    const shoulder = (length - flat) / 2;
+    polygon.push({ x: length, y: right }, { x: length - shoulder, y: peak }, { x: shoulder, y: peak }, { x: 0, y: left });
   } else if (shape === 'slope') polygon.push({ x: length, y: right }, { x: 0, y: left });
   else if (shape === 'rectangle' || shape === 'rect') polygon.push({ x: length, y: height }, { x: 0, y: height });
   else throw new Error(`Wandvorm '${shape}' vraagt controle`);

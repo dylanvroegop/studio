@@ -1,23 +1,27 @@
-/** Bewaar de documentidentiteit bij de overdracht van n8n naar kosten/create. */
+/** Bewaar alle factuurvelden en verstuur altijd een JSON-string naar n8n HTTP Request. */
 function repairDocumentContract(original) {
   const workflow = structuredClone(original);
   const node = workflow.nodes.find(item => item.name === 'Maak Kost Aan');
-  if (!node || typeof node.parameters?.jsonBody !== 'string') {
-    throw new Error('Maak Kost Aan met JSON-body ontbreekt.');
+  const body = node?.parameters?.jsonBody;
+  if (typeof body !== 'string' || !body.includes('$json.data')) {
+    throw new Error('Onbekend kostencontract; pas de workflow niet blind aan.');
   }
-  const body = node.parameters.jsonBody;
-  if (!/\bdocument_type\s*:/.test(body)) {
-    if (!body.includes('supplier_name: $json.data.supplier_name')) {
-      throw new Error('Onbekend kostencontract; pas de workflow niet blind aan.');
-    }
-    node.parameters.jsonBody = body.replace(
-      'supplier_name: $json.data.supplier_name',
-      'document_type: $json.data.document_type, supplier_name: $json.data.supplier_name',
-    );
-  }
+  const uid = body.match(/user_id\s*:\s*['"]([^'"]+)['"]/)?.[1];
+  node.parameters.jsonBody = '={{ JSON.stringify({ ...$json.data' +
+    (uid ? `, user_id: ${JSON.stringify(uid)}` : '') +
+    ", category: $json.data.suggested_category || 'overig', status: 'confirmed' }) }}";
+  node.retryOnFail = true;
+  node.maxTries = 5;
+  node.waitBetweenTries = 5000;
+  const confirm = workflow.nodes.find(item => item.name === 'Bevestig geslaagde import');
+  if (confirm) confirm.parameters.jsCode = `return $input.all().map((item, index) => {
+const result = item.json;
+const ids = result.cost_ids || result.rows?.map(row => row.id) || (result.data?.id ? [result.data.id] : []);
+if (result.ok !== true || result.pending === true || !ids.length || ids.some(id => !id)) throw new Error('Calvora heeft geen geboekte kosten bevestigd. Niet als verwerkt geregistreerd.');
+return { json: { processing_key: $('Verwerk bijlage').item.json.processing_key }, pairedItem: { item: index } };
+});`;
   return workflow;
 }
-
 module.exports = { repairDocumentContract };
 if (require.main === module) {
   const fs = require('node:fs');

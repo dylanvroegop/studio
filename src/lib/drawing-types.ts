@@ -5,6 +5,9 @@ export interface WallOpening {
     height: number;
     fromLeft: number;
     fromBottom: number;
+    doorCount?: 1 | 2;
+    railLength?: number;
+    railHeight?: number;
     requires_raveelwerk?: boolean;
     onderdorpel?: boolean;
     onderdorpelDikte?: number;

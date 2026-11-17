@@ -25,6 +25,9 @@ export interface OpeningData {
     height: number;
     fromLeft: number;
     fromBottom: number;
+    doorCount?: 1 | 2;
+    railLength?: number;
+    railHeight?: number;
     requires_raveelwerk?: boolean;
     dubbeleStijlLinks?: boolean;
     dubbeleStijlRechts?: boolean;
@@ -243,6 +246,16 @@ export function OpeningCard({
                     <RefreshCw className="mr-2 h-3.5 w-3.5" />
                     Draai 90°
                 </Button>
+
+                {isWallCategory && opening.type === 'sliding-door' && (
+                    <div className="space-y-3 border-t border-white/5 pt-2">
+                        <div className="flex items-center justify-between"><Label>Dubbele schuifdeur</Label><Switch checked={opening.doorCount === 2} onCheckedChange={v => onUpdate({ ...opening, doorCount: v ? 2 : 1 })} /></div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div><Label>Raillengte (mm)</Label><MeasurementInput value={opening.railLength ?? ''} onChange={v => onUpdate({ ...opening, railLength: Number(v) || 0 })} /></div>
+                            <div><Label>Railhoogte (mm)</Label><MeasurementInput value={opening.railHeight ?? ''} onChange={v => onUpdate({ ...opening, railHeight: Number(v) || 0 })} /></div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Linked Dagkant & Vensterbank Section */}
                 {isWallCategory && opening.type !== 'opening' && opening.type !== 'other' && (

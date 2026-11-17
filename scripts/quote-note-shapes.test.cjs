@@ -21,13 +21,14 @@ test('vorm en alle maten overleven calculatie → Notes-editor → opslag → he
   const sources = [
     { shape: 'slope', lengte: 3800, hoogteLinks: 0, hoogteRechts: 1750 },
     { shape: 'gable', lengte: 4000, hoogte: 0, hoogteNok: 2000 },
+    { shape: 'gable', lengte: 6600, hoogte: 800, hoogteNok: 2800, vlakkeBovenzijdeBreedte: 1370 },
     { shape: 'l-shape', lengte: 6000, lengte1: 2000, hoogte1: 4000, hoogte2: 2000 },
     { shape: 'u-shape', lengte: 6000, lengte1: 2000, lengte2: 2000, hoogte1: 4000, hoogte2: 2000, hoogte3: 4000 },
   ];
-  const expected = [3.325, 4, 16, 20];
+  const expected = [3.325, 4, 13.25, 16, 20];
   sources.forEach((source, index) => {
     const row = parse(build([source], fields, 'Plafond')[0].line);
-    assert.equal(row.height, source.shape === 'gable' ? '0' : '', 'Zijhoogten worden niet als gewone hoogte gelezen');
+    assert.equal(row.height, source.shape === 'gable' ? String(source.hoogte) : '', 'Zijhoogten worden niet als gewone hoogte gelezen');
     assert.equal(shapes.noteSurfaceArea(row, 'plafond'), expected[index]);
     const saved = serialize([{ title: 'Plafond', notes: '', linksTitle: '', links: [], maatwerkLines: [row] }]);
     const reloaded = parse(saved.split('\n').find(line => line.startsWith('- ')));

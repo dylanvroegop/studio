@@ -6,8 +6,8 @@ export interface TelegramClientIdentity {
 }
 
 export class TelegramIdentityConflict extends Error {
-  constructor() {
-    super('Klantgegevens spreken elkaar tegen of zijn niet eenduidig. Er is niets opgeslagen. Controleer de klant en het telefoonnummer handmatig.');
+  constructor(reason = 'Klantgegevens spreken elkaar tegen of zijn niet eenduidig. Controleer naam, telefoonnummer, e-mail en woonplaats.') {
+    super('Klantgegevens: ' + reason);
     this.name = 'TelegramIdentityConflict';
   }
 }
@@ -37,7 +37,10 @@ export function assertSameTelegramClient(incoming: TelegramClientIdentity, exist
     const normalize = key === 'phone' ? normalizeIdentityPhone : normalizeIdentityText;
     const left = normalize(incoming[key]);
     const right = normalize(existing[key]);
-    if (left && right && left !== right) throw new TelegramIdentityConflict();
+    if (left && right && left !== right) {
+      const labels = { client_name: 'Klantnaam', phone: 'Telefoonnummer', email: 'E-mailadres', city: 'Woonplaats' };
+      throw new TelegramIdentityConflict(`${labels[key]} verschilt: ontvangen ‘${incoming[key]}’, opgeslagen ‘${existing[key]}’. Corrigeer de verkeerde waarde bij deze inzending of bij de bestaande klant.`);
+    }
   }
   const same = (key: keyof TelegramClientIdentity): boolean => {
     const normalize = key === 'phone' ? normalizeIdentityPhone : normalizeIdentityText;
@@ -57,7 +60,7 @@ export function selectTelegramClient<T extends { identity: TelegramClientIdentit
   };
   const contacts = clients.filter(({ identity }) => same(identity, 'phone') || same(identity, 'email'));
   const matches = contacts.length ? contacts : clients.filter(({ identity }) => same(identity, 'client_name') && same(identity, 'city'));
-  if (matches.length > 1) throw new TelegramIdentityConflict();
+  if (matches.length > 1) throw new TelegramIdentityConflict(`${matches.length} bestaande klanten passen bij deze contactgegevens. Controleer de dubbele klantgegevens voordat je opnieuw verwerkt.`);
   if (matches[0]) assertSameTelegramClient(incoming, matches[0].identity);
   return matches[0];
 }

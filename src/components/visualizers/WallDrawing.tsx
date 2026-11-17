@@ -17,6 +17,7 @@ export interface WallDrawingProps {
     hoogteLinks?: string | number;
     hoogteRechts?: string | number;
     hoogteNok?: string | number;
+    vlakkeBovenzijdeBreedte?: string | number;
     lengte1?: string | number;
     hoogte1?: string | number;
     lengte2?: string | number;
@@ -68,6 +69,7 @@ export function WallDrawing({
     hoogteLinks,
     hoogteRechts,
     hoogteNok,
+    vlakkeBovenzijdeBreedte,
     lengte1,
     hoogte1,
     lengte2,
@@ -132,14 +134,14 @@ export function WallDrawing({
         const hL = typeof hoogteLinks === 'number' ? hoogteLinks : parseFloat(String(hoogteLinks)) || 0;
         const hR = typeof hoogteRechts === 'number' ? hoogteRechts : parseFloat(String(hoogteRechts)) || 0;
         const hN = typeof hoogteNok === 'number' ? hoogteNok : parseFloat(String(hoogteNok)) || 0;
-        hLeft = hL || hStd;
-        hRight = hR || hStd;
+        hLeft = hoogteLinks == null || hoogteLinks === '' ? hStd : hL;
+        hRight = hoogteRechts == null || hoogteRechts === '' ? hStd : hR;
         hPeak = hN || hStd + 500;
     } else if (shape === 'slope') {
         const hL = typeof hoogteLinks === 'number' ? hoogteLinks : parseFloat(String(hoogteLinks)) || 0;
         const hR = typeof hoogteRechts === 'number' ? hoogteRechts : parseFloat(String(hoogteRechts)) || 0;
-        hLeft = hL || hStd;
-        hRight = hR || hStd;
+        hLeft = hoogteLinks == null || hoogteLinks === '' ? hStd : hL;
+        hRight = hoogteRechts == null || hoogteRechts === '' ? hStd : hR;
         hPeak = typeof hoogteNok === 'number' ? hoogteNok : parseFloat(String(hoogteNok)) || 0;
     } else if (shape === 'l-shape' || shape === 'u-shape') {
         h1 = typeof hoogte1 === 'number' ? hoogte1 : parseFloat(String(hoogte1)) || 0;
@@ -153,6 +155,11 @@ export function WallDrawing({
         hRight = shape === 'l-shape' ? h2 : h3;
     }
 
+    // Bij breedte 0 blijft de bestaande puntwand behouden.
+    const flatWidth = Math.min(Math.max(0, Number(String(vlakkeBovenzijdeBreedte ?? 0).replace(',', '.')) || 0), lengteNum);
+    const shoulderLeft = (lengteNum - flatWidth) / 2;
+    const shoulderRight = lengteNum - shoulderLeft;
+
     // Determine MAX Height for canvas scaling
     const heights = [hStd, hLeft, hRight, hPeak, h1, h2, h3];
     const maxH = Math.max(...heights);
@@ -163,6 +170,8 @@ export function WallDrawing({
                 const fromBottomNum = Number(op.fromBottom) || 0;
                 return {
                     ...op,
+                    width: Number(op.width ?? op.openingWidth) || 0,
+                    height: Number(op.height ?? op.openingHeight) || 0,
                     fromBottom: fromBottomNum <= FLOOR_SNAP_THRESHOLD_MM ? 0 : fromBottomNum,
                 };
             }),
@@ -182,7 +191,11 @@ export function WallDrawing({
         const ratio = xMm / lengteNum;
         if (variant === 'bottom' && (shape === 'slope' || shape === 'l-shape' || shape === 'u-shape')) return maxH;
         if (shape === 'slope') return hLeft + (hRight - hLeft) * ratio;
-        if (shape === 'gable') return ratio <= 0.5 ? hLeft + (hPeak - hLeft) * (ratio / 0.5) : hPeak + (hRight - hPeak) * ((ratio - 0.5) / 0.5);
+        if (shape === 'gable') {
+            if (xMm < shoulderLeft && shoulderLeft > 0) return hLeft + (hPeak - hLeft) * xMm / shoulderLeft;
+            if (xMm > shoulderRight && shoulderLeft > 0) return hPeak + (hRight - hPeak) * (xMm - shoulderRight) / shoulderLeft;
+            return hPeak;
+        }
         if (shape === 'l-shape') return xMm <= l1 ? h1 : h2;
         if (shape === 'u-shape') {
             if (xMm <= l1) return h1;
@@ -190,7 +203,7 @@ export function WallDrawing({
             return h3;
         }
         return hLeft;
-    }, [lengteNum, variant, shape, maxH, hLeft, hRight, hPeak, l1, l2, h1, h2, h3]);
+    }, [lengteNum, variant, shape, maxH, hLeft, hRight, hPeak, shoulderLeft, shoulderRight, l1, l2, h1, h2, h3]);
 
     const getWallBottomMm = useCallback((xMm: number) => {
         if (variant !== 'bottom') return 0;
@@ -396,7 +409,7 @@ export function WallDrawing({
         const L = lengteNum;
         let areaMm2 = L * hStd;
         if (shape === 'slope') areaMm2 = L * ((hLeft + hRight) / 2);
-        if (shape === 'gable') areaMm2 = L * ((hLeft + hPeak) / 2);
+        if (shape === 'gable') areaMm2 = shoulderLeft * (hLeft + 2 * hPeak + hRight) / 2 + flatWidth * hPeak;
         if (shape === 'l-shape') areaMm2 = (l1 * h1) + ((L - l1) * h2);
         if (shape === 'u-shape') areaMm2 = (l1 * h1) + (l2 * h2) + ((L - l1 - l2) * h3);
 
@@ -406,7 +419,7 @@ export function WallDrawing({
             net: Math.max(0, areaMm2 - openingsAreaMm2),
             hasOpenings: openingsAreaMm2 > 0
         };
-    }, [lengteNum, hStd, shape, hLeft, hRight, hPeak, l1, h1, h2, l2, h3, normalizedOpenings]);
+    }, [lengteNum, hStd, shape, hLeft, hRight, hPeak, shoulderLeft, flatWidth, l1, h1, h2, l2, h3, normalizedOpenings]);
 
     // Emit Data
     const lastEmittedRef = useRef<string>('');
@@ -423,6 +436,7 @@ export function WallDrawing({
             dimensions: [],
             params: {
                 doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand,
+                vlakkeBovenzijdeBreedte: flatWidth,
                 dagkanten,
                 vensterbanken
             }
@@ -433,7 +447,7 @@ export function WallDrawing({
             lastEmittedRef.current = json;
             onDataGeneratedRef.current?.(data);
         }
-    }, [structure, lengteNum, maxH, shape, normalizedOpenings, doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand]);
+    }, [structure, lengteNum, maxH, shape, normalizedOpenings, doubleTopPlate, doubleBottomPlate, doubleEndBeams, balkafstand, flatWidth]);
 
 
     // Internal Drag State
@@ -679,9 +693,9 @@ export function WallDrawing({
                     if (shape === 'slope') {
                         return `${WALL_X},${getY(hLeft) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT + extraY} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT + extraY}`;
                     } else if (shape === 'gable') {
-                        const midX = WALL_X + WALL_WIDTH / 2;
-                        const peakY = getY(hPeak);
-                        return `${WALL_X},${getY(hLeft) + extraY} ${midX},${peakY + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT + extraY} ${midX},${peakY + PLATE_HEIGHT + extraY} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT + extraY}`;
+                        const top = [[0, hLeft], [shoulderLeft, hPeak], [shoulderRight, hPeak], [lengteNum, hRight]];
+                        return [...top.map(([x, y]) => `${WALL_X + x * pxPerMm},${getY(y) + extraY}`),
+                            ...[...top].reverse().map(([x, y]) => `${WALL_X + x * pxPerMm},${getY(y) + PLATE_HEIGHT + extraY}`)].join(' ');
                     } else {
                         return `${WALL_X},${getY(hLeft) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + extraY} ${WALL_X + WALL_WIDTH},${getY(hRight) + PLATE_HEIGHT + extraY} ${WALL_X},${getY(hLeft) + PLATE_HEIGHT + extraY}`;
                     }
@@ -839,6 +853,15 @@ export function WallDrawing({
                                         );
                                     })()}
 
+                                    {opType === 'sliding-door' && op.doorCount === 2 && (
+                                        <g pointerEvents="none" stroke="rgb(100, 116, 139)" fill="none">
+                                            <line x1={drawX + wPx / 2} x2={drawX + wPx / 2} y1={drawY} y2={drawY + hPx} strokeDasharray="4 3" />
+                                            {Number(op.railLength) > 0 && <>
+                                                <line x1={drawX + (wPx - Number(op.railLength) * pxPerMm) / 2} x2={drawX + (wPx + Number(op.railLength) * pxPerMm) / 2} y1={getY(Number(op.railHeight) || op.height + 85)} y2={getY(Number(op.railHeight) || op.height + 85)} strokeWidth="3" />
+                                                <text x={drawX + wPx / 2} y={getY(Number(op.railHeight) || op.height + 85) - 8} textAnchor="middle" stroke="none" fill="rgb(100, 116, 139)" fontSize="10">Rail {op.railLength} mm op {Number(op.railHeight) || op.height + 85} mm · ← 2 deuren →</text>
+                                            </>}
+                                        </g>
+                                    )}
                                     {onderdorpelRect}
                                     <line x1={drawX} y1={drawY} x2={drawX + wPx} y2={drawY + hPx} stroke="rgb(55, 60, 70)" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
                                     <line x1={drawX} y1={drawY + hPx} x2={drawX + wPx} y2={drawY} stroke="rgb(55, 60, 70)" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
@@ -850,7 +873,7 @@ export function WallDrawing({
                                                 opType === 'frame-inner' ? 'Binnen kozijn' :
                                                     opType === 'frame-inner-door' ? 'Binnen kozijn + deur' :
                                                     opType === 'frame-outer' ? 'Buiten kozijn' :
-                                                        opType === 'sliding-door' ? 'Schuifdeur' :
+                                                        opType === 'sliding-door' ? (op.doorCount === 2 ? 'Dubbele schuifdeur' : 'Schuifdeur') :
                                                             opType === 'door' ? 'Deur' :
                                                                 opType === 'window' ? 'Raamkozijn' :
                                                                     opType === 'nis' ? 'Nis' : 'Sparing'
@@ -1025,6 +1048,12 @@ export function WallDrawing({
                             );
                         })}
 
+                        {shape === 'gable' && flatWidth > 0 && (
+                            <g pointerEvents="none">
+                                <line x1={WALL_X + shoulderLeft * pxPerMm} x2={WALL_X + shoulderRight * pxPerMm} y1={getY(hPeak) - 15} y2={getY(hPeak) - 15} stroke="rgb(100, 116, 139)" />
+                                <text x={WALL_X + WALL_WIDTH / 2} y={getY(hPeak) - 22} textAnchor="middle" fill="rgb(100, 116, 139)" fontSize="10">Vlak plafond {Math.round(flatWidth)} mm</text>
+                            </g>
+                        )}
                         <OverallDimensions
                             wallLength={lengteNum}
                             wallHeight={maxH}

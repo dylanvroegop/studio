@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
-import { createHash } from 'crypto';
+import { isDeepStrictEqual } from 'node:util';
+import { planQuoteSplit, type SplitDraft } from '@/lib/quote-split';
+import { normalizeDataJson } from '@/lib/quote-calculations';
+import { resolveQuoteCalculationSettings } from '@/lib/quote-pdf-data';
 import { FieldValue } from 'firebase-admin/firestore';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
@@ -7,22 +10,6 @@ import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-type SplitMaterialRow = {
-  sourceCategory: 'groot' | 'verbruik';
-  sourceIndex: number;
-  item: Record<string, unknown>;
-};
-
-type SplitDraft = {
-  id: string;
-  title: string;
-  materialRows: SplitMaterialRow[];
-  totalHours?: number;
-  marginAmount?: number;
-  workJobIndex?: number | null;
-  selectedKlusIds?: string[];
-};
 
 type WorkJobRecord = Record<string, unknown> & {
   title?: unknown;
@@ -100,28 +87,6 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Internal Server Error';
 }
 
-async function createSplitSafetyBackup(
-  collection: FirebaseFirestore.CollectionReference,
-  payload: Record<string, unknown>,
-): Promise<void> {
-  const contentHash = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
-  try {
-    await collection.doc(contentHash).create({
-      backupOnly: true,
-      purpose: 'BACKUP_ONLY_DO_NOT_USE_IN_APP',
-      warning: 'Alleen voor herstel na gegevensverlies. Nooit gebruiken als normale app-data.',
-      schemaVersion: 1,
-      source: 'pre-split-safety-snapshot',
-      contentHash,
-      ...payload,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-  } catch (error: unknown) {
-    const code = (error as { code?: string | number })?.code;
-    if (code !== 6 && code !== '6' && code !== 'already-exists') throw error;
-  }
-}
-
 async function reserveQuoteNumberAdmin(firestore: FirebaseFirestore.Firestore, userId: string, startNumber = 260001): Promise<number> {
   const counterRef = firestore.collection('counters').doc(`quoteNumber_${userId}`);
   return firestore.runTransaction(async (tx) => {
@@ -136,20 +101,6 @@ async function reserveQuoteNumberAdmin(firestore: FirebaseFirestore.Firestore, u
       userId,
     }, { merge: true });
     return currentNext;
-  });
-}
-
-function normalizeMaterialItem(row: SplitMaterialRow): Record<string, unknown> {
-  const item = row.item && typeof row.item === 'object' ? row.item : {};
-  const product = String(item.product || item.materiaal || item.materiaalnaam || '').trim();
-  const aantal = toFiniteNumber(item.aantal, 1);
-  const prijs = toFiniteNumber(item.prijs_per_stuk ?? item.prijs_excl_btw ?? item.prijs, 0);
-
-  return cleanObject({
-    ...item,
-    product,
-    aantal,
-    prijs_per_stuk: prijs,
   });
 }
 
@@ -375,31 +326,31 @@ function flattenWorkJob(job: WorkJobRecord): string[] {
   return sections.map((line) => String(line || '').trim()).filter(Boolean);
 }
 
-function buildFallbackWorkJob(split: SplitDraft, materials: Record<string, unknown>[]) {
+function buildFallbackWorkJob(split: SplitDraft, materials: Record<string, unknown>[], sourceDataJson: SourceDataJson) {
+  const original = sourceDataJson.werkbeschrijving_structured as WorkJobRecord | undefined;
+  const description = String(split.workDescription || '').trim();
   const materialLines = materials
     .map((item) => String(item.product || '').trim())
     .filter(Boolean)
     .slice(0, 12);
 
   return {
+    ...original,
     title: split.title,
     context: '',
-    summary: `Werkzaamheden voor ${split.title}.`,
-    work_scope: [`Uitvoeren van de werkzaamheden voor ${split.title}.`],
+    summary: description,
+    work_scope: description.split(/\n+/).filter(Boolean),
     materials: materialLines,
     dimensions: [],
-    included: [
-      'Levering en montage van de gekozen materialen volgens deze offerte.',
-      'Arbeid, bevestigingsmateriaal en normale montagewerkzaamheden voor dit onderdeel.',
-    ],
+    included: [],
     excluded: [],
     internal_notes: [],
-    afvalAfvoeren: true,
-    electricalScope: 'excluded',
-    finishLevel: 'constructief_gereed',
+    afvalAfvoeren: original?.afvalAfvoeren !== false,
+    electricalScope: original?.electricalScope || 'excluded',
+    finishLevel: original?.finishLevel || 'constructief_gereed',
     sections: {
       voorbereiding: [],
-      uitvoering: [`Uitvoeren van de werkzaamheden voor ${split.title}.`],
+      uitvoering: description.split(/\n+/).filter(Boolean),
       afwerking: [],
     },
     legacyNotes: [],
@@ -424,7 +375,7 @@ function buildSplitWorkDescription(
   const selectedJob = getSelectedWorkJob(split, sourceDataJson);
   const baseJob: WorkJobRecord = selectedJob && typeof selectedJob === 'object'
     ? { ...selectedJob }
-    : buildFallbackWorkJob(split, materials);
+    : buildFallbackWorkJob(split, materials, sourceDataJson);
   const maatwerkDimensionIdentities = new Set(allMaatwerkDimensions.map((line) => line.toLowerCase().replace(/\s+/g, ' ').trim()));
   const retainedDimensions = stringArray(baseJob.dimensions)
     .filter((line) => !maatwerkDimensionIdentities.has(line.toLowerCase().replace(/\s+/g, ' ').trim()));
@@ -436,8 +387,12 @@ function buildSplitWorkDescription(
     dimensions,
     internal_notes: jobInternalNotes,
   };
+  // De deelbeschrijving bevat geen geneste oude beschrijvingen van andere delen.
+  delete job.jobs;
+  delete job.activeJobIndex;
 
   const structured = {
+    ...job,
     title: String(job.title || ''),
     context: String(job.context || ''),
     summary: String(job.summary || ''),
@@ -448,7 +403,7 @@ function buildSplitWorkDescription(
     excluded: stringArray(job.excluded),
     internal_notes: jobInternalNotes,
     afvalAfvoeren: job.afvalAfvoeren !== false,
-    electricalScope: String(job.electricalScope || 'excluded'),
+    electricalScope: job.electricalScope || 'excluded',
     finishLevel: String(job.finishLevel || 'constructief_gereed'),
     customFinishDescription: job.customFinishDescription ? String(job.customFinishDescription) : undefined,
     sections: job.sections && typeof job.sections === 'object' ? job.sections : { voorbereiding: [], uitvoering: [], afwerking: [] },
@@ -487,7 +442,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const quoteId = typeof body?.quoteId === 'string' ? body.quoteId.trim() : '';
     const splitDrafts = Array.isArray(body?.splits) ? body.splits as SplitDraft[] : [];
-    const sourceDataJson: SourceDataJson = body?.dataJson && typeof body.dataJson === 'object' ? body.dataJson : {};
+    let sourceDataJson: SourceDataJson = {};
     const hasExplicitNoteAssignments = Array.isArray(body?.noteSections);
     const splitNoteSections = hasExplicitNoteAssignments ? body.noteSections as SplitNoteSection[] : [];
 
@@ -509,7 +464,56 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, message: 'Geen toegang tot deze offerte' }, { status: 403 });
     }
 
+    const requestId = typeof body.requestId === 'string' && /^[a-f0-9-]{36}$/.test(body.requestId) ? body.requestId : '';
+    if (!requestId || !body.calculationId || !body.sourceDataJson) {
+      return NextResponse.json({ ok: false, message: 'Open de offerte opnieuw voordat je splitst.' }, { status: 409 });
+    }
+    const operationRef = sourceRef.collection('split_operations').doc(requestId);
+    const previousOperation = await operationRef.get();
+    if (previousOperation.data()?.state === 'completed') return NextResponse.json(previousOperation.data()?.result);
+    if (previousOperation.data()?.state === 'failed' && !sourceQuote.splitInProgress) {
+      return NextResponse.json({ ok: false, retryable: true, message: 'De vorige poging is teruggedraaid. Je verdeling is behouden; klik opnieuw op offerte maken.' }, { status: 409 });
+    }
+    if (previousOperation.exists || sourceQuote.splitInProgress) {
+      return NextResponse.json({ ok: false, message: 'Deze splitsing wordt al verwerkt of moet eerst worden hersteld. Ververs de offerte.' }, { status: 409 });
+    }
+    const { data: calculationRows, error: calculationError } = await supabaseAdmin.from('quotes_collection')
+      .select('*').eq('quoteid', quoteId).eq('gebruikerid', uid).order('created_at', { ascending: false });
+    if (calculationError) throw new Error(calculationError.message);
+    const sourceCalculation = calculationRows?.[0];
+    if (!sourceCalculation || sourceCalculation.id !== body.calculationId
+      || !isDeepStrictEqual(sourceCalculation.data_json, body.sourceDataJson)
+      || calculationRows?.some(row => ['pending', 'processing'].includes(String(row.status)))
+      || Number(body.quoteRevision) !== sourceQuote.updatedAt?.toMillis?.()) {
+      return NextResponse.json({ ok: false, message: 'De offerte is ondertussen gewijzigd. Open splitsen opnieuw; er is niets veranderd.' }, { status: 409 });
+    }
+    sourceDataJson = normalizeDataJson(sourceCalculation.data_json) as SourceDataJson;
+    const profile = (await firestore.collection('users').doc(uid).get()).data();
+    const hoursPerDay = Number(profile?.settings?.planningSettings?.defaultWorkdayHours) || 8;
+    let plan;
+    try {
+      plan = planQuoteSplit(sourceDataJson, resolveQuoteCalculationSettings(sourceDataJson, sourceQuote), splitDrafts, Object.keys(sourceQuote.klussen || {}), hoursPerDay, sourceQuote.klussen || {});
+      if (Number.isFinite(sourceQuote.financieel?.afgesprokenPrijsInclBtw)) {
+        throw new Error('Deze offerte heeft een vastgelegde prijsafspraak. Splitsen is gestopt om die afspraak te behouden.');
+      }
+    } catch (error) {
+      return NextResponse.json({ ok: false, message: getErrorMessage(error) }, { status: 400 });
+    }
+    await firestore.runTransaction(async tx => {
+      const current = await tx.get(sourceRef);
+      if (!current.updateTime?.isEqual(sourceSnap.updateTime!) || current.data()?.splitInProgress) throw new Error('De offerte is ondertussen gewijzigd.');
+      tx.create(operationRef, { state: 'preparing', sourceQuote, calculationsJson: JSON.stringify(calculationRows), createdAt: FieldValue.serverTimestamp() });
+      tx.update(sourceRef, { splitInProgress: requestId });
+    });
+    const lockedSource = await sourceRef.get();
     const created: Array<{ id: string; offerteNummer: number; title: string }> = [];
+    const staged: Array<{ ref: FirebaseFirestore.DocumentReference; quote: Record<string, unknown>; calculation: Record<string, unknown> }> = [];
+    let primaryWritten = false;
+    let splitStage = 'deeloffertes voorbereiden';
+    let childrenWritten = false;
+    let completed = false;
+    try {
+
     const sourceKlussen = sourceQuote.klussen && typeof sourceQuote.klussen === 'object'
       ? sourceQuote.klussen as Record<string, unknown>
       : {};
@@ -518,50 +522,24 @@ export async function POST(req: Request) {
       : typeof sourceQuote.notities === 'string' ? sourceQuote.notities : '';
     const allMaatwerkDimensions = getAssignedMaatwerkDimensions(splitNoteSections);
     const sourceQuoteNotesSnapshot = await sourceRef.collection('quote_notes').get();
-
-    await Promise.all([
-      createSplitSafetyBackup(sourceRef.collection('backup_notes'), {
-        dataType: 'quote_notes',
-        quoteId,
-        userId: uid,
-        notes: sourceNotes,
-      }),
-      ...Object.entries(sourceKlussen).map(async ([klusId, rawKlus]) => {
-        const klus = rawKlus && typeof rawKlus === 'object' ? rawKlus as Record<string, unknown> : {};
-        await createSplitSafetyBackup(sourceRef.collection('backup_measurements'), {
-          dataType: 'calculation_measurements',
-          quoteId,
-          userId: uid,
-          klusId,
-          measurements: klus.maatwerk ?? null,
-        });
-      }),
-    ]);
+    if (splitDrafts.length * (sourceQuoteNotesSnapshot.size + 1) > 450) throw new Error('Te veel notities voor één veilige splitsing.');
 
     for (let index = 0; index < splitDrafts.length; index += 1) {
       const split = splitDrafts[index];
       const isPrimarySplit = index === 0;
       const title = String(split?.title || `Deelofferte ${index + 1}`).trim();
-      const rows = Array.isArray(split?.materialRows) ? split.materialRows : [];
       if (!title) {
-        return NextResponse.json({ ok: false, message: 'Elke deelofferte heeft een titel nodig.' }, { status: 400 });
+        throw new Error('Elke deelofferte heeft een titel nodig.');
       }
-      if (rows.length === 0 && toFiniteNumber(split?.totalHours, 0) <= 0) {
-        return NextResponse.json({ ok: false, message: `${title} heeft nog geen materialen of uren.` }, { status: 400 });
-      }
+
 
       const offerteNummer = isPrimarySplit
         ? toFiniteNumber(sourceQuote.offerteNummer, 0)
         : await reserveQuoteNumberAdmin(firestore, uid);
       const targetQuoteRef = isPrimarySplit ? sourceRef : firestore.collection('quotes').doc();
-      const grootmaterialen = rows
-        .filter((row) => row.sourceCategory === 'groot')
-        .map(normalizeMaterialItem)
-        .filter((item) => String(item.product || '').trim());
-      const verbruiksartikelen = rows
-        .filter((row) => row.sourceCategory === 'verbruik')
-        .map(normalizeMaterialItem)
-        .filter((item) => String(item.product || '').trim());
+      const part = plan.parts[index];
+      const grootmaterialen = part.data.grootmaterialen;
+      const verbruiksartikelen = part.data.verbruiksartikelen;
       const allMaterials = [...grootmaterialen, ...verbruiksartikelen];
       const selectedWorkJob = getSelectedWorkJob(split, sourceDataJson);
       const splitNotes = hasExplicitNoteAssignments
@@ -579,34 +557,17 @@ export async function POST(req: Request) {
         assignedMaatwerkDimensions,
         allMaatwerkDimensions,
       );
-      const marginAmount = Math.max(0, toFiniteNumber(split?.marginAmount, 0));
-      const sourceExtras = sourceDataJson.extras && typeof sourceDataJson.extras === 'object'
-        ? sourceDataJson.extras as Record<string, unknown>
-        : {};
-      const sourceTransport = sourceExtras.transport && typeof sourceExtras.transport === 'object'
-        ? sourceExtras.transport
-        : undefined;
-      const splitExtras = cleanObject({
-        ...sourceExtras,
-        ...(sourceTransport ? { transport: sourceTransport } : {}),
-        winstMarge: {
-          mode: 'fixed',
-          fixedAmount: marginAmount,
-          percentage: 0,
-          basis: 'totaal',
-        },
-      });
-
+      const marginAmount = part.settings.extras.winstMarge.fixedAmount;
+      const splitExtras = part.settings.extras;
       const calculationDataJson = cleanObject({
         ...sourceDataJson,
+        ...part.data,
+        splitCostAllocation: { sourceQuoteId: quoteId, operationId: requestId, transportAmount: part.transportAmount, areaM2: part.areaM2, scopeCosts: part.scopeCosts },
         grootmaterialen,
         verbruiksartikelen,
         totaal_uren: Math.max(0, toFiniteNumber(split?.totalHours, 0)),
         extras: splitExtras,
-        instellingen: {
-          ...(sourceDataJson.instellingen && typeof sourceDataJson.instellingen === 'object' ? sourceDataJson.instellingen : {}),
-          extras: splitExtras,
-        },
+        instellingen: part.settings,
         werkbeschrijving: workDescription.flat,
         werkbeschrijving_jobs: workDescription.structured.jobs,
         werkbeschrijving_structured: workDescription.structured,
@@ -632,44 +593,22 @@ export async function POST(req: Request) {
         : selectedKlusEntry
           ? { [selectedKlusEntry[0]]: selectedKlusEntry[1] }
           : null;
-      const sourceQuoteExtras = sourceQuote.extras && typeof sourceQuote.extras === 'object'
-        ? sourceQuote.extras as Record<string, unknown>
-        : {};
-      const sourceQuoteInstellingen = sourceQuote.instellingen && typeof sourceQuote.instellingen === 'object'
-        ? sourceQuote.instellingen as Record<string, unknown>
-        : {};
-      const quoteSplitExtras = cleanObject({
-        ...sourceQuoteExtras,
-        winstMarge: {
-          mode: 'fixed',
-          fixedAmount: marginAmount,
-          percentage: 0,
-          basis: 'totaal',
-        },
-      });
       const quotePayload = cleanObject({
         ...sourceQuote,
         status: 'concept',
         offerteNummer,
         titel: title,
         werkomschrijving: title,
-        extras: quoteSplitExtras,
-        instellingen: {
-          ...sourceQuoteInstellingen,
-          extras: {
-            ...(sourceQuoteInstellingen.extras && typeof sourceQuoteInstellingen.extras === 'object' ? sourceQuoteInstellingen.extras : {}),
-            winstMarge: {
-              mode: 'fixed',
-              fixedAmount: marginAmount,
-              percentage: 0,
-              basis: 'totaal',
-            },
-          },
-        },
+        extras: splitExtras,
+        instellingen: { ...(sourceQuote.instellingen || {}), ...part.settings },
+        totaalbedrag: part.totals.totaalInclBtw,
+        amount: part.totals.totaalInclBtw,
+        splitIncludeDrawings: true,
         archived: false,
         ...(isPrimarySplit
           ? {
               splitPrimary: {
+                operationId: requestId,
                 quoteId,
                 offerteNummer: sourceQuote.offerteNummer || null,
                 marginAmount,
@@ -678,6 +617,7 @@ export async function POST(req: Request) {
             }
           : {
               splitSource: {
+                operationId: requestId,
                 quoteId,
                 offerteNummer: sourceQuote.offerteNummer || null,
                 marginAmount,
@@ -689,9 +629,15 @@ export async function POST(req: Request) {
       });
       const mutableQuotePayload = quotePayload as Record<string, unknown>;
       if (!isPrimarySplit) {
+        delete mutableQuotePayload.splitPrimary;
         delete mutableQuotePayload.whatsappQuoteSnapshot;
         delete mutableQuotePayload.whatsappQuoteSnapshotHistory;
+        delete mutableQuotePayload.financieel;
+        delete mutableQuotePayload.leadKey;
+        mutableQuotePayload.source = 'quote_split';
       }
+      delete mutableQuotePayload.splitInProgress;
+      delete mutableQuotePayload.splitChildren;
       delete mutableQuotePayload.sentAt;
       delete mutableQuotePayload.pdf_url;
       delete mutableQuotePayload.pdfUrl;
@@ -706,56 +652,80 @@ export async function POST(req: Request) {
       } else {
         delete mutableQuotePayload.klussen;
       }
+      // Geen oude jobs-array laten terugvallen naar tekeningen van het andere deel.
+      if (hasExplicitKlusAssignments) delete mutableQuotePayload.jobs;
 
-      await targetQuoteRef.set(mutableQuotePayload);
-
-      if (!isPrimarySplit && !sourceQuoteNotesSnapshot.empty) {
-        await Promise.all(sourceQuoteNotesSnapshot.docs.map(async (sourceNoteDoc) => {
-          const noteData = { ...sourceNoteDoc.data() };
-          if (noteData.quoteId === quoteId) noteData.quoteId = targetQuoteRef.id;
-          if (noteData.quoteid === quoteId) noteData.quoteid = targetQuoteRef.id;
-          await targetQuoteRef.collection('quote_notes').doc(sourceNoteDoc.id).set(noteData);
-        }));
-      }
-
-      const supabaseWrite = isPrimarySplit
-        ? await supabaseAdmin
-            .from('quotes_collection')
-            .update({
-              status: 'completed',
-              data_json: calculationDataJson,
-            })
-            .eq('quoteid', quoteId)
-            .eq('gebruikerid', uid)
-        : await supabaseAdmin
-            .from('quotes_collection')
-            .insert({
-              quoteid: targetQuoteRef.id,
-              gebruikerid: uid,
-              status: 'completed',
-              data_json: calculationDataJson,
-            });
-
-      if (supabaseWrite.error) {
-        console.error('Supabase write error (split quote):', supabaseWrite.error);
-        return NextResponse.json({ ok: false, message: supabaseWrite.error.message }, { status: 500 });
-      }
+      staged.push({ ref: targetQuoteRef, quote: mutableQuotePayload, calculation: calculationDataJson });
 
       if (!isPrimarySplit) {
         created.push({ id: targetQuoteRef.id, offerteNummer, title });
       }
     }
 
-    await sourceRef.set({
-      splitChildren: created.map((item) => ({
-        quoteId: item.id,
-        offerteNummer: item.offerteNummer,
-        title: item.title,
-      })),
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+    const primary = staged[0];
+    primary.quote.splitChildren = created.map(item => ({ quoteId: item.id, offerteNummer: item.offerteNummer, title: item.title }));
+    // Bewaar het volledige plan vóór de eerste schrijfactie in de andere database.
+    await operationRef.update({ state: 'writing', targetQuotesJson: JSON.stringify(staged.map(p => ({ id: p.ref.id, data: p.calculation }))) });
+    const children = staged.slice(1).map(p => ({ quoteid: p.ref.id, gebruikerid: uid, status: 'completed', data_json: p.calculation }));
+    childrenWritten = true;
+    splitStage = 'nieuwe calculaties opslaan';
+    const inserted = await supabaseAdmin.from('quotes_collection').insert(children);
+    if (inserted.error) throw new Error(inserted.error.message);
+    // Geen status-update: die activeert de n8n-trigger die oude uren/tekst terugzet.
+    primaryWritten = true;
+    splitStage = 'oorspronkelijke calculatie bijwerken';
+    for (const row of calculationRows!) {
+      const written = await supabaseAdmin.rpc('compare_and_swap_quote_calculation', {
+        p_id: String(row.id), p_user_id: uid, p_expected: row.data_json, p_replacement: primary.calculation,
+      });
+      if (written.error) throw new Error(written.error.message);
+      if (!Array.isArray(written.data) || written.data.length !== 1 || !isDeepStrictEqual(written.data[0].data_json, primary.calculation)) throw new Error('De calculatie is tijdens het splitsen gewijzigd of wijkt af van het gecontroleerde plan.');
+    }
+    const result = { ok: true, created };
+    splitStage = 'offertes definitief opslaan';
+    await firestore.runTransaction(async tx => {
+      const current = await tx.get(sourceRef);
+      if (!current.updateTime?.isEqual(lockedSource.updateTime!) || current.data()?.splitInProgress !== requestId) throw new Error('De offerte is tijdens het splitsen gewijzigd.');
+      for (const part of staged) {
+        tx.set(part.ref, part.quote);
+        if (part.ref.id !== quoteId) for (const note of sourceQuoteNotesSnapshot.docs) {
+          const noteData = { ...note.data() };
+          if (noteData.quoteId === quoteId) noteData.quoteId = part.ref.id;
+          if (noteData.quoteid === quoteId) noteData.quoteid = part.ref.id;
+          tx.set(part.ref.collection('quote_notes').doc(note.id), noteData);
+        }
+      }
+      tx.update(operationRef, { state: 'completed', result, completedAt: FieldValue.serverTimestamp() });
+    });
+    completed = true;
+    return NextResponse.json(result);
+    } catch (error) {
+      // Alle offertes staan nog ongewijzigd in Firestore als de commit faalt.
+      // Bewaar bij een mislukte compensatie het herstelpunt en blokkeer een blinde retry.
+      const savedOperation = await operationRef.get();
+      if (savedOperation.data()?.state === 'completed') return NextResponse.json(savedOperation.data()?.result);
+      let recoveryFailed = false;
+      if (primaryWritten) for (const row of calculationRows || []) {
+        const current = await supabaseAdmin.from('quotes_collection').select('data_json').eq('id', String(row.id)).eq('gebruikerid', uid).maybeSingle();
+        if (current.error || !current.data) { recoveryFailed = true; continue; }
+        if (isDeepStrictEqual(current.data.data_json, row.data_json)) continue;
+        if (!isDeepStrictEqual(current.data.data_json, staged[0].calculation)) { recoveryFailed = true; continue; }
+        const rollback = await supabaseAdmin.rpc('compare_and_swap_quote_calculation', {
+          p_id: String(row.id), p_user_id: uid, p_expected: staged[0].calculation, p_replacement: row.data_json,
+        });
+        if (rollback.error || !Array.isArray(rollback.data) || rollback.data.length !== 1) recoveryFailed = true;
+      }
+      if (childrenWritten && staged.length > 1) {
+        const rollback = await supabaseAdmin.from('quotes_collection').delete().in('quoteid', staged.slice(1).map(p => p.ref.id)).eq('gebruikerid', uid);
+        if (rollback.error) recoveryFailed = true;
+      }
+      await operationRef.update({ state: recoveryFailed ? 'recovery_required' : 'failed', stage: splitStage, message: getErrorMessage(error) });
+      if (!recoveryFailed && !completed) await sourceRef.update({ splitInProgress: FieldValue.delete() });
+      return NextResponse.json({ ok: false, retryable: !recoveryFailed, stage: splitStage, message: recoveryFailed
+        ? 'Splitsen is gestopt. Automatisch herstel is niet volledig gelukt; de volledige reservekopie staat bij de offerte. Start geen nieuwe splitsing.'
+        : `Mislukt bij ${splitStage}: ${getErrorMessage(error)}. De oorspronkelijke offerte is behouden. Je kunt opnieuw proberen met dezelfde verdeling.` }, { status: 500 });
+    }
 
-    return NextResponse.json({ ok: true, created });
   } catch (error) {
     console.error('API Error /api/quotes/split:', error);
     return NextResponse.json({ ok: false, message: getErrorMessage(error) }, { status: 500 });

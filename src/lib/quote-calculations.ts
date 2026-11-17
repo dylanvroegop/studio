@@ -84,7 +84,14 @@ export type WorkDescriptionJob = {
     legacyNotes?: string[];
 };
 
+export interface ReviewedScopeLine {
+    topic: string;
+    kind: 'included' | 'excluded';
+    text: string;
+}
+
 export type WorkDescriptionStructured = {
+    reviewedScopeLines?: ReviewedScopeLine[];
     title: string;
     context: string;
     summary: string;
@@ -412,10 +419,21 @@ function parseSectionHeader(line: string): WorkDescriptionSectionKey | null {
     return toWorkDescriptionSectionKey(cleaned);
 }
 
+function retainedScopeLines(value: unknown, scope: Pick<WorkDescriptionStructured, 'included' | 'excluded'>): ReviewedScopeLine[] {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap(row => {
+        if (!row || (row.kind !== 'included' && row.kind !== 'excluded') || typeof row.topic !== 'string' || typeof row.text !== 'string') return [];
+        const kind: ReviewedScopeLine['kind'] = row.kind;
+        const text = row.text.trim();
+        return text && scope[kind].some(line => line.trim() === text) ? [{ topic: row.topic, kind, text }] : [];
+    });
+}
+
 function cloneStructured(value: WorkDescriptionStructured): WorkDescriptionStructured {
     const summary = normalizeWorkDescriptionText(value.summary || value.context);
     const workScope = normalizeWorkScopeRows(value.work_scope, summary);
     return {
+        ...(value.reviewedScopeLines?.length ? { reviewedScopeLines: value.reviewedScopeLines.map(line => ({ ...line })) } : {}),
         title: value.title,
         context: summary,
         summary,
@@ -692,6 +710,8 @@ export function sanitizeWorkDescriptionStructured(input: unknown): WorkDescripti
         normalized.legacyNotes = [...activeJob.legacyNotes];
     }
 
+    const reviewed = retainedScopeLines(row.reviewedScopeLines, normalized);
+    if (reviewed.length) normalized.reviewedScopeLines = reviewed;
     return normalized;
 }
 
@@ -717,6 +737,10 @@ export function completeStructuredWorkDescription(
     );
     const activeJob = jobs[activeIndex];
     const completedRoot = completeWorkDeliveryScope(structured, fallbackTitle);
+    // Behoud bewust gekozen klusspecifieke afspraken naast de algemene standaardregels.
+    for (const line of structured.reviewedScopeLines || []) {
+        if (!completedRoot[line.kind].includes(line.text)) completedRoot[line.kind].push(line.text);
+    }
     const rootSummary = normalizeWorkDescriptionText(structured.summary || structured.context);
 
     return {

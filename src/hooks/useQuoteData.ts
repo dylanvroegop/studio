@@ -324,6 +324,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                 },
                 body: JSON.stringify({
                     calculation_id: currentCalculation.id,
+                    split_operation_id: (rootObject(currentCalculation.data_json)?.splitCostAllocation as { operationId?: string } | undefined)?.operationId ?? null,
                     data_json_patch: patch
                 })
             });
@@ -426,6 +427,7 @@ export function useQuoteData(quoteId: string, options?: UseQuoteDataOptions) {
                 },
                 body: JSON.stringify({
                     calculation_id: currentCalculation.id,
+                    split_operation_id: (rootObject(currentCalculation.data_json)?.splitCostAllocation as { operationId?: string } | undefined)?.operationId ?? null,
                     data_json_patch: patch,
                 }),
             });

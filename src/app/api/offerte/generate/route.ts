@@ -558,7 +558,7 @@ export async function POST(req: Request) {
         'lengte', 'hoogte', 'diepte', 'breedte',
         'lengte1', 'lengte2', 'lengte3',
         'hoogte1', 'hoogte2', 'hoogte3',
-        'hoogteLinks', 'hoogteRechts', 'hoogteNok',
+        'hoogteLinks', 'hoogteRechts', 'hoogteNok', 'vlakkeBovenzijdeBreedte',
         'hoogteZijkant', 'balkafstand', 'latafstand',
         'vanLinks', 'vanOnder', 'aantalZijden',
         'tussenmuur_vanaf_links_maat'

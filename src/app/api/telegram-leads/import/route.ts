@@ -63,7 +63,7 @@ const importSchema = z.object({
     if (!client.phone && !client.email && !(client.client_name && client.city)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Provide phone, email, or both client_name and city.',
+        message: 'Vul een telefoonnummer, e-mailadres of zowel klantnaam als woonplaats in.',
       });
     }
   }),
@@ -325,7 +325,7 @@ export async function POST(request: Request) {
     const parsed = importSchema.safeParse(rawBody);
     if (!parsed.success) {
       return NextResponse.json(
-        { success: false, message: 'Invalid request body', errors: parsed.error.flatten() },
+        { success: false, code: 'INVALID_IMPORT_INPUT', message: parsed.error.issues.map(issue => issue.message).join(' '), errors: parsed.error.flatten() },
         { status: 400 }
       );
     }
