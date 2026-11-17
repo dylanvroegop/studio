@@ -22,7 +22,7 @@ function invoiceFlow(overrides = {}) {
   const state = {
     canCreate: true, creatingRef: { current: false }, user: { uid: 'owner' }, firestore: {}, existingId: null,
     quote: { whatsappQuoteSnapshot: { id: 'pdf', quoteId: 'quote', amountCents: 95700, currency: 'EUR', fileName: 'test.pdf', sharedAt: '2026-11-03T10:00:00Z' } },
-    selectedType: 'eind', newAmount: 506.44, billing: { billedAdvanceAmount: 478.50 }, quoteId: 'quote', settings: {},
+    selectedType: 'eind', newAmount: 506.44, billing: { billedAdvanceAmount: 478.50 }, deduction: 478.50, directAdvance: false, quoteId: 'quote', settings: {},
     total: 984.94, advancePercentage: 50, manualFinalAmount: null, reason: '', quoteSignature: 'signature', invoices: [],
     ...checks, invoiceBillingSignature: () => 'billing',
     setAmountWarning: warning => { state.warning = warning; },
