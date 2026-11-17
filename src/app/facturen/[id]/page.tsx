@@ -515,12 +515,13 @@ export default function FactuurDetailPage() {
   const pdfSourcesReady = settingsLoadedFor === user?.uid
     && (!invoice?.quoteId || (quoteLoadedFor === invoice.id && calculationLoadedFor === invoice.id));
 
+  const bankAdvancePaid = (invoice?.financialAdjustments?.bankVoorschotten || []).reduce((sum, row) => sum + row.amountCents, 0) / 100;
   useEffect(() => {
     if (!invoice) return;
     const extraWorkTotal = (invoice.extraWork ?? []).reduce((sum, item) => sum + item.amountInclBtw, 0);
     const originalTotal = Number(invoice.financialAdjustments?.originalTotalInclBtw ?? Math.max(0, (invoice.totalsSnapshot?.totaalInclBtw ?? 0) - extraWorkTotal));
     const voorschotAftrek = Number(invoice.financialAdjustments?.voorschotAftrekInclBtw ?? 0);
-    const voorschotPaid = Number(invoice.financialAdjustments?.voorschotFactuur?.paidAmount ?? 0);
+    const voorschotPaid = Number(invoice.financialAdjustments?.voorschotFactuur?.paidAmount ?? bankAdvancePaid);
     const finalTotal = Number(invoice.totalsSnapshot?.totaalInclBtw ?? 0);
 
     setSpecOriginalTotal(formatAmountInput(originalTotal));
@@ -530,7 +531,7 @@ export default function FactuurDetailPage() {
     setOverrideReason(getString(invoice.financialAdjustments?.opmerking));
   }, [invoice?.id, invoice?.totalsSnapshot?.totaalInclBtw,
     invoice?.financialAdjustments?.originalTotalInclBtw, invoice?.financialAdjustments?.voorschotAftrekInclBtw,
-    invoice?.financialAdjustments?.voorschotFactuur?.paidAmount, invoice?.financialAdjustments?.opmerking]);
+    invoice?.financialAdjustments?.voorschotFactuur?.paidAmount, bankAdvancePaid, invoice?.financialAdjustments?.opmerking]);
 
   const savedInvoiceNotes = typeof invoice?.notes === 'string' ? invoice.notes : '';
   useEffect(() => {
@@ -721,7 +722,7 @@ export default function FactuurDetailPage() {
     const voorschotAftrekInclBtw = Number(invoice.financialAdjustments?.voorschotAftrekInclBtw ?? 0);
     const voorschotFactuurPaidAmount = typeof invoice.financialAdjustments?.voorschotFactuur?.paidAmount === 'number'
       ? invoice.financialAdjustments.voorschotFactuur.paidAmount
-      : undefined;
+      : bankAdvancePaid || undefined;
     return {
       invoiceType,
       invoiceNumberLabel: invoice.invoiceNumberLabel,
@@ -785,7 +786,7 @@ export default function FactuurDetailPage() {
         : settings.planningSettings?.defaultWorkdayHours,
       calculationSnapshot: effectiveCalculationSnapshot ?? null,
     };
-  }, [invoice, standalone, settings, pdfSourcesReady, pdfSettingsInitialized, businessData, invoiceType, isVoorschotInvoice, effectiveIssueDate, effectiveDueDate, effectivePaymentTermDays, invoicePdfSettings, quoteClientNumbers, quoteOfferteNummer, quoteCalculationSnapshot, quoteDocData]);
+  }, [invoice, bankAdvancePaid, standalone, settings, pdfSourcesReady, pdfSettingsInitialized, businessData, invoiceType, isVoorschotInvoice, effectiveIssueDate, effectiveDueDate, effectivePaymentTermDays, invoicePdfSettings, quoteClientNumbers, quoteOfferteNummer, quoteCalculationSnapshot, quoteDocData]);
 
   useEffect(() => {
     if (!invoice || !pdfData) return;

@@ -20,7 +20,7 @@ export function QuoteAmountDifferenceDialog({ comparison, onCancel, onConfirm, o
       </DialogHeader>
       {comparison && <dl className="space-y-2 text-sm">
         <div className="flex justify-between gap-3"><dt>Gedeelde offerte incl. btw</dt><dd className="whitespace-nowrap">{currency(comparison.sharedAmountCents)}</dd></div>
-        <div className="flex justify-between gap-3"><dt>Eindfactuur + gefactureerd voorschot</dt><dd className="whitespace-nowrap">{currency(comparison.invoiceTotalCents)}</dd></div>
+        <div className="flex justify-between gap-3"><dt>Eindfactuur + verrekend voorschot</dt><dd className="whitespace-nowrap">{currency(comparison.invoiceTotalCents)}</dd></div>
         <div className="flex justify-between gap-3 border-t pt-2 font-medium"><dt>Verschil</dt><dd className="whitespace-nowrap">{currency(Math.abs(comparison.differenceCents))} {comparison.differenceCents > 0 ? 'hoger' : 'lager'}</dd></div>
       </dl>}
       <DialogFooter className="gap-2 sm:flex-wrap">

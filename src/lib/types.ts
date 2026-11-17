@@ -241,6 +241,7 @@ export interface Invoice {
   dueDate: Timestamp;
 
   sourceQuote: {
+    datum?: Timestamp;
     offerteNummer?: number;
     offerteVersie?: number;
     titel?: string;
@@ -274,6 +275,7 @@ export interface Invoice {
   financialAdjustments?: {
     originalTotalInclBtw: number;
     voorschotAftrekInclBtw: number;
+    bankVoorschotten?: { transactionId: string; date: string; name: string; description: string; amountCents: number }[];
     voorschotFactuur?: {
       id: string;
       invoiceNumberLabel: string;

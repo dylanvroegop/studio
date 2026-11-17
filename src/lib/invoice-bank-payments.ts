@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
-  findInvoiceBankCandidates, invoiceBankCents, invoiceBankLinkedCents, isInvoiceBankVerified,
+  findQuoteAdvanceCandidates, findInvoiceBankCandidates, invoiceBankCents, invoiceBankLinkedCents, isInvoiceBankVerified,
   validateInvoiceBankAllocation, type BankMatchInvoice, type InvoiceBankAllocation,
   type InvoiceBankCredit, type InvoiceBankView,
 } from '@/lib/invoice-bank-matching';
@@ -29,25 +29,35 @@ function dateOnly(value: unknown): string | null {
     : null;
 }
 const INVOICE_PAYMENT_FIELDS = ['userId', 'invoiceNumberLabel', 'status', 'totalsSnapshot', 'paymentSummary',
-  'issueDate', 'sourceQuote.klantSnapshot.naam', 'quoteId', 'combinedQuoteIds', 'combinedContext', 'paidAt'];
+  'issueDate', 'invoiceType', 'sourceQuote.offerteNummer', 'sourceQuote.datum', 'sourceQuote.klantSnapshot.naam', 'quoteId', 'combinedQuoteIds', 'combinedContext', 'paidAt'];
 function toInvoice(id: string, data: Record<string, unknown>): BankMatchInvoice {
   const source = record(data.sourceQuote);
+  const totalCents = Math.max(0, invoiceBankCents(record(data.totalsSnapshot).totaalInclBtw));
+  const paid = record(data.paymentSummary).paidAmount;
   return {
     id, userId: text(data.userId), reference: text(data.invoiceNumberLabel), status: text(data.status),
-    totalCents: Math.max(0, invoiceBankCents(record(data.totalsSnapshot).totaalInclBtw)),
-    paidCents: Math.max(0, invoiceBankCents(record(data.paymentSummary).paidAmount)),
+    totalCents, paidCents: paid == null && data.status === 'betaald' ? totalCents : Math.max(0, invoiceBankCents(paid)),
+    invoiceType: text(data.invoiceType), quoteNumber: String(source.offerteNummer || ''), quoteDate: dateOnly(source.datum),
     issueDate: dateOnly(data.issueDate), clientName: text(record(source.klantSnapshot).naam),
   };
 }
-function allocationRows(value: unknown): InvoiceBankAllocation[] {
+function allocationRows(value: unknown, activeIds: Set<string>): InvoiceBankAllocation[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is InvoiceBankAllocation => Boolean(item && typeof item === 'object'
     && typeof item.invoiceId === 'string' && Number.isSafeInteger(item.amountCents) && item.amountCents > 0
-    && (item.mode === 'add' || item.mode === 'link')));
+    && (item.mode === 'add' || item.mode === 'link' || (item.mode === 'advance' && activeIds.has(item.invoiceId)))));
 }
 function allocationCollection(firestore: Firestore, uid: string) {
   // Geen clientregels voor deze subcollectie: uitsluitend server beheert toewijzingen.
   return firestore.collection('users').doc(uid).collection('invoiceBankAllocations');
+}
+
+function bankDescription(row: Record<string, unknown>): string {
+  const raw = record(row.raw);
+  const remittance = raw.remittance_information;
+  const fields = [row.description, row.remittance_information, ...(Array.isArray(remittance) ? remittance : [remittance]),
+    raw.note, raw.end_to_end_id, raw.creditor_reference, record(raw.debtor).name];
+  return [...new Set(fields.map(text).filter(Boolean))].join(' · ');
 }
 
 interface BankContext {
@@ -61,8 +71,9 @@ async function loadBankContext(bankUserId: string): Promise<BankContext> {
     .select('id,status,last_synced_at,provider,institution_name').eq('user_id', bankUserId)
     .order('updated_at', { ascending: false });
   if (connections.error) throw new InvoiceBankError('Knab-koppeling kon niet worden gelezen.', 503);
-  const connection = connections.data?.find((item) => item.provider === 'enablebanking' && item.status === 'connected');
-  if (!connection || !/\bknab\b/i.test(text(connection.institution_name))) return { connected: false, lastSyncedAt: null, credits: [] };
+  const knab = (connections.data || []).filter((item) => item.provider === 'enablebanking' && /\bknab\b/i.test(text(item.institution_name)));
+  const connection = knab.find((item) => item.status === 'connected');
+  if (!connection) return { connected: false, lastSyncedAt: null, credits: [] };
   const accounts = await supabaseAdmin.from('bank_accounts').select('id,iban,connection_id')
     .in('connection_id', (connections.data || []).map((item) => String(item.id)));
   if (accounts.error) throw new InvoiceBankError('Knab-rekeningen konden niet worden gelezen.', 503);
@@ -73,7 +84,7 @@ async function loadBankContext(bankUserId: string): Promise<BankContext> {
   // Geen stille Supabase-limiet van 1000: ook oudere voorschotten blijven vindbaar.
   for (let offset = 0; ; offset += 500) {
     const response = await supabaseAdmin.from('bank_transactions')
-      .select('id,external_id,amount,currency,booking_date,counterparty_name,counterparty_iban,description,remittance_information,category')
+      .select('id,external_id,amount,currency,booking_date,counterparty_name,counterparty_iban,description,remittance_information,raw,category')
       .in('bank_account_id', accountIds).gt('amount', 0).eq('currency', 'EUR')
       .order('booking_date', { ascending: false }).order('id', { ascending: false }).range(offset, offset + 499);
     if (response.error) throw new InvoiceBankError('Knab-betalingen konden niet worden gelezen.', 503);
@@ -87,7 +98,7 @@ async function loadBankContext(bankUserId: string): Promise<BankContext> {
       key: createHash('sha256').update(text(row.external_id) || `stored:${text(row.id)}`).digest('hex'),
       amountCents: invoiceBankCents(row.amount), currency: text(row.currency), bookingDate: dateOnly(row.booking_date),
       name: text(row.counterparty_name),
-      description: [text(row.description), text(row.remittance_information)].filter(Boolean).join(' '),
+      description: bankDescription(row),
     }));
   return { connected: true, lastSyncedAt: text(connection.last_synced_at) || null, credits };
 }
@@ -113,8 +124,24 @@ async function loadOwnerInvoiceBankContext(options: {
     allocationCollection(firestore, uid).get(),
     loadBankContext(bankUserId),
   ]);
-  const allocations = new Map(allocationSnapshot.docs.map((item) => [item.id, allocationRows(item.data().allocations)]));
+  const activeIds = new Set(invoices.filter((item) => item.status !== 'geannuleerd').map((item) => item.id));
+  const allocations = new Map(allocationSnapshot.docs.map((item) => [item.id, allocationRows(item.data().allocations, activeIds)]));
   return { invoices, allocations, bank };
+}
+
+export async function loadQuoteAdvanceBankView(options: {
+  firestore: Firestore; uid: string; bankUserId: string; quoteId: string;
+}) {
+  const snap = await options.firestore.doc(`quotes/${options.quoteId}`).get();
+  const quote = snap.data();
+  if (!quote || quote.userId !== options.uid) throw new InvoiceBankError('Offerte niet gevonden.', 404);
+  const { bank, invoices, allocations } = await loadOwnerInvoiceBankContext(options);
+  const client = record(quote.klantinformatie);
+  const candidates = findQuoteAdvanceCandidates({
+    quoteNumber: String(quote.offerteNummer || ''), names: [text(client.bedrijfsnaam), text(client.achternaam) || text(client.voornaam)],
+    quoteDate: dateOnly(quote.createdAt), credits: bank.credits, invoices, allocations,
+  });
+  return { connected: bank.connected, lastSyncedAt: bank.lastSyncedAt, candidates, credits: bank.credits };
 }
 
 export async function loadInvoiceBankContext(options: {
@@ -127,6 +154,12 @@ export async function loadInvoiceBankContext(options: {
 export function invoiceBankView(context: InvoiceBankContext): InvoiceBankView {
   const linkedCents = invoiceBankLinkedCents(context.invoice.id, context.allocations);
   return {
+    status: context.invoice.status, paidCents: context.invoice.paidCents,
+    receipts: context.bank.credits.flatMap((credit) => {
+      const cents = (context.allocations.get(credit.key) || []).filter((item) => item.invoiceId === context.invoice.id && item.mode !== 'advance')
+        .reduce((sum, item) => sum + item.amountCents, 0);
+      return cents ? [{ id: credit.id, name: credit.name, description: credit.description, date: credit.bookingDate, amountCents: cents }] : [];
+    }),
     connected: context.bank.connected, lastSyncedAt: context.bank.lastSyncedAt, linkedCents,
     openCents: Math.max(0, context.invoice.totalCents - context.invoice.paidCents),
     unlinkedPaidCents: Math.max(0, context.invoice.paidCents - linkedCents),
@@ -148,7 +181,8 @@ export async function applyInvoiceBankPayment(options: {
     const invoices = invoiceSnapshot.docs.map((item) => toInvoice(item.id, item.data()));
     const invoice = invoices.find((item) => item.id === invoiceId);
     if (!invoice || invoice.userId !== uid) throw new InvoiceBankError('Factuur niet gevonden.', 404);
-    const allocations = new Map(allocationSnapshot.docs.map((item) => [item.id, allocationRows(item.data().allocations)]));
+    const activeIds = new Set(invoices.filter((item) => item.status !== 'geannuleerd').map((item) => item.id));
+    const allocations = new Map(allocationSnapshot.docs.map((item) => [item.id, allocationRows(item.data().allocations, activeIds)]));
     const existing = allocations.get(credit.key) || [];
     if (existing.some((item) => item.invoiceId === invoiceId && item.mode === mode)) return false;
     const candidates = findInvoiceBankCandidates({ invoice, invoices, credits, allocations });
@@ -169,6 +203,8 @@ export async function applyInvoiceBankPayment(options: {
     const paidCents = invoice.paidCents + (mode === 'add' ? amountCents : 0);
     const openCents = Math.max(0, invoice.totalCents - paidCents);
     const date = Timestamp.fromDate(new Date(`${credit.bookingDate}T12:00:00Z`));
+    const previousPaymentAt = record(saved.paymentSummary).lastPaymentAt;
+    const lastPaymentAt = (dateOnly(previousPaymentAt) || '') > credit.bookingDate! ? previousPaymentAt : date;
     transaction.set(allocationCollection(firestore, uid).doc(credit.key), {
       userId: uid, bankTransactionId: credit.id, amountCents: credit.amountCents,
       currency: credit.currency, bookingDate: credit.bookingDate, counterpartyName: credit.name,
@@ -178,13 +214,13 @@ export async function applyInvoiceBankPayment(options: {
     if (mode === 'add') {
       transaction.create(invoiceDoc.ref.collection('payments').doc(`bank_${credit.key}`), {
         amount: amountCents / 100, date, method: 'bank', reference: credit.description,
-        note: automatic ? 'Automatisch gekoppeld: factuurnummer en bedrag.' : 'Bankbetaling bevestigd.',
+        note: automatic ? 'Automatisch gekoppeld via Knab. ' + candidate.reason : 'Bankbetaling bevestigd.',
         source: 'knab', bankTransactionId: credit.id, bankAllocationKey: credit.key, createdAt: now,
       });
       transaction.update(invoiceDoc.ref, {
         status: openCents === 0 ? 'betaald' : 'gedeeltelijk_betaald',
         'paymentSummary.paidAmount': paidCents / 100, 'paymentSummary.openAmount': openCents / 100,
-        'paymentSummary.lastPaymentAt': date, ...(openCents === 0 ? { paidAt: saved.paidAt || date } : {}), updatedAt: now,
+        'paymentSummary.lastPaymentAt': lastPaymentAt, ...(openCents === 0 ? { paidAt: saved.paidAt || lastPaymentAt } : {}), updatedAt: now,
       });
       quotes.filter((quote) => quote.exists && quote.data()?.userId === uid && quote.data()?.status !== 'geaccepteerd')
         .forEach((quote) => transaction.update(quote.ref, { status: 'geaccepteerd', updatedAt: now }));
@@ -210,6 +246,7 @@ export async function reconcileInvoiceBankContext(options: {
     ...context, invoice, credits: context.bank.credits,
   }).filter((candidate) => candidate.automatic).map((candidate) => ({ invoice, candidate })));
   const result: InvoiceBankSyncResult = { applied: 0, remaining: Math.max(0, matches.length - 25), warnings: [] };
+  matches.sort((a, b) => a.candidate.date.localeCompare(b.candidate.date));
   for (const { invoice, candidate } of matches.slice(0, 25)) {
     try {
       const credit = context.bank.credits.find((item) => item.id === candidate.transactionId)!;

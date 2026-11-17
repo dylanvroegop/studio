@@ -88,7 +88,18 @@ async function existingCategoriesByExternalId(externalIds: string[]): Promise<Ma
   return categories;
 }
 
-export async function syncEnableBankingConnection(params: {
+const pendingSyncs = new Map<string, ReturnType<typeof importConnection>>();
+
+export function syncEnableBankingConnection(params: { bankUserId: string; sessionId: string }): ReturnType<typeof importConnection> {
+  const key = JSON.stringify([params.bankUserId, params.sessionId]);
+  const pending = pendingSyncs.get(key);
+  if (pending) return pending;
+  const sync = importConnection(params).finally(() => pendingSyncs.delete(key));
+  pendingSyncs.set(key, sync);
+  return sync;
+}
+
+async function importConnection(params: {
   bankUserId: string;
   sessionId: string;
 }): Promise<{ newCount: number; accountsSynced: number; status: string }> {

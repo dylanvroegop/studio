@@ -352,3 +352,53 @@ test('overzicht verwerkt bankmatches via geauthenticeerde POST en geeft gecontro
   assert.equal((await unauthorized.routes.POST(request())).status, 401);
   assert.equal(unauthorized.writes(), 0);
 });
+
+test('Knab-betaalverzoek vindt offertenummer of alleen achternaam in de omschrijving', () => {
+  const options = { quoteNumber: '260493', names: ['Möller'], quoteDate: '2026-10-01', invoices: [], allocations: new Map() };
+  const descriptions = ['260493 van P.J. Moller', '260493', 'P.J. Moller', '12604930', 'Mollerink'];
+  const credits = descriptions.map((description, i) => ({ ...credit, name: 'KNAB', id: String(i), key: String(i), description }));
+  const matches = matching.findQuoteAdvanceCandidates({ ...options, credits });
+  assert.deepEqual(matches.map((item) => item.reason), ['Offertenummer en klantnaam', 'Offertenummer', 'Klantnaam']);
+  assert.equal(matching.findQuoteAdvanceCandidates({ ...options, credits: [credits[1]],
+    allocations: new Map([['1', [{ invoiceId: 'other', mode: 'advance', amountCents: 10000 }]]]) }).length, 0);
+});
+
+test('twee voorschotbetalingen met alleen offertenummer worden na Knab-sync één keer geboekt', async () => {
+  const h = firestoreFixture({ status: 'concept' });
+  const doc = h.documents.get('invoices/invoice-a');
+  doc.invoiceType = 'voorschot';
+  doc.sourceQuote.offerteNummer = 260493;
+  doc.issueDate = '2026-10-05';
+  doc.totalsSnapshot.totaalInclBtw = 1047.47;
+  const advance = { ...invoice, invoiceType: 'voorschot', quoteNumber: '260493', totalCents: 104747, issueDate: doc.issueDate };
+  const credits = [60000, 44747].map((amountCents, i) => ({ ...credit, id: 'tx' + i, key: 'stable' + i,
+    amountCents, name: 'KNAB', description: '260493', bookingDate: '2026-10-0' + (i + 3) }));
+  const context = { invoices: [advance], allocations: new Map(), bank: { connected: true, lastSyncedAt: null, credits } };
+  const options = { firestore: h.firestore, uid: 'owner', context };
+  assert.equal((await payments.reconcileInvoiceBankContext({ ...options, context: { ...context, bank: { ...context.bank, credits: [credits[0]] } } })).applied, 1);
+  assert.equal(h.documents.get('invoices/invoice-a').status, 'gedeeltelijk_betaald');
+  assert.equal((await payments.reconcileInvoiceBankContext(options)).applied, 1);
+  assert.equal(h.documents.get('invoices/invoice-a').status, 'betaald');
+  assert.equal(h.documents.get('invoices/invoice-a').paymentSummary.paidAmount, 1047.47);
+  assert.equal((await payments.reconcileInvoiceBankContext(options)).applied, 0);
+});
+
+test('onzekere voorschotten blijven voorstellen en aftrek op de eindfactuur is geen betaling erop', () => {
+  const advance = { ...invoice, invoiceType: 'voorschot', quoteNumber: '260493', clientName: 'Paula Möller' };
+  const find = (description, others = []) => candidates({ invoice: advance, invoices: [advance, ...others],
+    credits: [{ ...credit, name: 'KNAB', description, amountCents: 3000 }] });
+  assert.equal(find('Betaling P.J. Moller')[0].automatic, false);
+  assert.equal(find('260493', [{ ...advance, id: 'another', reference: 'F-123456' }])[0].automatic, false);
+  assert.equal(find('260493 F-123456', [{ ...invoice, id: 'another', reference: 'F-123456' }]).length, 0);
+  const allocations = new Map([[credit.key, [{ invoiceId: invoice.id, amountCents: 10000, mode: 'advance' }]]]);
+  assert.equal(matching.invoiceBankLinkedCents(invoice.id, allocations), 0);
+  assert.equal(matching.isInvoiceBankVerified({ invoice, invoices: [invoice], credits: [credit], allocations }), false);
+});
+
+test('een los factuurnummer herkent ook een voorschotfactuur met prefix', () => {
+  const advance = { ...invoice, invoiceType: 'voorschot' };
+  const withDescription = (description) => candidates({ invoice: advance, invoices: [advance], credits: [{ ...credit, name: 'KNAB', description }] });
+  assert.equal(withDescription('460001')[0].automatic, true);
+  assert.deepEqual(withDescription('4600019'), []);
+  assert.deepEqual(withDescription('Anders-460001'), []);
+});

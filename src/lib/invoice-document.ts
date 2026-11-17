@@ -104,6 +104,7 @@ export interface CreateInvoiceParams {
     totalsInclBtw: number;
     voorschotPercentage?: number;
     voorschotAftrekInclBtw?: number;
+    bankAdvanceSelection?: { transactionId: string; amountCents: number }[];
     voorschotFactuurSnapshot?: {
       id: string;
       invoiceNumberLabel: string;
@@ -173,6 +174,7 @@ export function buildInvoiceDocument(params: CreateInvoiceParams, invoiceNumber:
     dueDate,
 
     sourceQuote: {
+      datum: quote?.createdAt,
       offerteNummer: safeNumber(quote?.offerteNummer) ?? null,
       offerteVersie: safeNumber(quote?.offerteVersie) ?? null,
       titel: resolveInvoiceTitle(quote, calculationSnapshot),

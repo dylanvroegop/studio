@@ -254,6 +254,7 @@ test('create API weigert ontbrekende auth voordat Firebase wordt gestart', async
   const route = loader({
     '@/firebase/admin': { initFirebaseAdmin: () => { initialized += 1; throw new Error('not configured'); } },
     '@/lib/supabase-admin': {},
+    '@/lib/invoice-bank-payments': { InvoiceBankError: class extends Error {} },
     '@/lib/invoice-create-server': load('@/lib/invoice-create-server'),
     '@/lib/demo-trial-server': { ensureDemoTrialActiveByUid: async () => null },
   })('@/app/api/facturen/create/route');
@@ -267,6 +268,7 @@ test('create API verwerpt ongeldige gecombineerde context; hiermee kan actuele c
   const route = loader({
     '@/firebase/admin': { initFirebaseAdmin: () => ({ auth: { verifyIdToken: async () => ({ uid: 'owner' }) }, firestore: { doc: () => { reads += 1; throw new Error('unexpected read'); } } }) },
     '@/lib/supabase-admin': {},
+    '@/lib/invoice-bank-payments': { InvoiceBankError: class extends Error {} },
     '@/lib/invoice-create-server': load('@/lib/invoice-create-server'),
     '@/lib/demo-trial-server': { ensureDemoTrialActiveByUid: async () => null },
   })('@/app/api/facturen/create/route');
@@ -387,4 +389,32 @@ test('nacalculatie gebruikt uitsluitend bevestigde aantallen en rekent btw per r
     assert.deepEqual(invoice.meerwerkbonRegels.map(row => row.totaalInclBtw), [163.5, 48.4]);
     assert.deepEqual(invoice.totalsSnapshot, { totaalInclBtw: 211.9, totaalExclBtw: 190, btw: 21.9 });
   }
+});
+
+test('losse Knab-voorschotten worden atomair verrekend en blijven apart van betalingen op de eindfactuur', async () => {
+  const h = harness({ total: 2000 });
+  const credits = [60000, 44747].map((amountCents, i) => ({ id: 'tx' + i, key: 'key' + i, amountCents,
+    bookingDate: '2026-10-27', currency: 'EUR', name: 'KNAB', description: '260493' }));
+  const input = { ...h.params, totalsInclBtw: 952.53, bankAdvanceSelection: credits.map((row) => ({ transactionId: row.id, amountCents: row.amountCents })) };
+  await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', input, null, [credits[0]]), /gewijzigd/);
+  assert.equal(h.commits.length, 0);
+  const path = 'users/owner/invoiceBankAllocations/key1';
+  h.documents.set(path, { allocations: [{ invoiceId: 'another', amountCents: 44747, mode: 'add' }] });
+  await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', input, null, credits), /inmiddels gekoppeld/);
+  assert.equal(h.commits.length, 0);
+  h.documents.delete(path);
+  const id = await createInvoiceAtomically(h.firestore, 'owner', input, null, credits);
+  const final = h.documents.get('invoices/' + id);
+  assert.equal(final.financialAdjustments.voorschotAftrekInclBtw, 1047.47);
+  assert.equal(final.financialAdjustments.bankVoorschotten.length, 2);
+  assert.deepEqual(final.paymentSummary, { paidAmount: 0, openAmount: 952.53 });
+  assert.deepEqual(h.documents.get(path).allocations, [{ invoiceId: id, amountCents: 44747, mode: 'advance' }]);
+  assert.equal(await createInvoiceAtomically(h.firestore, 'owner', input, null, []), id);
+});
+
+test('bankselectie kan een al gefactureerd voorschot niet dubbel aftrekken', async () => {
+  const h = harness({ rows: [advance('advance', 500, 'betaald', 500)] });
+  const input = { ...h.params, bankAdvanceSelection: [{ transactionId: 'tx', amountCents: 50000 }] };
+  await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', input, null), /bestaande voorschotfactuur/);
+  assert.equal(h.commits.length, 0);
 });

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { noStoreHeaders, resolveBankIdentity } from '@/lib/bank-api-auth';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
-import { applyInvoiceBankPayment, InvoiceBankError, invoiceBankView, loadInvoiceBankContext, loadInvoiceBankVerification, reconcileInvoiceBankPaymentsAfterSync } from '@/lib/invoice-bank-payments';
+import { applyInvoiceBankPayment, InvoiceBankError, invoiceBankView, loadQuoteAdvanceBankView, loadInvoiceBankContext, loadInvoiceBankVerification, reconcileInvoiceBankPaymentsAfterSync } from '@/lib/invoice-bank-payments';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,6 +26,14 @@ export async function GET(request: Request): Promise<NextResponse> {
     const identity = await resolveBankIdentity(request);
     const params = new URL(request.url).searchParams;
     const { firestore } = initFirebaseAdmin();
+    if (params.get('view') === 'quote-advances') {
+      const quoteId = params.get('quoteId');
+      if (!quoteId || quoteId.includes('/')) throw new InvoiceBankError('Ongeldige offerte.', 400);
+      const { connected, lastSyncedAt, candidates } = await loadQuoteAdvanceBankView({
+        firestore, uid: identity.firebaseUid, bankUserId: identity.bankUserId, quoteId,
+      });
+      return NextResponse.json({ ok: true, data: { connected, lastSyncedAt, candidates } }, { headers: noStoreHeaders() });
+    }
     if (params.get('view') === 'overview') {
       const data = await loadInvoiceBankVerification({ firestore, uid: identity.firebaseUid, bankUserId: identity.bankUserId });
       return NextResponse.json({ ok: true, data }, { headers: noStoreHeaders() });

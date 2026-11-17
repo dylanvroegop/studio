@@ -1,4 +1,5 @@
 import { compareSharedQuoteAmount, isQuoteAmountConfirmed } from '@/lib/quote-shared-amount';
+import type { InvoiceBankCredit, InvoiceBankAllocation } from '@/lib/invoice-bank-matching';
 import { createHash } from 'node:crypto';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { buildInvoiceDocument, type CreateInvoiceParams } from '@/lib/invoice-document';
@@ -30,6 +31,7 @@ export async function createInvoiceAtomically(
   uid: string,
   input: CreateInvoiceParams,
   calculation: DataJson | null,
+  bankCredits: InvoiceBankCredit[] = [],
 ): Promise<string> {
   if (!input.quoteId || input.quoteId.includes('/') || !['voorschot', 'eind'].includes(input.invoiceType)) {
     throw new InvoiceCreationError('Ongeldige factuurgegevens.', 400);
@@ -148,7 +150,28 @@ export async function createInvoiceAtomically(
     if (!(total > 0) || amount(input.originalTotalInclBtw) !== amount(total)) {
       throw new InvoiceCreationError('Het offertebedrag is gewijzigd. Laad de factuurgegevens opnieuw.');
     }
-    const deduction = input.invoiceType === 'eind' ? billing.billedAdvanceAmount : 0;
+    const selected = input.bankAdvanceSelection || [];
+    if (selected.length && (combinedId || input.invoiceType !== 'eind' || billing.issuedAdvances.length)) {
+      throw new InvoiceCreationError('Koppel deze betalingen aan de bestaande voorschotfactuur.');
+    }
+    const credits = selected.map((row) => {
+      const credit = bankCredits.find((item) => item.id === row.transactionId);
+      if (!credit || credit.amountCents !== row.amountCents || credit.currency !== 'EUR' || !credit.bookingDate) {
+        throw new InvoiceCreationError('Een gekozen Knab-betaling is gewijzigd. Controleer de betalingen opnieuw.');
+      }
+      return credit;
+    });
+    if (new Set(credits.map((credit) => credit.key)).size !== credits.length) {
+      throw new InvoiceCreationError('Een voorschotbetaling is meermaals geselecteerd.');
+    }
+    const claims = await Promise.all(credits.map((credit) => tx.get(firestore.doc(`users/${uid}/invoiceBankAllocations/${credit.key}`))));
+    const activeIds = new Set(allInvoices.filter((row) => row.status !== 'geannuleerd').map((row) => row.id));
+    if (claims.some((claim) => claim.data()?.allocations?.some((item: InvoiceBankAllocation) =>
+      item.mode !== 'advance' || activeIds.has(item.invoiceId)))) {
+      throw new InvoiceCreationError('Een gekozen Knab-betaling is inmiddels gekoppeld. Controleer de betalingen opnieuw.');
+    }
+    const receivedCents = credits.reduce((sum, credit) => sum + credit.amountCents, 0);
+    const deduction = input.invoiceType === 'eind' ? billing.billedAdvanceAmount + receivedCents / 100 : 0;
     if (deduction > total + 0.005) throw new InvoiceCreationError('Het gefactureerde voorschot is hoger dan het offertebedrag. Controleer dit eerst.');
     const requested = amount(input.totalsInclBtw);
     if (requested === null || requested <= 0 || requested > total) throw new InvoiceCreationError('Vul een geldig factuurbedrag in.', 400);
@@ -201,6 +224,18 @@ export async function createInvoiceAtomically(
     if (frozenCalculation) payload.invoiceSnapshotVersion = 1;
     if (snapshots.length > 1) payload.financialAdjustments.voorschotFacturen = snapshots;
 
+    if (credits.length) {
+      payload.financialAdjustments.bankVoorschotten = credits.map((credit) => ({
+        transactionId: credit.id, amountCents: credit.amountCents, date: credit.bookingDate,
+        name: credit.name, description: credit.description,
+      }));
+      credits.forEach((credit, index) => tx.set(claims[index].ref, {
+        userId: uid, bankTransactionId: credit.id, amountCents: credit.amountCents,
+        currency: credit.currency, bookingDate: credit.bookingDate, counterpartyName: credit.name,
+        description: credit.description, updatedAt: timestamp,
+        allocations: [{ invoiceId: newInvoiceRef.id, amountCents: credit.amountCents, mode: 'advance' }],
+      }));
+    }
     tx.set(counterRef, { next: invoiceNumber + 1, userId: uid, updatedAt: timestamp }, { merge: true });
     tx.set(stageRef, { userId: uid, invoiceId: newInvoiceRef.id, previousInvoiceId: stageSnap.data()?.invoiceId || null, updatedAt: timestamp });
     tx.set(newInvoiceRef, payload);
