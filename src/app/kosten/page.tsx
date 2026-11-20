@@ -1,5 +1,6 @@
 'use client';
 
+import { KostenKnabAccountPicker } from '@/components/kosten/KostenKnabAccountPicker';
 import { KostenStartDate } from '@/components/kosten/KostenStartDate';
 import { KOSTEN_REPORT_START, isValidReportStart, isReportDate } from '@/lib/kosten-report-period';
 import { isCostWithoutDocument } from '@/lib/cost-document-filter';
@@ -1746,21 +1747,12 @@ function KostenPageContent() {
 
           {viewMode === 'pdfs' ? <div className="flex items-center gap-3"><Button type="button" variant="outline" size="sm" onClick={() => setViewMode('kosten')}>Terug naar kosten</Button><h2 className="text-sm font-semibold">PDF-bestanden</h2></div> : null}
 
-          {accountReady && (viewMode === 'kosten' || viewMode === 'pdfs' || viewMode === 'totalen')
-            && (knabAccounts.length > 1 || (error && knabAccounts.length > 0)) ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Label htmlFor="kosten-knab-rekening">Knab-rekening voor kosten</Label>
-              <Select value={requestedIban || (error ? '' : loadedKnabIban)} onValueChange={changeKnabAccount}>
-                <SelectTrigger id="kosten-knab-rekening" className="w-auto min-w-44 max-w-full">
-                  <SelectValue placeholder="Kies een rekening" />
-                </SelectTrigger>
-                <SelectContent>
-                  {knabAccounts.map(({ iban, name }) => (
-                    <SelectItem key={iban} value={iban}>{name} · {iban.slice(-4)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {accountReady && knabAccounts.length > 0 && (viewMode === 'kosten' || viewMode === 'pdfs' || viewMode === 'totalen') ? (
+            <KostenKnabAccountPicker
+              accounts={knabAccounts}
+              selectedIban={requestedIban || loadedKnabIban}
+              onSelect={changeKnabAccount}
+            />
           ) : null}
 
           {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} categories={filterOptions} loading={loading} error={error} onRetryCosts={retryCosts} onBankSynced={refreshCostsAfterChange} /> : null}

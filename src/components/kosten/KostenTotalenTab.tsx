@@ -305,7 +305,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
           {bankLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
           {bankLoading ? 'Knab bijwerken…' : 'Knab bijwerken'}
         </Button>
-        {bankReconnectRequired || bankError ? <Button type="button" variant={bankReconnectRequired ? 'default' : 'ghost'} className="min-h-11" disabled={bankLoading || bankConnecting} onClick={() => void connectKnab()}>{bankConnecting ? 'Knab openen…' : 'Knab opnieuw koppelen'}</Button> : null}
+        <Button type="button" variant={bankReconnectRequired ? 'default' : 'ghost'} className="min-h-11" disabled={bankLoading || bankConnecting} onClick={() => void connectKnab()}>{bankConnecting ? 'Knab openen…' : 'Knab opnieuw koppelen'}</Button>
       </div>
       {bankSyncedAt ? <p className="text-xs text-muted-foreground">Laatst bijgewerkt: {new Date(bankSyncedAt).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam', dateStyle: 'short', timeStyle: 'short' })}</p> : null}
       {bankReconnectRequired ? <p className="text-sm">Bevestig de Knab-koppeling opnieuw om actuele gegevens op te halen.</p> : null}
