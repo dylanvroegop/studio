@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getIdTokenResult } from 'firebase/auth';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Menu, X, FileText, Plus, Calculator, Receipt, ReceiptText, CalendarDays, Boxes, Clock3, ClipboardList, Mic, Settings } from 'lucide-react';
+import { Compass, Menu, X, FileText, Plus, Calculator, Receipt, ReceiptText, CalendarDays, Boxes, Clock3, ClipboardList, Mic, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -80,6 +80,13 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
         icon: Calculator,
         iconColorClass: 'text-teal-400',
         iconColorClassActive: 'text-teal-300',
+    },
+    {
+        href: '/vision',
+        label: 'Vision',
+        icon: Compass,
+        iconColorClass: 'text-emerald-400',
+        iconColorClassActive: 'text-emerald-300',
     },
     {
         href: '/planning',

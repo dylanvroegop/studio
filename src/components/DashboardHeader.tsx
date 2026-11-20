@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import {
   Archive,
+  Compass,
   BookOpen,
   Boxes,
   CalendarDays,
@@ -36,6 +37,7 @@ export function DashboardHeader({
 }) {
   const pathname = usePathname();
   const titleIconMeta = useMemo(() => {
+    if (pathname.startsWith('/vision')) return { icon: Compass, iconClassName: 'text-emerald-400' };
     if (pathname.startsWith('/dashboard')) {
       return {
         icon: LayoutDashboard,
