@@ -11,7 +11,7 @@ const { summarizeBankCostRows } = require('../src/lib/bank-cost-summary');
 const id = 'd9ca28ac-09a4-4f79-b5e5-b1b5d9324c01';
 const deposit = { id, date: '2026-09-09', amount: '1.250,50', description: '  Privéspaargeld  ', kind: 'deposit' };
 
-function setup() {
+function setup({ failOnceOnCompletion = false } = {}) {
   const deposits = new Map();
   const purchases = new Map();
   const scope = (uid) => ({
@@ -30,13 +30,22 @@ function setup() {
         get: async () => ({ data: () => deposits.get(key) }),
         update: async (value) => {
           assert.ok(deposits.has(key));
-          deposits.set(key, value);
+          if (value.converted && failOnceOnCompletion) {
+            failOnceOnCompletion = false;
+            throw new Error('Firestore tijdelijk onbereikbaar');
+          }
+          deposits.set(key, { ...deposits.get(key), ...value });
         },
         delete: async () => deposits.delete(key),
       };
     },
   });
   const firestore = {
+    runTransaction: (operation) => operation({
+      get: (ref) => ref.get(),
+      update: (ref, data) => ref.update(data),
+      delete: (ref) => ref.delete(),
+    }),
     collection: (name) => {
       assert.equal(name, 'users');
       return { doc: (uid) => ({ collection: (name) => {
@@ -136,4 +145,35 @@ test('privé betaalde investering zonder bon telt één keer als kosten en wordt
   assert.equal(summary.counts.alle, 1);
   assert.equal(summary.totals.gereedschap, 699.99);
   assert.equal(summary.privateSummary.depositTotal, 0);
+});
+
+test('omzetten verplaatst de bestaande privé-inleg naar Investering en behoudt datum en bedrag', async () => {
+  const { request, purchases } = setup();
+  const conversion = { ...deposit, kind: 'private-purchase', editing: true, category: 'gereedschap' };
+  assert.equal((await request('POST', deposit)).status, 200);
+  assert.equal((await request('POST', conversion, 'other')).status, 404);
+  assert.equal((await request('POST', conversion)).status, 200);
+  assert.equal((await request('POST', conversion)).status, 200);
+  assert.equal(purchases.size, 1);
+  assert.deepEqual((await (await request('GET')).json()).deposits, []);
+  const row = mapProjectCostRow(purchases.get(id));
+  assert.equal(row.date, deposit.date);
+  assert.equal(row.description, 'Privéspaargeld');
+  assert.equal(summarizeBankCostRows([row]).totals.gereedschap, 1250.50);
+});
+
+test('een onderbroken omzetting kan worden hervat zonder dubbele aankoop of inleg', async (t) => {
+  t.mock.method(console, 'error', () => undefined);
+  const { request, purchases } = setup({ failOnceOnCompletion: true });
+  const conversion = { ...deposit, kind: 'private-purchase', editing: true, category: 'materiaal' };
+  assert.equal((await request('POST', deposit)).status, 200);
+  assert.equal((await request('POST', conversion)).status, 500);
+  assert.equal(purchases.size, 1);
+  const pending = (await (await request('GET')).json()).deposits[0];
+  assert.equal(pending.conversion.category, 'materiaal');
+  assert.equal((await request('POST', { ...conversion, category: 'gereedschap' })).status, 409);
+  assert.equal((await request('DELETE', { id })).status, 409);
+  assert.equal((await request('POST', conversion)).status, 200);
+  assert.equal(purchases.size, 1);
+  assert.deepEqual((await (await request('GET')).json()).deposits, []);
 });

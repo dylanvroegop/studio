@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
 import { extractBearerToken, noStoreHeaders, resolveUid } from '@/lib/bank-api-auth';
-import { CASH_ID, cashPurchaseReference, parseCashEntry, type CashDeposit } from '@/lib/kosten-cash';
+import { CASH_ID, cashPurchaseReference, parseCashEntry, type CashDeposit, type CashPurchase } from '@/lib/kosten-cash';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const runtime = 'nodejs';
@@ -29,10 +29,10 @@ async function handle(request: Request): Promise<NextResponse> {
     if (request.method === 'GET') {
       const snap = await initFirebaseAdmin().firestore.collection('users').doc(uid)
         .collection('cash_deposits').orderBy('date', 'desc').get();
-      const deposits = snap.docs.map((doc): CashDeposit => {
-        const { date, amountCents, description } = doc.data();
-        return { id: doc.id, date, amountCents, description };
-      });
+      const deposits = snap.docs.map((doc): CashDeposit | null => {
+        const { date, amountCents, description, conversion, converted } = doc.data();
+        return converted ? null : { id: doc.id, date, amountCents, description, conversion };
+      }).filter((deposit): deposit is CashDeposit => deposit !== null);
       return NextResponse.json({ ok: true, deposits }, { headers: noStoreHeaders() });
     }
     const body = await request.json().catch(() => null);
@@ -40,8 +40,15 @@ async function handle(request: Request): Promise<NextResponse> {
 
     if (request.method === 'DELETE') {
       if (typeof body.id !== 'string' || !CASH_ID.test(body.id)) return failure('Ongeldig boekingskenmerk.', 400);
-      const ref = initFirebaseAdmin().firestore.collection('users').doc(uid).collection('cash_deposits').doc(body.id);
-      await ref.delete();
+      const { firestore } = initFirebaseAdmin();
+      const ref = firestore.collection('users').doc(uid).collection('cash_deposits').doc(body.id);
+      const removed = await firestore.runTransaction(async (transaction) => {
+        const existing = (await transaction.get(ref)).data();
+        if (existing?.conversion) return false;
+        transaction.delete(ref);
+        return true;
+      });
+      if (!removed) return failure('Deze inleg wordt omgezet. Open de boeking om de omzetting af te ronden.', 409);
       return NextResponse.json({ ok: true }, { headers: noStoreHeaders() });
     }
 
@@ -49,23 +56,50 @@ async function handle(request: Request): Promise<NextResponse> {
     const entry = parseCashEntry(body, today);
     if (typeof entry === 'string') return failure(entry, 400);
 
+    const { firestore } = initFirebaseAdmin();
+    const ref = firestore.collection('users').doc(uid).collection('cash_deposits').doc(entry.id);
     if (entry.kind === 'deposit') {
-      const ref = initFirebaseAdmin().firestore.collection('users').doc(uid).collection('cash_deposits').doc(entry.id);
       const data = { date: entry.date, amountCents: entry.amountCents, description: entry.description };
       if (entry.editing) {
-        await ref.update(data);
+        const updated = await firestore.runTransaction(async (transaction) => {
+          const existing = (await transaction.get(ref)).data();
+          if (!existing || existing.conversion) return false;
+          transaction.update(ref, data);
+          return true;
+        });
+        if (!updated) return failure('Deze privé-inleg is niet meer beschikbaar om te bewerken.', 409);
       } else {
         try {
           await ref.create(data);
         } catch (error) {
           if ((error as { code?: number })?.code !== 6) throw error;
           const existing = (await ref.get()).data();
-          if (!existing || existing.date !== data.date || existing.amountCents !== data.amountCents || existing.description !== data.description) {
+          if (!existing || existing.conversion || existing.date !== data.date || existing.amountCents !== data.amountCents || existing.description !== data.description) {
             return failure('Deze inleg is al opgeslagen. Open de regel om deze te wijzigen.', 409);
           }
         }
       }
     } else {
+      if (entry.editing) {
+        if (entry.kind !== 'private-purchase') return failure('Kies een contante aankoop uit privégeld.', 400);
+        // Bewaar de omzetting vóór de kost wordt toegevoegd, zodat een nieuwe poging dezelfde boeking afrondt.
+        const state = await firestore.runTransaction(async (transaction) => {
+          const existing = (await transaction.get(ref)).data();
+          if (!existing) return 'missing';
+          const previous = existing.conversion as CashPurchase | undefined;
+          if (previous) {
+            const same = previous.kind === entry.kind && previous.date === entry.date && previous.amountCents === entry.amountCents
+              && previous.description === entry.description && previous.category === entry.category && previous.supplier === entry.supplier;
+            return same ? (existing.converted ? 'completed' : 'ready') : 'changed';
+          }
+          transaction.update(ref, { conversion: entry });
+          return 'ready';
+        });
+        if (state === 'completed') return NextResponse.json({ ok: true }, { headers: noStoreHeaders() });
+        if (state === 'missing') return failure('Deze privé-inleg bestaat niet meer.', 404);
+        if (state === 'changed') return failure('Deze inleg is al gewijzigd. Open de boeking opnieuw om de omzetting af te ronden.', 409);
+      }
+
       const amount = entry.amountCents / 100;
       const reference = cashPurchaseReference(entry.id, entry.kind === 'private-purchase');
       const values = {
@@ -98,6 +132,7 @@ async function handle(request: Request): Promise<NextResponse> {
           return failure('Deze boeking is al opgeslagen. Open de kost om deze te wijzigen.', 409);
         }
       }
+      if (entry.editing) await ref.update({ converted: true });
     }
 
     return NextResponse.json({ ok: true }, { headers: noStoreHeaders() });

@@ -11,12 +11,18 @@ export interface CashDeposit {
   date: string;
   amountCents: number;
   description: string;
+  conversion?: CashPurchase;
 }
 
-export type CashEntry = CashDeposit & (
-  | { kind: 'deposit'; editing: boolean }
-  | { kind: 'private-purchase' | 'business-purchase'; supplier: string; category: ProjectCostCategory }
-);
+type CashFields = Omit<CashDeposit, 'conversion'>;
+export type CashPurchase = CashFields & {
+  kind: 'private-purchase' | 'business-purchase';
+  supplier: string;
+  category: ProjectCostCategory;
+  editing: boolean;
+};
+
+export type CashEntry = (CashFields & { kind: 'deposit'; editing: boolean }) | CashPurchase;
 
 export function parseCashEntry(input: Record<string, unknown>, today: string): CashEntry | string {
   if (typeof input.id !== 'string' || !CASH_ID.test(input.id)) return 'Ongeldig boekingskenmerk. Open het invoerscherm opnieuw.';
@@ -34,7 +40,7 @@ export function parseCashEntry(input: Record<string, unknown>, today: string): C
   if (!category) return 'Kies een geldige kostencategorie.';
   const supplier = typeof input.supplier === 'string' ? input.supplier.trim() : '';
   if (supplier.length > 160) return 'Gebruik maximaal 160 tekens voor de leverancier.';
-  return { ...base, kind: input.kind, category, supplier };
+  return { ...base, kind: input.kind, category, supplier, editing: input.editing === true };
 }
 
 export function cashPurchaseReference(id: string, fromPrivate: boolean): string {

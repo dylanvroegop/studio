@@ -28,6 +28,7 @@ interface Props {
   costs: ProjectCostRow[];
   privateCredits: ProjectCostRow[];
   cashDeposits: CashDeposit[] | null;
+  onManageCashDeposits: () => void;
   categories: Array<{ value: BankCostFilter; label: string }>;
   loading: boolean;
   error: string | null;
@@ -36,7 +37,7 @@ interface HoursResponse { adjustments: Array<{ start_date: string; end_date: str
 const euro = (value: number): string => value.toLocaleString('nl-NL', { style: 'currency', currency: 'EUR' });
 const hours = (minutes: number | null): string => minutes === null ? 'n.b.' : `${Math.floor(Math.round(minutes) / 60)} u ${Math.round(minutes) % 60} min`;
 
-export function KostenTotalenTab({ costs, privateCredits, cashDeposits, categories, loading, error, startDate, onStartDateChange, onBankSynced, onRetryCosts }: Props) {
+export function KostenTotalenTab({ costs, privateCredits, cashDeposits, onManageCashDeposits, categories, loading, error, startDate, onStartDateChange, onBankSynced, onRetryCosts }: Props) {
   const { user } = useUser();
   const [month, setMonth] = useState('all');
   const [reductions, setReductions] = useState<Partial<Record<ProjectCostCategory, string>>>({});
@@ -254,8 +255,8 @@ export function KostenTotalenTab({ costs, privateCredits, cashDeposits, categori
     privateCredits.filter((row) => isReportDate(row.date, month, today, startDate)),
   ), [costs, privateCredits, month, today, startDate]);
   const summary = bankSummary;
-  const depositTotal = cashDeposits?.filter((entry) => isReportDate(entry.date, month, today, startDate))
-    .reduce((sum, entry) => sum + entry.amountCents, 0);
+  const periodDeposits = cashDeposits?.filter((entry) => !entry.conversion && isReportDate(entry.date, month, today, startDate));
+  const depositTotal = periodDeposits?.reduce((sum, entry) => sum + entry.amountCents, 0);
   const privatePurchaseTotal = costs.filter((cost) => isPrivateCashPurchase(cost) && isReportDate(cost.date, month, today, startDate))
     .reduce((sum, cost) => sum + Math.round(cost.amount_incl_btw * 100), 0);
   const requestedReductions = Object.fromEntries(Object.entries(reductions).map(([category, raw]) => [category,
@@ -334,7 +335,17 @@ export function KostenTotalenTab({ costs, privateCredits, cashDeposits, categori
               const costColor = value === 'alle' || totalCents <= 0 ? ''
                 : reductionCents === totalCents ? 'text-emerald-400' : 'text-red-400';
               return <tr key={value} className={`border-b border-border/50 ${value === 'alle' ? 'font-semibold' : costColor}`}><td className="px-2 py-2 text-center">{value !== 'alle' ? <Checkbox aria-label={`${label} helemaal weglaten`} className={costColor === 'text-red-400' ? 'border-red-400' : undefined} disabled={summary.totals[value] <= 0} checked={reductions[value] === 'all'} onCheckedChange={(checked) => setReductions((current) => ({ ...current, [value]: checked === true ? 'all' : '' }))} /> : null}</td><td className="px-3 py-2">{value === 'alle' ? 'Totaal uitgaven' : value === 'eigen_verbruik' ? 'Privé-opnames (netto)' : label}</td><td className={cell}>{euro(summary.totals[value])}</td><td className={cell}>{summary.counts[value]}</td><td className="px-2 py-2">{value !== 'alle' ? <Input type="text" inputMode="decimal" aria-label={`${label} minder in euro`} placeholder="0,00" value={reductions[value] === 'all' ? Math.max(0, summary.totals[value]).toFixed(2).replace('.', ',') : reductions[value] || ''} onChange={(event) => setReductions((current) => ({ ...current, [value]: event.target.value }))} className={`h-8 w-28 text-right tabular-nums ${costColor}`} /> : null}</td></tr>;
-            })}</tbody>
+            })}
+              <tr className="border-b border-border/50">
+                <td />
+                <td className="px-3 py-2">
+                  <button type="button" className="text-left underline underline-offset-4" onClick={onManageCashDeposits}>Contante privé-inleg</button>
+                </td>
+                <td className={cell}>{depositTotal === undefined ? 'n.b.' : euro(depositTotal / 100)}</td>
+                <td className={cell}>{periodDeposits?.length ?? '—'}</td>
+                <td className="px-2 py-2"><Button type="button" size="sm" variant="outline" onClick={onManageCashDeposits}>Bewerken</Button></td>
+              </tr>
+            </tbody>
           </table></div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
             <label htmlFor="extra-monthly-fixed" className="text-sm">Extra vaste lasten per maand</label>
@@ -351,7 +362,7 @@ export function KostenTotalenTab({ costs, privateCredits, cashDeposits, categori
             <span className="text-sm tabular-nums">{bankBalance !== null ? euro(bankBalance) : bankLoading ? 'Laden…' : 'n.b.'}</span>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 px-3 text-sm">
-            <span>Contante privé-inleg in kas</span>
+            <button type="button" className="text-left underline underline-offset-4" onClick={onManageCashDeposits}>Contante privé-inleg in kas</button>
             <span className="tabular-nums">{depositTotal === undefined ? 'n.b.' : euro(depositTotal / 100)}</span>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 px-3 text-sm">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type RefObject, type SetStateAction } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -15,7 +15,8 @@ interface Props {
   user: { uid: string; getIdToken(forceRefresh?: boolean): Promise<string> };
   today: string;
   deposits: CashDeposit[] | null;
-  onDepositsLoaded: (deposits: CashDeposit[]) => void;
+  depositsRef: RefObject<HTMLDetailsElement>;
+  onDepositsLoaded: Dispatch<SetStateAction<CashDeposit[] | null>>;
   onPurchaseSaved: () => Promise<void>;
 }
 
@@ -38,7 +39,7 @@ interface Draft {
 
 const euros = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' });
 
-export function KostenCashEntries({ user, today, deposits, onDepositsLoaded, onPurchaseSaved }: Props) {
+export function KostenCashEntries({ user, today, deposits, depositsRef, onDepositsLoaded, onPurchaseSaved }: Props) {
   const { toast } = useToast();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -96,11 +97,13 @@ export function KostenCashEntries({ user, today, deposits, onDepositsLoaded, onP
   function open(deposit?: CashDeposit) {
     setFormError('');
     setRemove(false);
-    setKindLocked(false);
+    const pending = deposit?.conversion;
+    const source = pending || deposit;
+    setKindLocked(Boolean(pending));
     setDraft({
-      id: deposit?.id || crypto.randomUUID(), kind: 'deposit', date: deposit?.date || today,
-      amount: deposit ? (deposit.amountCents / 100).toFixed(2).replace('.', ',') : '',
-      description: deposit?.description || '', supplier: '', category: '', editing: Boolean(deposit),
+      id: deposit?.id || crypto.randomUUID(), kind: pending?.kind || 'deposit', date: source?.date || today,
+      amount: source ? (source.amountCents / 100).toFixed(2).replace('.', ',') : '',
+      description: source?.description || '', supplier: pending?.supplier || '', category: pending?.category || '', editing: Boolean(deposit),
     });
   }
 
@@ -119,13 +122,14 @@ export function KostenCashEntries({ user, today, deposits, onDepositsLoaded, onP
       await request(remove ? 'DELETE' : 'POST', draft);
       setDraft(null);
       toast({ title: remove ? 'Privé-inleg verwijderd' : draft.kind === 'deposit' ? 'Privé-inleg opgeslagen' : 'Contante aankoop opgeslagen' });
-      if (draft.kind === 'deposit') {
-        if (mounted.current) await loadDeposits();
-      } else {
-        await onPurchaseSaved().catch(() => undefined);
+      if (mounted.current && (draft.kind === 'deposit' || draft.editing)) {
+        if (remove || draft.kind !== 'deposit') onDepositsLoaded((current) => current?.filter(({ id }) => id !== draft.id) ?? null);
+        await loadDeposits();
       }
+      if (draft.kind !== 'deposit') await onPurchaseSaved().catch(() => undefined);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'De boeking kon niet worden opgeslagen.');
+      if (mounted.current && draft.editing && draft.kind !== 'deposit') void loadDeposits();
     } finally {
       submitPending.current = false;
       setSaving(false);
@@ -136,23 +140,26 @@ export function KostenCashEntries({ user, today, deposits, onDepositsLoaded, onP
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-3">
         <Button type="button" variant="outline" disabled={saving} onClick={() => open()}>Contant boeken</Button>
+      </div>
+      <details ref={depositsRef} className="min-w-0 scroll-mt-24 rounded-lg border border-border px-3 text-sm">
+        <summary className="cursor-pointer py-2 font-medium">Contante privé-inleg{deposits ? ` (${deposits.length})` : ''}</summary>
         {deposits?.length ? (
-          <details className="min-w-0 max-w-full text-sm">
-            <summary className="cursor-pointer py-2 text-muted-foreground">Contante privé-inleg ({deposits.length})</summary>
             <ul className="mt-1 max-h-56 min-w-0 space-y-1 overflow-y-auto">
               {deposits.map((deposit) => (
                 <li key={deposit.id}>
                   <button type="button" className="flex w-full flex-wrap gap-x-3 rounded px-2 py-2 text-left hover:bg-muted" disabled={saving} onClick={() => open(deposit)}>
                     <span>{new Date(`${deposit.date}T12:00:00`).toLocaleDateString('nl-NL')}</span>
                     <span className="font-medium">{euros.format(deposit.amountCents / 100)}</span>
-                    {deposit.description ? <span className="break-words text-muted-foreground">{deposit.description}</span> : null}
+                    {deposit.description ? <span className="min-w-0 break-words text-muted-foreground">{deposit.description}</span> : null}
+                    <span className="ml-auto font-medium underline underline-offset-4">{deposit.conversion ? 'Omzetting afronden' : 'Bewerken'}</span>
                   </button>
                 </li>
               ))}
             </ul>
-          </details>
-        ) : null}
-      </div>
+        ) : (
+          <p className="pb-2 text-muted-foreground">{deposits ? 'Geen contante privé-inleg geboekt.' : listError ? 'Privé-inleg kon niet worden geladen.' : 'Privé-inleg laden…'}</p>
+        )}
+      </details>
       {listError ? (
         <div className="flex flex-wrap items-center gap-2">
           <p role="alert" className="text-sm text-red-400">{listError}</p>
@@ -171,53 +178,56 @@ export function KostenCashEntries({ user, today, deposits, onDepositsLoaded, onP
             </DialogHeader>
             <form onSubmit={(event) => void save(event)}>
               <fieldset disabled={saving} className="min-w-0 space-y-4">
-                {!draft.editing ? (
+                <fieldset disabled={draft.editing && draft.kind !== 'deposit' && kindLocked} className="min-w-0 space-y-4">
                   <div className="space-y-1">
                     <Label htmlFor="cash-entry-kind">Boeking</Label>
                     <select id="cash-entry-kind" disabled={kindLocked} className="flex min-h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.kind} onChange={(event) => {
                       const option = entryOptions.find(({ value }) => value === event.target.value);
                       if (option) setDraft({ ...draft, kind: option.value });
                     }}>
-                      {entryOptions.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                      {entryOptions.filter(({ value }) => !draft.editing || value !== 'business-purchase').map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                     </select>
                   </div>
-                ) : null}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="min-w-0 space-y-1">
-                    <Label htmlFor="cash-entry-date">Datum</Label>
-                    <Input id="cash-entry-date" type="date" max={today} value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} required />
-                  </div>
-                  <div className="min-w-0 space-y-1">
-                    <Label htmlFor="cash-entry-amount">Bedrag (€)</Label>
-                    <Input id="cash-entry-amount" type="text" inputMode="decimal" placeholder="0,00" value={draft.amount} onChange={(event) => setDraft({ ...draft, amount: event.target.value })} required />
-                  </div>
-                </div>
-                {draft.kind !== 'deposit' ? (
-                  <>
-                    <div className="space-y-1">
-                      <Label htmlFor="cash-entry-category">Categorie</Label>
-                      <select id="cash-entry-category" className="flex min-h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} required>
-                        <option value="" disabled>Kies een categorie</option>
-                        {CASH_PURCHASE_CATEGORIES.map((category) => <option key={category} value={category}>{PROJECT_COST_CATEGORY_LABELS[category]}</option>)}
-                      </select>
+                  {draft.editing && draft.kind === 'private-purchase' ? (
+                    <p className="text-sm text-muted-foreground">Deze inleg verhuist naar de gekozen kostencategorie.</p>
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <Label htmlFor="cash-entry-date">Datum</Label>
+                      <Input id="cash-entry-date" type="date" max={today} value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} required />
                     </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="cash-entry-supplier">Leverancier (optioneel)</Label>
-                      <Input id="cash-entry-supplier" maxLength={160} value={draft.supplier} onChange={(event) => setDraft({ ...draft, supplier: event.target.value })} />
+                    <div className="min-w-0 space-y-1">
+                      <Label htmlFor="cash-entry-amount">Bedrag (€)</Label>
+                      <Input id="cash-entry-amount" type="text" inputMode="decimal" placeholder="0,00" value={draft.amount} onChange={(event) => setDraft({ ...draft, amount: event.target.value })} required />
                     </div>
-                  </>
-                ) : null}
-                <div className="space-y-1">
-                  <Label htmlFor="cash-entry-description">{draft.kind === 'deposit' ? 'Omschrijving (optioneel)' : 'Wat heb je gekocht?'}</Label>
-                  <Textarea id="cash-entry-description" maxLength={500} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} required={draft.kind !== 'deposit'} />
-                </div>
+                  </div>
+                  {draft.kind !== 'deposit' ? (
+                    <>
+                      <div className="space-y-1">
+                        <Label htmlFor="cash-entry-category">Categorie</Label>
+                        <select id="cash-entry-category" className="flex min-h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} required>
+                          <option value="" disabled>Kies een categorie</option>
+                          {CASH_PURCHASE_CATEGORIES.map((category) => <option key={category} value={category}>{PROJECT_COST_CATEGORY_LABELS[category]}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="cash-entry-supplier">Leverancier (optioneel)</Label>
+                        <Input id="cash-entry-supplier" maxLength={160} value={draft.supplier} onChange={(event) => setDraft({ ...draft, supplier: event.target.value })} />
+                      </div>
+                    </>
+                  ) : null}
+                  <div className="space-y-1">
+                    <Label htmlFor="cash-entry-description">{draft.kind === 'deposit' ? 'Omschrijving (optioneel)' : 'Wat heb je gekocht?'}</Label>
+                    <Textarea id="cash-entry-description" maxLength={500} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} required={draft.kind !== 'deposit'} />
+                  </div>
+                </fieldset>
                 {formError ? <p role="alert" className="text-sm text-red-400">{formError}</p> : null}
                 {remove ? <p className="text-sm">Deze privé-inleg verwijderen?</p> : null}
                 <DialogFooter>
-                  {draft.editing && !remove ? <Button type="button" variant="outline" disabled={saving} onClick={() => setRemove(true)}>Verwijderen</Button> : null}
+                  {draft.editing && draft.kind === 'deposit' && !remove ? <Button type="button" variant="outline" disabled={saving} onClick={() => setRemove(true)}>Verwijderen</Button> : null}
                   {remove ? <Button type="button" variant="outline" disabled={saving} onClick={() => setRemove(false)}>Annuleren</Button> : null}
                   <Button type="submit" variant={remove ? 'destructive' : 'default'} disabled={saving} formNoValidate={remove}>
-                    {saving ? 'Bezig…' : remove ? 'Inleg verwijderen' : 'Opslaan'}
+                    {saving ? 'Bezig…' : remove ? 'Inleg verwijderen' : draft.editing && draft.kind !== 'deposit' ? 'Omzetten' : 'Opslaan'}
                   </Button>
                 </DialogFooter>
               </fieldset>

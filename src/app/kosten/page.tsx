@@ -618,6 +618,7 @@ function KostenPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [costReloadVersion, setCostReloadVersion] = useState(0);
   const [costs, setCosts] = useState<ProjectCostRow[]>([]);
+  const cashDepositDetails = useRef<HTMLDetailsElement>(null);
   const [cashDeposits, setCashDeposits] = useState<CashDeposit[] | null>(null);
   const [privateCredits, setPrivateCredits] = useState<ProjectCostRow[]>([]);
   const [knabAccount, setKnabAccount] = useState<{ uid: string; iban: string } | null>(null);
@@ -1763,10 +1764,16 @@ function KostenPageContent() {
 
           {viewMode === QUICK_ADD_TAB_ID || viewMode === 'kosten' || viewMode === 'totalen' ? (
             <KostenCashEntries key={user.uid} user={user} today={reportToday} deposits={cashDeposits}
-              onDepositsLoaded={setCashDeposits} onPurchaseSaved={refreshCostsAfterChange} />
+              depositsRef={cashDepositDetails} onDepositsLoaded={setCashDeposits} onPurchaseSaved={refreshCostsAfterChange} />
           ) : null}
 
-          {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} cashDeposits={cashDeposits} categories={filterOptions} loading={loading} error={error} onRetryCosts={retryCosts} onBankSynced={refreshCostsAfterChange} /> : null}
+          {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} cashDeposits={cashDeposits} onManageCashDeposits={() => {
+            const details = cashDepositDetails.current;
+            if (!details) return;
+            details.open = true;
+            details.querySelector('summary')?.focus({ preventScroll: true });
+            details.scrollIntoView({ block: 'start' });
+          }} categories={filterOptions} loading={loading} error={error} onRetryCosts={retryCosts} onBankSynced={refreshCostsAfterChange} /> : null}
 
           <input
             ref={quickPhotoInputRef}
