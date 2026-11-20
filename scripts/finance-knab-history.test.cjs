@@ -310,6 +310,8 @@ test('kosten-API geeft rekeningkeuze terug en laadt daarna alleen die rekening',
     '@/lib/finance-bank-ledger': loadLedger(client),
     '@/lib/project-costs': projectCosts,
     '@/lib/knab-cost-list': { buildKnabCostList },
+    '@/lib/bank-category-review-targets': { bankCategoryReviewTargets: () => [] },
+    '@/lib/finance-bank-category-ai': { applyBankCategoryAi: async () => ({ pending: false, changed: 0 }) },
     '@/lib/bank-user-id': { deriveBankUserId: uid => uid },
     '@/lib/supabase-admin': { supabaseAdmin: client, fetchWithSupabaseClockSkewRetry: async () => Response.json([{
       id: 'cash', user_id: 'owner', status: 'paid_cash', supplier_order_number: 'manual-cash-private-cash',

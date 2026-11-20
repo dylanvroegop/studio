@@ -1,3 +1,5 @@
+import { applyBankCategoryAi } from '@/lib/finance-bank-category-ai';
+import { bankCategoryReviewTargets } from '@/lib/bank-category-review-targets';
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
@@ -172,6 +174,22 @@ async function handleList(request: Request) {
       categoryOverrides,
     });
 
+    let ai = { pending: false, changed: 0 };
+    try {
+      const targets = bankCategoryReviewTargets(data, bankLedgerRows);
+      ai = await applyBankCategoryAi(uid, targets, categoryOverrides, false);
+      const byId = new Map(targets.map((row) => [row.bank_transaction_id, row.category]));
+      for (const row of data) {
+        const category = byId.get(row.paid_bank_transaction_id || '');
+        if (category && category !== 'overig') {
+          row.category = category;
+          row.bank_category = category;
+        }
+      }
+    } catch (error) {
+      console.warn('[kosten/list] AI-categorieën konden niet worden gelezen', error);
+    }
+
     return NextResponse.json({
       ok: true,
       // Handmatig toegevoegde cashregels staan los van de Knab-reconciliatie.
@@ -181,7 +199,7 @@ async function handleList(request: Request) {
       bankReconciliation,
       bankHistory: knabHistory.metadata,
       accounts: knabHistory.accounts,
-      ai: { pending: false, changed: 0 },
+      ai,
       aiError: null,
     }, { headers: noStoreHeaders() });
   } catch (error) {
