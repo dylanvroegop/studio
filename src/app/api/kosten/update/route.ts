@@ -3,6 +3,7 @@ import { rememberCategoryCorrections } from '@/lib/purchase-product-category-ser
 import { NextResponse } from 'next/server';
 
 import { initFirebaseAdmin } from '@/firebase/admin';
+import { CASH_PURCHASE_CATEGORIES } from '@/lib/kosten-cash';
 import { costQuoteId } from '@/lib/cost-import-routing';
 import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
@@ -10,6 +11,8 @@ import {
   linkTaxDocumentToCosts,
 } from '@/lib/tax-document-archive';
 import {
+  isManualCashPurchase,
+  isSupportingProjectCostReceipt,
   mapProjectCostRow,
   normalizeProjectCostCategory,
   normalizeProjectCostLineItems,
@@ -268,7 +271,7 @@ export async function POST(request: Request) {
 
     const existing = await supabaseAdmin
       .from('project_costs')
-      .select('id,user_id,status,offerte_id,line_items,payment_type,payment_status,due_date,supplier_invoice_number,reconciliation_group_id,source_email,source_filename')
+      .select('id,user_id,status,offerte_id,line_items,payment_type,payment_status,due_date,supplier_order_number,supplier_invoice_number,reconciliation_group_id,source_email,source_filename')
       .eq('id', costId)
       .maybeSingle();
 
@@ -289,6 +292,12 @@ export async function POST(request: Request) {
     }
 
     const category = normalizeProjectCostCategory(input.category);
+    const manualCash = isManualCashPurchase({
+      status: safeString(existing.data.status), supplier_order_number: safeString(existing.data.supplier_order_number),
+    });
+    if (manualCash && !CASH_PURCHASE_CATEGORIES.some((allowed) => allowed === category)) {
+      return NextResponse.json({ ok: false, message: 'Kies een zakelijke kostencategorie voor deze contante aankoop.' }, { status: 422 });
+    }
     const description = safeString(input.description) || supplierName;
     const rawOfferteReference = safeString(input.offerte_id);
     let offerteId: string | null = null;
@@ -331,6 +340,12 @@ export async function POST(request: Request) {
     const date = dateOnly(input.date);
     const receiptUrl = safeString(input.receipt_url) || null;
     const receiptFiles = normalizeProjectCostReceiptFiles(input.receipt_files, receiptUrl);
+    if (manualCash && (amountIncl <= 0 || amountExcl <= 0)) {
+      return NextResponse.json({ ok: false, message: 'Vul een positief bedrag in voor deze aankoop.' }, { status: 422 });
+    }
+    if (manualCash && (btwAmount !== 0 || btwPercentage !== 0) && !receiptFiles.some(isSupportingProjectCostReceipt)) {
+      return NextResponse.json({ ok: false, message: 'Voeg de bon of factuur toe voordat je btw vastlegt.' }, { status: 422 });
+    }
     // Een gewone inhoudelijke bewerking mag bevestigd contant niet wissen.
     const status = existing.data.status === 'paid_cash' ? 'paid_cash' : safeString(input.status) || 'confirmed';
     // Keep reconciliation metadata when an older edit form does not send the
@@ -346,8 +361,9 @@ export async function POST(request: Request) {
     // separate cost row per quote so each quote overview receives only its lines.
     const routedLineItems = lineItems.map((item) => ({
       ...item,
-      category: normalizeProjectCostCategory(item.category || category),
-      offerte_id: costQuoteId(normalizeProjectCostCategory(item.category || category), safeString(item.offerte_id) || offerteId),
+      category: manualCash ? category : normalizeProjectCostCategory(item.category || category),
+      offerte_id: manualCash ? costQuoteId(category, offerteId)
+        : costQuoteId(normalizeProjectCostCategory(item.category || category), safeString(item.offerte_id) || offerteId),
     }));
     const groupedEntries = new Map<string, {
       category: ReturnType<typeof normalizeProjectCostCategory>;
@@ -491,11 +507,11 @@ export async function POST(request: Request) {
       receipt_files: receiptFiles,
       status,
       payment_type: payment.paymentType,
-      payment_status: payment.paymentStatus,
-      due_date: payment.dueDate,
+      payment_status: manualCash ? 'paid' : payment.paymentStatus,
+      due_date: manualCash ? null : payment.dueDate,
       supplier_invoice_number: payment.invoiceNumber,
       reconciliation_group_id: payment.reconciliationGroupId,
-      reconciliation_status: payment.paymentType === 'bon' || payment.paymentType === 'private' ? 'not_applicable' : 'unmatched',
+      reconciliation_status: manualCash || payment.paymentType === 'bon' || payment.paymentType === 'private' ? 'not_applicable' : 'unmatched',
       source_email: sourceEmail,
       source_filename: sourceFilename,
       updated_at: new Date().toISOString(),

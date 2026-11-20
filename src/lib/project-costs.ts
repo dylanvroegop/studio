@@ -109,6 +109,12 @@ export interface ProjectCostRow {
   updated_at: string;
 }
 
+export const MANUAL_CASH_PREFIX = 'manual-cash-';
+
+export function isManualCashPurchase(cost: Pick<ProjectCostRow, 'status' | 'supplier_order_number'>): boolean {
+  return cost.status === 'paid_cash' && Boolean(cost.supplier_order_number?.startsWith(MANUAL_CASH_PREFIX));
+}
+
 export const PROJECT_COST_CATEGORY_LABELS: Record<ProjectCostCategory, string> = {
   materiaal: 'Materiaal',
   autokosten: 'Autokosten',
@@ -559,7 +565,10 @@ export function extractOfferteReferenceFromExtraction(raw: unknown): string | nu
 
 export function mapProjectCostRow(input: unknown): ProjectCostRow {
   const row = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
-  const rentalCategory = isRentalSupplier(safeString(row.supplier_name))
+  const manualCash = isManualCashPurchase({
+    status: safeString(row.status), supplier_order_number: safeString(row.supplier_order_number),
+  });
+  const rentalCategory = !manualCash && isRentalSupplier(safeString(row.supplier_name))
     && ['materiaal', 'gereedschap', 'overig', 'huur'].includes(normalizeProjectCostCategory(row.category));
   const lineItems = normalizeProjectCostLineItems(row.line_items).map((item) =>
     rentalCategory ? { ...item, category: 'huur' as ProjectCostCategory } : item);
@@ -578,7 +587,7 @@ export function mapProjectCostRow(input: unknown): ProjectCostRow {
     id: safeString(row.id),
     user_id: safeString(row.user_id),
     offerte_id: safeString(row.offerte_id) || null,
-    category: rentalCategory ? 'huur' : normalizeProjectCostCategory(row.category) === 'overig'
+    category: rentalCategory ? 'huur' : !manualCash && normalizeProjectCostCategory(row.category) === 'overig'
       && inferProjectCostCategory({ supplierName: safeString(row.supplier_name), description: safeString(row.description) }) === 'storage'
       ? 'storage'
       : normalizeProjectCostCategory(row.category),

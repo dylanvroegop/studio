@@ -1,5 +1,6 @@
 'use client';
 
+import { KostenCashEntries } from '@/components/kosten/KostenCashEntries';
 import { KostenKnabAccountPicker } from '@/components/kosten/KostenKnabAccountPicker';
 import { KostenStartDate } from '@/components/kosten/KostenStartDate';
 import { KOSTEN_REPORT_START, isValidReportStart, isReportDate } from '@/lib/kosten-report-period';
@@ -66,6 +67,7 @@ import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import {
   PROJECT_COST_CATEGORY_LABELS,
+  isManualCashPurchase,
   isSupportingProjectCostReceipt,
   normalizeProjectCostCategory,
   roundEuro,
@@ -80,6 +82,7 @@ import { cn } from '@/lib/utils';
 import { deduplicateRequest } from '@/lib/deduplicate-request';
 import { summarizeBankCostRows } from '@/lib/bank-cost-summary';
 import { costForCategory, originalBankCost } from '@/lib/bank-cost-allocation';
+import { isPrivateCashPurchase, type CashDeposit } from '@/lib/kosten-cash';
 import { KostenListError, kostenAccountStorageKey, readKostenAccount, requestKostenList } from '@/lib/kosten-list-client';
 import type { KnabCostAccount } from '@/lib/finance-bank-ledger';
 import type { KnabBankCostRow } from '@/lib/knab-cost-list';
@@ -615,6 +618,7 @@ function KostenPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [costReloadVersion, setCostReloadVersion] = useState(0);
   const [costs, setCosts] = useState<ProjectCostRow[]>([]);
+  const [cashDeposits, setCashDeposits] = useState<CashDeposit[] | null>(null);
   const [privateCredits, setPrivateCredits] = useState<ProjectCostRow[]>([]);
   const [knabAccount, setKnabAccount] = useState<{ uid: string; iban: string } | null>(null);
   const [knabAccounts, setKnabAccounts] = useState<KnabCostAccount[]>([]);
@@ -624,6 +628,7 @@ function KostenPageContent() {
   const requestedIban = accountReady ? knabAccount?.iban || '' : '';
   useEffect(() => {
     setKnabAccounts([]);
+    setCashDeposits(null);
     setLoadedKnabIban('');
     setKnabAccount(uid ? { uid, iban: readKostenAccount(uid) } : null);
   }, [uid]);
@@ -1374,15 +1379,16 @@ function KostenPageContent() {
         );
       setLineItems(extractedLineItemsRebalanced);
       const baseForm = autoSave ? createDefaultFormState() : form;
+      const editingCash = !autoSave && sourceCosts.some((cost) => cost.id === editingCostId && isManualCashPurchase(cost));
       const extractedForm: KostenFormState = {
         ...baseForm,
         deliveryAddress: extracted.delivery_address,
         paymentType: extracted.payment_type,
-        category: normalizeProjectCostCategory(extracted.suggested_category || baseForm.category),
+        category: editingCash ? baseForm.category : normalizeProjectCostCategory(extracted.suggested_category || baseForm.category),
         supplierName: safeString(extracted.supplier_name) || baseForm.supplierName,
-        description: safeString(extracted.description) || baseForm.description,
+        description: editingCash ? baseForm.description : safeString(extracted.description) || baseForm.description,
         offerteId: matchedOfferteId || baseForm.offerteId,
-        date: safeString(extracted.date) || baseForm.date,
+        date: editingCash ? baseForm.date : safeString(extracted.date) || baseForm.date,
         btwPercentage: extracted.btw_percentage != null ? safeNumber(extracted.btw_percentage) : baseForm.btwPercentage,
         amountExcl: extractedAmountExcl,
         manualOverride: shouldEnableManualOverride,
@@ -1501,7 +1507,7 @@ function KostenPageContent() {
       description: safeString(cost.description),
       offerteId: safeString(cost.offerte_id),
       date: safeString(cost.date) || new Date().toISOString().slice(0, 10),
-      btwPercentage: safeNumber(cost.btw_percentage) || 21,
+      btwPercentage: cost.btw_percentage,
       amountExcl: amountExclForCost,
       manualOverride: useManualOverride,
       receiptUrl: safeString(cost.receipt_url),
@@ -1755,7 +1761,12 @@ function KostenPageContent() {
             />
           ) : null}
 
-          {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} categories={filterOptions} loading={loading} error={error} onRetryCosts={retryCosts} onBankSynced={refreshCostsAfterChange} /> : null}
+          {viewMode === QUICK_ADD_TAB_ID || viewMode === 'kosten' || viewMode === 'totalen' ? (
+            <KostenCashEntries key={user.uid} user={user} today={reportToday} deposits={cashDeposits}
+              onDepositsLoaded={setCashDeposits} onPurchaseSaved={refreshCostsAfterChange} />
+          ) : null}
+
+          {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} cashDeposits={cashDeposits} categories={filterOptions} loading={loading} error={error} onRetryCosts={retryCosts} onBankSynced={refreshCostsAfterChange} /> : null}
 
           <input
             ref={quickPhotoInputRef}
@@ -2455,7 +2466,7 @@ function KostenPageContent() {
               <CardContent className="p-8 text-center space-y-3">
                 <div className="font-semibold">{isPrivateView ? 'Geen privéboekingen gevonden' : 'Geen afschrijvingen gevonden'}</div>
                 <div className="text-sm text-muted-foreground">
-                  {isPrivateView ? 'Geen privé-opnames of bevestigde privéstortingen voor deze maand of zoekopdracht.' : 'Geen Knab-afschrijvingen voor deze maand of zoekopdracht. Losse facturen staan bij PDF-bestanden.'}
+                  {isPrivateView ? 'Geen privé-opnames of bevestigde privéstortingen voor deze maand of zoekopdracht.' : 'Geen kosten voor deze maand of zoekopdracht. Losse facturen staan bij PDF-bestanden.'}
                 </div>
               </CardContent>
             </Card>
@@ -2523,7 +2534,7 @@ function KostenPageContent() {
                             <td className={cn('whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums', isPrivateDeposit(cost) ? 'text-emerald-300' : 'text-foreground')}>
                               <div className="flex items-center justify-end gap-1.5">
                                 <span>{formatBankRowAmount(cost, isPrivateView)}</span>
-                                {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant gekocht</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Betaling controleren</Badge> : isHistoricalSourceCost(cost) ? (
+                                {isConfirmedCashCost(cost) ? <Badge variant="outline">{isPrivateCashPurchase(cost) ? 'Privé contant betaald' : 'Contant gekocht'}</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Betaling controleren</Badge> : isHistoricalSourceCost(cost) ? (
                                   <Badge variant="outline" className="text-[10px] text-muted-foreground">Bron vóór Knab</Badge>
                                 ) : !isBankTransactionCost(cost) ? <Button
                                   type="button"
@@ -2584,6 +2595,9 @@ function KostenPageContent() {
                         <div className="truncate text-base font-semibold text-foreground sm:text-lg">
                           {cost.supplier_name || 'Onbekende leverancier'}
                         </div>
+                        {isConfirmedCashCost(cost) && cost.description ? (
+                          <p className="mt-1 break-words text-sm text-muted-foreground">{cost.description}</p>
+                        ) : null}
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                           <Badge variant="outline" className={categoryBadgeClass(cost.category)}>
                             {isPrivateDeposit(cost) ? 'Privéstorting' : filter === 'alle' && cost.category_allocations?.length ? 'Verdeeld' : BANK_CATEGORY_LABELS[cost.category]}
@@ -2591,7 +2605,7 @@ function KostenPageContent() {
                           {filter === 'alle' && cost.category_allocations?.map((part) => (
                             <span key={part.category} className="text-muted-foreground">{BANK_CATEGORY_LABELS[part.category]} {formatCurrency(part.amount_incl_btw)}</span>
                           ))}
-                          {isConfirmedCashCost(cost) ? <Badge variant="outline">Contant gekocht</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Betaling controleren</Badge> : null}
+                          {isConfirmedCashCost(cost) ? <Badge variant="outline">{isPrivateCashPurchase(cost) ? 'Privé contant betaald' : 'Contant gekocht'}</Badge> : isReviewSourceCost(cost) ? <Badge variant="outline">Betaling controleren</Badge> : null}
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
                             <Link2 className="h-3.5 w-3.5" />
                             {linkedLabel}

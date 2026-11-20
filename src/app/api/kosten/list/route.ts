@@ -8,7 +8,7 @@ import {
   KnabHistoryError,
   loadKnabTransactionHistory,
 } from '@/lib/finance-bank-ledger';
-import { mapProjectCostRow, normalizeProjectCostCategory } from '@/lib/project-costs';
+import { isManualCashPurchase, isSupportingProjectCostReceipt, mapProjectCostRow, normalizeProjectCostCategory } from '@/lib/project-costs';
 import { buildKnabCostList } from '@/lib/knab-cost-list';
 import { deriveBankUserId } from '@/lib/bank-user-id';
 import { fetchWithSupabaseClockSkewRetry, supabaseAdmin } from '@/lib/supabase-admin';
@@ -141,11 +141,16 @@ async function handleList(request: Request) {
       }),
     ]);
     const knabTransactions = knabHistory.transactions;
-    const projectCosts = rows.map((row) => ({
-      ...mapProjectCostRow(row),
-      vat_known: (row as Record<string, unknown>)?.amount_excl_btw != null && (row as Record<string, unknown>)?.btw_amount != null,
-      document_type: safeString((row as Record<string, unknown>)?.document_type) || null,
-    }));
+    const projectCosts = rows.map((row) => {
+      const cost = mapProjectCostRow(row);
+      const source = row as Record<string, unknown>;
+      const hasVat = source.amount_excl_btw != null && source.btw_amount != null;
+      return {
+        ...cost,
+        vat_known: hasVat && (!isManualCashPurchase(cost) || cost.receipt_files.some(isSupportingProjectCostReceipt)),
+        document_type: safeString(source.document_type) || null,
+      };
+    });
     const categoryOverrides = new Map(
       overrides.map((row) => [
         String(row.bank_transaction_id),
@@ -170,8 +175,7 @@ async function handleList(request: Request) {
     return NextResponse.json({
       ok: true,
       // Handmatig toegevoegde cashregels staan los van de Knab-reconciliatie.
-      data: [...data, ...projectCosts.filter((cost) => cost.status === 'paid_cash'
-        && cost.supplier_order_number?.startsWith('manual-cash-'))],
+      data: [...data, ...projectCosts.filter(isManualCashPurchase)],
       privateCredits,
       sourceCosts: projectCosts,
       bankReconciliation,

@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { KnabRequestError, requestKnab } from '@/lib/knab-refresh-client';
 import { Input } from '@/components/ui/input';
+import { isPrivateCashPurchase, type CashDeposit } from '@/lib/kosten-cash';
 import { calculateBankCostScenario, parseScenarioAmount, remainingFixedCosts } from '@/lib/bank-cost-scenario';
 
 interface Props {
@@ -26,6 +27,7 @@ interface Props {
   onStartDateChange: (value: string) => void;
   costs: ProjectCostRow[];
   privateCredits: ProjectCostRow[];
+  cashDeposits: CashDeposit[] | null;
   categories: Array<{ value: BankCostFilter; label: string }>;
   loading: boolean;
   error: string | null;
@@ -34,7 +36,7 @@ interface HoursResponse { adjustments: Array<{ start_date: string; end_date: str
 const euro = (value: number): string => value.toLocaleString('nl-NL', { style: 'currency', currency: 'EUR' });
 const hours = (minutes: number | null): string => minutes === null ? 'n.b.' : `${Math.floor(Math.round(minutes) / 60)} u ${Math.round(minutes) % 60} min`;
 
-export function KostenTotalenTab({ costs, privateCredits, categories, loading, error, startDate, onStartDateChange, onBankSynced, onRetryCosts }: Props) {
+export function KostenTotalenTab({ costs, privateCredits, cashDeposits, categories, loading, error, startDate, onStartDateChange, onBankSynced, onRetryCosts }: Props) {
   const { user } = useUser();
   const [month, setMonth] = useState('all');
   const [reductions, setReductions] = useState<Partial<Record<ProjectCostCategory, string>>>({});
@@ -252,6 +254,10 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
     privateCredits.filter((row) => isReportDate(row.date, month, today, startDate)),
   ), [costs, privateCredits, month, today, startDate]);
   const summary = bankSummary;
+  const depositTotal = cashDeposits?.filter((entry) => isReportDate(entry.date, month, today, startDate))
+    .reduce((sum, entry) => sum + entry.amountCents, 0);
+  const privatePurchaseTotal = costs.filter((cost) => isPrivateCashPurchase(cost) && isReportDate(cost.date, month, today, startDate))
+    .reduce((sum, cost) => sum + Math.round(cost.amount_incl_btw * 100), 0);
   const requestedReductions = Object.fromEntries(Object.entries(reductions).map(([category, raw]) => [category,
     raw === 'all' ? Math.max(0, summary.totals[category as ProjectCostCategory]) : parseScenarioAmount(raw || '') ?? 0,
   ]));
@@ -344,8 +350,16 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
             <span className="text-sm">Banksaldo Knab (gekoppelde rekeningen)</span>
             <span className="text-sm tabular-nums">{bankBalance !== null ? euro(bankBalance) : bankLoading ? 'Laden…' : 'n.b.'}</span>
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 text-sm">
+            <span>Contante privé-inleg in kas</span>
+            <span className="tabular-nums">{depositTotal === undefined ? 'n.b.' : euro(depositTotal / 100)}</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 text-sm">
+            <span>Contante aankopen uit privégeld</span>
+            <span className="tabular-nums">{loading || error ? 'n.b.' : euro(privatePurchaseTotal / 100)}</span>
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-2 px-3">
-            <label htmlFor="kosten-cash" className="text-sm">Cash</label>
+            <label htmlFor="kosten-cash" className="text-sm">Huidig contant saldo</label>
             <div className="flex items-center gap-2">
               <span className="text-sm">€</span>
               <Input id="kosten-cash" type="text" inputMode="decimal" placeholder="0,00" value={cash} onChange={(event) => setCash(event.target.value)} aria-invalid={invalidCash} aria-describedby={invalidCash ? 'kosten-cash-error' : undefined} className="h-8 w-28 text-right tabular-nums" />

@@ -311,7 +311,11 @@ test('kosten-API geeft rekeningkeuze terug en laadt daarna alleen die rekening',
     '@/lib/project-costs': projectCosts,
     '@/lib/knab-cost-list': { buildKnabCostList },
     '@/lib/bank-user-id': { deriveBankUserId: uid => uid },
-    '@/lib/supabase-admin': { supabaseAdmin: client, fetchWithSupabaseClockSkewRetry: async () => Response.json([]) },
+    '@/lib/supabase-admin': { supabaseAdmin: client, fetchWithSupabaseClockSkewRetry: async () => Response.json([{
+      id: 'cash', user_id: 'owner', status: 'paid_cash', supplier_order_number: 'manual-cash-private-cash',
+      date: '2026-07-01', category: 'gereedschap', description: 'Telefoon', supplier_name: 'Contante aankoop',
+      amount_excl_btw: 200, amount_incl_btw: 200, btw_amount: 0,
+    }]) },
   };
   new Function('require', 'module', 'exports', code)(name => dependencies[name] || require(name), mod, mod.exports);
 
@@ -331,7 +335,10 @@ test('kosten-API geeft rekeningkeuze terug en laadt daarna alleen die rekening',
     assert.equal(selected.status, 200);
     const result = await selected.json();
     assert.equal(result.bankHistory.iban, secondIban);
-    assert.deepEqual(result.data.map(item => item.paid_bank_transaction_id), ['personal']);
+    assert.deepEqual(result.data.map(item => item.paid_bank_transaction_id), ['personal', null]);
+    assert.equal(result.data.filter(item => item.id === 'cash').length, 1);
+    assert.equal(result.data.find(item => item.id === 'cash').vat_known, false);
+    assert.deepEqual(result.privateCredits, []);
     const transactionQuery = client.calls.filter(call => call.table === 'bank_transactions').at(-1);
     assert.deepEqual(transactionQuery.filters.find(([key]) => key === 'bank_account_id'), ['bank_account_id', ['personal']]);
   } finally {
