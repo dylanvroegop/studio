@@ -86,12 +86,14 @@ export async function classifyBankCategories(rows: FinanceBankCostLedgerRow[]): 
 }
 
 /** Alleen categorieën wijzigen; bankbedragen, btw en bronkoppelingen blijven intact. */
-export async function applyBankCategoryAi(uid: string, rows: FinanceBankCostLedgerRow[], overrides: ReadonlyMap<string, ProjectCostCategory>, run: boolean): Promise<{ pending: boolean; changed: number }> {
+export async function applyBankCategoryAi(uid: string, iban: string, rows: FinanceBankCostLedgerRow[], overrides: ReadonlyMap<string, ProjectCostCategory>, run: boolean): Promise<{ pending: boolean; changed: number }> {
   const candidates = rows.filter((row) => eligibleForCategoryAi(row, overrides)
     && !ignoredMerchant.test(row.supplier_name) && !ignoredMerchant.test(row.description) && supplierForResearch(row).length >= 3);
   if (!candidates.length) return { pending: false, changed: 0 };
   const { firestore } = initFirebaseAdmin();
-  const collection = firestore.collection('bank_category_ai').doc(uid).collection('decisions');
+  const accountKey = createHash('sha256').update(iban).digest('hex');
+  const account = firestore.collection('bank_category_ai').doc(uid).collection('accounts').doc(accountKey);
+  const collection = account.collection('decisions');
   const unique = [...new Map(candidates.map((row) => [categoryAiKey(row), row])).values()];
   const cached = new Map<string, FirebaseFirestore.DocumentData>();
   for (let offset = 0; offset < unique.length; offset += 100) {
@@ -106,11 +108,10 @@ export async function applyBankCategoryAi(uid: string, rows: FinanceBankCostLedg
   }
   const missing = unique.filter((row) => !cached.has(categoryAiKey(row)));
   if (run && missing.length) {
-    const lock = firestore.collection('bank_category_ai').doc(uid);
     const acquired = await firestore.runTransaction(async (transaction) => {
-      const current = await transaction.get(lock);
+      const current = await transaction.get(account);
       if (Number(current.data()?.lockedUntil || 0) > Date.now()) return false;
-      transaction.set(lock, { lockedUntil: Date.now() + 120_000 });
+      transaction.set(account, { lockedUntil: Date.now() + 120_000 });
       return true;
     });
     if (!acquired) return { pending: false, changed: 0 };
@@ -125,7 +126,7 @@ export async function applyBankCategoryAi(uid: string, rows: FinanceBankCostLedg
       });
       await write.commit();
     } finally {
-      await lock.set({ lockedUntil: 0 });
+      await account.set({ lockedUntil: 0 });
     }
   }
   let changed = 0;

@@ -177,7 +177,7 @@ async function handleList(request: Request) {
     let ai = { pending: false, changed: 0 };
     try {
       const targets = bankCategoryReviewTargets(data, bankLedgerRows);
-      ai = await applyBankCategoryAi(uid, targets, categoryOverrides, false);
+      ai = await applyBankCategoryAi(uid, knabHistory.metadata.iban, targets, categoryOverrides, false);
       const byId = new Map(targets.map((row) => [row.bank_transaction_id, row.category]));
       for (const row of data) {
         const category = byId.get(row.paid_bank_transaction_id || '');

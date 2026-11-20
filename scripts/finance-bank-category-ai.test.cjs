@@ -64,3 +64,25 @@ test('alleen expliciete omschrijving of echt geraadpleegde bron kan een AI-categ
   ]);
   assert.deepEqual(result.map(({ category }) => category), ['afval', 'telefoon', 'overig']);
 });
+
+test('dezelfde bankregel op twee rekeningen deelt geen AI-besluit', async () => {
+  const paths = [];
+  const reference = (path = '') => ({
+    collection: (name) => reference(`${path}/${name}`),
+    doc: (id) => reference(`${path}/${id}`),
+    path,
+  });
+  const scopedAi = load('src/lib/finance-bank-category-ai.ts', {
+    '@/lib/project-costs': load('src/lib/project-costs.ts'),
+    '@/firebase/admin': { initFirebaseAdmin: () => ({ firestore: {
+      ...reference(),
+      getAll: async (...docs) => {
+        paths.push(docs[0].path);
+        return [];
+      },
+    } }) },
+  });
+  await scopedAi.applyBankCategoryAi('owner', 'NL01KNAB0000000001', [{ ...row }], new Map(), false);
+  await scopedAi.applyBankCategoryAi('owner', 'NL02KNAB0000000002', [{ ...row }], new Map(), false);
+  assert.notEqual(paths[0], paths[1]);
+});

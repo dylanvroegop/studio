@@ -90,7 +90,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       internalTransferIds: new Set(transactions.filter(isInternalOwnAccountTransfer).map((row) => row.id)),
     });
     const targets = bankCategoryReviewTargets(data, ledger);
-    const result = await applyBankCategoryAi(uid, targets, categoryOverrides, true);
+    const result = await applyBankCategoryAi(uid, account.iban, targets, categoryOverrides, true);
     return respond({ ok: true, ...result, candidates: targets.length });
   } catch (error) {
     console.error('[kosten/review-overig]', error);
