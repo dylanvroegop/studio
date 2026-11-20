@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: 'Banktransactie of categorie is ongeldig.' }, { status: 400 });
     }
 
-    const { transactions } = await loadKnabTransactionHistory(deriveBankUserId(uid));
+    const { transactions } = await loadKnabTransactionHistory(deriveBankUserId(uid), { iban: safeString(body?.bank_iban) });
     const transaction = transactions.find((row) => row.id === bankTransactionId
       || row.source_transaction_ids?.includes(bankTransactionId));
     if (!transaction) {

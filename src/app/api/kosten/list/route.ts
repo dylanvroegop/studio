@@ -5,6 +5,7 @@ import { ensureDemoTrialActiveByUid } from '@/lib/demo-trial-server';
 import {
   buildFinanceBankLedger,
   isInternalOwnAccountTransfer,
+  KnabHistoryError,
   loadKnabTransactionHistory,
 } from '@/lib/finance-bank-ledger';
 import { mapProjectCostRow, normalizeProjectCostCategory } from '@/lib/project-costs';
@@ -23,6 +24,18 @@ function noStoreHeaders(): HeadersInit {
 
 function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+class KostenSourceError extends Error {}
+
+async function readKostenSource<T>(message: string, read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    if (error instanceof KnabHistoryError) throw error;
+    console.error('[kosten/list]', message, error);
+    throw new KostenSourceError(message);
+  }
 }
 
 async function fetchProjectCostsPage(uid: string, offset: number): Promise<unknown[]> {
@@ -96,7 +109,11 @@ async function handleList(request: Request) {
     }
 
     const { auth } = initFirebaseAdmin();
-    const decoded = await auth.verifyIdToken(token);
+    const decoded = await auth.verifyIdToken(token).catch((error: unknown) => {
+      const code = (error as { code?: string } | null)?.code;
+      if (code === 'auth/id-token-expired' || code === 'auth/id-token-revoked' || code === 'auth/argument-error' || code === 'auth/invalid-id-token') return null;
+      throw error;
+    });
     const uid = decoded?.uid || '';
     if (!uid) {
       return NextResponse.json(
@@ -111,15 +128,18 @@ async function handleList(request: Request) {
       return trialBlockedResponse;
     }
 
-    const [rows, knabHistory, categoryOverridesResult] = await Promise.all([
-      fetchProjectCostsViaRest(uid),
-      loadKnabTransactionHistory(deriveBankUserId(uid)),
-      supabaseAdmin
-        .from('bank_transaction_category_overrides')
-        .select('bank_transaction_id,category')
-        .eq('user_id', uid),
+    const iban = safeString(request.headers.get('X-Knab-Kosten-Iban'));
+    const [rows, knabHistory, overrides] = await Promise.all([
+      readKostenSource('Opgeslagen kosten en bonnen konden niet worden opgehaald. Probeer het opnieuw.', () => fetchProjectCostsViaRest(uid)),
+      readKostenSource('Opgeslagen Knab-afschriften konden niet worden opgehaald. Probeer het opnieuw.', () => loadKnabTransactionHistory(deriveBankUserId(uid), { iban })),
+      readKostenSource('Handmatige kostencategorieën konden niet worden opgehaald. Probeer het opnieuw.', async () => {
+        const result = await supabaseAdmin.from('bank_transaction_category_overrides')
+          .select('bank_transaction_id,category')
+          .eq('user_id', uid);
+        if (result.error) throw new Error(result.error.message);
+        return result.data || [];
+      }),
     ]);
-    if (categoryOverridesResult.error) throw new Error(categoryOverridesResult.error.message);
     const knabTransactions = knabHistory.transactions;
     const projectCosts = rows.map((row) => ({
       ...mapProjectCostRow(row),
@@ -127,7 +147,7 @@ async function handleList(request: Request) {
       document_type: safeString((row as Record<string, unknown>)?.document_type) || null,
     }));
     const categoryOverrides = new Map(
-      (categoryOverridesResult.data || []).map((row) => [
+      overrides.map((row) => [
         String(row.bank_transaction_id),
         normalizeProjectCostCategory(row.category),
       ])
@@ -156,14 +176,19 @@ async function handleList(request: Request) {
       sourceCosts: projectCosts,
       bankReconciliation,
       bankHistory: knabHistory.metadata,
+      accounts: knabHistory.accounts,
       ai: { pending: false, changed: 0 },
       aiError: null,
     }, { headers: noStoreHeaders() });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Kon kosten niet laden.';
-    return NextResponse.json(
-      { ok: false, message },
-      { status: 500, headers: noStoreHeaders() }
-    );
+    if (error instanceof KnabHistoryError) {
+      return NextResponse.json(
+        { ok: false, message: error.message, accounts: error.accounts },
+        { status: 409, headers: noStoreHeaders() }
+      );
+    }
+    if (!(error instanceof KostenSourceError)) console.error('[kosten/list]', error);
+    const message = error instanceof KostenSourceError ? error.message : 'Studio kon het kostenoverzicht niet samenstellen. Probeer het opnieuw.';
+    return NextResponse.json({ ok: false, message }, { status: 500, headers: noStoreHeaders() });
   }
 }

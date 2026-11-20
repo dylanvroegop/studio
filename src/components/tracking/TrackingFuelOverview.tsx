@@ -1,5 +1,6 @@
 'use client';
 
+import { readKostenAccount, requestKostenList } from '@/lib/kosten-list-client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -203,15 +204,7 @@ export function TrackingFuelOverview({ history }: TrackingFuelOverviewProps) {
     setFinanceLoading(true);
     setFinanceError(null);
     try {
-      const token = await user.getIdToken();
-      const response = await fetch('/api/kosten/list', {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      });
-      const payload = await response.json().catch(() => null) as { ok?: boolean; data?: FinanceFuelRow[]; message?: string } | null;
-      if (!response.ok || !payload?.ok || !Array.isArray(payload.data)) {
-        throw new Error(payload?.message || 'Finance-benzine kon niet worden geladen.');
-      }
+      const payload = await requestKostenList<FinanceFuelRow>(user, readKostenAccount(user.uid));
       setFinanceRows(financeFuelRows(payload.data));
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : 'Finance-benzine kon niet worden geladen.';

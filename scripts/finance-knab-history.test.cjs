@@ -193,9 +193,21 @@ test('tegenstrijdige gegevens onder hetzelfde bankkenmerk worden niet stil wegge
 
 test('meerdere fysieke rekeningen vragen een keuze; expliciete IBAN houdt ze gescheiden', () => {
   const rows = [row('a', 'new', 'same'), row('b', 'personal', 'same')];
-  assert.throws(() => select(rows), /meerdere Knab-rekeningen/);
-  assert.deepEqual(select(rows, { iban: secondIban.toLowerCase() }).transactions.map((item) => item.id), ['b']);
+  assert.throws(() => select(rows), error => {
+    assert.ok(error instanceof ledger.KnabHistoryError);
+    assert.match(error.message, /meerdere Knab-rekeningen/);
+    assert.deepEqual(error.accounts.map(account => account.iban), [iban, secondIban]);
+    return true;
+  });
+  const selected = select(rows, { iban: secondIban.toLowerCase() });
+  assert.deepEqual(selected.transactions.map((item) => item.id), ['b']);
+  assert.deepEqual(selected.accounts.map(account => account.iban), [iban, secondIban]);
   assert.equal(select(rows, { iban }).metadata.iban, iban);
+  assert.throws(() => select(rows, { iban: 'NL99KNAB0999999999' }), error => {
+    assert.match(error.message, /niet meer beschikbaar/);
+    assert.deepEqual(error.accounts.map(account => account.iban), [iban, secondIban]);
+    return true;
+  });
 });
 
 test('lege nevenrekening en vreemde bankgegevens worden niet bij de zakelijke rekening opgeteld', () => {
@@ -279,4 +291,53 @@ test('een mislukte bronpagina levert geen schijnbaar compleet deelresultaat', as
     bank_accounts: accounts,
   }, 'bank_transactions');
   await assert.rejects(loadLedger(client).loadKnabTransactionHistory('owner'), /Knab-transacties konden niet worden geladen/);
+});
+
+test('kosten-API geeft rekeningkeuze terug en laadt daarna alleen die rekening', async () => {
+  const projectCosts = require('../src/lib/project-costs');
+  const client = mockClient({
+    bank_connections: [{ id: 'current', provider: 'enablebanking', user_id: 'owner', status: 'connected' }],
+    bank_accounts: accounts,
+    bank_transactions: [row('business', 'new'), row('personal', 'personal')],
+  });
+  const mod = { exports: {} };
+  const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/app/api/kosten/list/route.ts'), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const dependencies = {
+    '@/firebase/admin': { initFirebaseAdmin: () => ({ auth: { verifyIdToken: async () => ({ uid: 'owner' }) } }) },
+    '@/lib/demo-trial-server': { ensureDemoTrialActiveByUid: async () => null },
+    '@/lib/finance-bank-ledger': loadLedger(client),
+    '@/lib/project-costs': projectCosts,
+    '@/lib/knab-cost-list': { buildKnabCostList },
+    '@/lib/bank-user-id': { deriveBankUserId: uid => uid },
+    '@/lib/supabase-admin': { supabaseAdmin: client, fetchWithSupabaseClockSkewRetry: async () => Response.json([]) },
+  };
+  new Function('require', 'module', 'exports', code)(name => dependencies[name] || require(name), mod, mod.exports);
+
+  const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const previousKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supabase.example';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key';
+  try {
+    const request = (extraHeaders = {}) => new Request('https://studio.example/api/kosten/list', {
+      headers: { Authorization: 'Bearer test-token', ...extraHeaders },
+    });
+    const conflict = await mod.exports.GET(request());
+    assert.equal(conflict.status, 409);
+    assert.deepEqual((await conflict.json()).accounts.map(account => account.iban), [iban, secondIban]);
+
+    const selected = await mod.exports.GET(request({ 'X-Knab-Kosten-Iban': secondIban }));
+    assert.equal(selected.status, 200);
+    const result = await selected.json();
+    assert.equal(result.bankHistory.iban, secondIban);
+    assert.deepEqual(result.data.map(item => item.paid_bank_transaction_id), ['personal']);
+    const transactionQuery = client.calls.filter(call => call.table === 'bank_transactions').at(-1);
+    assert.deepEqual(transactionQuery.filters.find(([key]) => key === 'bank_account_id'), ['bank_account_id', ['personal']]);
+  } finally {
+    if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = previousKey;
+  }
 });

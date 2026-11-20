@@ -286,9 +286,21 @@ export interface KnabTransactionHistoryMetadata {
   unidentifiedTransactionCount: number;
 }
 
+export interface KnabCostAccount {
+  iban: string;
+  name: string;
+}
+
+export class KnabHistoryError extends Error {
+  constructor(message: string, public readonly accounts: KnabCostAccount[] = []) {
+    super(message);
+  }
+}
+
 export interface KnabTransactionHistory {
   transactions: FinanceBankTransaction[];
   metadata: KnabTransactionHistoryMetadata;
+  accounts: KnabCostAccount[];
 }
 
 function normalizedIban(value: unknown): string {
@@ -307,19 +319,27 @@ export function selectKnabTransactionHistory(params: {
   const availableRows = params.rows.filter((row) => accountById.has(text(row.bank_account_id)));
   const populatedIbans = new Set(availableRows.map((row) => normalizedIban(accountById.get(text(row.bank_account_id))?.iban)));
   const requestedIban = normalizedIban(params.iban);
-  if (!requestedIban && populatedIbans.size > 1) {
-    throw new Error('Er zijn transacties van meerdere Knab-rekeningen. Kies één rekening om de afschrijvingen te vergelijken.');
+  const preferredRank = new Map((params.preferredAccountIds || []).map((id, index) => [id, index]));
+  const rank = (id: string): number => preferredRank.get(id) ?? Number.MAX_SAFE_INTEGER;
+  accounts.sort((left, right) => rank(left.id) - rank(right.id) || left.id.localeCompare(right.id));
+  const accountOptions = new Map<string, KnabCostAccount>();
+  for (const account of accounts) {
+    const iban = normalizedIban(account.iban);
+    if (!accountOptions.has(iban)) accountOptions.set(iban, { iban, name: text(account.name) || 'Knab' });
+  }
+  const choices = [...accountOptions.values()];
+  if (requestedIban && !accountOptions.has(requestedIban)) {
+    throw new KnabHistoryError('De gekozen Knab-rekening is niet meer beschikbaar. Kies een andere rekening.', choices);
+  }
+  if (!requestedIban && (populatedIbans.size > 1 || (!populatedIbans.size && choices.length > 1))) {
+    throw new KnabHistoryError('Er zijn meerdere Knab-rekeningen. Kies welke rekening je voor de kosten gebruikt.', choices);
   }
   const iban = requestedIban || Array.from(populatedIbans)[0]
     || (new Set(accounts.map((account) => normalizedIban(account.iban))).size === 1 ? normalizedIban(accounts[0]?.iban) : '');
   const matchingAccounts = accounts.filter((account) => normalizedIban(account.iban) === iban);
   if (!iban || matchingAccounts.length === 0) {
-    throw new Error('Er is geen opgeslagen Knab-rekening met transacties gevonden. Synchroniseer Knab eerst.');
+    throw new KnabHistoryError('Er is geen opgeslagen Knab-rekening gevonden. Werk Knab eerst bij.');
   }
-
-  const preferredRank = new Map((params.preferredAccountIds || []).map((id, index) => [id, index]));
-  const rank = (id: string): number => preferredRank.get(id) ?? Number.MAX_SAFE_INTEGER;
-  matchingAccounts.sort((left, right) => rank(left.id) - rank(right.id) || left.id.localeCompare(right.id));
   const accountIds = new Set(matchingAccounts.map((account) => account.id));
   const rows = availableRows.filter((row) => accountIds.has(text(row.bank_account_id))).sort((left, right) => (
     rank(text(left.bank_account_id)) - rank(text(right.bank_account_id)) || text(left.id).localeCompare(text(right.id))
@@ -330,7 +350,7 @@ export function selectKnabTransactionHistory(params: {
   for (const row of rows) {
     const amount = Number(row.amount);
     if (!text(row.id) || !Number.isFinite(amount) || row.amount === null || row.amount === '') {
-      throw new Error('Een opgeslagen Knab-transactie heeft geen geldig bedrag of kenmerk.');
+      throw new KnabHistoryError('Een opgeslagen Knab-transactie heeft geen geldig bedrag of kenmerk.');
     }
     const raw = row.raw && typeof row.raw === 'object' ? row.raw as Record<string, unknown> : {};
     const entryReference = text(raw.entry_reference);
@@ -347,7 +367,7 @@ export function selectKnabTransactionHistory(params: {
       const currency = text(row.currency) || text(matchingAccounts[0].currency) || 'EUR';
       const existingCurrency = text(existing.currency) || text(matchingAccounts[0].currency) || 'EUR';
       if (cents(Number(existing.amount)) !== cents(amount) || text(existing.booking_date) !== text(row.booking_date) || currency !== existingCurrency) {
-        throw new Error('Hetzelfde Knab-bankkenmerk heeft afwijkende boekingsgegevens. Controleer de bankimport.');
+        throw new KnabHistoryError('Hetzelfde Knab-bankkenmerk heeft afwijkende boekingsgegevens. Controleer de bankimport.');
       }
       continue;
     }
@@ -368,6 +388,7 @@ export function selectKnabTransactionHistory(params: {
   const dates = transactions.map((row) => row.booking_date).filter((date): date is string => Boolean(date)).sort();
   return {
     transactions,
+    accounts: choices,
     metadata: {
       iban,
       name: text(matchingAccounts[0].name) || 'Knab',
@@ -396,7 +417,7 @@ export async function loadKnabTransactionHistory(
     .order('updated_at', { ascending: false });
   if (connectionResult.error) throw new Error(`Knab-koppelingen konden niet worden geladen: ${connectionResult.error.message}`);
   const connections = connectionResult.data || [];
-  if (connections.length === 0) throw new Error('Er is nog geen opgeslagen Knab-koppeling gevonden.');
+  if (connections.length === 0) throw new KnabHistoryError('Er is nog geen opgeslagen Knab-koppeling. Koppel Knab eerst.');
   const accountResult = await supabaseAdmin.from('bank_accounts')
     .select('id,iban,name,currency,connection_id')
     .in('connection_id', connections.map((connection) => String(connection.id)));
@@ -407,16 +428,16 @@ export async function loadKnabTransactionHistory(
     name: text(account.name) || null,
     currency: text(account.currency) || null,
     connection_id: text(account.connection_id),
-  })).filter((account) => (
-    /^NL\d{2}KNAB\d{10}$/.test(normalizedIban(account.iban))
-    && (!options.iban || normalizedIban(account.iban) === normalizedIban(options.iban))
-  ));
-  if (accounts.length === 0) throw new Error('Er is geen opgeslagen Knab-rekening gevonden.');
+  })).filter((account) => /^NL\d{2}KNAB\d{10}$/.test(normalizedIban(account.iban)));
+  if (accounts.length === 0) throw new KnabHistoryError('Er is geen opgeslagen Knab-rekening gevonden. Werk Knab eerst bij.');
+  const requestedIban = normalizedIban(options.iban);
+  const transactionAccountIds = accounts.filter((account) => !requestedIban || normalizedIban(account.iban) === requestedIban)
+    .map((account) => account.id);
   const rows: Record<string, unknown>[] = [];
-  for (let offset = 0; ; offset += 500) {
+  for (let offset = 0; transactionAccountIds.length > 0; offset += 500) {
     const result = await supabaseAdmin.from('bank_transactions')
       .select('id,bank_account_id,amount,currency,booking_date,counterparty_name,description,remittance_information,category,reconciliation_group_id,raw')
-      .eq('user_id', bankUserId).in('bank_account_id', accounts.map((account) => account.id))
+      .eq('user_id', bankUserId).in('bank_account_id', transactionAccountIds)
       .order('booking_date', { ascending: false }).order('id', { ascending: true })
       .range(offset, offset + 499);
     if (result.error) throw new Error(`Knab-transacties konden niet worden geladen: ${result.error.message}`);

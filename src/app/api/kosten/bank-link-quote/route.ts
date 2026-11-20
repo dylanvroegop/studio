@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     }
 
     const [history, costsResult, overridesResult] = await Promise.all([
-      loadKnabTransactionHistory(deriveBankUserId(uid)),
+      loadKnabTransactionHistory(deriveBankUserId(uid), { iban: safeString(body?.bank_iban) }),
       supabaseAdmin.from('project_costs').select('*').eq('user_id', uid),
       supabaseAdmin
         .from('bank_transaction_category_overrides')

@@ -21,6 +21,7 @@ import { calculateBankCostScenario, parseScenarioAmount, remainingFixedCosts } f
 
 interface Props {
   onBankSynced: () => Promise<void>;
+  onRetryCosts: () => void;
   startDate: string;
   onStartDateChange: (value: string) => void;
   costs: ProjectCostRow[];
@@ -33,7 +34,7 @@ interface HoursResponse { adjustments: Array<{ start_date: string; end_date: str
 const euro = (value: number): string => value.toLocaleString('nl-NL', { style: 'currency', currency: 'EUR' });
 const hours = (minutes: number | null): string => minutes === null ? 'n.b.' : `${Math.floor(Math.round(minutes) / 60)} u ${Math.round(minutes) % 60} min`;
 
-export function KostenTotalenTab({ costs, privateCredits, categories, loading, error, startDate, onStartDateChange, onBankSynced }: Props) {
+export function KostenTotalenTab({ costs, privateCredits, categories, loading, error, startDate, onStartDateChange, onBankSynced, onRetryCosts }: Props) {
   const { user } = useUser();
   const [month, setMonth] = useState('all');
   const [reductions, setReductions] = useState<Partial<Record<ProjectCostCategory, string>>>({});
@@ -132,13 +133,20 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
         setBankReconnectRequired(Boolean(payload.data?.connection && payload.data.connection.status !== 'connected'));
       } catch (error) { overviewError = error; }
       if (signal.aborted) return;
+      let costsRefreshed = false;
       if (sync && !syncError) {
-        try { await onBankSyncedRef.current(); }
-        catch { throw new Error('Knab is bijgewerkt, maar de kostentotalen konden niet worden geladen. Probeer het opnieuw.'); }
+        try {
+          await onBankSyncedRef.current();
+          costsRefreshed = true;
+        } catch {
+          // Het kostenblok toont de oorzaak en kan zelfstandig opnieuw laden.
+        }
       }
       if (syncError) throw syncError;
       if (overviewError) throw overviewError;
-      if (sync && !signal.aborted) setBankNotice('Knab-saldo en kosten zijn bijgewerkt.');
+      if (sync && !signal.aborted) {
+        setBankNotice(costsRefreshed ? 'Knab-saldo en kosten zijn bijgewerkt.' : 'Knab-saldo is bijgewerkt.');
+      }
     } catch (error) {
       if (signal.aborted) return;
       if (error instanceof KnabRequestError && error.reconnectRequired) setBankReconnectRequired(true);
@@ -307,7 +315,12 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <section className="min-w-0 rounded-lg border border-border bg-card p-4 lg:row-span-4">
         <h2 className="mb-2 text-sm font-semibold">Kosten</h2>
-        {loading ? <p className="text-sm text-muted-foreground">Kosten laden…</p> : error ? <p role="alert" className="text-sm text-destructive">Kosten konden niet worden geladen.</p> : <>
+        {loading ? <p className="text-sm text-muted-foreground">Kosten laden…</p> : error ? (
+          <div className="space-y-2">
+            <p role="alert" className="text-sm text-red-400">{error}</p>
+            <Button type="button" variant="outline" size="sm" onClick={onRetryCosts}>Kosten opnieuw laden</Button>
+          </div>
+        ) : <>
           <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="border-b text-muted-foreground"><tr><th className="px-2 py-2 text-center text-xs font-normal">Hele bedrag</th><th className="px-3 py-2 text-left font-normal">Categorie</th><th className={`${cell} font-normal`}>Bedrag</th><th className={`${cell} font-normal`}>Aantal</th><th className={`${cell} font-normal`}>Minder (€)</th></tr></thead>
             <tbody>{categories.map(({ value, label }) => {
               const totalCents = Math.round(summary.totals[value] * 100);
@@ -328,7 +341,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
         <div className="space-y-3">
           <h2 className="text-sm font-semibold">Met lagere uitgaven</h2>
           <div className="flex flex-wrap items-center justify-between gap-2 px-3">
-            <span className="text-sm">Banksaldo Knab</span>
+            <span className="text-sm">Banksaldo Knab (gekoppelde rekeningen)</span>
             <span className="text-sm tabular-nums">{bankBalance !== null ? euro(bankBalance) : bankLoading ? 'Laden…' : 'n.b.'}</span>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 px-3">
@@ -351,7 +364,7 @@ export function KostenTotalenTab({ costs, privateCredits, categories, loading, e
               ['Gemiddeld per maand excl. 21% btw', money(earnings.monthly === null ? null : earnings.monthly / 1.21)],
             ].map(([label, value]) => <tr key={label} className="border-b border-border/50"><td className="px-3 py-2">{label}</td><td className={cell}>{value}</td></tr>)}
           </tbody></table>
-          {invalidReduction ? <p role="alert" className="text-xs text-destructive">Vul per categorie een bedrag in tussen € 0,00 en het categorietotaal. Kies bij een netto tegoed € 0,00.</p> : null}
+          {!loading && !error && invalidReduction ? <p role="alert" className="text-xs text-destructive">Vul per categorie een bedrag in tussen € 0,00 en het categorietotaal. Kies bij een netto tegoed € 0,00.</p> : null}
         </div>
       </section>
       <section className="min-w-0 rounded-lg border border-border bg-card p-4">

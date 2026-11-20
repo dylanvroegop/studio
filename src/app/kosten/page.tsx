@@ -79,6 +79,8 @@ import { cn } from '@/lib/utils';
 import { deduplicateRequest } from '@/lib/deduplicate-request';
 import { summarizeBankCostRows } from '@/lib/bank-cost-summary';
 import { costForCategory, originalBankCost } from '@/lib/bank-cost-allocation';
+import { KostenListError, kostenAccountStorageKey, readKostenAccount, requestKostenList } from '@/lib/kosten-list-client';
+import type { KnabCostAccount } from '@/lib/finance-bank-ledger';
 import type { KnabBankCostRow } from '@/lib/knab-cost-list';
 
 const KostenTotalenTab = dynamic(() => import('@/components/kosten/KostenTotalenTab').then((module) => module.KostenTotalenTab));
@@ -612,7 +614,28 @@ function KostenPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [costReloadVersion, setCostReloadVersion] = useState(0);
   const [costs, setCosts] = useState<ProjectCostRow[]>([]);
-  const [privateCredits, setPrivateCredits] = useState<KnabBankCostRow[]>([]);
+  const [privateCredits, setPrivateCredits] = useState<ProjectCostRow[]>([]);
+  const [knabAccount, setKnabAccount] = useState<{ uid: string; iban: string } | null>(null);
+  const [knabAccounts, setKnabAccounts] = useState<KnabCostAccount[]>([]);
+  const [loadedKnabIban, setLoadedKnabIban] = useState('');
+  const uid = user?.uid;
+  const accountReady = Boolean(uid && knabAccount?.uid === uid);
+  const requestedIban = accountReady ? knabAccount?.iban || '' : '';
+  useEffect(() => {
+    setKnabAccounts([]);
+    setLoadedKnabIban('');
+    setKnabAccount(uid ? { uid, iban: readKostenAccount(uid) } : null);
+  }, [uid]);
+
+  const changeKnabAccount = (iban: string) => {
+    if (!uid || iban === requestedIban) return;
+    costReadVersionRef.current += 1;
+    setLoading(true);
+    setError(null);
+    setKnabAccount({ uid, iban });
+    try { localStorage.setItem(kostenAccountStorageKey(uid), iban); }
+    catch { toast({ title: 'Rekeningkeuze niet opgeslagen', description: 'De keuze geldt zolang deze pagina open is.', variant: 'destructive' }); }
+  };
   const [sourceCosts, setSourceCosts] = useState<ProjectCostRow[]>([]);
   const [costMonth, setCostMonth] = useState('all');
   const reportToday = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Amsterdam' }).format(new Date());
@@ -762,27 +785,9 @@ function KostenPageContent() {
     return data;
   }), [firestore, user]);
 
-  const loadCosts = useMemo(() => deduplicateRequest(async (): Promise<{ costs: ProjectCostRow[]; sourceCosts: ProjectCostRow[]; privateCredits: KnabBankCostRow[] }> => {
-    if (!user) return { costs: [], sourceCosts: [], privateCredits: [] };
-    const token = await user.getIdToken();
-    const response = await fetch('/api/kosten/list', {
-      method: 'GET',
-      cache: 'no-store',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    const payload = (await response.json().catch(() => null)) as {
-      ok?: boolean;
-      message?: string;
-      data?: ProjectCostRow[];
-      sourceCosts?: ProjectCostRow[];
-      privateCredits?: KnabBankCostRow[];
-    } | null;
-
-    if (!response.ok || !payload?.ok || !Array.isArray(payload.data)) {
-      throw new Error(payload?.message || `HTTP ${response.status}`);
-    }
+  const loadCosts = useMemo(() => deduplicateRequest(async () => {
+    if (!user) throw new KostenListError('Log in bij Studio om je kosten te laden.');
+    const payload = await requestKostenList<ProjectCostRow>(user, requestedIban);
 
     const bankCosts = payload.data
       .map((item) => ({
@@ -794,31 +799,44 @@ function KostenPageContent() {
         const right = new Date(b.date || b.created_at).getTime();
         return right - left;
       });
-    return { costs: bankCosts, sourceCosts: payload.sourceCosts || [], privateCredits: payload.privateCredits || [] };
-  }), [user]);
+    return {
+      costs: bankCosts,
+      sourceCosts: payload.sourceCosts || [],
+      privateCredits: payload.privateCredits || [],
+      accounts: payload.accounts || [],
+      iban: payload.bankHistory?.iban || '',
+    };
+  }), [requestedIban, user]);
+  const currentCostLoaderRef = useRef(loadCosts);
+  currentCostLoaderRef.current = loadCosts;
+  const retryCosts = () => setCostReloadVersion((value) => value + 1);
 
   const refreshCostsAfterChange = async (): Promise<void> => {
     const version = ++costReadVersionRef.current;
     try {
-      const data = await loadCosts(true);
+      const data = await currentCostLoaderRef.current(true);
       if (version !== costReadVersionRef.current) return;
       setCosts(data.costs);
       setPrivateCredits(data.privateCredits);
       setSourceCosts(data.sourceCosts);
+      setKnabAccounts(data.accounts);
+      setLoadedKnabIban(data.iban);
       setError(null);
-    } catch (error) {
-      if (version === costReadVersionRef.current) setError('Kostentotalen konden niet worden bijgewerkt. Probeer het opnieuw.');
-      throw error;
+    } catch (loadError) {
+      if (version !== costReadVersionRef.current) return;
+      if (loadError instanceof KostenListError && loadError.accounts) setKnabAccounts(loadError.accounts);
+      setError(loadError instanceof Error ? loadError.message : 'Studio kon het kostenoverzicht niet ophalen.');
+      throw loadError;
     } finally {
       if (version === costReadVersionRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!accountReady) return;
     let cancelled = false;
     const load = async () => {
-      const version = costReadVersionRef.current;
+      const version = ++costReadVersionRef.current;
       setLoading(true);
       setError(null);
       try {
@@ -827,8 +845,11 @@ function KostenPageContent() {
         setCosts(costsData.costs);
         setPrivateCredits(costsData.privateCredits);
         setSourceCosts(costsData.sourceCosts);
+        setKnabAccounts(costsData.accounts);
+        setLoadedKnabIban(costsData.iban);
       } catch (loadError) {
         if (cancelled || version !== costReadVersionRef.current) return;
+        if (loadError instanceof KostenListError && loadError.accounts) setKnabAccounts(loadError.accounts);
         const message = loadError instanceof Error ? loadError.message : 'Kon kosten niet laden.';
         setError(message);
       } finally {
@@ -841,7 +862,7 @@ function KostenPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [costReloadVersion, loadCosts, user]);
+  }, [accountReady, costReloadVersion, loadCosts]);
 
   useEffect(() => {
     if (!user || !firestore) return;
@@ -1511,6 +1532,7 @@ function KostenPageContent() {
         },
         body: JSON.stringify({
           bank_transaction_id: selectedBankCost.paid_bank_transaction_id,
+          bank_iban: loadedKnabIban,
           category: bankCategoryDraft,
         }),
       });
@@ -1550,6 +1572,7 @@ function KostenPageContent() {
         },
         body: JSON.stringify({
           bank_transaction_id: selectedBankCost.paid_bank_transaction_id,
+          bank_iban: loadedKnabIban,
           offerte_id: bankOfferteDraft || null,
         }),
       });
@@ -1723,7 +1746,24 @@ function KostenPageContent() {
 
           {viewMode === 'pdfs' ? <div className="flex items-center gap-3"><Button type="button" variant="outline" size="sm" onClick={() => setViewMode('kosten')}>Terug naar kosten</Button><h2 className="text-sm font-semibold">PDF-bestanden</h2></div> : null}
 
-          {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} categories={filterOptions} loading={loading} error={error} onBankSynced={refreshCostsAfterChange} /> : null}
+          {accountReady && (viewMode === 'kosten' || viewMode === 'pdfs' || viewMode === 'totalen')
+            && (knabAccounts.length > 1 || (error && knabAccounts.length > 0)) ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor="kosten-knab-rekening">Knab-rekening voor kosten</Label>
+              <Select value={requestedIban || (error ? '' : loadedKnabIban)} onValueChange={changeKnabAccount}>
+                <SelectTrigger id="kosten-knab-rekening" className="w-auto min-w-44 max-w-full">
+                  <SelectValue placeholder="Kies een rekening" />
+                </SelectTrigger>
+                <SelectContent>
+                  {knabAccounts.map(({ iban, name }) => (
+                    <SelectItem key={iban} value={iban}>{name} · {iban.slice(-4)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          {viewMode === 'totalen' ? <KostenTotalenTab key={startDate} startDate={startDate} onStartDateChange={changeStartDate} costs={costs} privateCredits={privateCredits} categories={filterOptions} loading={loading} error={error} onRetryCosts={retryCosts} onBankSynced={refreshCostsAfterChange} /> : null}
 
           <input
             ref={quickPhotoInputRef}
@@ -1781,14 +1821,12 @@ function KostenPageContent() {
                 <CircleAlert className="h-8 w-8 text-red-300" />
                 <div>
                   <div className="font-semibold">Kosten konden niet worden geladen</div>
-                  <p className="mt-1 text-sm text-muted-foreground">Oude of lege cijfers worden bewust niet getoond. {error}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{error}</p>
                 </div>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    setCostReloadVersion((value) => value + 1);
-                  }}
+                  onClick={retryCosts}
                 >
                   Opnieuw proberen
                 </Button>

@@ -94,3 +94,29 @@ test('terugkeer is beperkt tot eigen kostenpagina, geen externe redirect', async
   assert.equal(url.pathname, '/kosten');
   assert.equal(url.searchParams.get('tab'), 'overview');
 });
+
+test('kostenlijst vernieuwt een verlopen Studio-sessie en bewaart de gekozen rekening bij de nieuwe aanvraag', async t => {
+  const { requestKostenList } = load('src/lib/kosten-list-client.ts');
+  const tokens = [];
+  const iban = 'NL91KNAB0123456789';
+  t.mock.method(global, 'fetch', async (url, { headers }) => {
+    assert.equal(url, '/api/kosten/list');
+    assert.equal(headers.get('X-Knab-Kosten-Iban'), iban);
+    return tokens.length === 1 ? json({ ok: false }, 401) : json({ ok: true, data: [] });
+  });
+  const result = await requestKostenList({ ...user, getIdToken: async force => { tokens.push(force); return 'token'; } }, iban);
+  assert.deepEqual(tokens, [false, true]);
+  assert.deepEqual(result.data, []);
+});
+
+test('kostenlijst geeft de oorzaak en rekeningopties door aan het scherm', async t => {
+  const { requestKostenList, KostenListError } = load('src/lib/kosten-list-client.ts');
+  const accounts = [{ iban: 'NL91KNAB0123456789', name: 'Knab' }];
+  t.mock.method(global, 'fetch', async () => json({ ok: false, message: 'Kies een andere rekening.', accounts }, 409));
+  await assert.rejects(requestKostenList(user, ''), error => {
+    assert.ok(error instanceof KostenListError);
+    assert.equal(error.message, 'Kies een andere rekening.');
+    assert.deepEqual(error.accounts, accounts);
+    return true;
+  });
+});
