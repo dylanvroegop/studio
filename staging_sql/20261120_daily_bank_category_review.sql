@@ -1,5 +1,4 @@
 create extension if not exists pg_net with schema extensions;
-revoke all on table net.http_request_queue from public, anon, authenticated;
 
 do $$
 begin
@@ -21,9 +20,15 @@ security definer
 set search_path = ''
 as $$
   select exists (
-    select 1 from vault.decrypted_secrets
+    select 1
+    from vault.decrypted_secrets
+    cross join generate_series(0, 2) as age(minutes)
     where name = 'calvora_daily_bank_category_review'
-      and decrypted_secret = provided_token
+      and encode(extensions.hmac(
+        'calvora-bank-review:' || (floor(extract(epoch from now()) / 60)::bigint - age.minutes)::text,
+        decrypted_secret,
+        'sha256'
+      ), 'hex') = provided_token
   );
 $$;
 
@@ -37,7 +42,12 @@ set search_path = ''
 as $$
   select net.http_post(
     url := 'https://app.calvora.nl/api/kosten/review-overig',
-    headers := jsonb_build_object('Authorization', 'Bearer ' || decrypted_secret),
+    -- De HTTP-wachtrij bevat alleen een handtekening die maximaal drie minuten geldig is.
+    headers := jsonb_build_object('Authorization', 'Bearer ' || encode(extensions.hmac(
+      'calvora-bank-review:' || floor(extract(epoch from now()) / 60)::bigint::text,
+      decrypted_secret,
+      'sha256'
+    ), 'hex')),
     timeout_milliseconds := 120000
   )
   from vault.decrypted_secrets where name = 'calvora_daily_bank_category_review';
