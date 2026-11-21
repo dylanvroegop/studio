@@ -97,7 +97,7 @@ export function buildGoogleMapsDirectionsUrl(address: string): string {
 }
 
 /** Aanroepen vanuit de klik zelf, zodat iOS de overdracht naar Maps toestaat. */
-export function openGoogleMapsDirections(url: string): void {
+export function openGoogleMapsDirections(url: string, options?: { sameWindow?: boolean }): void {
   if (!url || typeof window === 'undefined') return;
 
   const isIOS = /iPad|iPhone|iPod/.test(window.navigator.userAgent)
@@ -110,5 +110,6 @@ export function openGoogleMapsDirections(url: string): void {
     return;
   }
 
-  window.open(url, '_blank', 'noopener,noreferrer');
+  if (options?.sameWindow) window.location.assign(url);
+  else window.open(url, '_blank', 'noopener,noreferrer');
 }

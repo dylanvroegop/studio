@@ -5,6 +5,7 @@ import { readGpsHealth } from '@/lib/gps-health-server';
 import { gpsDailyReminderId, nextGpsAlert, type GpsAlertState } from '@/lib/gps-alert-state';
 import { deliverAppMessage } from '@/lib/push-inbox';
 import { pushUser, pushError, pushHeaders } from '@/lib/push-server';
+import { sendDepartureReminder } from '@/lib/departure-reminder-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   const uid = await pushUser(request, true);
   if (!uid) return pushError('Geen toegang.', 401);
   try {
+    // De bestaande n8n-timer blijft ook bij een gezonde GPS de avondplanning uitvoeren.
+    // Een routefout mag de GPS-bewaking niet onderbreken; de volgende tick probeert opnieuw.
+    const departurePromise = sendDepartureReminder(uid).catch(() => ({ ok: false }));
     const health = await readGpsHealth().catch(() => gpsHealth(null));
+    const departure = await departurePromise;
     const { firestore } = initFirebaseAdmin();
     const ref = firestore.collection('gps_monitor_state').doc(uid);
     const state = await firestore.runTransaction(async tx => {
@@ -23,7 +28,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       tx.set(ref, { ...next, checkedAt: Date.now(), health: health.state });
       return next;
     });
-    if (!state.eventId) return NextResponse.json({ ok: true, health, alert: false }, { headers: pushHeaders });
+    if (!state.eventId) return NextResponse.json({ ok: !('ok' in departure) || departure.ok !== false, health, alert: false, departure }, { headers: pushHeaders });
     // Dezelfde storing houdt hetzelfde eventId: retries leveren geen dubbele push op.
     const result = await deliverAppMessage(uid, {
       eventId: state.eventId,
@@ -40,6 +45,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       url: '/urenregistratie',
     }) : null;
     const reminderOk = !reminder || (reminder.failed === 0 && reminder.accepted + reminder.skipped > 0);
-    return NextResponse.json({ ...result, ok: ok && reminderOk, health, alert: true, reminder }, { status: ok && reminderOk ? 200 : 503, headers: pushHeaders });
+    return NextResponse.json({ ...result, ok: ok && reminderOk, health, alert: true, reminder, departure }, { status: ok && reminderOk ? 200 : 503, headers: pushHeaders });
   } catch { return pushError('GPS-bewaking mislukt.', 503); }
 }
