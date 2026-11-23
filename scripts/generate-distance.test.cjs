@@ -5,18 +5,22 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 const ts = require('typescript');
 
-const source = ts.transpileModule(
-  fs.readFileSync(path.join(__dirname, '../src/app/api/generate-distance/route.ts'), 'utf8'),
+const transpile = file => ts.transpileModule(
+  fs.readFileSync(path.join(__dirname, '..', file), 'utf8'),
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
 ).outputText;
+
+const source = transpile('src/app/api/generate-distance/route.ts');
+const providerSource = transpile('src/lib/driving-distance-server.ts');
 
 function setup(responses, env = { GOOGLE_GEOCODING_API_KEY: 'test-key' }) {
   const calls = [];
   const exports = {};
-  vm.runInNewContext(source, {
-    exports, process: { env }, console: { warn() {} }, Response, URLSearchParams,
+  const provider = {};
+  const context = { process: { env }, console: { warn() {} }, Response, URLSearchParams,
     AbortSignal, AbortController, setTimeout, clearTimeout,
     require(name) {
+      if (name === '@/lib/driving-distance-server') return provider;
       if (name === 'next/server') return { NextResponse: Response };
       if (name === '@/firebase/admin') return { initFirebaseAdmin: () => ({
         auth: { verifyIdToken: async () => ({ uid: 'test-user' }) },
@@ -30,7 +34,9 @@ function setup(responses, env = { GOOGLE_GEOCODING_API_KEY: 'test-key' }) {
       const next = responses.shift();
       return Response.json(next.body, { status: next.status || 200 });
     },
-  });
+  };
+  vm.runInNewContext(providerSource, { ...context, exports: provider });
+  vm.runInNewContext(source, { ...context, exports });
   return { calls, post: () => exports.POST(new Request('http://localhost/api/generate-distance', {
     method: 'POST', headers: { authorization: 'Bearer test-token', 'Content-Type': 'application/json' },
     body: JSON.stringify({ originAddress: 'Amsterdam', destinationAddress: 'Heerhugowaard' }),
