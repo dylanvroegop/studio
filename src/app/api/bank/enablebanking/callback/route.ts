@@ -8,8 +8,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
-function appRedirect(request: Request, result: 'connected' | 'error', message?: string, returnTo = '/kosten?tab=overview'): NextResponse {
-  const url = new URL(returnTo === '/kosten?tab=totalen' ? returnTo : '/kosten?tab=overview', request.url);
+function appRedirect(request: Request, result: 'connected' | 'error', message?: string, returnTo: '/totalen' | '/kosten?tab=overview' = '/kosten?tab=overview'): NextResponse {
+  const url = new URL(returnTo, request.url);
   url.searchParams.set('bank', result);
   if (message) url.searchParams.set('message', message.slice(0, 180));
   return NextResponse.redirect(url);
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   const state = url.searchParams.get('state') || '';
   const code = url.searchParams.get('code') || '';
   const error = url.searchParams.get('error_description') || url.searchParams.get('error') || '';
-  let returnTo = '/kosten?tab=overview';
+  let returnTo: '/totalen' | '/kosten?tab=overview' = '/kosten?tab=overview';
   try {
     if (!state) return appRedirect(request, 'error', 'Enable Banking gaf geen state terug.');
     const connectionResult = await supabaseAdmin.from('bank_connections')
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
       .maybeSingle();
     if (connectionResult.error || !connectionResult.data) return appRedirect(request, 'error', 'Koppeling niet gevonden. Start de Knab-koppeling opnieuw.');
     const metadata = connectionResult.data.metadata as { returnTo?: unknown } | null;
-    if (metadata?.returnTo === '/kosten?tab=totalen') returnTo = '/kosten?tab=totalen';
+    if (metadata?.returnTo === '/totalen' || metadata?.returnTo === '/kosten?tab=totalen') returnTo = '/totalen';
     if (error) return appRedirect(request, 'error', `Knab-toestemming niet voltooid: ${error}`, returnTo);
     if (!code) return appRedirect(request, 'error', 'Enable Banking gaf geen code terug.', returnTo);
 

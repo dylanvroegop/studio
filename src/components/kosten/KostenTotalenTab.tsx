@@ -198,7 +198,7 @@ export function KostenTotalenTab({ costs, privateCredits, cashDeposits, onManage
     try {
       const data = await requestKnab(user, '/api/bank/enablebanking/connect', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ institutionId: 'Knab', returnTo: '/kosten?tab=totalen' }),
+        body: JSON.stringify({ institutionId: 'Knab', returnTo: '/totalen' }),
         signal: controller.signal,
       }, 30_000);
       if (controller.signal.aborted) return;

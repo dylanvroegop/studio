@@ -3,23 +3,26 @@
 import { useMemo } from 'react';
 import {
   Archive,
-  Compass,
   BookOpen,
   Boxes,
   CalendarDays,
+  Calculator,
   Clock3,
   ClipboardList,
+  Compass,
   FileText,
-    LayoutDashboard,
-    Landmark,
-    MessageCircle,
-    Receipt,
+  LayoutDashboard,
+  Landmark,
+  MessageCircle,
+  Plus,
+  Receipt,
   ReceiptText,
   Sparkles,
   Settings,
   StickyNote,
   TrendingUp,
   Users,
+  Wallet,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -62,6 +65,9 @@ export function DashboardHeader({
         iconClassName: 'text-amber-400',
       };
     }
+    if (pathname === '/snel-toevoegen') return { icon: Plus, iconClassName: 'text-teal-400' };
+    if (pathname === '/totalen') return { icon: Calculator, iconClassName: 'text-teal-400' };
+    if (pathname === '/personal-finance') return { icon: Wallet, iconClassName: 'text-lime-400' };
     if (pathname.startsWith('/kosten')) {
       return {
         icon: Receipt,

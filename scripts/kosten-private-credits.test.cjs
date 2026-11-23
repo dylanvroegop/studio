@@ -9,7 +9,7 @@ const { costForCategory } = require('../src/lib/bank-cost-allocation');
 
 // Test de echte selectiefuncties uit de pagina, zonder nieuwe productie-exports
 // of Firebase/browserinitialisatie voor deze zuivere weergaveregels.
-const pageText = fs.readFileSync(path.join(__dirname, '../src/app/kosten/page.tsx'), 'utf8');
+const pageText = fs.readFileSync(path.join(__dirname, '../src/components/kosten/KostenPage.tsx'), 'utf8');
 const parsedPage = ts.createSourceFile('page.tsx', pageText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const names = ['safeNumber', 'safeString', 'formatCurrency', 'getCostAmountSearchText', 'isPrivateDeposit',
   'formatBankRowAmount', 'matchingCostRows', 'costRowsForFilter', 'availableCostMonths', 'isBankTransactionCost'];

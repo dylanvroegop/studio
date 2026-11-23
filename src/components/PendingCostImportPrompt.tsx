@@ -187,6 +187,7 @@ function getQuoteLabel(raw: Record<string, unknown>): string {
 
 export function PendingCostImportPrompt() {
   const pathname = usePathname();
+  const isKostenPage = pathname === '/kosten' || pathname === '/snel-toevoegen' || pathname === '/totalen';
   const { toast } = useToast();
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -202,7 +203,7 @@ export function PendingCostImportPrompt() {
   const [lineItems, setLineItems] = useState<ProjectCostLineItem[]>([]);
 
   useEffect(() => {
-    if (isUserLoading || !user || pathname === '/kosten') return;
+    if (isUserLoading || !user || isKostenPage) return;
     let cancelled = false;
 
     const loadPending = async () => {
@@ -248,10 +249,10 @@ export function PendingCostImportPrompt() {
       window.clearInterval(timer);
       window.removeEventListener('focus', onFocus);
     };
-  }, [isUserLoading, pathname, user, pendingReload]);
+  }, [isUserLoading, isKostenPage, pathname, user, pendingReload]);
 
   useEffect(() => {
-    if (!open || !user || !firestore || pathname === '/kosten') return;
+    if (!open || !user || !firestore || isKostenPage) return;
     let cancelled = false;
 
     const loadQuotes = async () => {
@@ -301,7 +302,7 @@ export function PendingCostImportPrompt() {
     return () => {
       cancelled = true;
     };
-  }, [firestore, open, pathname, user]);
+  }, [firestore, isKostenPage, open, pathname, user]);
 
   useEffect(() => {
     if (!pending || quotes.length === 0 || resolvedReferenceId.current === pending.id) return;

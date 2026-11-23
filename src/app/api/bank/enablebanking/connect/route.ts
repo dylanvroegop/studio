@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 const inputSchema = z.object({
   institutionId: z.string().min(1).max(200).default('Knab'),
-  returnTo: z.enum(['/kosten?tab=totalen', '/kosten?tab=overview']).default('/kosten?tab=overview'),
+  returnTo: z.enum(['/totalen', '/kosten?tab=totalen', '/kosten?tab=overview']).default('/kosten?tab=overview'),
 });
 
 export async function POST(request: Request) {

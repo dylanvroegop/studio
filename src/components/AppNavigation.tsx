@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getIdTokenResult } from 'firebase/auth';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Compass, Menu, X, FileText, Plus, Calculator, Receipt, ReceiptText, CalendarDays, Boxes, Clock3, ClipboardList, Mic, Settings } from 'lucide-react';
+import { Compass, Menu, X, FileText, Plus, Calculator, Receipt, ReceiptText, CalendarDays, Wallet, Boxes, Clock3, ClipboardList, Mic, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -61,25 +61,32 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
         iconColorClassActive: 'text-amber-300',
     },
     {
-        href: '/kosten?tab=quick-add',
+        href: '/snel-toevoegen',
         label: 'Snel toevoegen',
         icon: Plus,
         iconColorClass: 'text-teal-400',
         iconColorClassActive: 'text-teal-300',
     },
     {
-        href: '/kosten?tab=kosten',
+        href: '/kosten',
         label: 'Kosten',
         icon: Receipt,
         iconColorClass: 'text-teal-400',
         iconColorClassActive: 'text-teal-300',
     },
     {
-        href: '/kosten?tab=totalen',
+        href: '/totalen',
         label: 'Totalen',
         icon: Calculator,
         iconColorClass: 'text-teal-400',
         iconColorClassActive: 'text-teal-300',
+    },
+    {
+        href: '/personal-finance',
+        label: 'Personal Finance',
+        icon: Wallet,
+        iconColorClass: 'text-lime-400',
+        iconColorClassActive: 'text-lime-300',
     },
     {
         href: '/vision',
@@ -132,11 +139,7 @@ const BASE_NAV_ITEMS: NavigationItem[] = [
     },
 ];
 
-function isActivePath(pathname: string, href: string, financeView: string): boolean {
-    if (href.startsWith('/kosten?tab=')) {
-        const tab = new URLSearchParams(href.split('?')[1]).get('tab');
-        return pathname === '/kosten' && tab === (financeView === 'pdfs' ? 'kosten' : financeView);
-    }
+function isActivePath(pathname: string, href: string): boolean {
     if (href === '/instellingen') return pathname.startsWith('/instellingen') || pathname.startsWith('/meldingen');
     if (href === '/facturen/start') return pathname === '/facturen/start' || pathname === '/facturen/nieuw';
     if (href === '/facturen') return pathname.startsWith('/facturen') && pathname !== '/facturen/start' && pathname !== '/facturen/nieuw';
@@ -146,7 +149,7 @@ function isActivePath(pathname: string, href: string, financeView: string): bool
     return pathname.startsWith(href);
 }
 
-function NavigationContent({ pathname, financeView, onNavigate, onClose, isMobile = false }: { pathname: string; financeView: string; onNavigate?: () => void; onClose?: () => void; isMobile?: boolean }) {
+function NavigationContent({ pathname, onNavigate, onClose, isMobile = false }: { pathname: string; onNavigate?: () => void; onClose?: () => void; isMobile?: boolean }) {
     const { user, isUserLoading } = useUser();
     const [isDeveloperAccess, setIsDeveloperAccess] = useState(false);
 
@@ -215,7 +218,7 @@ function NavigationContent({ pathname, financeView, onNavigate, onClose, isMobil
             <nav className={cn('min-h-0 flex-1 overflow-y-auto px-3', isMobile ? 'overscroll-contain py-3' : 'pb-6')}>
                 <div className={isMobile ? 'flex min-h-full flex-col gap-1' : 'space-y-1'}>
                     {navItems.map((item) => {
-                        const active = isActivePath(pathname, item.href, financeView);
+                        const active = isActivePath(pathname, item.href);
                         const Icon = item.icon;
 
                         return (
@@ -258,7 +261,7 @@ function NavigationContent({ pathname, financeView, onNavigate, onClose, isMobil
     );
 }
 
-export function AppNavigation({ financeView = 'quick-add' }: { financeView?: string } = {}) {
+export function AppNavigation() {
     const pathname = usePathname();
     const isMobile = useIsMobile();
     const hideNavigation = pathname === '/login' || pathname === '/';
@@ -403,7 +406,6 @@ export function AppNavigation({ financeView = 'quick-add' }: { financeView?: str
                             {isReady && (
                                 <NavigationContent
                                     pathname={pathname}
-                                    financeView={financeView}
                                     isMobile
                                     onNavigate={() => handleMenuOpenChange(false)}
                                     onClose={() => handleMenuOpenChange(false)}
@@ -449,7 +451,6 @@ export function AppNavigation({ financeView = 'quick-add' }: { financeView?: str
                         {isReady && (
                             <NavigationContent
                                 pathname={pathname}
-                                financeView={financeView}
                                 onClose={() => {
                                     setIsHoveringDesktopNav(false);
                                     handleMenuOpenChange(false);
