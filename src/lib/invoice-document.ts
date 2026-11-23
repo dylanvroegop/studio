@@ -115,6 +115,7 @@ export interface CreateInvoiceParams {
     handmatigEindbedrag?: boolean;
     opmerking?: string;
     notes?: string;
+    subsidy?: import('./invoice-subsidy').SubsidyMeasure[];
     combinedContext?: InvoiceCombinedContext | null;
     meerwerkbonPricingMode?: MeerwerkbonPricingMode;
     actualLineItems?: Partial<MeerwerkbonLineItem>[];

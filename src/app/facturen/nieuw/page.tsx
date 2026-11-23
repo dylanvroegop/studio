@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useFirestore, useUser } from '@/firebase';
+import type { Quote } from '@/lib/types';
+import type { DataJson } from '@/lib/quote-calculations';
 import type { UserSettings } from '@/lib/types-settings';
 import { toast } from '@/hooks/use-toast';
 import { createInvoiceFromQuote } from '@/lib/invoice-actions';
@@ -24,6 +26,11 @@ import { QuoteAmountDifferenceDialog } from '@/components/invoice/QuoteAmountDif
 import { SharedQuoteAmountBar } from '@/components/quote/SharedQuoteAmountBar';
 import { compareSharedQuoteAmount, isQuoteAmountConfirmed, type QuoteAmountComparison, type QuoteAmountConfirmation } from '@/lib/quote-shared-amount';
 import { resolveInvoiceTotal } from '@/lib/invoice-total';
+import { getSubsidyQuestions, invoiceSubsidySchema, suggestInvoiceSubsidy, type SubsidyMeasure } from '@/lib/invoice-subsidy';
+import { InvoiceSubsidyFields } from '@/components/invoice/InvoiceSubsidyFields';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+type InvoiceQuote = Quote & { title?: string; calculationSnapshot?: DataJson };
 
 const formatCurrency = (value: number): string => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(value);
 const roundMoney = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -42,7 +49,7 @@ function NieuweFactuurPageContent() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [quote, setQuote] = useState<any>(null);
+  const [quote, setQuote] = useState<InvoiceQuote | null>(null);
   const [quoteSignature, setQuoteSignature] = useState('');
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [invoices, setInvoices] = useState<InvoiceBillingRow[]>([]);
@@ -54,6 +61,10 @@ function NieuweFactuurPageContent() {
   const [reason, setReason] = useState('');
   const [adjusting, setAdjusting] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [subsidyEnabled, setSubsidyEnabled] = useState(false);
+  const [subsidy, setSubsidy] = useState<SubsidyMeasure[]>([]);
+  const [subsidyReviewing, setSubsidyReviewing] = useState(false);
+  const [subsidyWarning, setSubsidyWarning] = useState<{ share: boolean; confirmation?: QuoteAmountConfirmation } | null>(null);
   const creatingRef = useRef(false);
   const finalAmountRef = useRef<HTMLInputElement>(null);
   const [amountWarning, setAmountWarning] = useState<{ comparison: QuoteAmountComparison; share: boolean } | null>(null);
@@ -76,13 +87,16 @@ function NieuweFactuurPageContent() {
         const data = await loadInvoicePreparation(firestore, user, quoteId, controller.signal);
         if (cancelled) return;
         if (!data.quoteSnapshot.exists()) { setQuote(null); return; }
-        const source = data.quoteSnapshot.data();
+        const source = data.quoteSnapshot.data() as InvoiceQuote;
         const loadedSettings = data.userSnapshot.data()?.settings as UserSettings | undefined;
         const nextBilling = summarizeInvoiceBilling(data.invoices);
         const nextTotal = roundMoney(resolveInvoiceTotal(source, data.calculationSnapshot, Number(loadedSettings?.planningSettings?.defaultWorkdayHours) || 8));
         const rawPercentage = source.facturatie?.voorschotPercentage ?? loadedSettings?.standaardVoorschotPercentage ?? 50;
         const percentage = Math.max(0, Math.min(100, Number(rawPercentage) || 0));
         setQuote({ ...source, id: quoteId, calculationSnapshot: data.calculationSnapshot || source.calculationSnapshot });
+        const subsidySuggestion = suggestInvoiceSubsidy(source, data.calculationSnapshot).measures;
+        setSubsidy(subsidySuggestion);
+        setSubsidyEnabled(subsidySuggestion.length > 0);
         setQuoteSignature(invoiceQuoteSignature(source));
         setSettings(loadedSettings || null);
         setInvoices(data.invoices);
@@ -130,11 +144,15 @@ function NieuweFactuurPageContent() {
   const validAmount = newAmount !== null && newAmount > 0 && newAmount <= total;
   const canCreate = !loading && !loadError && !!user && !!firestore && !!quote && quote.id === quoteId && !blockingMessage && (!directAdvance || bank.ready)
     && (!!existingId || (!!settings && total > 0 && validAmount && (selectedType !== 'eind' || manualFinalAmount === null || !!reason.trim())));
+  const checkSubsidy = !existingId && subsidyEnabled;
+  const subsidyValid = !checkSubsidy || invoiceSubsidySchema.safeParse(subsidy).success;
+  const incompleteSubsidy = checkSubsidy && getSubsidyQuestions(subsidy, selectedType).length > 0;
+  const readyToCreate = canCreate && subsidyValid && (!checkSubsidy || !subsidyReviewing);
   const customer = quote?.klantinformatie;
   const customerName = customer?.bedrijfsnaam || [customer?.voornaam, customer?.achternaam].filter(Boolean).join(' ') || 'Onbekende klant';
 
-  async function handleCreate(share: boolean, confirmation?: QuoteAmountConfirmation): Promise<void> {
-    if (!canCreate || creatingRef.current || !user || !firestore || !quote) return;
+  async function handleCreate(share: boolean, confirmation?: QuoteAmountConfirmation, acceptIncompleteSubsidy = false): Promise<void> {
+    if (!readyToCreate || creatingRef.current || !user || !firestore || !quote) return;
     const comparison = !existingId && selectedType === 'eind' && newAmount !== null
       ? compareSharedQuoteAmount(quote.whatsappQuoteSnapshot, newAmount, deduction) : null;
     if (comparison?.differenceCents && !isQuoteAmountConfirmed(comparison, confirmation)) {
@@ -142,12 +160,18 @@ function NieuweFactuurPageContent() {
       return;
     }
     setAmountWarning(null);
+    if (incompleteSubsidy && !acceptIncompleteSubsidy) {
+      setSubsidyWarning({ share, confirmation });
+      return;
+    }
+    setSubsidyWarning(null);
     creatingRef.current = true;
     setCreating(true);
     try {
       const invoiceId = existingId || await createInvoiceFromQuote(firestore, {
         userId: user.uid, quoteId, quote, settings: settings!, invoiceType: selectedType,
         calculationSnapshot: quote.calculationSnapshot,
+        subsidy: checkSubsidy ? subsidy : undefined,
         originalTotalInclBtw: total, totalsInclBtw: newAmount!,
         voorschotPercentage: advancePercentage,
         voorschotAftrekInclBtw: selectedType === 'eind' ? deduction : 0,
@@ -186,6 +210,10 @@ function NieuweFactuurPageContent() {
                 <h2 className="font-semibold">{customerName}</h2>
                 <p className="text-sm text-muted-foreground">{quote.titel || quote.title || 'Offerte'}{typeof quote.offerteNummer === 'number' ? ` · #${formatOfferteNummerLabel(quote.offerteNummer, quote.offerteVersie)}` : ''}</p>
               </div>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Factuurtype">
+                <Button type="button" variant={selectedType === 'voorschot' ? 'secondary' : 'outline'} aria-pressed={selectedType === 'voorschot'} disabled={creating} onClick={() => setSelectedType('voorschot')}>Voorschotfactuur</Button>
+                <Button type="button" variant={selectedType === 'eind' ? 'secondary' : 'outline'} aria-pressed={selectedType === 'eind'} disabled={creating} onClick={() => setSelectedType('eind')}>Eindfactuur</Button>
+              </div>
               {directAdvance && <QuoteAdvancePayments bank={bank} disabled={creating} />}
               {reviewAdvance && advances.map((advance) => <InvoiceBankPayments key={advance.id} invoiceId={advance.id}
                 advanceLabel={`Knab · Voorschotfactuur #${advance.invoiceNumberLabel || advance.id}`} onLoaded={updateAdvance} />)}
@@ -203,13 +231,15 @@ function NieuweFactuurPageContent() {
               <SharedQuoteAmountBar snapshot={quote.whatsappQuoteSnapshot} currentAmount={total} />
               {existingInvoice && <p className="text-sm text-muted-foreground">{existingInvoice.status === 'concept' ? 'Het bestaande concept wordt geopend.' : 'Deze factuur bestaat al en wordt opnieuw geopend.'}</p>}
               {blockingMessage && <div className="space-y-2 text-sm text-amber-300"><p>{blockingMessage}</p><Link href={`/facturen?quoteId=${encodeURIComponent(quoteId)}`} className="underline">Open facturen</Link>{billing.draftAdvances.length === 1 && <Link href={`/facturen/${billing.draftAdvances[0].id}`} className="ml-3 underline">Open voorschotconcept</Link>}</div>}
+              {!existingId && user && <InvoiceSubsidyFields user={user} quoteId={quoteId} type={selectedType}
+                enabled={subsidyEnabled} setEnabled={setSubsidyEnabled} measures={subsidy} setMeasures={setSubsidy}
+                setReviewing={setSubsidyReviewing} disabled={creating} />}
               <div className="flex flex-col gap-2">
-                <Button variant="success" className="gap-2" disabled={!canCreate || creating} onClick={() => void handleCreate(true)}>{creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}{existingId ? 'Open en deel' : 'Maak en deel'}</Button>
-                <div className="flex gap-2"><Button className="flex-1" variant="outline" disabled={!canCreate || creating} onClick={() => void handleCreate(false)}>{existingId ? 'Open factuur' : 'Alleen aanmaken'}</Button><Button variant="ghost" onClick={() => setAdjusting((value) => !value)} aria-expanded={adjusting}>{adjusting ? 'Sluiten' : 'Aanpassen'}</Button></div>
+                <Button variant="success" className="gap-2" disabled={!readyToCreate || creating} onClick={() => void handleCreate(true)}>{creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}{existingId ? 'Open en deel' : 'Maak en deel'}</Button>
+                <div className="flex gap-2"><Button className="flex-1" variant="outline" disabled={!readyToCreate || creating} onClick={() => void handleCreate(false)}>{existingId ? 'Open factuur' : 'Alleen aanmaken'}</Button><Button variant="ghost" onClick={() => setAdjusting((value) => !value)} aria-expanded={adjusting}>{adjusting ? 'Sluiten' : 'Aanpassen'}</Button></div>
               </div>
             </section>
             {adjusting && <section className="space-y-4 rounded-lg border p-4">
-              <div className="flex gap-2"><Button variant={selectedType === 'voorschot' ? 'secondary' : 'outline'} onClick={() => setSelectedType('voorschot')}>Voorschot</Button><Button variant={selectedType === 'eind' ? 'secondary' : 'outline'} onClick={() => setSelectedType('eind')}>Eindfactuur</Button></div>
               {existingId ? <p className="text-sm text-muted-foreground">Open de bestaande factuur om deze te controleren.</p> : selectedType === 'voorschot' ? <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2"><Label htmlFor="advance-percentage">Voorschot (%)</Label><Input id="advance-percentage" type="number" min="0" max="100" value={advancePercentage} onChange={(event) => { const pct = Math.max(0, Math.min(100, Number(event.target.value) || 0)); setAdvancePercentage(pct); setAdvanceAmount(roundMoney(total * pct / 100).toFixed(2)); }} /></div>
                 <div className="space-y-2"><Label htmlFor="advance-amount">Bedrag incl. btw</Label><Input id="advance-amount" inputMode="decimal" value={advanceAmount} onChange={(event) => { setAdvanceAmount(event.target.value); const value = parseAmount(event.target.value); if (value !== null && total > 0) setAdvancePercentage(value / total * 100); }} /></div>
@@ -221,6 +251,18 @@ function NieuweFactuurPageContent() {
           </>
         )}
       </main>
+      <Dialog open={!!subsidyWarning} onOpenChange={(open) => { if (!open) setSubsidyWarning(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ISDE-gegevens aanvullen</DialogTitle>
+            <DialogDescription>Er ontbreken nog gegevens. Je kunt ze nu invullen of de factuur aanmaken met de gegevens die al bekend zijn.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubsidyWarning(null)}>Gegevens invullen</Button>
+            <Button onClick={() => { if (subsidyWarning) void handleCreate(subsidyWarning.share, subsidyWarning.confirmation, true); }}>Aanmaken met bekende gegevens</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <QuoteAmountDifferenceDialog
         comparison={amountWarning?.comparison || null}
         onCancel={() => setAmountWarning(null)}

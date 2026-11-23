@@ -418,3 +418,58 @@ test('bankselectie kan een al gefactureerd voorschot niet dubbel aftrekken', asy
   await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', input, null), /bestaande voorschotfactuur/);
   assert.equal(h.commits.length, 0);
 });
+
+test('eindfactuur en voorschot bewaren de juiste ISDE-gegevens in de PDF-notities', async () => {
+  const { emptySubsidyMeasure } = load('@/lib/invoice-subsidy');
+  const subsidy = [{
+    ...emptySubsidyMeasure(), material: 'Knauf Naturoll 037 140 mm',
+    application: 'Dakisolatie', code: 'ka18226', area: '24,5', plannedArea: '26',
+    thickness: '140', insulationValue: '3,75', purchaseDate: '2026-11-15',
+    installationDate: '2026-11-19', amount: '1250',
+  }];
+
+  const final = harness();
+  const finalId = await createInvoiceAtomically(final.firestore, 'owner', { ...final.params, subsidy }, null);
+  const finalNotes = final.documents.get(`invoices/${finalId}`).notes;
+  assert.match(finalNotes, /RVO-meldcode: KA18226/);
+  assert.match(finalNotes, /Aangebracht in bestaande woning \(m²\): 24,5/);
+  assert.match(finalNotes, /Installatiedatum: 19-11-2026/);
+  assert.doesNotMatch(finalNotes, /Gepland/);
+
+  const advanceInvoice = harness();
+  const advanceId = await createInvoiceAtomically(advanceInvoice.firestore, 'owner', {
+    ...advanceInvoice.params, invoiceType: 'voorschot', totalsInclBtw: 6000, subsidy,
+  }, null);
+  const advanceNotes = advanceInvoice.documents.get(`invoices/${advanceId}`).notes;
+  assert.match(advanceNotes, /RVO-meldcode: KA18226/);
+  assert.match(advanceNotes, /Gepland voor bestaande woning \(m²\): 26/);
+  assert.doesNotMatch(advanceNotes, /Installatiedatum|Aangebracht|24,5/);
+});
+
+test('ongeldige ISDE-invoer reserveert geen factuurnummer', async () => {
+  const h = harness();
+  const { emptySubsidyMeasure } = load('@/lib/invoice-subsidy');
+  await assert.rejects(createInvoiceAtomically(h.firestore, 'owner', {
+    ...h.params, subsidy: [{ ...emptySubsidyMeasure(), code: 'onbekend' }],
+  }, null), /Controleer de ISDE-gegevens/);
+  assert.equal(h.documents.has('counters/invoiceNumber_owner'), false);
+});
+
+test('de RVO-werkmap levert alleen een meldcode bij een unieke toepasselijke match', () => {
+  const { zipSync, strToU8 } = require('fflate');
+  const { emptySubsidyMeasure } = load('@/lib/invoice-subsidy');
+  const { parseRvoCatalog, matchRvoCode } = load('@/lib/rvo-meldcodes');
+  const rows = [
+    { A: 'MELDCODE', C: 'Model', F: 'MIN_DIKTE_MM', J: 'Categorie' },
+    { A: 'KA18226', B: 'Knauf Insulation', C: 'Naturoll 037 -dakisolatie', E: '3.5', F: '130', J: 'Dakisolatie', K: 'Alle woningen' },
+    { A: 'KA26612', B: 'Knauf Insulation', C: '(M)Naturoll 037 -dakisolatie', E: '2.5', F: '93', J: 'Dakisolatie', K: 'Alleen monumentale woningen' },
+  ].map((row, index) => '<row>' + Object.entries(row).map(([column, value]) =>
+    `<c r="${column}${index + 1}" t="inlineStr"><is><t>${value}</t></is></c>`).join('') + '</row>');
+  const zip = zipSync({ 'xl/worksheets/sheet2.xml': strToU8(`<worksheet><sheetData>${rows.join('')}</sheetData></worksheet>`) });
+  const catalog = parseRvoCatalog(zip, 'isolatie');
+  const measure = { ...emptySubsidyMeasure(), material: 'Knauf Insulation Naturoll 037 glaswol', application: 'Dakisolatie', thickness: '140', insulationValue: '3,75' };
+  assert.equal(matchRvoCode(measure, catalog), 'KA18226');
+  assert.equal(matchRvoCode({ ...measure, thickness: '100' }, catalog), '');
+  assert.equal(matchRvoCode({ ...measure, application: 'Vloerisolatie' }, catalog), '');
+  assert.equal(matchRvoCode(measure, [...catalog, { ...catalog[0], code: 'KA12345' }]), '');
+});

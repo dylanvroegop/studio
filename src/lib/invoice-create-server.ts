@@ -8,6 +8,7 @@ import { invoiceQuoteSignature } from '@/lib/invoice-quote-signature';
 import { freezeInvoiceCalculation, resolveInvoiceTotal, resolveTotalFromQuote } from '@/lib/invoice-total';
 import { DEFAULT_USER_SETTINGS } from '@/lib/types-settings';
 import { calculateMeerwerkbonTotals, recalcMeerwerkbonLineItems } from '@/lib/meerwerkbon-utils';
+import { formatInvoiceSubsidy, invoiceSubsidySchema } from '@/lib/invoice-subsidy';
 import { removeEmptyFields } from '@/lib/utils';
 import type { MeerwerkbonClientSnapshot, MeerwerkbonLineItem } from '@/lib/types';
 import type { DataJson } from '@/lib/quote-calculations';
@@ -197,8 +198,15 @@ export async function createInvoiceAtomically(
     if (!Number.isSafeInteger(invoiceNumber) || invoiceNumber < 0) throw new InvoiceCreationError('De factuurnummerteller is ongeldig. Controleer de instellingen.');
     const timestamp = FieldValue.serverTimestamp();
     const frozenCalculation = standalone ? null : freezeInvoiceCalculation(calculation, quote, Number(settings.planningSettings?.defaultWorkdayHours) || 8);
+    let subsidyNotes = '';
+    if (input.subsidy !== undefined && !combinedId) {
+      const subsidy = invoiceSubsidySchema.safeParse(input.subsidy);
+      if (!subsidy.success) throw new InvoiceCreationError('Controleer de ISDE-gegevens.', 400);
+      subsidyNotes = formatInvoiceSubsidy(subsidy.data, input.invoiceType, settings);
+    }
     const payload = buildInvoiceDocument({
       ...input, userId: uid, quote, settings, calculationSnapshot: frozenCalculation || undefined,
+      notes: [typeof input.notes === 'string' ? input.notes.trim() : '', subsidyNotes].filter(Boolean).join('\n\n'),
       originalTotalInclBtw: total, totalsInclBtw: requested, voorschotAftrekInclBtw: deduction,
       voorschotFactuurSnapshot: snapshots.length === 1 ? snapshots[0] : null,
       combinedContext: combinedContext || null, combinedQuoteIds,

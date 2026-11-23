@@ -129,3 +129,14 @@ test('meerwerkfactuur toont eigen bonnummer, uren, materialen en btw per tarief'
   assert.ok(lines.includes(`3 uur × ${money(50)}`));
   assert.ok(!lines.includes('Offertebedrag'));
 });
+
+test('de PDF toont de vastgelegde ISDE-informatie ongeacht de uitsplitsing van bedragen', async () => {
+  const pdf = fixture();
+  await pdf.render({
+    ...invoice, showMaterialLaborBreakdown: false,
+    invoiceNotes: 'ISDE – uitgevoerde werkzaamheden\nRVO-meldcode: KA18226\nInstallatiedatum: 19-11-2026',
+  });
+  const lines = pdf.text.map((row) => row.value);
+  assert.ok(lines.includes('RVO-meldcode: KA18226'));
+  assert.ok(lines.includes('Installatiedatum: 19-11-2026'));
+});
