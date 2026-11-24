@@ -144,6 +144,7 @@ test('reminder route requires cron secret and owner-scopes Firebase requests', a
     '@/firebase/admin': { initFirebaseAdmin: () => ({ firestore: { collection: () => ({ doc: () => ({ set: async value => heartbeats.push(value) }) }) }, auth: { verifyIdToken: async token => {
       if (token !== 'owner-token') throw new Error('invalid'); return { uid: 'owner' };
     } } }) },
+    '@/lib/supabase-admin': { supabaseAdmin: { rpc: async () => ({ data: false, error: null }) } },
     '@/lib/client-intake-reminders': { runClientIntakeReminders: async uid => { calls.push(uid); return 1; } },
     'next/server': { NextResponse: { json: (body, init = {}) => ({ body, status: init.status || 200 }) } },
   }, { process: { env: { CRON_SECRET: 'cron-test' } } });
@@ -155,4 +156,32 @@ test('reminder route requires cron secret and owner-scopes Firebase requests', a
   assert.equal((await route.POST(request('owner-token'))).status, 200);
   assert.deepEqual(calls, [undefined, 'owner']);
   assert.equal(heartbeats.length, 2); assert.equal(heartbeats.at(-1).source, 'cron');
+});
+
+test('signed scheduler scopes owner, records completion and fails closed on invalid authorization', async () => {
+  const token = 'a'.repeat(64), calls = [], heartbeats = [];
+  const controls = { authorized: true, rpcError: null, processingError: false };
+  const env = { CALVORA_USER_ID: 'owner' };
+  const route = load('src/app/api/client-intake/reminders/route.ts', {
+    '@/firebase/admin': { initFirebaseAdmin: () => ({ firestore: { collection: () => ({ doc: () => ({ set: async value => heartbeats.push(value) }) }) }, auth: { verifyIdToken: async () => { throw new Error('must not use Firebase for scheduler'); } } }) },
+    '@/lib/supabase-admin': { supabaseAdmin: { rpc: async (name, params) => {
+      assert.equal(name, 'authorize_client_intake_reminder'); assert.equal(params.provided_token, token);
+      return { data: controls.authorized, error: controls.rpcError };
+    } } },
+    '@/lib/client-intake-reminders': { runClientIntakeReminders: async uid => { calls.push(uid); if (controls.processingError) throw new Error('private provider failure'); return 0; } },
+    'next/server': { NextResponse: { json: (body, init = {}) => ({ body, status: init.status || 200 }) } },
+  }, { process: { env } });
+  const request = { headers: new Headers({ authorization: `Bearer ${token}` }) };
+  assert.equal((await route.POST(request)).status, 200);
+  assert.deepEqual(calls, ['owner']); assert.equal(heartbeats.at(-1).state, 'idle'); assert.ok(heartbeats.at(-1).lastCompletedAt);
+  controls.authorized = false;
+  assert.equal((await route.POST(request)).status, 401); assert.equal(calls.length, 1);
+  controls.rpcError = { message: 'private failure' };
+  assert.equal((await route.POST(request)).status, 503); assert.equal(calls.length, 1);
+  controls.rpcError = null; controls.authorized = true; delete env.CALVORA_USER_ID;
+  assert.equal((await route.POST(request)).status, 503); assert.equal(calls.length, 1);
+  env.CALVORA_USER_ID = 'owner'; controls.processingError = true;
+  const failed = await route.POST(request);
+  assert.equal(failed.status, 503); assert.equal(heartbeats.at(-1).state, 'error');
+  assert.equal(JSON.stringify(failed).includes('private provider'), false);
 });

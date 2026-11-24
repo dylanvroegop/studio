@@ -277,3 +277,17 @@ test('AI provider errors and incomplete output return safe failure without secre
   app.controls.aiResponse = response({ status: 'incomplete', output_text: JSON.stringify(client) });
   assert.equal((await app.extraction().POST(extractRequest({ text: 'Klantgegevens' }))).status, 502);
 });
+
+test('worker status requires recent completed run, not just a startup heartbeat', async () => {
+  for (const [status, expected] of [
+    [{ heartbeatAt: NOW, state: 'running' }, false],
+    [{ heartbeatAt: NOW, lastCompletedAt: NOW - 60_000, state: 'idle' }, true],
+    [{ heartbeatAt: NOW, lastCompletedAt: NOW - 60_000, state: 'error' }, false],
+    [{ heartbeatAt: NOW, lastCompletedAt: NOW - 4 * 60_000, state: 'running' }, false],
+  ]) {
+    const app = setup([['client_intake_worker/status', status]]);
+    const result = await app.routes.GET(request({}));
+    assert.equal(result.status, 200);
+    assert.equal(result.body.configuration.workerOnline, expected);
+  }
+});

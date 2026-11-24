@@ -39,31 +39,33 @@ pushaflevering kan veilig worden herhaald. Een geslaagde melding staat in
 Met actieve apparaten wordt ook op voltooide provideraflevering gecontroleerd.
 Acceptatie door de provider bewijst niet dat een telefoon de melding heeft getoond.
 
-Start naast de webapp een blijvende Node-processervice:
+De productieplanning draait iedere minuut via Supabase Cron:
+`calvora-client-intake-reminder`. Zij roept rechtstreeks de app-route aan;
+er is geen n8n-workflow, lokale computer of apart draaiend Node-proces nodig.
+De inrichting staat in `supabase/migrations/20261124124221_client_intake_reminder_schedule.sql`.
 
-```sh
-npm run intake:worker
-```
+De scheduler bewaart zijn sleutel in Vault en ondertekent iedere oproep met een
+HMAC-token dat alleen voor deze route en maximaal drie minuutvensters geldig is.
+Alleen de serverrol kan de controlefunctie aanroepen. De app verwerkt uitsluitend
+de ingestelde `CALVORA_USER_ID`. De privéschema-log bewaart zeven dagen lang alleen
+request-ID's en tijdstippen, zodat een geplande oproep met zijn HTTP-uitkomst kan
+worden gecontroleerd. Er staan geen tokens of klantgegevens in die log.
 
-Eén controle uitvoeren:
+`client_intake_worker/status` krijgt pas na een afgeronde ronde een
+`lastCompletedAt`. De melding in Aanvragen verdwijnt alleen als een ronde recent
+succesvol is afgerond; alleen een start-heartbeat telt niet als werkende service.
+Bij uitval wordt de waarschuwing na maximaal drie minuten weer zichtbaar bij
+het vernieuwen van de pagina. Individuele mislukte herinneringen behouden hun
+retrytijd en vaste bericht-ID.
 
-```sh
-npm run intake:worker -- --once
-```
+Bij een nieuwe installatie: pas de migratie toe, pauzeer de nieuwe cronjob tijdens
+de app-deployment, verifieer de route en activeer de job daarna. Bestaande
+installaties behouden hun Vault-sleutel bij opnieuw toepassen van de migratie.
 
-De worker leest `.env.local` en gebruikt dezelfde Firebase Admin- en Google
-Calendar-configuratie als de webapp. Hij controleert elke minuut en schrijft
-zijn heartbeat naar `client_intake_worker/status`. Gebruik op de server een
-processmanager die de worker herstart. Alleen de Next.js-webserver starten
-start deze achtergrondservice niet.
-
-Als alternatief kan een externe scheduler elke minuut
-`GET /api/client-intake/reminders` aanroepen met
-`Authorization: Bearer <CRON_SECRET>`. Configureer `CRON_SECRET` uitsluitend
-op de server en in die scheduler. Deze route gebruikt geen n8n-secret.
-`POST` met een Firebase ID-token controleert uitsluitend de aanvragen van de
-ingelogde gebruiker. Gebruik de worker of scheduler voor meldingen terwijl de
-app gesloten is. De route alleen beschikbaar maken activeert geen planning.
+Voor lokale ontwikkeling blijft `npm run intake:worker` beschikbaar;
+`npm run intake:worker -- --once` verwerkt één ronde. Als alternatieve scheduler
+kan een beveiligde GET met `CRON_SECRET` worden gebruikt. Een POST met een Firebase
+ID-token controleert alleen de eigen aanvragen en telt niet als scheduler-heartbeat.
 
 ## Overgang van Telegram
 
@@ -102,8 +104,7 @@ workeractivatie, visuele telefooncontrole en uitschakelen van de oude workflow
 zijn hiermee niet aangetoond.
 
 De nieuwe sessies worden uitsluitend server-side via Firebase Admin benaderd;
-de bestaande Firestore-regels weigeren rechtstreekse clienttoegang. Er is geen
-nieuwe Supabase-tabel of n8n-webhook nodig. Reeds geïmporteerde oude aanvragen
+de bestaande Firestore-regels weigeren rechtstreekse clienttoegang. De nieuwe serverplanning gebruikt alleen een privé-logtabel in Supabase en geen n8n-webhook. Reeds geïmporteerde oude aanvragen
 worden vanuit hun bestaande import- en offerterecords in het overzicht getoond;
 nog niet geïmporteerde Supabase-sessies en wachtende n8n-uitvoeringen zijn niet
 automatisch overgezet.

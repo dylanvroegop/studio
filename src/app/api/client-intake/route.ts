@@ -8,7 +8,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     try {
         const uid = await intakeUser(request);
         const [sessions, worker] = await withIntakeDeadline(Promise.all([listIntakes(uid), initFirebaseAdmin().firestore.collection('client_intake_worker').doc('status').get()]));
-        return NextResponse.json({ sessions, configuration: { aiConfigured: Boolean(process.env.OPENAI_API_KEY?.trim()), workerOnline: (worker.data()?.heartbeatAt || 0) > Date.now() - 180_000 } }, { headers: { 'Cache-Control': 'no-store' } });
+        return NextResponse.json({ sessions, configuration: { aiConfigured: Boolean(process.env.OPENAI_API_KEY?.trim()), workerOnline: worker.data()?.state !== 'error' && (worker.data()?.lastCompletedAt || 0) > Date.now() - 180_000 } }, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) { return intakeErrorResponse(error); }
 }
 export async function POST(request: Request): Promise<NextResponse> {

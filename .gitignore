@@ -69,3 +69,6 @@ package-lock.json
 
 # Local generated reports, customer documents and verification screenshots
 /outputs/
+
+# Supabase CLI temporary metadata
+/supabase/.temp/
