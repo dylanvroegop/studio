@@ -1,10 +1,20 @@
 # Aanvragen in de app
 
 De pagina **Aanvragen** vervangt de invoer via Telegram voor `auto making client`.
-Een screenshot of tekst wordt in de app uitgelezen. Controleer klantgegevens,
-klus en afspraak en verwerk de aanvraag. Vervolgberichten en correcties horen
-bij dezelfde opgeslagen aanvraag. Klant, offerte, planning en Google Agenda
-worden via de bestaande importlogica aangemaakt of bijgewerkt.
+De pagina heeft twee tabs, zonder een overzicht met oude aanvragen:
+
+- **Nieuwe klant**: voeg screenshots of tekst toe en klik **Gegevens uitlezen**.
+  Uitlezen, klantopslag, offerteaanmaak en agendareservering volgen automatisch.
+  Daarna opent een in-app dialoog met het gereserveerde moment en het klantbericht.
+- **Afspraak verwerken**: voeg de vervolgscreenshot toe. De app herkent de
+  bestaande aanvraag op contactgegevens of naam en plaats. Bij meerdere passende
+  aanvragen moet de gebruiker de juiste aanvraag kiezen; deze route maakt geen
+  nieuwe klantaanvraag aan. Expliciete klantbevestiging bevestigt dezelfde afspraak.
+
+Het berichtvenster bevat een kopieerknop en vooraf ingevulde datum/tijd. Een ander
+moment wordt eerst gecontroleerd en opgeslagen; pas daarna kan het bijgewerkte
+bericht worden gekopieerd. Een aangepaste bevestigde afspraak wordt weer een
+voorstel. Handmatige invoer en foutcorrectie staan in het uitklapbare gegevensvak.
 
 Een voorstel is nog niet bevestigd door de klant. De agendareservering moet
 opgeslagen zijn voordat de voorsteltekst kan worden gebruikt. De tekst kan
