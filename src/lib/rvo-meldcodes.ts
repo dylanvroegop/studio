@@ -91,7 +91,8 @@ export function loadRvoCatalog(kind: CatalogKind): Promise<CatalogEntry[]> {
 }
 
 function categoryOf(label: string): string {
-  const category = normalize(label);
+  const category = normalize(label.split(/\s+[–—-]\s+/)[0]);
+  if (/^dak(?:isolatie| (?:binnenzijde|buitenzijde))?$/.test(category)) return 'dakisolatie';
   if (/^(?:binnen of buitengevel|gevel)(?:isolatie)?$/.test(category)) return 'binnen of buitengevelisolatie';
   if (/^(?:zolder vliering|zolder of vlieringvloer)$/.test(category)) return 'zolder of vlieringvloer';
   if (category === 'vloer') return 'vloerisolatie';
@@ -103,17 +104,32 @@ export function canLookupRvoCode(measure: SubsidyMeasure): boolean {
     && (isSubsidyGlazing(measure) ? !!measure.insulationValue : !!measure.thickness);
 }
 
+// RVO KA27743, ook beschikbaar als de Excel-lijst tijdelijk onbereikbaar is.
+export function knownRvoCode(measure: SubsidyMeasure): string {
+  if (categoryOf(measure.application) !== 'dakisolatie'
+    || !/^iko enertherm (?:isolatie )?alu(?: pir| [0-9]|$)/.test(normalize(measure.material))
+    || /\b(?:pure|xl|tg|nf|comfort|plus|black)\b/.test(normalize(measure.material))) return '';
+  return matchRvoCode(measure, [{
+    code: 'KA27743', brand: 'iko insulations', model: 'iko enertherm alu', category: 'dakisolatie', thickness: 80, insulationValue: 3.5,
+  }]);
+}
+
 export function matchRvoCode(measure: SubsidyMeasure, catalog: CatalogEntry[]): string {
   if (!canLookupRvoCode(measure)) return '';
   const glass = isSubsidyGlazing(measure);
-  const product = ` ${normalize(measure.material)} `;
+  // Leveranciers voegen soms het woord 'isolatie' midden in de merk- en modelnaam in.
+  const product = ` ${normalize(measure.material).replace(/\benertherm isolatie alu\b/g, 'enertherm alu')} `;
   const category = categoryOf(measure.application);
   const thickness = Number(measure.thickness.replace(',', '.'));
   const value = Number(measure.insulationValue.replace(',', '.'));
   // Bij meerdere matches blijft de code open. De grenswaarde is geen productwaarde.
-  const codes = new Set(catalog.filter((entry) => entry.model.length >= 5 && entry.brand
+  const matchingProducts = catalog.filter((entry) => entry.model.length >= 5 && entry.brand
     && product.includes(` ${entry.brand.split(' ')[0]} `) && product.includes(` ${entry.model} `)
-    && (glass ? entry.insulationValue === value : entry.category === category && entry.thickness > 0
+    && (glass || entry.category === category)
+    && !(entry.model === 'iko enertherm alu' && /\benertherm alu (?:pure|xl|tg|nf|comfort|plus|black)\b/.test(product)));
+  const longest = Math.max(0, ...matchingProducts.map((entry) => entry.model.length));
+  const codes = new Set(matchingProducts.filter((entry) => entry.model.length === longest
+    && (glass ? entry.insulationValue === value : entry.thickness > 0
       && thickness >= entry.thickness && (!value || !entry.insulationValue || value >= entry.insulationValue)))
     .map((entry) => entry.code));
   return codes.size === 1 ? [...codes][0] : '';

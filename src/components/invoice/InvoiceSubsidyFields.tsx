@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
   emptySubsidyMeasure, getSubsidyQuestions, invoiceSubsidySchema, subsidyFields,
-  subsidyMeasureSchema, type SubsidyField, type SubsidyMeasure, type SubsidyQuestion,
+  subsidyMeasureSchema, type SubsidyField, type SubsidyMeasure,
 } from '@/lib/invoice-subsidy';
 import type { InvoiceType } from '@/lib/types';
 
@@ -33,7 +33,6 @@ export function InvoiceSubsidyFields({
   user, quoteId, type, enabled, setEnabled, measures, setMeasures, setReviewing, disabled,
 }: Props) {
   const [reviewing, setLocalReviewing] = useState(false);
-  const [questions, setQuestions] = useState<SubsidyQuestion[]>([]);
   const [status, setStatus] = useState('');
   const [attempt, setAttempt] = useState(0);
   const lastReviewed = useRef('');
@@ -43,7 +42,6 @@ export function InvoiceSubsidyFields({
   const missing = getSubsidyQuestions(measures, type);
 
   useEffect(() => {
-    setQuestions([]);
     setStatus('');
     if (!enabled) return;
     const input = invoiceSubsidySchema.safeParse(latestMeasures.current);
@@ -57,22 +55,27 @@ export function InvoiceSubsidyFields({
         const response = await fetch('/api/facturen/subsidie', {
           method: 'POST',
           headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ quoteId, type, measures: input.data }),
+          body: JSON.stringify({ quoteId, measures: input.data }),
           signal: controller.signal,
         });
         const payload = await response.json();
         if (controller.signal.aborted) return;
         const result = invoiceSubsidySchema.safeParse(payload.measures);
-        if (!response.ok || !result.success || !Array.isArray(payload.questions)) throw new Error('Beoordeling mislukt');
+        if (!response.ok || !result.success) throw new Error('Beoordeling mislukt');
         setMeasures((current) => current.map((measure, index) => {
           const original = input.data[index];
-          const code = result.data[index]?.code;
-          if (!code || measure.code || !original || measure.material !== original.material
-            || measure.application !== original.application || measure.thickness !== original.thickness
-            || measure.insulationValue !== original.insulationValue) return measure;
-          return { ...measure, code };
+          const suggestion = result.data[index];
+          if (!original || !suggestion || measure.material.trim() !== original.material
+            || measure.application.trim() !== original.application || measure.thickness.trim() !== original.thickness
+            || measure.insulationValue.trim() !== original.insulationValue) return measure;
+          return {
+            ...measure,
+            application: measure.application || suggestion.application,
+            code: measure.code || suggestion.code,
+            thickness: measure.thickness || suggestion.thickness,
+            insulationValue: measure.insulationValue || suggestion.insulationValue,
+          };
         }));
-        setQuestions(payload.questions);
         setStatus([payload.aiAvailable === false ? 'AI-beoordeling tijdelijk niet beschikbaar.' : '',
           payload.catalogAvailable === false ? 'De RVO-meldcodelijst was tijdelijk onbereikbaar.' : ''].filter(Boolean).join(' '));
       } catch {
@@ -118,34 +121,38 @@ export function InvoiceSubsidyFields({
         {type === 'voorschot' && <p className="text-xs text-muted-foreground">De gegevens komen als geplande werkzaamheden op de voorschotfactuur.</p>}
         {reviewing && <p className="text-xs text-muted-foreground" role="status">Subsidiegegevens controleren…</p>}
         {status && <p className="text-xs text-muted-foreground" role="status">{status}</p>}
-        {measures.map((measure, index) => (
-          <fieldset key={index} disabled={disabled} className="space-y-2 rounded-md border p-3">
-            <legend className="px-1 text-sm font-medium">{measure.material || `Maatregel ${index + 1}`}</legend>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {subsidyFields(measure, type).map(({ field, label }) => {
-                const id = `invoice-subsidy-${index}-${field}`;
-                const fallback = missing.find((item) => item.index === index && item.field === field);
-                const question = fallback && (questions.find((item) => item.index === index && item.field === field)?.question || fallback.question);
-                const invalid = !subsidyMeasureSchema.shape[field].safeParse(measure[field]).success;
-                return (
-                  <div key={field} className="space-y-1">
-                    <Label htmlFor={id}>{label}</Label>
-                    <Input id={id} value={measure[field]} onChange={(event) => update(index, field, event.target.value)}
-                      onBlur={['material', 'application', 'thickness', 'insulationValue'].includes(field) ? reviewWhenChanged : undefined}
-                      type={field === 'purchaseDate' || field === 'installationDate' ? 'date' : 'text'}
-                      inputMode={['area', 'plannedArea', 'thickness', 'insulationValue', 'amount'].includes(field) ? 'decimal' : undefined}
-                      aria-invalid={invalid} aria-describedby={question || invalid ? `${id}-help` : undefined} />
-                    {(question || invalid) && <p id={`${id}-help`} className={invalid ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
-                      {invalid ? field === 'code' ? 'Gebruik een meldcode zoals KA12345.' : 'Controleer de invoer.' : question}
-                    </p>}
-                  </div>
-                );
-              })}
-            </div>
+        {measures.map((measure, index) => {
+          const fields = subsidyFields(measure, type);
+          const optional = fields.filter(({ question }) => !question);
+          const renderField = ({ field, label }: typeof fields[number]) => {
+            const id = `invoice-subsidy-${index}-${field}`;
+            const question = !reviewing && missing.find((item) => item.index === index && item.field === field)?.question;
+            const invalid = !subsidyMeasureSchema.shape[field].safeParse(measure[field]).success;
+            return (
+              <div key={field} className="space-y-1">
+                <Label htmlFor={id}>{label}</Label>
+                <Input id={id} value={measure[field]} onChange={(event) => update(index, field, event.target.value)}
+                  onBlur={['material', 'application', 'thickness', 'insulationValue'].includes(field) ? reviewWhenChanged : undefined}
+                  type={field === 'purchaseDate' || field === 'installationDate' ? 'date' : 'text'}
+                  inputMode={['area', 'plannedArea', 'thickness', 'insulationValue', 'amount'].includes(field) ? 'decimal' : undefined}
+                  aria-invalid={invalid} aria-describedby={question || invalid ? `${id}-help` : undefined} />
+                {(question || invalid) && <p id={`${id}-help`} className={invalid ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
+                  {invalid ? field === 'code' ? 'Gebruik een meldcode zoals KA12345.' : 'Controleer de invoer.' : question}
+                </p>}
+              </div>
+            );
+          };
+          return <fieldset key={index} disabled={disabled} className="min-w-0 space-y-3 rounded-md border p-3">
+            <legend className="max-w-full px-1 text-sm font-medium">{measure.material || `Maatregel ${index + 1}`}</legend>
+            <div className="grid gap-3 sm:grid-cols-2">{fields.filter(({ question }) => question).map(renderField)}</div>
+            <details>
+              <summary className="cursor-pointer text-sm text-muted-foreground">Aanvullende gegevens</summary>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">{optional.map(renderField)}</div>
+            </details>
             {measures.length > 1 && <Button type="button" variant="ghost" size="sm" disabled={reviewing}
-              onClick={() => { setQuestions([]); setMeasures((current) => current.filter((_, position) => position !== index)); }}>Verwijder maatregel</Button>}
-          </fieldset>
-        ))}
+              onClick={() => setMeasures((current) => current.filter((_, position) => position !== index))}>Verwijder maatregel</Button>}
+          </fieldset>;
+        })}
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" disabled={disabled || reviewing || measures.length >= 20}
             onClick={() => setMeasures((current) => [...current, emptySubsidyMeasure()])}>Maatregel toevoegen</Button>

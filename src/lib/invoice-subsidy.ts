@@ -33,7 +33,7 @@ export const subsidyMeasureSchema = z.object({
 export const invoiceSubsidySchema = z.array(subsidyMeasureSchema).min(1).max(20);
 export type SubsidyMeasure = z.infer<typeof subsidyMeasureSchema>;
 const applicationPatterns: [MeldcodeApplication, RegExp][] = [
-  ['dakisolatie', /\bdakisolatie\b|\bdak\s+isoleren\b|\bisoleren van (?:het )?dak\b/i],
+  ['dakisolatie', /\bdakisolatie\b|\bdak\s+isoleren\b|\bisoleren van (?:het )?dak\b|\bdak\s*(?:aan de )?(?:binnen|buiten)zijde\b|\b(?:binnenzijde|buitenzijde) (?:van )?(?:het )?dak\b|\bdak(?:zijden?|vlakken?)\b/i],
   ['zolder-vliering', /\b(?:zolder|vliering)(?:vloer)?isolatie\b|\b(?:zolder|vliering)vloer\s+isoleren\b/i],
   ['vloerisolatie', /\bvloerisolatie\b|\bvloer\s+isoleren\b/i],
   ['gevelisolatie', /\bgevelisolatie\b|\bgevel\s+isoleren\b/i],
@@ -60,6 +60,68 @@ export function isSubsidyGlazing(measure: Pick<SubsidyMeasure, 'application' | '
   return glazing.test(measure.application) || glazing.test(measure.material) || /^glas$/i.test(measure.application);
 }
 
+export function subsidyQuoteNotes(quote: Record<string, unknown>): string {
+  return [quote.notities, quote.privateNotities].map((value) => text(value).split(/\r?\n/)
+    .map((line) => line.replace(/https?:\/\/\S+/gi, '').trim()).filter(Boolean).join('\n'))
+    .filter(Boolean).join('\n').slice(0, 6000);
+}
+
+export function subsidyApplicationLabel(application: MeldcodeApplication, evidence: string): string {
+  const label = applicationLabel(application);
+  if (application !== 'dakisolatie') return label;
+  const sides = evidence.match(/\b(\d+|één|een|twee|drie|vier|beide)\s+dak(?:zijden?|vlakken?)\b/i)?.[1]?.toLowerCase();
+  const inside = /\bdak\s*(?:aan de )?binnenzijde\b|\bbinnenzijde (?:van )?(?:het )?dak\b/i.test(evidence);
+  const outside = /\bdak\s*(?:aan de )?buitenzijde\b|\bbuitenzijde (?:van )?(?:het )?dak\b/i.test(evidence);
+  const details = [inside !== outside ? inside ? 'binnenzijde' : 'buitenzijde' : '', sides ? `${sides} dak${sides === '1' || sides === 'één' || sides === 'een' ? 'zijde' : 'zijden'}` : ''].filter(Boolean);
+  return details.length ? `${label} – ${details.join(', ')}` : label;
+}
+
+const plateDimensions = /\b(\d+(?:[,.]\d+)?)\s*(mm|cm|m)?\s*[x×]\s*(\d+(?:[,.]\d+)?)(?:\s*(mm|cm|m)\b)?(?:\s*[x×]\s*(\d+(?:[,.]\d+)?)(?:\s*(mm|cm|m)\b)?)?/gi;
+const measurement = (raw: unknown): number => Number(String(raw ?? '').trim().replace(',', '.'));
+const millimeters = (raw: string, unit: string): number => measurement(raw) * (unit === 'm' ? 1000 : unit === 'cm' ? 10 : 1);
+const formatMeasure = (number: number): string => Number.isFinite(number) && number > 0
+  ? String(Math.round(number * 1000) / 1000).replace('.', ',') : '';
+
+export function productThickness(product: string): string {
+  const specified = product.match(/\bdikte\s*[:=]?\s*(\d+(?:[,.]\d+)?)\s*mm\b/i)?.[1];
+  if (specified) return formatMeasure(measurement(specified));
+  const dimensions = [...product.matchAll(plateDimensions)];
+  const separate = product.replace(plateDimensions, ' ');
+  const candidates = new Set(Array.from(separate.matchAll(/(\d+(?:[,.]\d+)?)\s*mm\b/gi), (match) => measurement(match[1])));
+  if (candidates.size === 1) return formatMeasure([...candidates][0]);
+  if (candidates.size === 0 && dimensions.length === 1 && dimensions[0][5]) {
+    const [, , lengthUnit, , widthUnit, thickness, thicknessUnit] = dimensions[0];
+    return formatMeasure(millimeters(thickness, thicknessUnit || widthUnit || lengthUnit || 'mm'));
+  }
+  return '';
+}
+
+function listedMaterialArea(material: string, quantity: number, unit: string): number {
+  if (!(quantity > 0)) return 0;
+  const normalized = unit.toLowerCase().trim().replace(/²/g, '2').replace(/[.\s]/g, '');
+  if (['m2', 'm^2', 'vierkantemeter'].includes(normalized)) return quantity;
+  if (!/^(?:stuk(?:s|ken)?|st|stuks?plaat|plaat|platen|paneel|panelen)?$/.test(normalized)) return 0;
+  const areas = [...new Set(Array.from(material.matchAll(/(\d+(?:[,.]\d+)?)\s*m(?:²|2|\^2)(?!\d|\s*k\s*\/|\s*\/)/gi), (match) => measurement(match[1])))];
+  if (areas.length) return areas.length === 1 ? quantity * areas[0] : 0;
+  const dimensions = [...material.matchAll(plateDimensions)];
+  if (dimensions.length !== 1) return 0;
+  const [, length, lengthUnit, width, widthUnit, , thicknessUnit] = dimensions[0];
+  const unitFromProduct = widthUnit || lengthUnit || thicknessUnit;
+  if (!unitFromProduct && (measurement(length) < 100 || measurement(width) < 100)) return 0;
+  return quantity * millimeters(length, lengthUnit || unitFromProduct || 'mm')
+    * millimeters(width, widthUnit || unitFromProduct || 'mm') / 1_000_000;
+}
+
+export function fillSubsidyProductFields(measure: SubsidyMeasure): SubsidyMeasure {
+  const glass = isSubsidyGlazing(measure);
+  const value = measure.material.match(glass ? /\bUg\s*[:=]?\s*(\d+(?:[,.]\d+)?)/i : /\bRd\s*[:=]?\s*(\d+(?:[,.]\d+)?)/i)?.[1];
+  return {
+    ...measure,
+    thickness: measure.thickness || (glass ? '' : productThickness(measure.material)),
+    insulationValue: measure.insulationValue || (value ? formatMeasure(measurement(value)) : ''),
+  };
+}
+
 export function suggestInvoiceSubsidy(quote: Record<string, unknown>, calculation: unknown): {
   context: string;
   measures: SubsidyMeasure[];
@@ -68,7 +130,9 @@ export function suggestInvoiceSubsidy(quote: Record<string, unknown>, calculatio
   const raw = unwrapRoot(source);
   const data = normalizeDataJson(source);
   const jobs = data.werkbeschrijving_structured?.jobs;
+  const notes = subsidyQuoteNotes(quote);
   const context = [
+    notes,
     clean(quote.titel || quote.title), clean(quote.werkomschrijving), clean(data?.korteTitel), clean(data?.korteBeschrijving),
     ...normalizeWerkbeschrijving(raw?.werkbeschrijving).map((line) => clean(line)),
     ...normalizeWerkbeschrijving(data.werkbeschrijving).map((line) => clean(line)),
@@ -77,7 +141,7 @@ export function suggestInvoiceSubsidy(quote: Record<string, unknown>, calculatio
       ...(Array.isArray(job?.work_scope) ? job.work_scope.map((line: unknown) => clean(line)) : []),
       ...(Array.isArray(job?.dimensions) ? job.dimensions.map((line: unknown) => clean(line)) : []),
     ]) : []),
-  ].filter(Boolean).join('\n').slice(0, 4000);
+  ].filter(Boolean).join('\n').slice(0, 10000);
   const applications = getApplications(context);
   const measureCaption = applications.length === 1 ? applicationLabel(applications[0]) : glazing.test(context) ? 'Glasisolatie' : '';
   const appliedArea = /(?:werkelijk aangebracht|aangebracht in bestaande woning)\s*[:=]?\s*(\d+(?:[,.]\d{1,3})?)\s*m(?:²|2)(?!\d)/i;
@@ -90,6 +154,8 @@ export function suggestInvoiceSubsidy(quote: Record<string, unknown>, calculatio
     && /geluidsisolatie|akoestische isolatie|akoestiek/i.test(context);
   const materials = [...(data?.grootmaterialen ?? []), ...(data?.verbruiksartikelen ?? [])];
   const rows = new Map<string, SubsidyMeasure>();
+  const computedAreas = new Map<string, number>();
+  const mixedProperty = /\b(?:nieuwbouw|aanbouw|uitbouw|uitbreiding)\b/i.test(context);
 
   for (const row of materials) {
     const material = clean(row.product);
@@ -99,22 +165,22 @@ export function suggestInvoiceSubsidy(quote: Record<string, unknown>, calculatio
     if (!material || (!coded && !glazing.test(material) && (!thermalMaterial.test(material) || explicitlyAcoustic))) continue;
     const ownApplications = getApplications(material);
     const application = explicit ?? (ownApplications.length === 1 ? ownApplications[0] : ownApplications.length === 0 && applications.length === 1 ? applications[0] : undefined);
-    const thicknesses = [...material.matchAll(/(\d+(?:[,.]\d+)?)\s*mm\b/gi)];
-    // Bij plaatmaten is een losse mm-waarde alleen bruikbaar als de dimensies geen dikteambiguïteit geven.
-    const thickness = thicknesses.length === 1 && !/\d\s*[x×]\s*\d/i.test(material) ? thicknesses[0][1] : '';
     const glass = glazing.test(material);
-    const insulationValue = material.match(glass ? /\bUg\s*[:=]?\s*(\d+(?:[,.]\d+)?)/i : /\bRd\s*[:=]?\s*(\d+(?:[,.]\d+)?)/i)?.[1] || '';
-    const measure = {
-      ...emptySubsidyMeasure(), material, application: glass ? 'Glasisolatie' : applicationLabel(application),
+    const measure = fillSubsidyProductFields({
+      ...emptySubsidyMeasure(), material,
+      application: glass ? 'Glasisolatie' : application ? subsidyApplicationLabel(application, applications.length <= 1 ? context : material) : '',
       code: /^KA\d{5}$/.test(storedCode) && row.meldcode_status !== 'unresolved'
         ? storedCode : (material.match(isoCode)?.[0]?.toUpperCase() || ''),
-      thickness: glass ? '' : thickness,
-      insulationValue,
       area: referencedArea(material, appliedArea),
       plannedArea: referencedArea(material, plannedArea),
-    };
+    });
     const key = [material.toLowerCase(), measure.application, measure.code].join('|');
-    rows.set(key, measure);
+    const prior = rows.get(key);
+    rows.set(key, prior ? { ...measure, area: prior.area || measure.area, plannedArea: prior.plannedArea || measure.plannedArea } : measure);
+    if (!mixedProperty) {
+      const area = listedMaterialArea(material, measurement(row.aantal), text(row.eenheid));
+      computedAreas.set(key, (computedAreas.get(key) || 0) + area);
+    }
   }
 
   if (rows.size === 0 && (measureCaption || applications.length || /\bISDE\b/i.test(context))) {
@@ -126,6 +192,11 @@ export function suggestInvoiceSubsidy(quote: Record<string, unknown>, calculatio
     measure.area ||= referencedArea(context, appliedArea);
     measure.plannedArea ||= referencedArea(context, plannedArea);
   }
+  Array.from(rows.entries()).slice(0, 20).forEach(([key, measure]) => {
+    const area = formatMeasure(computedAreas.get(key) || 0);
+    measure.area ||= area;
+    measure.plannedArea ||= area;
+  });
   return { context, measures };
 }
 
@@ -146,9 +217,9 @@ export function subsidyFields(measure: SubsidyMeasure, type: InvoiceType): Omit<
   ];
   if (!glass) fields.splice(4, 0, { field: 'thickness', label: 'Dikte (mm)', question: 'Welke materiaaldikte in millimeters is voor deze maatregel gebruikt?' });
   if (type === 'eind') fields.push(
-    { field: 'purchaseDate', label: 'Aanschafdatum', question: 'Op welke datum is dit product aangeschaft?' },
-    { field: 'installationDate', label: 'Installatiedatum', question: 'Op welke datum is deze maatregel uitgevoerd?' },
-    { field: 'amount', label: 'Bedrag maatregel incl. btw (€)', question: 'Welk bedrag inclusief btw hoort op de factuur specifiek bij deze maatregel?' },
+    { field: 'purchaseDate', label: 'Aanschafdatum', question: '' },
+    { field: 'installationDate', label: 'Installatiedatum', question: '' },
+    { field: 'amount', label: 'Bedrag maatregel incl. btw (€)', question: '' },
   );
   fields.push({ field: 'excludedWork', label: 'Uitbreiding of overige werkzaamheden (indien van toepassing)', question: '' });
   return fields;

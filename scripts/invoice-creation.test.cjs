@@ -473,3 +473,46 @@ test('de RVO-werkmap levert alleen een meldcode bij een unieke toepasselijke mat
   assert.equal(matchRvoCode({ ...measure, application: 'Vloerisolatie' }, catalog), '');
   assert.equal(matchRvoCode(measure, [...catalog, { ...catalog[0], code: 'KA12345' }]), '');
 });
+
+test('IKO leverancierstekst en klusnotities vullen dikte, m², dakzijden en RVO-code vooraf', () => {
+  const read = loader();
+  const { suggestInvoiceSubsidy, getSubsidyQuestions } = read('@/lib/invoice-subsidy');
+  const { knownRvoCode, matchRvoCode } = read('@/lib/rvo-meldcodes');
+  const product = 'IKO Enertherm Isolatie ALU PIR 80mm Rd3,6 1200x600mm 0,72m2';
+  const measure = suggestInvoiceSubsidy({ notities: 'Dak binnenzijde, beide dakzijden isoleren.' }, {
+    grootmaterialen: [{ product, aantal: 42, eenheid: 'stuk' }],
+  }).measures[0];
+
+  assert.equal(measure.application, 'Dakisolatie – binnenzijde, beide dakzijden');
+  assert.equal(measure.area, '30,24');
+  assert.equal(measure.plannedArea, '30,24');
+  assert.equal(measure.thickness, '80');
+  assert.equal(measure.insulationValue, '3,6');
+  assert.equal(knownRvoCode(measure), 'KA27743');
+  assert.equal(matchRvoCode(measure, [{
+    code: 'KA27743', brand: 'iko insulations', model: 'iko enertherm alu',
+    category: 'dakisolatie', thickness: 80, insulationValue: 3.5,
+  }]), 'KA27743');
+  assert.equal(knownRvoCode({ ...measure, material: product.replace('ALU', 'ALU PURE') }), '');
+  assert.deepEqual(getSubsidyQuestions([{ ...measure, code: 'KA27743' }], 'eind'), []);
+});
+
+test('plaatformaten en rechtstreekse m² werken en expliciete netto-oppervlakte heeft voorrang', () => {
+  const { suggestInvoiceSubsidy } = loader()('@/lib/invoice-subsidy');
+  const product = 'PIR 1200x600x80mm Rd 3,6 m²K/W';
+  const quote = { notities: 'Dakisolatie. Werkelijk aangebracht: 29 m².' };
+  const first = suggestInvoiceSubsidy(quote, {
+    grootmaterialen: [{ product, aantal: 20, eenheid: 'platen' }, { product, aantal: 22, eenheid: 'stuks' }],
+  }).measures[0];
+  assert.equal(first.area, '29');
+  assert.equal(first.plannedArea, '30,24');
+  assert.equal(first.thickness, '80');
+  const second = suggestInvoiceSubsidy({ titel: 'Dakisolatie' }, {
+    grootmaterialen: [{ product, aantal: 31, eenheid: 'm²' }],
+  }).measures[0];
+  assert.equal(second.area, '31');
+  const mixed = suggestInvoiceSubsidy({ titel: 'Dakisolatie woning en aanbouw' }, {
+    grootmaterialen: [{ product, aantal: 42, eenheid: 'stuk' }],
+  }).measures[0];
+  assert.equal(mixed.area, '');
+});
