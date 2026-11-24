@@ -1,6 +1,6 @@
-import { initFirebaseAdmin } from '@/firebase/admin';
-import { pushId, sendUserPush } from '@/lib/push-server';
-import { pushMessageSchema } from '@/lib/push-validation';
+import { initFirebaseAdmin } from '../firebase/admin';
+import { pushId, sendUserPush } from './push-server';
+import { pushMessageSchema } from './push-validation';
 import { z } from 'zod';
 
 export const inboxMessageSchema = pushMessageSchema.extend({ body: z.string().trim().min(1).max(20000) });

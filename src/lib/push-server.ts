@@ -1,8 +1,8 @@
 import { createHash, timingSafeEqual } from 'crypto';
 import webpush from 'web-push';
 import { NextResponse } from 'next/server';
-import { initFirebaseAdmin } from '@/firebase/admin';
-import { isPushEndpoint, pushMessageSchema, type PushMessage } from '@/lib/push-validation';
+import { initFirebaseAdmin } from '../firebase/admin';
+import { isPushEndpoint, pushMessageSchema, type PushMessage } from './push-validation';
 
 export const pushHeaders = { 'Cache-Control': 'no-store' };
 export const pushId = (value: string): string => createHash('sha256').update(value).digest('hex');

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getIdTokenResult } from 'firebase/auth';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Compass, Menu, X, FileText, Plus, Calculator, Receipt, ReceiptText, CalendarDays, Wallet, Boxes, Clock3, ClipboardList, Mic, Settings } from 'lucide-react';
+import { Compass, Menu, X, FileText, Plus, Calculator, Receipt, ReceiptText, CalendarDays, Wallet, Boxes, Clock3, ClipboardList, Inbox, Mic, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -32,6 +32,13 @@ function clampNavigationWidth(width: number): number {
 }
 
 const BASE_NAV_ITEMS: NavigationItem[] = [
+    {
+        href: '/aanvragen',
+        label: 'Aanvragen',
+        icon: Inbox,
+        iconColorClass: 'text-sky-400',
+        iconColorClassActive: 'text-sky-300',
+    },
     {
         href: '/facturen/start',
         label: 'Factureren',

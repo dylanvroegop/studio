@@ -138,7 +138,7 @@ function makeRoute({ duplicate, appointment, busy = [], workDays, clients = { cl
       return { data: events.get(eventId) };
     },
   } };
-  const route = loadTs('src/app/api/telegram-leads/import/route.ts', {
+  const sharedImport = loadTs('src/lib/client-intake-import.ts', {
     '@/lib/appointment-visit-completion': { completeVisitedAppointments: async () => ({ completed: 0, checked: 0 }) },
     '@/firebase/admin': { initFirebaseAdmin: () => ({ firestore, auth: { getUser: async () => ({}) } }) },
     '@/lib/telegram-client-identity': identity,
@@ -148,7 +148,15 @@ function makeRoute({ duplicate, appointment, busy = [], workDays, clients = { cl
     'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
     'firebase-admin/firestore': { FieldValue: { serverTimestamp: () => new Date(NOW) }, Timestamp: { fromDate: date => date } },
   });
+  const route = loadTs('src/app/api/telegram-leads/import/route.ts', {
+    '@/lib/client-intake-import': sharedImport,
+    'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
+  });
   return { writes, reads, rows, events, calendar, calendarCalls, controls, retries: () => transactionRetries,
+    rawPost: request => route.POST(request),
+    nativePost: (incoming = client, leadKey = 'test-session', clearFields = []) => sharedImport.processClientIntakeImport({
+      json: async () => ({ lead_key: leadKey, client: incoming, clear_fields: clearFields }),
+    }, 'owner'),
     post: (incoming = client, leadKey = 'test-session') => route.POST({
       headers: new Headers({ 'x-offertehulp-secret': 'synthetic-test-secret' }),
       json: async () => ({ lead_key: leadKey, client: incoming }),
