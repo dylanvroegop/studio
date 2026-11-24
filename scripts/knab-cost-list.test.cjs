@@ -444,3 +444,21 @@ test('huurleveranciers krijgen Huur met behoud van bedrag en handmatige keuzes',
   assert.equal(inferProjectCostCategory({ supplierName: 'Boels Verhuur B.V.' }), 'huur');
   assert.equal(inferProjectCostCategory({ supplierName: 'PIVADA verhuur' }), 'huur');
 });
+
+test('bestaande boekhoudfactuur en Knab-betaling hebben samen één categorietotaal', () => {
+  const { summarizeBankCostRows } = require('../src/lib/bank-cost-summary');
+  const invoice = source('invoice', 121, { supplier_name: 'Lauret & Roose', payment_type: 'factuur',
+    category: 'overig', line_items: [{ description: 'Verzorgen aangifte', total_price: 100, category: 'overig' }] });
+  assert.equal(invoice.category, 'boekhoudkosten');
+  assert.equal(invoice.line_items[0].category, 'boekhoudkosten');
+  const tx = transaction('payment', -121, { counterparty_name: 'V.o.f. Lauret en Roose' });
+  const { data } = build([tx], [invoice], [ledger('payment', ['invoice'], { category: invoice.category })]);
+  assert.equal(data[0].vat_known, true);
+  assert.equal(data[0].btw_amount, 21);
+  assert.equal(data[0].source_cost_ids.length, 1);
+  const { totals, counts } = summarizeBankCostRows(data);
+  assert.equal(counts.alle, 1);
+  assert.equal(totals.alle, 121);
+  assert.equal(totals.boekhoudkosten, 121);
+  assert.equal(totals.overig, 0);
+});

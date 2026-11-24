@@ -14,6 +14,7 @@ export const PROJECT_COST_CATEGORIES = [
   'leadkosten',
   'storage',
   'huur',
+  'boekhoudkosten',
   'profit',
   'overig',
 ] as const;
@@ -129,6 +130,7 @@ export const PROJECT_COST_CATEGORY_LABELS: Record<ProjectCostCategory, string> =
   leadkosten: 'Leadkosten',
   storage: 'Storage',
   huur: 'Huur',
+  boekhoudkosten: 'Boekhoudkosten',
   profit: 'Profit',
   overig: 'Overig',
 };
@@ -160,6 +162,7 @@ export function normalizeProjectCostCategory(value: unknown): ProjectCostCategor
   if (normalized === 'hotel' || normalized === 'overnachting') return 'hotel';
   if (normalized === 'telefoon' || normalized === 'phone') return 'telefoon';
   if (normalized === 'leadkosten' || normalized === 'lead kosten' || normalized === 'lead cost') return 'leadkosten';
+  if (normalized === 'boekhoudkosten') return 'boekhoudkosten';
   if (normalized === 'huur' || normalized === 'verhuur') return 'huur';
   if (normalized === 'storage' || normalized === 'opslag') return 'storage';
   if (normalized === 'profit' || normalized === 'winst' || normalized === 'interne overboeking') return 'profit';
@@ -288,6 +291,11 @@ export function sumProjectCostLineItems(items: ProjectCostLineItem[]): number {
   return roundEuro(items.reduce((sum, item) => sum + safeNumber(item.total_price), 0));
 }
 
+export function isBookkeepingSupplier(value: unknown): boolean {
+  return typeof value === 'string'
+    && /^(?:v\.?o\.?f\.?\s+)?lauret(?:\s+en\s+|\s*&\s*)roose$/i.test(value.trim());
+}
+
 export function isRentalSupplier(value: unknown): boolean {
   return typeof value === 'string' && /\b(?:boels|pivada|pvidida|a1\s+verhuur)\b/i.test(value);
 }
@@ -307,6 +315,7 @@ export function inferProjectCostCategory(params: {
 
   const target = `${supplier} ${description} ${lines}`;
 
+  if (isBookkeepingSupplier(supplier)) return 'boekhoudkosten';
   if (/\ball\s*safe\b/i.test(target)) return 'storage';
 
   if (isRentalSupplier(supplier) || /\b(?:huur|verhuur)\s+(?:van\s+)?(?:steiger|rolsteiger|machine|gereedschap|schroefstempel)/i.test(target)) return 'huur';
@@ -568,10 +577,19 @@ export function mapProjectCostRow(input: unknown): ProjectCostRow {
   const manualCash = isManualCashPurchase({
     status: safeString(row.status), supplier_order_number: safeString(row.supplier_order_number),
   });
-  const rentalCategory = !manualCash && isRentalSupplier(safeString(row.supplier_name))
-    && ['materiaal', 'gereedschap', 'overig', 'huur'].includes(normalizeProjectCostCategory(row.category));
-  const lineItems = normalizeProjectCostLineItems(row.line_items).map((item) =>
-    rentalCategory ? { ...item, category: 'huur' as ProjectCostCategory } : item);
+  const storedCategory = normalizeProjectCostCategory(row.category);
+  const paymentType = normalizeProjectCostPaymentType(row.payment_type);
+  const storedLines = normalizeProjectCostLineItems(row.line_items);
+  let supplierCategory: ProjectCostCategory | undefined;
+  if (!manualCash && isRentalSupplier(row.supplier_name)
+    && ['materiaal', 'gereedschap', 'overig', 'huur'].includes(storedCategory)) {
+    supplierCategory = 'huur';
+  } else if (!manualCash && storedCategory === 'overig' && paymentType === 'factuur'
+    && isBookkeepingSupplier(row.supplier_name)
+    && storedLines.every((item) => !item.category || item.category === 'overig')) {
+    supplierCategory = 'boekhoudkosten';
+  }
+  const lineItems = storedLines.map((item) => supplierCategory ? { ...item, category: supplierCategory } : item);
   const amountExcl = roundEuro(safeNumber(row.amount_excl_btw));
   const hasBtwPercentage = row.btw_percentage !== undefined
     && row.btw_percentage !== null
@@ -587,10 +605,10 @@ export function mapProjectCostRow(input: unknown): ProjectCostRow {
     id: safeString(row.id),
     user_id: safeString(row.user_id),
     offerte_id: safeString(row.offerte_id) || null,
-    category: rentalCategory ? 'huur' : !manualCash && normalizeProjectCostCategory(row.category) === 'overig'
+    category: supplierCategory ?? (!manualCash && storedCategory === 'overig'
       && inferProjectCostCategory({ supplierName: safeString(row.supplier_name), description: safeString(row.description) }) === 'storage'
       ? 'storage'
-      : normalizeProjectCostCategory(row.category),
+      : storedCategory),
     supplier_name: safeString(row.supplier_name),
     description: safeString(row.description),
     line_items: lineItems,
@@ -602,7 +620,7 @@ export function mapProjectCostRow(input: unknown): ProjectCostRow {
     receipt_url: receiptUrl,
     receipt_files: receiptFiles,
     status: safeString(row.status) || 'confirmed',
-    payment_type: normalizeProjectCostPaymentType(row.payment_type),
+    payment_type: paymentType,
     payment_status: normalizeProjectCostPaymentStatus(row.payment_status),
     due_date: safeString(row.due_date) || null,
     supplier_order_number: safeString(row.supplier_order_number) || null,

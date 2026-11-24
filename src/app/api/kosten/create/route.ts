@@ -456,6 +456,7 @@ async function upsertProfitOverview(params: {
     leadkosten: 0,
     storage: 0,
     huur: 0,
+    boekhoudkosten: 0,
     profit: 0,
     overig: 0,
   };
@@ -474,7 +475,7 @@ async function upsertProfitOverview(params: {
   const totalMaterialCost = roundEuro(totals.materiaal);
   const totalFuelCost = roundEuro(totals.brandstof + totals.autokosten);
   const totalToolCost = roundEuro(totals.gereedschap);
-  const totalOtherCost = roundEuro(totals.overig + totals.boetes + totals.schulden + totals.afval + totals.eigen_verbruik + totals.hotel + totals.telefoon + totals.leadkosten + totals.storage + totals.huur);
+  const totalOtherCost = roundEuro(totals.overig + totals.boetes + totals.schulden + totals.afval + totals.eigen_verbruik + totals.hotel + totals.telefoon + totals.leadkosten + totals.storage + totals.huur + totals.boekhoudkosten);
   const totalLaborCost = roundEuro(laborCost);
   const totalCosts = roundEuro(
     totalMaterialCost

@@ -46,6 +46,8 @@ test('alleen expliciete omschrijving of echt geraadpleegde bron kan een AI-categ
     assert.equal(request.tools[0].type, 'web_search');
     const evidence = JSON.parse(request.input);
     assert.deepEqual(evidence[1], { index: 1, supplier: 'Provider', explicit: ['telefoon'] });
+    assert.deepEqual(evidence[3].explicit, ['boekhoudkosten']);
+    assert.ok(request.text.format.schema.properties.decisions.items.properties.category.enum.includes('boekhoudkosten'));
     assert.ok(!request.input.includes('Pas:'));
     assert.ok(!request.input.includes('111.61'));
     return Response.json({ status: 'completed', output: [
@@ -54,6 +56,8 @@ test('alleen expliciete omschrijving of echt geraadpleegde bron kan een AI-categ
         { index: 0, category: 'afval', confidence: .99, reason: 'Afvaldienst', source_url: url },
         { index: 1, category: 'telefoon', confidence: .99, reason: 'Abonnement', source_url: '' },
         { index: 2, category: 'afval', confidence: .99, reason: 'Afvaldienst', source_url: 'https://example.test/ongebruikt' },
+        { index: 3, category: 'boekhoudkosten', confidence: .99, reason: 'Opstellen aangifte', source_url: '' },
+        { index: 4, category: 'boekhoudkosten', confidence: .99, reason: 'Belasting', source_url: url },
       ] }) }] },
     ] });
   });
@@ -61,8 +65,10 @@ test('alleen expliciete omschrijving of echt geraadpleegde bron kan een AI-categ
     { ...row, supplier_name: 'Afvalbedrijf', description: 'Pas: 1234' },
     { ...row, supplier_name: 'Provider', description: 'Telefoonabonnement Pas: 1234' },
     { ...row, supplier_name: 'Onbekend bedrijf', description: 'Pas: 1234' },
+    { ...row, supplier_name: 'Administratiekantoor', description: 'Verzorgen BTW aangifte kwartaal' },
+    { ...row, supplier_name: 'Belastingdienst', description: 'Omzetbelasting kwartaal' },
   ]);
-  assert.deepEqual(result.map(({ category }) => category), ['afval', 'telefoon', 'overig']);
+  assert.deepEqual(result.map(({ category }) => category), ['afval', 'telefoon', 'overig', 'boekhoudkosten', 'overig']);
 });
 
 test('dezelfde bankregel op twee rekeningen deelt geen AI-besluit', async () => {

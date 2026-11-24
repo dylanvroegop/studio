@@ -1,6 +1,6 @@
 import { isConfirmedCashCost } from '@/lib/finance-cost-visibility';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { inferProjectCostCategory, normalizeProjectCostCategory, roundEuro, type ProjectCostCategory, type ProjectCostRow } from '@/lib/project-costs';
+import { inferProjectCostCategory, isBookkeepingSupplier, normalizeProjectCostCategory, roundEuro, type ProjectCostCategory, type ProjectCostRow } from '@/lib/project-costs';
 import { categoryOverrideForTransaction, isCremanCounterparty, isFuelCounterparty } from '@/lib/confirmed-bank-categories';
 
 export interface FinanceBankTransaction {
@@ -150,7 +150,9 @@ function classify(transaction: FinanceBankTransaction, matchedCosts: ProjectCost
   if (matchedCosts.length > 0) {
     const categories = matchedCosts.map((cost) => normalizeProjectCostCategory(cost.category));
     const first = categories[0];
-    if (first && categories.every((category) => category === first)) return first;
+    if (first && categories.every((category) => category === first)) {
+      return first === 'overig' && isBookkeepingSupplier(transaction.counterparty_name) ? 'boekhoudkosten' : first;
+    }
   }
   if (isFuelCounterparty(transaction.counterparty_name, transaction.description)) return 'brandstof';
   return inferProjectCostCategory({

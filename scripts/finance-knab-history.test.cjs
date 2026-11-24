@@ -20,11 +20,7 @@ function loadLedger(client = {}) {
     '@/lib/confirmed-bank-categories': confirmedCategories.exports,
     '@/lib/supabase-admin': { supabaseAdmin: client },
     '@/lib/finance-cost-visibility': { isConfirmedCashCost: () => false },
-    '@/lib/project-costs': {
-      roundEuro: (value) => Math.round(value * 100) / 100,
-      normalizeProjectCostCategory: (value) => value,
-      inferProjectCostCategory: () => 'overig',
-    },
+    '@/lib/project-costs': require('../src/lib/project-costs'),
   };
   new Function('require', 'module', 'exports', code)((name) => {
     if (!(name in dependencies)) throw new Error(`Onverwachte dependency: ${name}`);
@@ -348,5 +344,41 @@ test('kosten-API geeft rekeningkeuze terug en laadt daarna alleen die rekening',
     else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
     if (previousKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     else process.env.SUPABASE_SERVICE_ROLE_KEY = previousKey;
+  }
+});
+
+test('boekhouder valt na herkoppeling één keer onder Boekhoudkosten, ook zonder factuur', () => {
+  const { summarizeBankCostRows } = require('../src/lib/bank-cost-summary');
+  const { bankCategoryReviewTargets } = require('../src/lib/bank-category-review-targets');
+  for (const name of ['V.o.f. Lauret en Roose', 'Lauret & Roose', 'VOF LAURET&ROOSE']) {
+    const payment = { counterparty_name: name, amount: -121, description: 'Factuur 1234' };
+    const { transactions } = select([row('oud', 'old', 'ref', payment), row('nieuw', 'new', 'ref', payment)]);
+    const params = { userId: 'owner', transactions, costs: [], internalTransferIds: new Set() };
+    const ledgerRows = ledger.buildFinanceBankLedger(params);
+    const { data } = buildKnabCostList({ ...params, ledgerRows });
+    assert.equal(ledgerRows[0].category, 'boekhoudkosten');
+    assert.equal(data[0].vat_known, false);
+    assert.equal(data[0].category_override, undefined);
+    assert.deepEqual(bankCategoryReviewTargets(data, ledgerRows), []);
+    const { totals, counts } = summarizeBankCostRows(data);
+    assert.equal(totals.boekhoudkosten, 121);
+    assert.equal(totals.alle, 121);
+    assert.equal(counts.boekhoudkosten, 1);
+    const categoryOverrides = new Map([['oud', 'overig']]);
+    const overriddenLedger = ledger.buildFinanceBankLedger({ ...params, categoryOverrides });
+    const overridden = buildKnabCostList({ ...params, ledgerRows: overriddenLedger, categoryOverrides });
+    assert.equal(overridden.data[0].category, 'overig');
+  }
+});
+
+test('de boekhoudregel vereist de volledige naam van de tegenpartij', () => {
+  const { isBookkeepingSupplier } = require('../src/lib/project-costs');
+  for (const name of ['Belastingdienst', 'Lauret', 'J. Roose', 'Lauret & Roose Bouw', null]) {
+    assert.equal(isBookkeepingSupplier(name), false);
+    const { transactions } = select([row('tax', 'new', 'ref', {
+      counterparty_name: name, description: 'Omzetbelasting',
+    })]);
+    const params = { userId: 'owner', transactions, costs: [], internalTransferIds: new Set() };
+    assert.equal(buildKnabCostList({ ...params, ledgerRows: ledger.buildFinanceBankLedger(params) }).data[0].category, 'overig');
   }
 });

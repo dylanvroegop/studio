@@ -1,4 +1,4 @@
-import { isRentalSupplier } from './project-costs';
+import { isBookkeepingSupplier, isRentalSupplier } from './project-costs';
 import type { FinanceBankCostLedgerRow, FinanceBankTransaction } from './finance-bank-ledger';
 import { isSupportingProjectCostReceipt, mapProjectCostRow, roundEuro, type ProjectCostCategory, type ProjectCostRow } from './project-costs';
 import { isFinalCostDocumentType } from './cost-document-policy';
@@ -176,9 +176,11 @@ export function buildKnabCostList(params: BuildKnabCostListParams): {
     const date = transaction.booking_date || '';
     const createdAt = date ? `${date.slice(0, 10)}T00:00:00.000Z` : new Date(0).toISOString();
     const bankCategory = isInternal ? 'profit' : isPrivate ? 'eigen_verbruik' : ledgerRow?.category || 'overig';
+    const isBookkeepingPayment = !isInternal && !isPrivate && isBookkeepingSupplier(transaction.counterparty_name);
     const category = isBunqTopUp ? 'eigen_verbruik'
       : isCremanDebt ? 'schulden'
         : !isInternal && !isPrivate && categoryOverride ? categoryOverride
+          : isBookkeepingPayment && (!hasDocument || bankCategory === 'overig') ? 'boekhoudkosten'
           : hasDocument ? bankCategory
           : isFuelPayment ? (fuelNeedsReview ? 'overig' : 'brandstof')
             : 'overig';
@@ -220,7 +222,7 @@ export function buildKnabCostList(params: BuildKnabCostListParams): {
       source_cost_ids: sources.map((cost) => cost.id),
       is_internal_transfer: isInternal,
       has_supporting_document: hasDocument,
-      bank_category: isFuelPayment || categoryOverride ? category : bankCategory,
+      bank_category: isFuelPayment || isBookkeepingPayment || categoryOverride ? category : bankCategory,
       is_bunq_topup: isBunqTopUp,
       is_creman_debt: isCremanDebt,
       is_fuel_payment: isFuelPayment,

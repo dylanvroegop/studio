@@ -67,6 +67,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import {
+  PROJECT_COST_CATEGORIES,
   PROJECT_COST_CATEGORY_LABELS,
   isManualCashPurchase,
   isSupportingProjectCostReceipt,
@@ -963,21 +964,7 @@ function KostenPageContent({ viewMode }: { viewMode: KostenView }) {
 
   const filterOptions: Array<{ value: CostFilterMode; label: string }> = [
     { value: 'alle', label: 'Alle' },
-    { value: 'materiaal', label: 'Materiaal' },
-    { value: 'autokosten', label: 'Autokosten' },
-    { value: 'boetes', label: 'Boetes' },
-    { value: 'schulden', label: 'Schulden' },
-    { value: 'afval', label: 'Afval' },
-    { value: 'brandstof', label: 'Brandstof' },
-    { value: 'gereedschap', label: 'Investering' },
-    { value: 'eigen_verbruik', label: 'Privé-opnames' },
-    { value: 'hotel', label: 'Hotel' },
-    { value: 'telefoon', label: 'Telefoon' },
-    { value: 'leadkosten', label: 'Leadkosten' },
-    { value: 'storage', label: 'Storage' },
-    { value: 'huur', label: 'Huur' },
-    { value: 'profit', label: 'Eigen overboekingen' },
-    { value: 'overig', label: 'Overig' },
+    ...PROJECT_COST_CATEGORIES.map((value) => ({ value, label: BANK_CATEGORY_LABELS[value] })),
   ];
 
   const availableMonths = useMemo(() => availableCostMonths(costs, privateCredits).filter((month) => month >= startDate.slice(0, 7) && month <= reportToday.slice(0, 7)), [costs, privateCredits, startDate, reportToday]);
@@ -1973,7 +1960,8 @@ function KostenPageContent({ viewMode }: { viewMode: KostenView }) {
                                       <SelectItem value="telefoon">Telefoon</SelectItem>
                                       <SelectItem value="leadkosten">Leadkosten</SelectItem>
                                       <SelectItem value="storage">Storage</SelectItem>
-                        <SelectItem value="huur">Huur</SelectItem>
+                                      <SelectItem value="huur">Huur</SelectItem>
+                                      <SelectItem value="boekhoudkosten">Boekhoudkosten</SelectItem>
                                       <SelectItem value="overig">Overig</SelectItem>
                                     </SelectContent>
                                   </Select>
@@ -2159,8 +2147,9 @@ function KostenPageContent({ viewMode }: { viewMode: KostenView }) {
                                               <SelectItem value="telefoon">Telefoon</SelectItem>
                                               <SelectItem value="leadkosten">Leadkosten</SelectItem>
                                               <SelectItem value="storage">Storage</SelectItem>
-                        <SelectItem value="huur">Huur</SelectItem>
-                                      <SelectItem value="overig">Overig</SelectItem>
+                                              <SelectItem value="huur">Huur</SelectItem>
+                                              <SelectItem value="boekhoudkosten">Boekhoudkosten</SelectItem>
+                                              <SelectItem value="overig">Overig</SelectItem>
                                             </SelectContent>
                                           </Select>
                                         </div>
