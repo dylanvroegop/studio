@@ -129,3 +129,43 @@ test('wissen van klantnaam stopt zonder identiteit te beschadigen', async () => 
   assert.equal(result.body.code, 'CLIENT_IDENTITY_REQUIRED');
   assert.equal(route.rows.get('clients/' + initial.body.client_id).voornaam, 'Test');
 });
+
+test('popupwijziging verplaatst dezelfde PENDING-reservering en geeft oude moment vrij', async () => {
+  const route = makeRoute();
+  const first = await route.nativePost({ ...onDay('2026-10-07'), appointment_time: '19:00' });
+  const changed = await route.nativePost({ ...onDay('2026-10-10'), appointment_time: '16:30' });
+  assert.equal(changed.status, 200);
+  for (const key of ['client_id', 'project_id', 'appointment_id', 'google_calendar_event_id']) assert.equal(changed.body[key], first.body[key]);
+  assert.equal(changed.body.appointment_status, 'pending');
+  assert.equal(route.events.size, 1);
+  assert.equal(route.events.get(first.body.google_calendar_event_id).start.dateTime, '2026-10-10T14:30:00.000Z');
+  assert.match(changed.body.telegram_message, /16:30/);
+  const next = await route.nativePost({ ...onDay('2026-10-07'), appointment_time: '19:00', client_name: 'Andere Klant', phone: '+31622222222', email: 'ander@example.com' }, 'another');
+  assert.equal(next.status, 200);
+});
+
+test('bezet popupmoment laat oorspronkelijke PENDING-afspraak ongewijzigd', async () => {
+  const route = makeRoute({ googleEvents: [googleEvent('busy', '2026-10-10T14:00:00Z', '2026-10-10T16:00:00Z')] });
+  const first = await route.nativePost({ ...onDay('2026-10-07'), appointment_time: '19:00' });
+  const before = JSON.stringify(route.events.get(first.body.google_calendar_event_id));
+  const failed = await route.nativePost({ ...onDay('2026-10-10'), appointment_time: '16:30' });
+  assert.equal(failed.status, 409);
+  assert.equal(JSON.stringify(route.events.get(first.body.google_calendar_event_id)), before);
+});
+
+test('mislukte verplaatsing blijft herstelbaar zonder extra PENDING-afspraak', async () => {
+  const route = makeRoute();
+  const first = await route.nativePost({ ...onDay('2026-10-07'), appointment_time: '19:00' });
+  route.controls.failPatchCode = 500;
+  const changed = { ...onDay('2026-10-10'), appointment_time: '16:30' };
+  const failed = await route.nativePost(changed);
+  assert.equal(failed.status, 503);
+  assert.equal(route.events.size, 1);
+  route.controls.failPatchCode = null;
+  const retried = await route.nativePost(changed);
+  assert.equal(retried.status, 200);
+  assert.equal(retried.body.appointment_id, first.body.appointment_id);
+  assert.equal(retried.body.google_calendar_event_id, first.body.google_calendar_event_id);
+  assert.equal(route.events.size, 1);
+  assert.equal(route.events.get(first.body.google_calendar_event_id).start.dateTime, '2026-10-10T14:30:00.000Z');
+});
