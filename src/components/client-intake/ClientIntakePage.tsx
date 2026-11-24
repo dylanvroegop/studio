@@ -72,6 +72,7 @@ function ClientIntakeForUser() {
     const fileInput = useRef<HTMLInputElement>(null);
     const attachmentsRef = useRef(attachments);
     const operation = useRef(0);
+    const closingResult = useRef(false);
     const listVersion = useRef(0);
     const draftKey = `client-intake-draft:${user!.uid}`;
     attachmentsRef.current = attachments;
@@ -242,23 +243,24 @@ function ClientIntakeForUser() {
         if (updateRevision) setRevision(session.revision);
     };
 
-    const save = async (action: 'save' | 'process', nextClient = client, target = selected, automatic = false) => {
-        if (!automatic && (locked || sourcePending || conflictSession)) return;
-        if (mode === 'appointment' && !target?.result) { setError('Kies de bestaande aanvraag voor deze afspraak.'); return; }
+    const save = async (action: 'save' | 'process', nextClient = client, target = selected, automatic = false): Promise<boolean> => {
+        if (!automatic && (locked || sourcePending || conflictSession)) return false;
+        if (mode === 'appointment' && !target?.result) { setError('Kies de bestaande aanvraag voor deze afspraak.'); return false; }
         const version = ++operation.current;
         setBusy(action); setError('');
         try {
             const result = await request<{ session: IntakeSession }>('', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: target?.id || id, revision: automatic ? target?.revision ?? revision : revision, client: nextClient, action }),
             });
-            if (version !== operation.current) return;
+            if (version !== operation.current) return false;
             setId(result.session.id); storeSession(result.session); setClient({ ...result.session.client }); setDirty(false); setDraftRestored(false); setCopied(false);
             clearAttachments(); setText(''); setSourceRead(false);
             setError(result.session.error || '');
             if (action === 'process') setResultOpen(true);
             toast({ title: action === 'save' ? 'Concept opgeslagen' : 'Aanvraag verwerkt' });
+            return result.session.state === 'done' || action === 'save';
         } catch (cause) {
-            if (version !== operation.current) return;
+            if (version !== operation.current) return false;
             const failure = cause as Error & { session?: IntakeSession; code?: string };
             // De server kan al een klant of afspraak hebben opgeslagen. Bewaar de sessie voor een veilige herhaling.
             if (failure.session) {
@@ -267,7 +269,19 @@ function ClientIntakeForUser() {
                 if (isConflict) setConflictSession(failure.session);
             }
             setError(failure.message || 'Opslaan mislukt. Je invoer blijft staan.');
+            return false;
         } finally { if (version === operation.current) setBusy(null); }
+    };
+
+    const closeResult = async () => {
+        if (locked || closingResult.current) return;
+        closingResult.current = true;
+        try {
+            if ((dirty || selected?.state !== 'done') && !await save('process')) return;
+            navigate({ new: true, mode: 'new' });
+        } finally {
+            closingResult.current = false;
+        }
     };
 
     const message = intakeCustomerMessage(selected);
@@ -340,15 +354,15 @@ function ClientIntakeForUser() {
                     </div>
                 </div>
             </div>
-            <Dialog open={resultOpen} onOpenChange={open => { if (!busy) setResultOpen(open); }}>
+            <Dialog open={resultOpen} onOpenChange={open => { if (!open) void closeResult(); }}>
                 <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
                     <DialogHeader><DialogTitle>{selected?.result?.appointment_status === 'scheduled' ? 'Afspraak verwerkt' : 'Klant opgeslagen'}</DialogTitle><DialogDescription>{selected?.client.client_name} · {selected?.client.job_title}</DialogDescription></DialogHeader>
                     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
                     <div className="grid grid-cols-2 gap-3"><div className="space-y-1"><Label htmlFor="result-date">Datum</Label><Input id="result-date" type="date" value={client.appointment_date || ''} disabled={locked} onChange={e => updateField('appointment_date', e.target.value)} /></div><div className="space-y-1"><Label htmlFor="result-time">Tijd</Label><Input id="result-time" type="time" value={client.appointment_time || ''} disabled={locked} onChange={e => updateField('appointment_time', e.target.value)} /></div></div>
                     {dirty && <Button disabled={locked} onClick={() => { void save('process'); }}>{busy ? 'Moment opslaan…' : 'Moment aanpassen'}</Button>}
                     {message && !dirty && <><Label htmlFor="result-message">Bericht voor de klant</Label><Textarea id="result-message" readOnly rows={9} value={message} onClick={event => { if (!dirty) event.currentTarget.select(); }} className="text-base sm:text-sm" /></>}
-                    {dirty && <p className="text-sm text-muted-foreground">Klik op ‘Moment aanpassen’ om dezelfde agenda-afspraak te verplaatsen. Daarna verschijnt het bijgewerkte bericht.</p>}
-                    <div className="flex flex-wrap gap-2"><Button disabled={!message || dirty || locked || selected?.state !== 'done'} onClick={() => { void navigator.clipboard.writeText(message).then(() => { setCopied(true); toast({ title: 'Bericht gekopieerd' }); }).catch(() => setError('Selecteer en kopieer de tekst in het berichtveld.')); }}><Copy className="mr-2 h-4 w-4" />{copied ? 'Gekopieerd' : 'Bericht kopiëren'}</Button><Button variant="outline" disabled={locked || dirty} onClick={() => setResultOpen(false)}>Oké</Button></div>
+                    {dirty && <p className="text-sm text-muted-foreground">Bij sluiten wordt je wijziging automatisch opgeslagen. Kies ‘Moment aanpassen’ om eerst het bijgewerkte bericht te kopiëren.</p>}
+                    <div className="flex flex-wrap gap-2"><Button disabled={!message || dirty || locked || selected?.state !== 'done'} onClick={() => { void navigator.clipboard.writeText(message).then(() => { setCopied(true); toast({ title: 'Bericht gekopieerd' }); }).catch(() => setError('Selecteer en kopieer de tekst in het berichtveld.')); }}><Copy className="mr-2 h-4 w-4" />{copied ? 'Gekopieerd' : 'Bericht kopiëren'}</Button><Button variant="outline" disabled={locked} onClick={() => { void closeResult(); }}>{busy ? 'Opslaan…' : 'Oké'}</Button></div>
                     {selected?.result && <Link className="text-sm underline" href={`/offertes/${selected.result.project_id}`}>Offerte openen</Link>}
                 </DialogContent>
             </Dialog>
