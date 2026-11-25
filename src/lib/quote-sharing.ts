@@ -12,9 +12,21 @@ export function refreshQuoteGreeting(message: string, now: Date = new Date()): s
 }
 
 export function defaultQuoteMessage(language: 'nl' | 'en'): string {
-  return language === 'en'
-    ? 'Dear {{naam}},\n\nPlease find attached quotation {{offertenummer}} for the work discussed. If you have any questions, please let me know.\n\nKind regards,\n{{bedrijfsnaam}}'
-    : '{{begroeting}} {{naam}},\n\nHierbij de offerte {{offertenummer}} voor de besproken werkzaamheden. Heb je vragen? Laat het gerust weten.\n\nGroet,\n{{bedrijfsnaam}}';
+  if (language === 'en') {
+    return 'Dear {{naam}},\n\nPlease find attached quotation {{offertenummer}} for the work discussed. If you have any questions, please let me know.\n\nKind regards,\n{{bedrijfsnaam}}';
+  }
+
+  return `{{begroeting}} {{voornaam}},
+
+Zoals besproken heb ik de offerte voor je uitgewerkt. In de bijlage vind je een overzicht van de werkzaamheden en de bijbehorende kosten.
+
+Mocht je vragen hebben of iets willen aanpassen, laat het gerust weten. Bij akkoord kunnen we samen een geschikte uitvoeringsdatum inplannen.
+
+Ik hoor graag van je!
+
+Met vriendelijke groet,
+Dylan
+Vroegop Timmerwerken`;
 }
 
 export function resolveQuoteMessage(template: string, context: { name: string; firstName: string; numbers: string; companyName: string }, now: Date = new Date()): string {

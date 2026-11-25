@@ -68,25 +68,30 @@ export function ShareQuoteDialog(props: ShareQuoteDialogProps): JSX.Element {
 
   useEffect(() => {
     if (!open || !accountReady) { setReady(false); return; }
+    setError('');
+    if (language === 'nl') {
+      setTemplate(defaultQuoteMessage('nl'));
+      setReady(true);
+      return;
+    }
+
     let cancelled = false;
     setReady(false);
-    setError('');
     void (async () => {
-      const account = initialTemplateRef.current;
-      let initial = account;
+      let initial = initialTemplateRef.current;
       if (typeof initial !== 'string') {
         let saved: string | null = null;
         let dutch: string | null = null;
         try {
-          saved = localStorage.getItem(whatsappPresetKey('whatsapp_message_preset_v1', language));
+          saved = localStorage.getItem(whatsappPresetKey('whatsapp_message_preset_v1', 'en'));
           dutch = localStorage.getItem('whatsapp_message_preset_v1');
         } catch { /* Gebruik de accountinstelling of het voorbeeld. */ }
         initial = saved?.trim() ? saved : undefined;
-        if (!initial && language === 'en' && dutch?.trim()) {
+        if (!initial && dutch?.trim()) {
           if (!translateRef.current) throw new Error('Bericht vertalen is niet beschikbaar.');
           initial = await translateRef.current(dutch);
         }
-        initial ??= defaultQuoteMessage(language);
+        initial ??= defaultQuoteMessage('en');
       }
       if (!cancelled) {
         setTemplate(stripDocumentLinksFromMessage(initial));
