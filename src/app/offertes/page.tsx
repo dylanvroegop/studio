@@ -209,6 +209,24 @@ function formatCurrency(amount?: number): string {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
 }
 
+function QuoteAmounts({ amount, profit }: { amount: number; profit?: number }) {
+  const amountLabel = formatCurrency(amount);
+  const profitLabel = profit === undefined ? null : formatCurrency(profit);
+
+  return (
+    <div className="flex min-w-0 items-baseline gap-1 tabular-nums min-[375px]:gap-2 sm:justify-end">
+      <span className="max-w-full shrink-0 truncate text-sm font-bold text-blue-400 min-[375px]:text-lg sm:text-2xl" title={amountLabel}>
+        {amountLabel}
+      </span>
+      {profitLabel !== null && (
+        <span className="min-w-0 truncate text-xs font-semibold text-emerald-400 min-[375px]:text-sm" title={`Winst ${profitLabel}`}>
+          <span className="sr-only">Winst </span>{profitLabel}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function formatDays(days: number): string {
   return new Intl.NumberFormat('nl-NL', {
     minimumFractionDigits: 1,
@@ -788,8 +806,7 @@ export default function OffertesPage() {
   const [archiveTarget, setArchiveTarget] = useState<QuoteRow | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [updatingAcceptanceQuoteId, setUpdatingAcceptanceQuoteId] = useState<string | null>(null);
-  const [profitByQuoteId, setProfitByQuoteId] = useState<Record<string, number>>({});
-  const [profitBasisByQuoteId, setProfitBasisByQuoteId] = useState<Record<string, 'actual' | 'forecast'>>({});
+  const [profitByQuoteId, setProfitByQuoteId] = useState<Partial<Record<string, number>>>({});
   const workedHoursByQuoteId = useQuoteWorkedHours(quotes as QuoteWithAddress[]);
   const isSyncingTotalsRef = useRef(false);
   const isSyncingHoofdtitelsRef = useRef(false);
@@ -1219,27 +1236,20 @@ export default function OffertesPage() {
           data?: {
             projectPerformances?: Array<{
               projectId: string;
-              quotedRevenueIncl: number;
-              projectedProfitAfterLaborMarginVat: number;
-              actualCostExcl: number;
               netProfitQuoteBasis: number;
               hasActualData: boolean;
-              hasQuotedCalculation: boolean;
             }>;
           };
         } | null;
         if (!response.ok || !payload?.ok || !payload.data?.projectPerformances || cancelled) return;
 
         const nextProfits: Record<string, number> = {};
-        const nextProfitBasis: Record<string, 'actual' | 'forecast'> = {};
         payload.data.projectPerformances.forEach((project) => {
-          if (!project.hasActualData && !project.hasQuotedCalculation) return;
-          const profit = project.hasActualData ? project.netProfitQuoteBasis : project.projectedProfitAfterLaborMarginVat;
-          if (Number.isFinite(profit)) nextProfits[project.projectId] = profit;
-          nextProfitBasis[project.projectId] = project.hasActualData ? 'actual' : 'forecast';
+          if (project.hasActualData && Number.isFinite(project.netProfitQuoteBasis)) {
+            nextProfits[project.projectId] = project.netProfitQuoteBasis;
+          }
         });
         setProfitByQuoteId(nextProfits);
-        setProfitBasisByQuoteId(nextProfitBasis);
       } catch (error) {
         console.warn('Kon winst per offerte niet laden:', error);
       }
@@ -2051,10 +2061,6 @@ export default function OffertesPage() {
                   isArchived,
                   supplierMaterialRequestQuoteIds.has(q.id),
                 );
-                const amountLabel = formatCurrency(totaal);
-                const quoteProfit = profitByQuoteId[q.id];
-                const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
-                const quoteProfitLabel = profitBasisByQuoteId[q.id] === 'forecast' ? 'Verwachte winst' : 'Winst';
                 const todaySummary = workedHoursByQuoteId[q.id];
                 const todayWorkedHours = todaySummary?.workedHours || 0;
                 const routeDestinationAddress = resolveQuoteProjectAddress(q);
@@ -2088,7 +2094,7 @@ export default function OffertesPage() {
                         <span>{werkbesprekingDateTimeLabel || (datum ? format(datum, 'd MMM yyyy', { locale: nl }) : '—')}</span>
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0 space-y-0.5 tabular-nums">
+                        <div className="min-w-0 flex-1 space-y-0.5 tabular-nums">
                           {todayWorkedHours > 0 ? (
                             <>
                               <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-300">
@@ -2102,16 +2108,9 @@ export default function OffertesPage() {
                               ) : null}
                             </>
                           ) : null}
-                          <div className="truncate text-lg font-bold text-blue-400">
-                            {amountLabel}
-                          </div>
-                          {hasQuoteProfit ? (
-                            <div className="truncate text-sm font-semibold text-emerald-400">
-                              {quoteProfitLabel} {formatCurrency(quoteProfit)}
-                            </div>
-                          ) : null}
+                          <QuoteAmounts amount={totaal} profit={profitByQuoteId[q.id]} />
                         </div>
-                        <div className="relative z-20 flex items-center gap-1">
+                        <div className="relative z-20 flex shrink-0 items-center gap-1">
                           <Button
                             type="button"
                             variant="outline"
@@ -2247,20 +2246,8 @@ export default function OffertesPage() {
                   isArchived,
                   supplierMaterialRequestQuoteIds.has(q.id),
                 );
-                const amountLabel = formatCurrency(totaal);
-                const quoteProfit = profitByQuoteId[q.id];
-                const hasQuoteProfit = typeof quoteProfit === 'number' && Number.isFinite(quoteProfit);
-                const quoteProfitLabel = profitBasisByQuoteId[q.id] === 'forecast' ? 'Verwachte winst' : 'Winst';
                 const todaySummary = workedHoursByQuoteId[q.id];
                 const todayWorkedHours = todaySummary?.workedHours || 0;
-                const amountClass = cn(
-                  'text-2xl font-bold tabular-nums',
-                  'text-blue-400'
-                );
-                const amountMobileClass = cn(
-                  'mt-2 text-xl font-bold tabular-nums',
-                  'text-blue-400'
-                );
 
                 return (
                   <div
@@ -2296,13 +2283,10 @@ export default function OffertesPage() {
                         {rowDescription ? (
                           <div className="mt-1 truncate text-xs text-muted-foreground/90">{rowDescription}</div>
                         ) : null}
-                        <div className={cn('sm:hidden', amountMobileClass)}>
-                          {amountLabel}
-                        </div>
                       </div>
 
                       <div className="relative z-20 flex items-center gap-1 sm:gap-4">
-                        <div className="hidden min-w-[160px] text-right sm:block">
+                        <div className="w-56 shrink-0 text-right">
                           {todayWorkedHours > 0 ? (
                             <>
                               <div className="mb-0.5 flex items-center justify-end gap-1.5 text-sm font-semibold tabular-nums text-emerald-300">
@@ -2316,14 +2300,7 @@ export default function OffertesPage() {
                               ) : null}
                             </>
                           ) : null}
-                          <div className={amountClass}>
-                            {amountLabel}
-                          </div>
-                          {hasQuoteProfit ? (
-                            <div className="mt-0.5 text-sm font-semibold tabular-nums text-emerald-400">
-                              {quoteProfitLabel} {formatCurrency(quoteProfit)}
-                            </div>
-                          ) : null}
+                          <QuoteAmounts amount={totaal} profit={profitByQuoteId[q.id]} />
                         </div>
 
                         <Button
