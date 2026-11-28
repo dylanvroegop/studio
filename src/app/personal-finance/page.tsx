@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, onSnapshot, runTransaction, type Firestore } from 'firebase/firestore';
-import { Pencil, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Pencil, Trash2 } from 'lucide-react';
 import { z } from 'zod';
 
 import { AppNavigation } from '@/components/AppNavigation';
@@ -199,7 +199,94 @@ function TravelBudget({ firestore, uid }: { firestore: Firestore; uid: string })
   );
 }
 
+type RankedValue = { id: string; name: string };
+const hierarchySchema = z.array(z.object({ id: z.string(), name: z.string() }));
+
+function ValuesPanel({ firestore, uid }: { firestore: Firestore; uid: string }) {
+  const ref = useMemo(() => doc(firestore, 'users', uid), [firestore, uid]);
+  const [rows, setRows] = useState<RankedValue[] | null>(null);
+  const [name, setName] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => onSnapshot(ref, snapshot => {
+    const parsed = hierarchySchema.safeParse(snapshot.data()?.valuesHierarchy ?? []);
+    setRows(parsed.success ? parsed.data : null);
+    if (!parsed.success) setError('Waarden konden niet worden gelezen.');
+  }, () => setError('Waarden konden niet worden geladen.')), [ref]);
+
+  async function update(transform: (items: RankedValue[]) => RankedValue[]) {
+    setError('');
+    setBusy(true);
+    try {
+      await runTransaction(firestore, async tx => {
+        const snapshot = await tx.get(ref);
+        const items = hierarchySchema.parse(snapshot.data()?.valuesHierarchy ?? []);
+        tx.set(ref, { valuesHierarchy: transform(items) }, { merge: true });
+      });
+      return true;
+    } catch {
+      setError('Opslaan mislukt. Probeer opnieuw.');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const value = name.trim();
+    if (!value || busy) return;
+    const item = { id: editing ?? crypto.randomUUID(), name: value };
+    if (await update(items => {
+      if (!editing) return [...items, item];
+      if (!items.some(row => row.id === editing)) throw new Error('removed');
+      return items.map(row => row.id === editing ? item : row);
+    })) {
+      setName('');
+      setEditing(null);
+      input.current?.focus();
+    }
+  }
+
+  function move(id: string, direction: number) {
+    void update(items => {
+      const from = items.findIndex(row => row.id === id);
+      const to = from + direction;
+      if (from >= 0 && to >= 0 && to < items.length)
+        [items[from], items[to]] = [items[to], items[from]];
+      return items;
+    });
+  }
+
+  return <Card><CardContent className="space-y-4 p-4 sm:p-6">
+    <h2 className="font-semibold">Mijn waarden</h2>
+    <form onSubmit={submit} className="flex flex-wrap gap-2">
+      <Input ref={input} className="min-w-32 flex-1" aria-label="Waarde" placeholder="Bijv. autonomie" maxLength={120} value={name} onChange={e => setName(e.target.value)} disabled={busy || !rows} />
+      <Button disabled={busy || !rows || !name.trim()} type="submit">{editing ? 'Opslaan' : <><Plus size={16} /> Toevoegen</>}</Button>
+      {editing && <Button type="button" variant="outline" disabled={busy} onClick={() => { setEditing(null); setName(''); }}>Annuleren</Button>}
+    </form>
+    {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+    {!rows && !error && <p role="status">Laden…</p>}
+    <ol className="divide-y">{rows?.map((row, index) => <li key={row.id} className="flex flex-wrap items-center gap-1 py-2">
+      <span className="w-6 font-semibold tabular-nums text-red-600">{index + 1}</span>
+      <span className="min-w-20 flex-1 break-words">{row.name}</span>
+      <div className="flex">
+        <Button variant="ghost" size="icon" aria-label={row.name + ' hoger'} disabled={busy || index === 0} onClick={() => move(row.id, -1)}><ArrowUp size={16}/></Button>
+        <Button variant="ghost" size="icon" aria-label={row.name + ' lager'} disabled={busy || index === rows.length - 1} onClick={() => move(row.id, 1)}><ArrowDown size={16}/></Button>
+        <Button variant="ghost" size="icon" aria-label={row.name + ' bewerken'} disabled={busy} onClick={() => { setEditing(row.id); setName(row.name); input.current?.focus(); }}><Pencil size={16}/></Button>
+        <Button variant="ghost" size="icon" aria-label={row.name + ' verwijderen'} disabled={busy} onClick={async () => {
+          if (window.confirm('Verwijder ' + row.name + '?') && await update(items => items.filter(item => item.id !== row.id)) && editing === row.id) { setEditing(null); setName(''); }
+        }}><Trash2 size={16}/></Button>
+      </div>
+    </li>)}</ol>
+  </CardContent></Card>;
+}
+
 export default function PersonalFinancePage() {
+  const [tab, setTab] = useState<'finance' | 'values'>('finance');
   const router = useRouter();
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -211,11 +298,17 @@ export default function PersonalFinancePage() {
   if (!user || !firestore) return <main className="p-6 text-sm">Sessie controleren…</main>;
 
   return (
-    <div className="app-shell min-h-screen bg-background">
+    <div className="app-shell min-h-screen bg-black text-white [--primary:0_74%_43%] [--primary-foreground:0_0%_100%] [--ring:0_74%_43%]">
       <AppNavigation />
       <DashboardHeader user={user} title="Personal Finance" />
       <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-4 md:px-6 md:pt-6">
-        <TravelBudget key={user.uid} firestore={firestore} uid={user.uid} />
+        <nav aria-label="Personal Finance" className="mb-4 flex gap-1 rounded-lg border border-white/20 p-1">
+          {(['finance', 'values'] as const).map(id => <button key={id} type="button" aria-pressed={tab === id} onClick={() => setTab(id)} className={`flex-1 rounded-md px-3 py-2 text-sm font-semibold ${tab === id ? 'bg-red-700 text-white' : 'text-white hover:bg-white/10'}`}>{id === 'finance' ? 'Maandlasten' : 'Waarden'}</button>)}
+        </nav>
+        <div className="[--card:0_0%_100%] [--card-foreground:0_0%_5%] [--background:0_0%_100%] [--foreground:0_0%_5%] [--muted-foreground:0_0%_34%] [--input:0_0%_78%] [--border:0_0%_85%] [--accent:0_0%_93%] [--accent-foreground:0_0%_5%]">
+          <div hidden={tab !== 'finance'}><TravelBudget key={user.uid} firestore={firestore} uid={user.uid} /></div>
+          <div hidden={tab !== 'values'}><ValuesPanel key={user.uid} firestore={firestore} uid={user.uid} /></div>
+        </div>
       </main>
     </div>
   );
